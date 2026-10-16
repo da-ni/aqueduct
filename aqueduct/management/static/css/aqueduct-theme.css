@@ -161,3 +161,8 @@ a.row-link:focus-visible::after { outline: 3px solid var(--color-primary); outli
 .aq-tip-row > b { margin-left: auto; padding-left: 1rem; font-weight: 500; }
 .aq-tip .sw { outline: 1px solid var(--color-neutral-content); }
 .spark .aq-tip { bottom: auto; top: calc(100% + 6px); }
+/* Below lg the heatmap scrolls sideways, which clips its tips: the top rows show them below the
+   cell, and each half of a row aligns them with its own side. */
+.heat-cell.tip-below .aq-tip { bottom: auto; top: calc(100% + 6px); }
+.heat-cell.tip-start .aq-tip { left: 0; translate: 0; }
+.heat-cell.tip-end .aq-tip { left: auto; right: 0; translate: 0; }

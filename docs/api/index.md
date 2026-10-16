@@ -75,7 +75,7 @@ whether a user with that ID exists.
 Why is this useful?
 
 You can check the usage of your token per individual user if you manage a service that calls Aqueduct.
-For this, open your key's page and choose **Open in usage**. The
+For this, open your key's page and choose **Open in Overview**. The
 [Overview page](../user-guide/usage.md#see-usage-per-client-user) then groups the key's
 requests by the value of `user_id` sent with the request.
 

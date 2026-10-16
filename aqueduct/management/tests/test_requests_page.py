@@ -191,6 +191,15 @@ class RequestsFilterTest(RequestsPageTestBase):
         self.assertIn("owner-laptop · owner@example.com", options)
         self.assertNotIn("lab-org", " ".join(options))
 
+    def test_all_orgs_shows_a_key_whose_owner_has_no_profile(self):
+        root = User.objects.create_superuser("root", "root@example.com", "pw")
+        self.log(make_token(root, "root-laptop"), "/profileless")
+        response = self.get(self.admin, org="all")
+        self.assertIn("/profileless", response.content.decode())
+        self.assertIn(
+            "root-laptop · root@example.com · No organization", self.key_options(response)
+        )
+
     def key_options(self, response) -> list[str]:
         return [key.name + " · " + key.note for key in response.context["log"].keys]
 

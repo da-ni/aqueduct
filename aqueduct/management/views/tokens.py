@@ -162,8 +162,8 @@ class TokenDeleteView(BaseAqueductView, DeleteView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["object_type_name"] = "API Key"
-        context["object_name"] = str(self.object)
+        context["object_type_name"] = "API key"
+        context["object_name"] = self.object.name
         context["cancel_url"] = self.get_success_url()
         return context
 

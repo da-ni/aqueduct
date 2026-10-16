@@ -48,6 +48,6 @@ The gateway keeps requests for a limited time, 30 days by default. If the time f
 If a service sends requests for many people with one key, it can send the [`user_id`](../api/index.md#sending-user_id-in-api-requests) field with each request. To see the usage per `user_id` value:
 
 1. Open the key's page from **API keys**.
-2. Choose **Open in usage**.
+2. Choose **Open in Overview**.
 
 The page then shows only this key, and **By user ID** replaces **Largest keys**. **Show all keys** returns to all keys.

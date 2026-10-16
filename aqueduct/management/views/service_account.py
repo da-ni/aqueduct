@@ -120,8 +120,8 @@ class ServiceAccountDeleteView(BaseServiceAccountView, DeleteView):
         """Provide context for the confirmation template."""
         context = super().get_context_data(**kwargs)
         # self.object is set by DeleteView using BaseServiceAccountView's get_object
-        context["object_type_name"] = "Service Account"
-        context["object_name"] = str(self.object)
+        context["object_type_name"] = "service account"
+        context["object_name"] = self.object.name
         context["cancel_url"] = self.get_success_url()
         return context
 

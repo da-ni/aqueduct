@@ -153,7 +153,7 @@
                 <div class="grid min-w-[640px] grid-cols-[2.5rem_repeat(24,minmax(0,1fr))] gap-1">
                     {% for row in heat %}
                         <span class="muted self-center font-mono text-xs">{{ row.day }}</span>
-                        {% for cell in row.cells %}<span class="aq-tip-host heat-cell {{ cell.css }} relative h-6 rounded" role="img" aria-label="{{ cell.tip }}">{% include "management/_tip.html" with tip=cell.tip %}</span>{% endfor %}
+                        {% for cell in row.cells %}<span class="aq-tip-host heat-cell {{ cell.css }}{% if forloop.parentloop.counter0 < 3 %} tip-below{% endif %}{% if forloop.counter0 < 12 %} tip-start{% else %} tip-end{% endif %} relative h-6 rounded" role="img" aria-label="{{ cell.tip }}">{% include "management/_tip.html" with tip=cell.tip %}</span>{% endfor %}
                     {% endfor %}
                     <span></span>
                     {% for hour in heat_hours %}<span class="muted text-center font-mono text-xs">{{ hour }}</span>{% endfor %}
@@ -222,7 +222,7 @@
                     <div class="-mx-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto">
                         {% for org in orgs_usage %}
                             <div class="hover-row grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_4rem] items-center gap-4 rounded-lg px-2 py-1 text-sm">
-                                <span class="truncate">{{ org.name|default:"No organization" }}</span>
+                                <span class="truncate">{{ org.name }}</span>
                                 <div><div class="onebar" style="width: {{ org.width }}%"></div></div>
                                 <span class="text-right font-mono">{{ org.value }}</span>
                             </div>

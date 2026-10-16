@@ -42,6 +42,7 @@ HEAT_CLASSES = (
 WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 HEAT_HOURS = tuple(f"{hour:02d}" if hour % 3 == 0 else "" for hour in range(24))
 TOKENS = F("input_tokens") + F("output_tokens")
+NO_ORG = "No organization"
 TOTALS = {
     "requests": Count("id"),
     "failed": Count("id", filter=FAILED),
@@ -429,7 +430,7 @@ def key_shares(
             own = row["token__user_id"] == viewer_id
             href = reverse("token_detail", kwargs={"id": row["token_id"]}) if own else None
         if with_org:
-            detail += f" · {row['token__user__profile__org__name']}"
+            detail += f" · {row['token__user__profile__org__name'] or NO_ORG}"
         return detail, href
 
     return tuple(
@@ -464,6 +465,6 @@ def org_shares(requests: QuerySet[Request]) -> tuple[Share, ...]:
         .order_by("-tokens", "name")
     )
     return tuple(
-        Share(row["name"], compact(row["tokens"]), width)
+        Share(row["name"] or NO_ORG, compact(row["tokens"]), width)
         for row, width in zip(rows, _widths(r["tokens"] for r in rows), strict=True)
     )

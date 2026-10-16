@@ -121,7 +121,7 @@ class TeamDeleteView(BaseTeamView, OrgAdminRequiredMixin, DeleteView):
         """Provide context for the confirmation template."""
         context = super().get_context_data(**kwargs)
         context["object_type_name"] = self.model._meta.verbose_name
-        context["object_name"] = str(self.team)  # Use self.team
+        context["object_name"] = self.team.name
         context["cancel_url"] = self.get_success_url()
         # context['object'] is implicitly set to self.team by DeleteView calling get_object()
         return context

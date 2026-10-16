@@ -79,7 +79,7 @@ NAV: tuple[Group, ...] = (
     Group(
         "Resources",
         (
-            Page("Files", "files", Icon.FILE),
+            Page("Files", "files", Icon.FILE, url_families=("files", "file")),
             Page("Batches", "batches", Icon.BATCH),
             Page(
                 "Vector stores",
