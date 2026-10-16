@@ -15,7 +15,6 @@ MODEL_CREATION_TIMESTAMP = int(timezone.now().timestamp())
 
 
 def _model_group_info_entry(model: dict[str, Any]) -> dict[str, Any]:
-    """Build a LiteLLM ``/model_group/info`` entry for a router config model."""
     return {
         "model_group": model["model_name"],
         "model_name": model["model_name"],

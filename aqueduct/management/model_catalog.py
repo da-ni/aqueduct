@@ -299,9 +299,7 @@ def _admin_url(viewer: AbstractUser, obj: Model) -> str | None:
     return reverse(f"admin:{meta.app_label}_{meta.model_name}_change", args=[obj.pk])
 
 
-def scopes_for(profile: UserProfile | None) -> tuple[Scope, ...]:
-    if profile is None:
-        return ()
+def scopes_for(profile: UserProfile) -> tuple[Scope, ...]:
     viewer = profile.user
     personal = Scope(
         None,
@@ -322,7 +320,6 @@ def scopes_for(profile: UserProfile | None) -> tuple[Scope, ...]:
     )
 
 
-def load_catalog(profile: UserProfile | None) -> Catalog:
-    scopes = scopes_for(profile)
+def load_catalog(scopes: Sequence[Scope]) -> Catalog:
     entries = get_router_config().get("model_list") or ()
     return Catalog(tuple(parse_card(entry, scopes) for entry in entries))

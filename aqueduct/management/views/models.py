@@ -2,7 +2,8 @@ from typing import Any
 
 from django.views.generic import TemplateView
 
-from management.model_catalog import Category, load_catalog
+from management.model_catalog import Category, Scope, load_catalog, scopes_for
+from management.models import UserProfile
 from management.nav import gateway_url
 from management.views.base import BaseAqueductView
 
@@ -10,11 +11,16 @@ from management.views.base import BaseAqueductView
 class ModelListView(BaseAqueductView, TemplateView):
     template_name = "management/model_list.html"
 
+    def scopes(self) -> tuple[Scope, ...]:
+        try:
+            return scopes_for(self.profile)
+        except UserProfile.DoesNotExist:
+            return ()
+
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
         params = self.request.GET
-        # Only the sign-in flow creates profiles, so a user made with createsuperuser has none.
-        catalog = load_catalog(getattr(self.request.user, "profile", None))
+        catalog = load_catalog(self.scopes())
         category = Category.parse(params.get("type", ""))
         query = params.get("q", "").strip()
         cards = catalog.search(category, query)
