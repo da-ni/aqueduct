@@ -1,0 +1,166 @@
+{% extends "management/base.html" %}
+{% load humanize ui %}
+
+{% block page_background %}{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <div class="breadcrumbs p-0 text-sm">
+        <ul><li><a href="{% url 'tokens' %}">API keys</a></li><li class="font-mono">{{ token.name }}</li></ul>
+    </div>
+
+    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-col gap-2">
+            <h1 class="break-all font-mono text-3xl font-semibold">{{ token.name }}</h1>
+            <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+                <span>Personal</span>
+                <span class="font-mono">{{ token.key_preview }}</span>
+                <span>Created {{ token.created_at|date:"j M Y" }}</span>
+                <span>Expires: <span class="{{ expiry.tone }}">{{ expiry.label }}</span></span>
+                <span>Last used {{ report.totals.last_used|naturaltime|default:"never" }}</span>
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <form action="{% url 'token_regenerate' token.id %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline btn-primary"
+                        onclick="return confirm('Rotate the API key {{ token.name|escapejs }}? The current key stops working immediately.');">{% icon "rotate" small=True %}Rotate</button>
+            </form>
+            <a class="btn btn-outline btn-primary" href="{% url 'token_edit' token.id %}">{% icon "admin" small=True %}Edit</a>
+            <a class="btn btn-ghost st-err" href="{% url 'token_delete' token.id %}">{% icon "delete" small=True %}Delete</a>
+        </div>
+    </header>
+
+    <section aria-label="Totals, last 7 days" class="grid grid-cols-2 gap-4 md:grid-cols-5">
+        {% for stat in report.stats %}
+            <div class="card bg-base-200">
+                <div class="card-body gap-1 p-4">
+                    <span class="muted text-sm">{{ stat.label }}</span>
+                    <span class="text-2xl font-semibold">{{ stat.value }}</span>
+                    <div class="spark mt-3" aria-hidden="true">{% for height in stat.spark %}<i style="height: {{ height }}%"></i>{% endfor %}</div>
+                </div>
+            </div>
+        {% endfor %}
+    </section>
+
+    <section class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div class="card bg-base-200 lg:col-span-2">
+            <div class="card-body gap-4 p-5">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h2 class="text-xl font-semibold">{% if metric == "requests" %}Requests{% else %}Tokens{% endif %} per day</h2>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="flex items-center gap-4 text-sm">
+                            {% if metric == "requests" %}
+                                <span class="flex items-center gap-2"><span class="sw i"></span>Answered</span>
+                                <span class="flex items-center gap-2"><span class="sw f"></span>Failed</span>
+                            {% else %}
+                                <span class="flex items-center gap-2"><span class="sw c"></span>Input from cache</span>
+                                <span class="flex items-center gap-2"><span class="sw i"></span>New input</span>
+                                <span class="flex items-center gap-2"><span class="sw o"></span>Output</span>
+                            {% endif %}
+                        </div>
+                        <nav class="join" aria-label="Chart metric">
+                            <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None %}"{% if metric == 'tokens' %} aria-current="page"{% endif %}>Tokens</a>
+                            <a class="btn btn-sm join-item{% if metric == 'requests' %} btn-primary{% endif %}" href="{% querystring metric='requests' %}"{% if metric == 'requests' %} aria-current="page"{% endif %}>Requests</a>
+                        </nav>
+                    </div>
+                </div>
+                <div class="grid h-64 grid-cols-7 gap-3">
+                    {% for column in chart %}
+                        <div class="flex min-w-0 flex-col items-center gap-2" title="{{ column.day|date:'j M' }}: {{ column.title }}">
+                            <div class="vbar w-full max-w-10 flex-1">
+                                {% for css, height in column.segments %}<i class="{{ css }}" style="height: {{ height }}%"></i>{% endfor %}
+                            </div>
+                            <span class="muted font-mono text-xs">{{ column.day|date:"j M" }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card bg-base-200">
+            <div class="card-body gap-4 p-5">
+                <h2 class="text-xl font-semibold">Models it calls</h2>
+                <div class="flex flex-col gap-3">
+                    {% for model in report.models %}
+                        <div class="flex flex-col gap-1.5">
+                            <div class="flex items-baseline justify-between gap-3 text-sm">
+                                <a class="link-plain break-all font-mono" href="{% url 'models' %}?model={{ model.name|urlencode }}">{{ model.name }}</a>
+                                <span class="font-mono">{{ model.value }}</span>
+                            </div>
+                            <div class="onebar" style="width: {{ model.width }}%"></div>
+                        </div>
+                    {% empty %}
+                        <p class="muted text-sm">No requests in the last 7 days.</p>
+                    {% endfor %}
+                </div>
+                {% if report.clients %}
+                    <div class="mt-auto flex flex-col gap-1 border-t border-base-300 pt-4 text-sm">
+                        <span class="muted">Clients</span><span>{{ report.clients }}</span>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <section class="card bg-base-200">
+        <div class="card-body gap-3 p-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold">Latest requests</h2>
+                <a class="link-plain text-sm" href="{% url 'usage' %}?token={{ token.id }}">Open in usage</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Time</th><th>Model</th><th>Path</th><th>Status</th>
+                            <th class="text-right">Input</th><th class="text-right">From cache</th>
+                            <th class="text-right">Output</th><th class="text-right">Response</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for request in report.latest %}
+                            <tr class="font-mono text-[13px]">
+                                <td class="muted">{{ request.timestamp|date:"j M H:i:s" }}</td>
+                                <td>{{ request.model|default:"n/a" }}</td>
+                                <td class="muted">{{ request.path }}</td>
+                                <td>
+                                    {% if request.status_code >= 400 %}
+                                        <span class="st-err inline-flex items-center gap-1.5">{% icon "failed" small=True %}{{ request.status_code }}</span>
+                                    {% elif request.status_code %}
+                                        <span class="st-ok inline-flex items-center gap-1.5">{% icon "ok" small=True %}{{ request.status_code }}</span>
+                                    {% else %}
+                                        <span class="st-off inline-flex items-center gap-1.5">{% icon "off" small=True %}n/a</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-right">{{ request.input_tokens|intcomma }}</td>
+                                <td class="text-right">{{ request.cached_input_tokens|intcomma }}</td>
+                                <td class="text-right">{{ request.output_tokens|intcomma }}</td>
+                                <td class="text-right">{% if request.response_time_ms is not None %}{{ request.response_time_ms|intcomma }} ms{% else %}n/a{% endif %}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="8" class="muted">This key has not made a request yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section class="card bg-base-200" aria-labelledby="limits-title">
+        <div class="card-body gap-3 p-5">
+            <h2 id="limits-title" class="text-xl font-semibold">Limits</h2>
+            <p class="text-sm">
+                {% for label, value in limit_labels %}{% if not forloop.first %} · {% endif %}{{ label }}: <span class="font-mono">{{ value }}</span>{% endfor %}
+            </p>
+            {% if limits.requests_per_minute is not None %}
+                {% include "management/_rate_usage.html" with usage=usage limits=limits %}
+            {% endif %}
+            <p class="muted text-sm">
+                {% if excluded_models %}Switched off models: <span class="font-mono">{{ excluded_models|join:", " }}</span>{% else %}Can call every model{% endif %}
+                · {% if excluded_mcp_servers %}Switched off MCP servers: <span class="font-mono">{{ excluded_mcp_servers|join:", " }}</span>{% else %}Can call every MCP server{% endif %}
+            </p>
+        </div>
+    </section>
+</div>
+{% endblock %}

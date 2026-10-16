@@ -1,117 +1,109 @@
-{% extends 'management/base.html' %}
-{% load static %}
+{% extends "management/base.html" %}
+{% load humanize ui %}
+
+{% block page_background %}{% endblock %}
 
 {% block content %}
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold">API Keys</h1>
+<div class="flex flex-col gap-6">
+    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
+        <h1 class="text-3xl font-semibold">API keys</h1>
         {% if can_add_token %}
-            <a href="{% url 'token_create' %}" class="btn btn-primary btn-sm">Create New API Key</a>
+            <a class="btn btn-primary" href="{% url 'token_create' %}">{% icon "plus" small=True %}Create API key</a>
         {% else %}
-            <div class="tooltip tooltip-left" data-tip="You have reached the maximum of {{ max_tokens }} API keys. Delete an existing API key to create a new one.">
-                <button class="btn btn-primary btn-sm" disabled>Create New API Key</button>
+            <div class="tooltip tooltip-left" data-tip="You have {{ max_tokens }} personal keys, the maximum. Delete one to create another.">
+                <button type="button" class="btn btn-primary" disabled>{% icon "plus" small=True %}Create API key</button>
             </div>
         {% endif %}
+    </header>
+
+    <div class="flex flex-wrap items-center gap-3">
+        {% if keys.has_service_accounts %}
+            <nav class="join" aria-label="Key type">
+                <a class="btn btn-sm join-item{% if not kind %} btn-primary{% endif %}" href="{% querystring kind=None %}"{% if not kind %} aria-current="page"{% endif %}>All mine</a>
+                {% for tab in kinds %}
+                    <a class="btn btn-sm join-item{% if tab == kind %} btn-primary{% endif %}" href="{% querystring kind=tab.value %}"{% if tab == kind %} aria-current="page"{% endif %}>{{ tab.label }}</a>
+                {% endfor %}
+            </nav>
+        {% endif %}
+        <form method="get" role="search">
+            {% if kind %}<input type="hidden" name="kind" value="{{ kind.value }}">{% endif %}
+            <label class="input input-sm w-64">
+                {% icon "search" small=True %}
+                <input type="search" name="q" value="{{ query }}" placeholder="Search keys" aria-label="Search keys">
+            </label>
+        </form>
+        <span class="muted ml-auto font-mono text-xs">{{ keys.personal_count }} of {{ max_tokens }} personal keys</span>
     </div>
 
-    <div class="mb-8">
-        <h2 class="text-xl font-semibold mb-2">Your API Keys ({{ tokens.count }}/{{ max_tokens }})</h2>
-        {% if tokens %}
-            <ul class="list bg-base-100 rounded-box shadow-md">
-                {% for token in tokens %}
-                    <li class="list-row flex flex-col gap-2">
-                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                            <div class="flex items-start flex-grow mr-4 overflow-hidden min-w-0">
-                                <img src="{% static 'icons/key.svg' %}" alt="API Key" class="w-5 mr-2 mt-0.5 flex-shrink-0 [[data-theme=dark]_&]:invert">
-                                <div class="min-w-0">
-                                    <div class="flex flex-wrap items-baseline gap-x-2">
-                                        <span class="font-medium truncate">{{ token.name }}</span>
-                                        <span class="text-sm opacity-50 flex-shrink-0">
-                                            Created: {{ token.created_at|date:"Y-m-d" }}
-                                        </span>
-                                        <span class="text-sm opacity-50 flex-shrink-0">
-                                            Key: <span class="font-mono text-xs">{{ token.key_preview }}</span>
-                                        </span>
-                                        <span class="text-sm opacity-50 flex-shrink-0">
-                                            {% if token.expires_at %}
-                                                Expires:
-                                                <span {% if token.expires_at <= now %}class="text-error font-semibold"{% endif %}>
-                                                    {{ token.expires_at|date:"Y-m-d H:i" }} {{ tz |default:'UTC' }}
-                                                    {% if token.is_expired %}
-                                                        (Expired)
-                                                    {% endif %}
-                                                </span>
-                                            {% else %}
-                                                Expires: Never
+    <section class="card bg-base-200">
+        <div class="card-body p-3">
+            <div class="overflow-x-auto">
+                <table class="table table-fixed key-table min-w-[900px]">
+                    <thead>
+                        <tr>
+                            <th>Key</th>
+                            <th class="w-32">Last used</th>
+                            <th class="w-[20%]">Tokens, 7 days</th>
+                            <th class="w-24 text-right">Cache hits</th>
+                            <th class="w-24 text-right">Requests</th>
+                            <th class="w-28">Expires</th>
+                            <th class="w-40"><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in keys.rows %}
+                            <tr class="row-pick relative">
+                                <td>
+                                    <a class="link-plain font-mono after:absolute after:inset-0" href="{{ row.href }}">{{ row.token.name }}</a>
+                                    <div class="muted text-xs">
+                                        {% if row.team %}Service account · {{ row.team }}{% else %}Personal{% endif %}
+                                        · <span class="font-mono">{{ row.token.key_preview }}</span>
+                                    </div>
+                                </td>
+                                <td class="muted">{{ row.activity.last_used|naturaltime|default:"Never" }}</td>
+                                <td>
+                                    <div class="flex items-center gap-3">
+                                        <div class="min-w-0 flex-1">
+                                            {% if row.activity.tokens %}
+                                                <div class="tbar" style="width: {{ row.bar_width }}%">
+                                                    {% for css, count in row.activity.segments %}{% if count %}<i class="{{ css }}" style="flex: {{ count }} 1 0%"></i>{% endif %}{% endfor %}
+                                                </div>
                                             {% endif %}
-                                        </span>
+                                        </div>
+                                        <span class="w-14 text-right font-mono">{{ row.activity.tokens_short }}</span>
                                     </div>
-                                    {# Effective limits (UserProfile + Org fallback) #}
-                                    <div class="mt-1">
-                                        {% include 'management/_limits_compact.html' with limit_object=user_limits %}
+                                </td>
+                                <td class="text-right font-mono">{{ row.activity.cache_hits }}</td>
+                                <td class="text-right font-mono">{{ row.activity.requests|intcomma }}</td>
+                                <td><span class="{{ row.expiry.tone }}">{{ row.expiry.label }}</span></td>
+                                <td>
+                                    <div class="relative z-10 flex justify-end gap-1">
+                                        {% if row.manageable %}
+                                            <form action="{% url 'token_regenerate' row.token.id %}" method="post">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Rotate {{ row.token.name }}" title="Rotate"
+                                                        onclick="return confirm('Rotate the API key {{ row.token.name|escapejs }}? The current key stops working immediately.');">{% icon "rotate" small=True %}</button>
+                                            </form>
+                                            <a class="btn btn-ghost btn-sm btn-square" href="{% url 'token_edit' row.token.id %}" aria-label="Edit {{ row.token.name }}" title="Edit">{% icon "admin" small=True %}</a>
+                                            <a class="btn btn-ghost btn-sm btn-square" href="{% url 'token_delete' row.token.id %}" aria-label="Delete {{ row.token.name }}" title="Delete">{% icon "delete" small=True %}</a>
+                                        {% else %}
+                                            <span class="muted whitespace-nowrap text-sm">Managed by the team</span>
+                                        {% endif %}
                                     </div>
-                                </div>
-                            </div>
-                            <div class="flex items-center space-x-2 flex-shrink-0 self-end sm:self-center">
-                                <form action="{% url 'token_regenerate' token.id %}" method="post" class="inline">
-                                    {% csrf_token %}
-                                    <button type="submit"
-                                            class="btn btn-sm btn-square btn-warning"
-                                            title="Regenerate API Key {{ token.name }}"
-                                            onclick="return confirm('Are you sure you want to regenerate the API key {{ token.name|escapejs }}? This will invalidate the current API key immediately.');">
-                                        <img src="{% static 'icons/update.svg' %}" alt="Regenerate" class="w-4 h-4 [[data-theme=dark]_&]:invert">
-                                    </button>
-                                </form>
-                                <a href="{% url 'token_edit' token.id %}" class="btn btn-info btn-sm btn-square" title="Edit {{ token.name }}">
-                                    <img src="{% static 'icons/edit.svg' %}" alt="Edit" class="w-4 h-4 [[data-theme=dark]_&]:invert">
-                                </a>
-                                <a href="{% url 'token_delete' token.id %}" class="btn btn-error btn-sm btn-square" title="Delete {{ token.name }}">
-                                    <img src="{% static 'icons/delete.svg' %}" alt="Delete" class="w-4 h-4 [[data-theme=dark]_&]:invert">
-                                </a>
-                            </div>
-                        </div>
-                        {# Per-window (min/hour/day) request usage for this token #}
-                        {% include 'management/_rate_usage.html' with usage=token.usage limits=user_limits %}
-                    </li>
-                {% endfor %}
-            </ul>
-        {% else %}
-            <p class="text-gray-500 italic">No API keys available.</p>
-        {% endif %}
-    </div>
-
-    <div class="mb-8">
-        <h2 class="text-xl font-semibold mb-2">Service Accounts</h2>
-        {% if service_accounts %}
-            <ul class="list bg-base-100 rounded-box shadow-md">
-                {% for sa in service_accounts %}
-                    <li class="list-row flex flex-col gap-2">
-                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                            <div class="flex items-start flex-grow mr-4 overflow-hidden min-w-0">
-                                <img src="{% static 'icons/key.svg' %}" alt="Service Account" class="w-5 mr-2 mt-0.5 flex-shrink-0 [[data-theme=dark]_&]:invert">
-                                <div class="min-w-0">
-                                    <div class="flex flex-wrap items-baseline gap-x-2">
-                                        <span class="font-medium truncate">{{ sa.name }}</span>
-                                        <span class="text-sm opacity-50 flex-shrink-0">
-                                            Team: {{ sa.team.name }}
-                                        </span>
-                                        <span class="text-sm opacity-50 flex-shrink-0">
-                                            Key: {{ sa.token.key_preview }}
-                                        </span>
-                                    </div>
-                                    {# Per-SA effective limits (Team + Org fallback) #}
-                                    <div class="mt-1">
-                                        {% include 'management/_limits_compact.html' with limit_object=sa.effective_limits %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {# Per-window (min/hour/day) request usage for this service account #}
-                        {% include 'management/_rate_usage.html' with usage=sa.usage limits=sa.effective_limits %}
-                    </li>
-                {% endfor %}
-            </ul>
-        {% else %}
-            <p class="text-gray-500 italic">No service accounts available.</p>
-        {% endif %}
-    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="7" class="muted">{% if query or kind %}No key matches.{% else %}You have no API keys yet.{% endif %}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex flex-wrap items-center gap-4 px-3 pb-2 pt-1 text-sm">
+                <span class="flex items-center gap-2"><span class="sw c"></span>Input from cache</span>
+                <span class="flex items-center gap-2"><span class="sw i"></span>New input</span>
+                <span class="flex items-center gap-2"><span class="sw o"></span>Output</span>
+            </div>
+        </div>
+    </section>
+</div>
 {% endblock %}

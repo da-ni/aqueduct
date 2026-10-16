@@ -1,0 +1,23 @@
+{% load ui %}
+{% if form.non_field_errors %}
+    <div role="alert" class="alert alert-error">
+        {% icon "warning" small=True %}
+        <span>{{ form.non_field_errors|striptags }}</span>
+    </div>
+{% endif %}
+<label class="flex flex-col gap-2" for="{{ form.name.id_for_label }}">
+    <span class="font-semibold">{{ form.name.label }}</span>
+    <input type="text" name="{{ form.name.html_name }}" id="{{ form.name.id_for_label }}"
+           maxlength="{{ form.name.field.max_length }}" required
+           class="input w-full max-w-md{% if form.name.errors %} input-error{% endif %}"
+           value="{{ form.name.value|default:'' }}" placeholder="{{ form.name.field.widget.attrs.placeholder }}">
+    {% if form.name.errors %}<span class="text-sm text-error">{{ form.name.errors|striptags }}</span>{% endif %}
+</label>
+<label class="flex flex-col gap-2" for="{{ form.expires_at.id_for_label }}">
+    <span class="font-semibold">{{ form.expires_at.label }}</span>
+    <input type="datetime-local" name="{{ form.expires_at.html_name }}" id="{{ form.expires_at.id_for_label }}"
+           class="input w-full max-w-xs{% if form.expires_at.errors %} input-error{% endif %}"
+           value="{{ form.expires_at.value|default:'' }}">
+    {% if form.expires_at.errors %}<span class="text-sm text-error">{{ form.expires_at.errors|striptags }}</span>{% endif %}
+    <span class="muted text-sm">Leave it empty and the key never expires. Rotate it yourself from time to time.</span>
+</label>

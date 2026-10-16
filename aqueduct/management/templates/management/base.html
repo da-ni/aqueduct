@@ -35,6 +35,9 @@
         {% endif %}
 
         <main class="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-8">
+            {% for message in messages %}{% if message.extra_tags == "token-regenerated-key" %}
+                {% include "management/_new_key.html" with secret=message.message %}
+            {% endif %}{% endfor %}
             {% block content %}{% endblock %}
         </main>
 
@@ -51,7 +54,7 @@
 <div class="fixed bottom-4 right-4 w-auto max-w-xl z-50">
     {% if messages %}
         <div class="space-y-2">
-            {% for message in messages %}
+            {% for message in messages %}{% if message.extra_tags != "token-regenerated-key" %}
                 <div role="alert"
                      class="alert
         {% if message.tags == 'success' %}alert-success
@@ -74,21 +77,10 @@
                         <img src="{% static 'icons/info.svg' %}" alt="Info Icon" class="h-6 w-6 shrink-0">
                     {% endif %}
 
-                    {% if message.extra_tags == 'token-regenerated-key' %}
-                        <span class="font-mono text-sm">New Key: <span class="font-bold">{{ message }}</span></span>
-                        <div>
-                            <button class="btn btn-sm btn-soft flex items-center gap-1"
-                                    data-copy="{{ message }}">
-                                {% icon "copy" small=True %}
-                                <span class="copy-label">Copy</span>
-                            </button>
-                        </div>
-                    {% else %}
-                        <span>{{ message }}</span>
-                    {% endif %}
+                    <span>{{ message }}</span>
 
                 </div>
-            {% endfor %}
+            {% endif %}{% endfor %}
         </div>
     {% endif %}
 </div>

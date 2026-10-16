@@ -13,7 +13,7 @@ This directory is the maintained source for verifying what users see and do in t
 
 - Start every recipe from a fresh launch unless it says otherwise. Recipes change data, and the seed runs only once per launch.
 - Sign in with `aqv login <username>`. Each recipe names the account.
-- Name elements by ARIA role and accessible name, as the recipes do. The icon buttons on key and service account cards have accessible names `Regenerate`, `Edit`, and `Delete`, so add `--nth` or open the item's own URL when a page lists several.
+- Name elements by ARIA role and accessible name, as the recipes do. The icon buttons on the API keys page carry the key's name, such as `Rotate user-laptop`. The service account cards on the team page use `Regenerate`, `Edit`, and `Delete`, so add `--nth` or open the item's own URL when a page lists several.
 - The browser accepts every `confirm()` dialog, so a click on a guarded button goes through.
 - Read stored values with `aqv shell -c`.
 
@@ -31,7 +31,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 
 ## Features
 
-- [API keys](./api-keys.md) covers listing, creating, editing, rotating, and deleting personal keys, and the per-user limit.
+- [API keys](./api-keys.md) covers the key table, the key detail page, creating, editing, rotating, and deleting personal keys, and the per-user limit.
 - [Teams](./teams.md) covers the team list, team members, team admins, and service accounts, and who may see or change each.
 - [Usage](./usage.md) covers the usage dashboard, its time frames, and the org selector for admins.
 - [Models](./models.md) covers the model table, its type tabs and search, the detail panel, and the notice for a switched-off model.
