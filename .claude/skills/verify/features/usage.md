@@ -12,7 +12,7 @@ The usage dashboard shows request and token totals, requests over time, requests
 
 ## How to get to it (user POV)
 
-- Choose **Usage** in the top navigation. The path is `/aqueduct/management/usage/`.
+- Choose **Overview** in the sidebar. The path is `/aqueduct/management/usage/`.
 - Choose a time frame tab: `1h`, `1d`, `1w`, `1m`, or `Custom`.
 - As an admin, pick an org in the `Organization:` select, or choose `Show all orgs`.
 

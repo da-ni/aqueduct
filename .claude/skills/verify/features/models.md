@@ -11,7 +11,7 @@ The Models page lists every model in the router config with its aliases, its mod
 
 ## How to get to it (user POV)
 
-- Choose **More**, then **Models**, in the top navigation. The path is `/aqueduct/management/models/`.
+- Choose **Models** in the sidebar. The path is `/aqueduct/management/models/`.
 
 ## Driving it with aqv
 

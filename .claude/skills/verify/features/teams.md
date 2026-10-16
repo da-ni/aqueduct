@@ -14,7 +14,7 @@ Users see the teams of their org on the Teams page and open a team to see its li
 
 ## How to get to it (user POV)
 
-- Choose **Teams** in the top navigation. The path is `/aqueduct/management/org/`.
+- Choose **Teams** in the sidebar. The path is `/aqueduct/management/org/`.
 - Choose a team in the `Teams` list. The path is `/aqueduct/management/team/<id>`. The seeded `Verify Team` has ID 1.
 - Choose **Create New Team** on the Teams page, as an org admin.
 

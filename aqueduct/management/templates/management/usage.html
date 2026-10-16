@@ -138,10 +138,10 @@
     </div>
 
     <!-- FLEX CONTAINER: CHARTS + TABLE -->
-    <div class="flex flex-col lg:flex-row gap-6">
+    <div class="flex flex-col xl:flex-row gap-6">
 
         <!-- LEFT: CHARTS COLUMN (40% width) -->
-        <div class="flex flex-col gap-6 w-full lg:w-2/5">
+        <div class="flex flex-col gap-6 w-full xl:w-2/5">
             <!-- Requests Over Time Chart -->
             <div class="flex flex-col">
                 <h2 class="text-xl font-semibold mb-2">Requests Over Time</h2>
@@ -156,7 +156,7 @@
         </div>
 
         <!-- RIGHT: REQUESTS TABLE (60% width, full height) -->
-        <div class="w-full lg:w-3/5 flex-shrink-0 flex flex-col" style="min-width:600px;">
+        <div class="w-full xl:w-3/5 flex-shrink-0 flex flex-col" style="min-width:600px;">
             <div class="flex justify-between items-center mb-2">
                 <h2 class="text-xl font-semibold mb-2">Request Counts by
                     {% if selected_token %}User ID{% elif selected_org %}API Key{% else %}Organization{% endif %}
