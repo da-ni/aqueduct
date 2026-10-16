@@ -34,6 +34,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [API keys](./api-keys.md) covers the key table, the key detail page, creating, editing, rotating, and deleting personal keys, and the per-user limit.
 - [Teams](./teams.md) covers the team list, team members, team admins, and service accounts, and who may see or change each.
 - [Overview](./usage.md) covers the usage dashboard, its filters, its role scoping, and the org selector for admins.
+- [Requests](./requests.md) covers the request log, its status, key, model, and org filters, the row details, and the pages.
 - [Models](./models.md) covers the model table, its type tabs and search, the detail panel, and the notice for a switched-off model.
 - [Settings](./settings.md) covers the account details, team roles, terms acceptance, the light and dark switch, and the personal key limits.
 - [Terms of service](./terms-of-service.md) covers the prompt a user sees before accepting the terms.

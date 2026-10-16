@@ -67,6 +67,7 @@ NAV: tuple[Group, ...] = (
             Page("Models", "models", Icon.MODELS),
             Page("MCP servers", "mcp_servers", Icon.MCP),
             Page("API keys", "tokens", Icon.KEY, url_families=("tokens", "token")),
+            Page("Requests", "requests", Icon.REQUESTS),
             Page("Teams", "org", Icon.TEAMS, url_families=("org", "team", "service_account")),
         ),
     ),
