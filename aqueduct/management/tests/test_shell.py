@@ -16,8 +16,7 @@ User = get_user_model()
 
 ROUTER_CONFIG_PATH = Path(settings.BASE_DIR).parent / "example_router_config.yaml"
 
-# Fixture users from gateway_data.json; None is a signed-out visitor.
-ROLES = {"anonymous": None, "user": 3, "org-admin": 2, "admin": 1}
+FIXTURE_USER_PK_BY_ROLE = {"anonymous": None, "user": 3, "org-admin": 2, "admin": 1}
 
 
 def every_page():
@@ -42,8 +41,8 @@ class ShellTest(TestCase):
 
     def sign_in(self, role):
         self.client.logout()
-        if ROLES[role] is not None:
-            self.client.force_login(User.objects.get(pk=ROLES[role]))
+        if FIXTURE_USER_PK_BY_ROLE[role] is not None:
+            self.client.force_login(User.objects.get(pk=FIXTURE_USER_PK_BY_ROLE[role]))
 
     def shell_on(self, url) -> Shell:
         response = self.client.get(url)
@@ -51,11 +50,11 @@ class ShellTest(TestCase):
         return response.context["shell"]
 
     def home(self, role):
-        return reverse("sso") if ROLES[role] is None else reverse("tokens")
+        return reverse("sso") if FIXTURE_USER_PK_BY_ROLE[role] is None else reverse("tokens")
 
     def test_nav_shows_exactly_the_pages_the_viewer_may_open(self):
         extra = set(settings.EXTRA_NAV_LINKS.values())
-        for role in ROLES:
+        for role in FIXTURE_USER_PK_BY_ROLE:
             with self.subTest(role=role):
                 self.sign_in(role)
                 shell = self.shell_on(self.home(role))
@@ -71,7 +70,7 @@ class ShellTest(TestCase):
                     try:
                         url = reverse(page.url_name)
                     except NoReverseMatch:
-                        continue  # not mounted (Silk and terms are off in tests)
+                        continue
                     if self.client.get(url).status_code == HTTPStatus.OK:
                         allowed.add(url)
 
@@ -167,8 +166,6 @@ class SilkProfilingAccessTest(TestCase):
 
     @override_settings(SILKY_ENABLED=False, TOS_ENABLED=False)
     def test_unmounted_pages_are_never_reversed(self):
-        # Silk's own check passes for this superuser, so the shell must consult the
-        # feature flag before reverse(), or "silk:summary" raises NoReverseMatch.
         shell = build_shell(request_as(User.objects.get(pk=1)))
         links = [link for section in shell.sections for link in section.links]
         labels = {link.label for link in (*links, *shell.help_links)}

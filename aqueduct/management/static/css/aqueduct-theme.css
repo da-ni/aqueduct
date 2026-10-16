@@ -1,74 +1,81 @@
-/* Aqueduct theme for daisyUI 5: the AI Team brand tokens mapped onto daisyUI's theme variables.
-   Load after daisyUI. js/aqueduct.js switches data-theme on <html> between "light" and "dark". */
+:root {
+  --paper: #FFFFFF;
+  --foam: #EEF5F7;
+  --abyss: #0B2C3C;
+  --ocean-600: #096597;
+  --deep: #07486B;
+  --krill: #FF7A59;
+  --ocean-800: #0A3A53;
+  --spray: #8FD6F5;
+}
 
 html[data-theme="light"] {
   color-scheme: light;
-  --color-base-100: #FFFFFF;           /* Paper: page */
-  --color-base-200: #EEF5F7;           /* Foam: cards, sidebar */
-  --color-base-300: #D3E0E6;           /* hairlines */
-  --color-base-content: #0B2C3C;       /* Abyss */
-  --color-primary: #096597;            /* ocean-600: buttons, links */
-  --color-primary-content: #FFFFFF;
-  --color-secondary: #07486B;          /* Deep */
-  --color-secondary-content: #FFFFFF;
-  --color-accent: #FF7A59;             /* Krill: once per page at most */
-  --color-accent-content: #0B2C3C;
-  --color-neutral: #0B2C3C;
+  --color-base-100: var(--paper);
+  --color-base-200: var(--foam);
+  --color-base-300: #D3E0E6;
+  --color-base-content: var(--abyss);
+  --color-primary: var(--ocean-600);
+  --color-primary-content: var(--paper);
+  --color-secondary: var(--deep);
+  --color-secondary-content: var(--paper);
+  --color-accent: var(--krill);
+  --color-accent-content: var(--abyss);
+  --color-neutral: var(--abyss);
   --color-neutral-content: #EAF3F6;
-  --color-info: #096597;
-  --color-info-content: #FFFFFF;
+  --color-info: var(--ocean-600);
+  --color-info-content: var(--paper);
   --color-success: #1B7A43;
-  --color-success-content: #FFFFFF;
+  --color-success-content: var(--paper);
   --color-warning: #E8A317;
-  --color-warning-content: #0B2C3C;
+  --color-warning-content: var(--abyss);
   --color-error: #B3261E;
-  --color-error-content: #FFFFFF;
-  /* text-safe status colours (not part of daisyUI) */
+  --color-error-content: var(--paper);
+
   --aq-muted: #4A6572;
   --aq-ok: #1B7A43; --aq-warn: #8A5A00; --aq-err: #B3261E;
-  --aq-band: #07486B; --aq-band-muted: #D0EBF7; --aq-band-link: #8FD6F5;
+  --aq-band: var(--deep); --aq-band-muted: #D0EBF7; --aq-band-link: var(--spray);
 }
 
 html[data-theme="dark"] {
   color-scheme: dark;
-  --color-base-100: #0B2C3C;           /* Abyss: page */
-  --color-base-200: #0A3A53;           /* ocean-800: cards, sidebar */
+  --color-base-100: var(--abyss);
+  --color-base-200: var(--ocean-800);
   --color-base-300: #1D4C63;
   --color-base-content: #EAF3F6;
-  --color-primary: #8FD6F5;            /* Spray */
-  --color-primary-content: #0B2C3C;
+  --color-primary: var(--spray);
+  --color-primary-content: var(--abyss);
   --color-secondary: #D0EBF7;
-  --color-secondary-content: #0B2C3C;
-  --color-accent: #FF7A59;
-  --color-accent-content: #0B2C3C;
+  --color-secondary-content: var(--abyss);
+  --color-accent: var(--krill);
+  --color-accent-content: var(--abyss);
   --color-neutral: #041721;
   --color-neutral-content: #EAF3F6;
   --color-info: #6BBAE6;
-  --color-info-content: #0B2C3C;
+  --color-info-content: var(--abyss);
   --color-success: #7ADFA4;
-  --color-success-content: #0B2C3C;
+  --color-success-content: var(--abyss);
   --color-warning: #F2C14E;
-  --color-warning-content: #0B2C3C;
+  --color-warning-content: var(--abyss);
   --color-error: #FF9A8F;
-  --color-error-content: #0B2C3C;
+  --color-error-content: var(--abyss);
   --aq-muted: #9DB6C0;
   --aq-ok: #7ADFA4; --aq-warn: #F2C14E; --aq-err: #FF9A8F;
-  --aq-band: #041721; --aq-band-muted: #9DB6C0; --aq-band-link: #8FD6F5;
+  --aq-band: #041721; --aq-band-muted: #9DB6C0; --aq-band-link: var(--spray);
 }
 
 html[data-theme] {
-  --radius-selector: 1rem;   /* badges, toggles */
-  --radius-field: 0.5rem;    /* inputs: 8px */
-  --radius-box: 1rem;        /* cards: 16px */
+  --radius-selector: 1rem;
+  --radius-field: 0.5rem;
+  --radius-box: 1rem;
   --border: 1px;
-  --depth: 0;                /* no shadows */
+  --depth: 0;
   --noise: 0;
 }
 
 body { font-family: "Figtree Variable", "Helvetica Neue", Arial, sans-serif; }
 .font-mono, code, pre, kbd { font-family: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
 
-/* brand recipes */
 .btn:not(.btn-square):not(.btn-circle):not(.join-item) { border-radius: 9999px; }
 .join > .btn.join-item:first-child { border-start-start-radius: 9999px; border-end-start-radius: 9999px; }
 .join > .btn.join-item:last-child { border-start-end-radius: 9999px; border-end-end-radius: 9999px; }
@@ -79,20 +86,16 @@ body { font-family: "Figtree Variable", "Helvetica Neue", Arial, sans-serif; }
 .aq-ic { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 .aq-ic.sm { width: 16px; height: 16px; }
 
-/* status text with icon */
 .st-ok { color: var(--aq-ok); } .st-warn { color: var(--aq-warn); } .st-err { color: var(--aq-err); } .st-off { color: var(--aq-muted); }
 
-/* the band below the waterline */
-.aq-band { background: var(--aq-band); color: #FFFFFF; }
+.aq-band { background: var(--aq-band); color: var(--paper); }
 .aq-band .muted { color: var(--aq-band-muted); }
 .aq-band a { color: var(--aq-band-link); }
 .aq-band .label-mono { color: var(--aq-band-link); }
 
 html[data-theme="light"] .only-dark, html[data-theme="dark"] .only-light { display: none !important; }
 
-/* sidebar: the current page is a Paper inset in the link colour */
 .menu :where(li) > a.menu-active, .menu :where(li) > a.menu-active:hover { background: var(--color-base-100); color: var(--color-primary); font-weight: 600; }
 .menu :where(li) > a { min-height: 2.75rem; align-items: center; font-weight: 500; }
 
-/* keep the page width the same whether or not a page needs a scrollbar, so nothing shifts between pages */
 html { scrollbar-gutter: stable; overflow-y: scroll; }

@@ -1,10 +1,3 @@
-"""Navigation for the management UI, as a static page registry and a per-request view model.
-
-Templates render `Shell` only. They never check a role, read a feature flag, or reverse a
-gated URL; `build_shell` settles all of that. To add a page to the sidebar, add a `Page` to
-`NAV`, with `access` set to the same check its view uses.
-"""
-
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -21,7 +14,6 @@ Access = Callable[[HttpRequest], bool]
 
 
 def signed_in(request: HttpRequest) -> bool:
-    """LoginRequiredMixin's check, which every `BaseAqueductView` page uses."""
     return request.user.is_authenticated
 
 
@@ -34,7 +26,6 @@ def silk_profiling(request: HttpRequest) -> bool:
 
 
 def terms_of_service(request: HttpRequest) -> bool:
-    """The terms page is public, and its URL exists only while the feature is on."""
     return settings.TOS_ENABLED
 
 
@@ -44,15 +35,13 @@ class Page:
     url_name: str
     icon: Icon
     access: Access = signed_in
-    # URL-name families that mark this page active. Family f covers f, f_* and f:*, and an
-    # empty tuple means the page itself.
-    active_for: tuple[str, ...] = ()
+    url_families: tuple[str, ...] = ()
     external: bool = False
 
     def is_active(self, view_name: str) -> bool:
         return any(
             view_name == family or view_name.startswith((f"{family}_", f"{family}:"))
-            for family in self.active_for or (self.url_name,)
+            for family in self.url_families or (self.url_name,)
         )
 
 
@@ -69,8 +58,8 @@ NAV: tuple[Group, ...] = (
             Page("Overview", "usage", Icon.OVERVIEW),
             Page("Models", "models", Icon.MODELS),
             Page("MCP servers", "mcp_servers", Icon.MCP),
-            Page("API keys", "tokens", Icon.KEY, active_for=("tokens", "token")),
-            Page("Teams", "org", Icon.TEAMS, active_for=("org", "team", "service_account")),
+            Page("API keys", "tokens", Icon.KEY, url_families=("tokens", "token")),
+            Page("Teams", "org", Icon.TEAMS, url_families=("org", "team", "service_account")),
         ),
     ),
     Group(
@@ -82,7 +71,7 @@ NAV: tuple[Group, ...] = (
                 "Vector stores",
                 "vector_stores",
                 Icon.VECTOR_STORE,
-                active_for=("vector_stores", "vector_store"),
+                url_families=("vector_stores", "vector_store"),
             ),
         ),
     ),
@@ -94,7 +83,7 @@ NAV: tuple[Group, ...] = (
                 "admin:index",
                 Icon.ADMIN,
                 access=django_admin,
-                active_for=("admin",),
+                url_families=("admin",),
                 external=True,
             ),
             Page(
@@ -102,7 +91,7 @@ NAV: tuple[Group, ...] = (
                 "silk:summary",
                 Icon.PROFILING,
                 access=silk_profiling,
-                active_for=("silk",),
+                url_families=("silk",),
                 external=True,
             ),
         ),
@@ -152,7 +141,7 @@ def build_shell(request: HttpRequest) -> Shell:
     view_name = request.resolver_match.view_name if request.resolver_match else ""
 
     def visible(pages: tuple[Page, ...]) -> tuple[Link, ...]:
-        # access() before reverse(): Silk's and the terms' URLs are not mounted while off.
+        allowed = [page for page in pages if page.access(request)]
         return tuple(
             Link(
                 page.label,
@@ -161,8 +150,7 @@ def build_shell(request: HttpRequest) -> Shell:
                 page.is_active(view_name),
                 page.external,
             )
-            for page in pages
-            if page.access(request)
+            for page in allowed
         )
 
     extra = tuple(
