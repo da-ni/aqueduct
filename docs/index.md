@@ -24,9 +24,9 @@ nav_order: 1
 
 ## Quick Start
 
-To get started with the Aqueduct AI Gateway, navigate to the Tokens page for your Aqueduct instance and create a new token. The URL of the web UI depends on your specific Aqueduct deployment. See the [Tokens](user-guide/tokens.md) page for details.
+To get started with the Aqueduct AI Gateway, open the **API keys** page of your Aqueduct instance and create a new key. The URL of the web UI depends on your specific Aqueduct deployment. See [API keys](user-guide/tokens.md) for details.
 
-Once you have your token, use your Aqueduct instance's base URL (e.g., `https://your-instance.com/v1`) with OpenAI-compatible SDKs, providing the token as your API key.
+Once you have your key, use your Aqueduct instance's base URL (e.g., `https://your-instance.com/v1`) with OpenAI-compatible SDKs, and pass the key as your API key. The footer of every page in the web UI shows this URL.
 
 ---
 

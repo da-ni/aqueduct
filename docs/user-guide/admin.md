@@ -1,7 +1,7 @@
 ---
 title: Admin
 parent: User Guide
-nav_order: 8
+nav_order: 12
 ---
 
 # Admin
@@ -18,7 +18,8 @@ nav_order: 8
 The Admin Panel is the Django Admin interface for the Aqueduct Gateway. It
 provides direct access to database objects and is used for advanced
 administrative actions, such as creating endpoints and models or managing user
-privileges.
+privileges. Admins open it with **Admin panel** under **Admin** in the
+management UI sidebar.
 
 ![Admin Panel](../assets/user_guide/admin_panel.png)
 
@@ -110,8 +111,9 @@ from the active config snippet's `user_group(claims)`, so manual admin edits may
 be overwritten on next login unless the snippet keeps them in an admin group.
 
 **Team admins** are managed differently: they are assigned through a many-to-many
-relationship between users and teams, which is handled in the Aqueduct UI. For
-more information, see the [Teams page](teams.md#team-detail-view).
+relationship between users and teams. Org admins and admins appoint them on the
+team page of the management UI. For more information, see
+[Manage members](teams.md#manage-members).
 
 ## OAuth Team Management
 
@@ -180,18 +182,20 @@ profile.
 ## Managing User Limits
 
 You can also change the request usage limits for individual users within the
-UserProfile inline model. This functionality is currently not available in the
-main UI and must be performed through the Django Admin interface.
+UserProfile inline model. The management UI cannot edit these limits. Users see
+them on their [Settings](settings.md) page.
 
 ## Excluding Models
 
 To exclude models for Orgs, Teams or specific UserProfiles, select the models to
 be excluded in the detail view admin interface of the specific entity. Excluded
 models are not available in any endpoints (returns 404) and are filtered from
-the model list.
+the `/v1/models` list. The [Models](models.md#check-where-a-model-is-available)
+page marks them as switched off.
 
 Org admins and admins can also set an org's limits, its excluded models and MCP
-servers, and both merge flags on the Organization page of the management UI.
+servers, and both merge flags on the [Organization](organization.md) page of the
+management UI.
 
 ![Exclude Models](../assets/user_guide/exclude_models.png)
 

@@ -1,51 +1,36 @@
 ---
-title: MCP Servers
+title: MCP servers
 parent: User Guide
-nav_order: 9
+nav_order: 3
 ---
 
-# MCP Servers
-{: .no_toc }
+# MCP servers
 
-## Table of contents
-{: .no_toc .text-delta }
+The MCP servers page lists the Model Context Protocol (MCP) servers that Aqueduct relays. An MCP server gives an AI client tools, such as search or database access. Choose **MCP servers** in the sidebar.
 
-1. TOC
-{:toc}
+![MCP servers page](../assets/user_guide/mcp_servers.png)
 
----
+## Read a server card
 
-The MCP Servers page displays a list of Model Context Protocol (MCP) servers available in Aqueduct. MCP servers provide tools and capabilities that can be accessed through the Model Context Protocol.
+Each card shows:
 
-![MCP Servers Page](../assets/user_guide/mcp_servers.png)
+- The server name. Use this exact name in the server URL.
+- A description and tags.
+- The server URL on this gateway, with a copy button.
 
-## MCP Servers
+The URL has this form:
 
-Each MCP server card represents a configured endpoint that provides specific tools and functionality. The cards display both a formatted display name and the actual server identifier.
-
-The server name shown in monospace font below the card title is the exact identifier you must use when making MCP requests through the API endpoints.
-
-## Server Information
-
-Each MCP server card displays:
-
-- **Display Name**: Formatted, capitalized name for visual identification
-- **Server Identifier**: The actual name to use in API requests (shown in small monospace text)
-- **Description**: Brief description of what the server provides
-- **Tags**: Categories or labels to help identify server capabilities
-- **Copy Button**: Click to copy the full server URL to the clipboard
-
-## Usage
-
-To use an MCP server:
-
-1. **Copy Server URL**: Click the copy button <span class="size-4 inline-block"><img src="https://raw.githubusercontent.com/TU-Wien-dataLAB/aqueduct/refs/heads/main/aqueduct/management/static/icons/copy.svg" alt="Copy" style="height: 1rem; vertical-align: text-bottom;"></span> on any server card to copy the complete endpoint URL to your clipboard
-
-2. **Use in API**: Make requests to the copied URL using your Aqueduct token
-
-**Example**: If the server name is `my-cool-server`, the URL is:
 ```
-https://your-aqueduct-domain.com/mcp-servers/my-cool-server/mcp
+https://your-aqueduct-domain.com/mcp-servers/<server-name>/mcp
 ```
 
-For detailed API usage examples and specifications, refer to the [MCP API reference](../api/mcp.md).
+A server that is switched off for some of your keys shows a badge such as `Off for Verify Team`, as on the [Models](models.md#check-where-a-model-is-available) page. A request to a switched-off server returns `404`.
+
+## Connect a client
+
+1. Copy the server URL from its card.
+2. Configure your MCP client with the URL, and send your API key as a bearer token in the `Authorization` header.
+
+The **Connect a client** card shows a client configuration for the first server, with a copy button. Replace `sk-...` with your API key.
+
+For the API details, see the [MCP API reference](../api/mcp.md).

@@ -1,36 +1,55 @@
 ---
 title: Models
 parent: User Guide
-nav_order: 4
+nav_order: 2
 ---
 
 # Models
+{: .no_toc }
 
-On the Models page, you can view the available models in a table.
+## Table of contents
+{: .no_toc .text-delta }
 
-![Models Page](../assets/user_guide/models_page.png)
+1. TOC
+{:toc}
 
-## Model Name
+---
 
-The model name in the table specifies the name for the model to use when making requests.
-The TPM and RPM columns specify the tokens per minute and requests per minute for this model.
+The Models page lists every model of the gateway and shows how to call it. Choose **Models** in the sidebar.
 
-## Aliases
+![Models page](../assets/user_guide/models.png)
 
-Model aliases are alternative names for models. When making API requests, you can use either the model name or any of its aliases in the `model` parameter. Note that the underlying model of an alias can change. If the model changes, you can still use the alias without any change.
+## Find a model
 
-## Supports Vision
+The table lists each model with its type, such as **Chat**, **Embeddings**, **Text to speech**, **Speech to text**, or **Images**. When a model has a context window, the table also shows it.
 
-Says "Yes" if the model supports vision, meaning it can use images as input.
+- To show one type, choose its tab above the table.
+- To find a model by name or alias, type in **Search models and aliases** and press Enter.
 
-## Default TPM
+The gateway URL with a copy button is at the top right.
 
-Maximum tokens per minute for this model irrespective of your org, team or user quota limit.
+## Read a model's details
 
-## Default RPM
+Choose a model to show its details in the panel on the right. The panel shows:
 
-Maximum requests per minute for this model irrespective of your org, team or user quota limit.
+- The model name with a copy button. Use this name in the `model` parameter of your requests.
+- The specs the gateway knows, such as the context window, the maximum output tokens, and the input and output types.
+- **Served model**, the upstream model that answers the requests.
+- **Aliases**, other names for the same model.
+- **Capabilities**, such as vision, tools, or reasoning, and a higher request limit when the model has one.
+- **Use it**, a `curl` command for the model's endpoint, with a copy button.
 
-## Timeout
+A model with a retirement date carries a **Deprecated** badge, and its panel shows the date. Move to another model before that date.
 
-Timeout in seconds for this model.
+## Use an alias
+
+You can send an alias instead of the model name in the `model` parameter. The model behind an alias can change, for example when a newer version replaces it. Your requests keep working without a change.
+
+## Check where a model is available
+
+Admins can switch a model off for an organization, a team, or a single user. The page checks this for each place your keys live: your personal keys, and the service accounts of each team you are in.
+
+- A model switched off for some of your keys shows a badge such as `Off for Verify Team`. The panel says where the model is switched off and where you can still use it.
+- A model switched off for all of your keys shows `Off for you`.
+
+A request to a switched-off model returns `404`. To change where a model is switched off, ask an admin. Admins get an **Edit … in admin** link in the panel. See [Excluding Models](admin.md#excluding-models).

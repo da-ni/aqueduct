@@ -1,10 +1,10 @@
 ---
-title: Usage Dashboard
+title: Overview
 parent: User Guide
-nav_order: 3
+nav_order: 1
 ---
 
-# Usage Dashboard
+# Overview
 {: .no_toc }
 
 ## Table of contents
@@ -15,49 +15,39 @@ nav_order: 3
 
 ---
 
-## Overview
+The Overview page shows the token and request usage of the keys you can see. Choose **Overview** in the sidebar.
 
-The Usage Dashboard provides an overview of API usage across your organization or for individual tokens. You can filter the data by organization scope and time frame, and view key metrics, time-series charts, and breakdowns by token and model.
+![Overview page](../assets/user_guide/overview.png)
 
-![Usage Dashboard](../assets/user_guide/usage_dashboard.png)
+## Whose usage you see
 
-## Organization and Time Frame Filters
+- Users see their own keys and the service accounts of their teams.
+- Org admins see every key of their organization. **Everyone** and **My keys** switch between the whole organization and your own keys.
+- Admins also choose an organization, or **All organizations**, in the organization select.
 
-At the top of the page, use the **Organization** dropdown (available to global admins) to select `All` organizations or a specific organization. Standard users see their own organization by default.
+## Choose the time frame and the model
 
-Select the **Time Frame** (`1h`, `1d`, or `1w`) to adjust the period over which usage data is displayed.
+Choose **1 hour**, **24 hours**, **7 days**, or **30 days**. The page opens on **7 days**. **Custom range** opens a form for a start and an end time in UTC.
 
-## Metrics Bar
+To show one model, choose it in **All models**.
 
-Below the filters, the metrics bar shows aggregate statistics for the selected organization and time frame:
+The gateway keeps requests for a limited time, 30 days by default. If the time frame reaches back further, the page warns that older requests are missing.
 
-- **Total Requests:** Total number of requests.
-- **Failed Requests:** Number of requests with HTTP status ≥ 400.
-- **Avg Resp Time (Completion):** Average response time in milliseconds for completion requests.
-- **Avg Resp Time (Embedding):** Average response time in milliseconds for embedding requests.
-- **Input Tokens:** Total number of input tokens consumed.
-- **Output Tokens:** Total number of output tokens returned.
-- **Total Tokens:** Sum of input and output tokens.
+## Read the page
 
-## Requests Over Time
+- **Totals**: input tokens, output tokens, cache hits, requests, the share of failed requests, and the median response time. When the previous period of the same length is still kept, each total shows its change against that period.
+- **Tokens per minute, hour, or day**: a chart of the time frame. **Tokens** and **Requests** switch what it counts.
+- **Requests**: the requests split into answered (`2xx`), rate-limited (`429`), other client errors (`4xx`), and model or provider failures (`5xx`). **Open the log** opens the [Requests](requests.md) page.
+- **Usage by weekday and hour**: the average tokens per hour for each weekday and hour, over the last 28 days, whatever the time frame.
+- **By model**: each model with requests in the time frame, with its tokens, cache hits, requests, median response time, and share.
+- **Largest keys**: the keys that used the most tokens. A key links to its page for its owner. A service account links to its team page for members of that team.
+- **By organization**: the tokens of each organization, when an admin views all organizations.
 
-The **Requests Over Time** chart displays a time-series of request counts for the selected period. It uses one-minute, one-hour, or one-day buckets for `1h`, `1d`, and `1w` spans, respectively.
+## See usage per client user
 
-## Request Counts by Token / Organization / User ID
+If a service sends requests for many people with one key, it can send the [`user_id`](../api/index.md#sending-user_id-in-api-requests) field with each request. To see the usage per `user_id` value:
 
-The table on the right lists the top tokens (when scoped to an organization) or top organizations
-(when viewing all), or the top users (based on [`user_id`](../api/index.md#sending-user_id-in-api-request),
-when scoped to a token). Columns include:
+1. Open the key's page from **API keys**.
+2. Choose **Open in usage**.
 
-- **#**: Rank.
-- **Token Name / Organization / User ID**: Name of the token or organization, or `user_id` value.
-- **Requests**: Number of requests.
-- **Input Tokens**: Total input tokens consumed.
-- **Output Tokens**: Total output tokens returned.
-- **Total Tokens**: Sum of input and output tokens.
-- **Token Owner**: Token owner's email (for tokens).
-- **Service Account**: Service account name (for tokens).
-
-## Requests by Model
-
-The **Requests by Model** bar chart shows the request count for each model, including models with zero requests. This helps identify which models are used most frequently.
+The page then shows only this key, and **By user ID** replaces **Largest keys**. **Show all keys** returns to all keys.
