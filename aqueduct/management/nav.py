@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.http import HttpRequest
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from silk.config import SilkyConfig
 
 from management.icons import Icon
@@ -21,12 +21,20 @@ def django_admin(request: HttpRequest) -> bool:
     return admin.site.has_permission(request)
 
 
+def mounted(url_name: str) -> bool:
+    try:
+        reverse(url_name)
+    except NoReverseMatch:
+        return False
+    return True
+
+
 def silk_profiling(request: HttpRequest) -> bool:
-    return settings.SILKY_ENABLED and SilkyConfig().SILKY_PERMISSIONS(request.user)
+    return mounted("silk:summary") and SilkyConfig().SILKY_PERMISSIONS(request.user)
 
 
 def terms_of_service(request: HttpRequest) -> bool:
-    return settings.TOS_ENABLED
+    return mounted("tos")
 
 
 @dataclass(frozen=True)

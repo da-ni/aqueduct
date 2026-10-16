@@ -6,11 +6,13 @@ from typing import ClassVar
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
+from django.http import HttpResponse
 from django.template import Context, Template, TemplateSyntaxError
 from django.test import RequestFactory, TestCase, override_settings
-from django.urls import NoReverseMatch, reverse
+from django.urls import NoReverseMatch, include, path, reverse
 
-from management.nav import HELP, NAV, NAV_BOTTOM, Shell, build_shell, silk_profiling
+from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
+from management.nav import HELP, NAV, NAV_BOTTOM, Shell, build_shell
 
 User = get_user_model()
 
@@ -23,10 +25,22 @@ def every_page():
     return [*(page for group in NAV for page in group.pages), *NAV_BOTTOM, *HELP]
 
 
+def labels(shell: Shell) -> set[str]:
+    links = [link for section in shell.sections for link in section.links]
+    return {link.label for link in (*links, *shell.bottom, *shell.help_links)}
+
+
 def request_as(user):
     request = RequestFactory().get("/")
     request.user = user
     return request
+
+
+urlpatterns = [
+    path("silk/", include(([path("", lambda request: HttpResponse(), name="summary")], "silk"))),
+    path("terms-of-service/", include("tos.urls")),
+    *aqueduct_urlpatterns,
+]
 
 
 @override_settings(
@@ -54,6 +68,12 @@ class ShellTest(TestCase):
 
     def test_nav_shows_exactly_the_pages_the_viewer_may_open(self):
         extra = set(settings.EXTRA_NAV_LINKS.values())
+        mounted, unmounted = set(), set()
+        for page in every_page():
+            try:
+                mounted.add(reverse(page.url_name))
+            except NoReverseMatch:
+                unmounted.add(page.label)
         for role in FIXTURE_USER_PK_BY_ROLE:
             with self.subTest(role=role):
                 self.sign_in(role)
@@ -64,17 +84,19 @@ class ShellTest(TestCase):
                     for link in (*links, *shell.bottom, *shell.help_links)
                     if link.href not in extra
                 }
-
-                allowed = set()
-                for page in every_page():
-                    try:
-                        url = reverse(page.url_name)
-                    except NoReverseMatch:
-                        continue
-                    if self.client.get(url).status_code == HTTPStatus.OK:
-                        allowed.add(url)
+                allowed = {
+                    url for url in mounted if self.client.get(url).status_code == HTTPStatus.OK
+                }
 
                 self.assertSetEqual(shown, allowed)
+                self.assertSetEqual(labels(shell) & unmounted, set())
+
+    @override_settings(TOS_ENABLED=True, SILKY_ENABLED=True)
+    def test_flags_without_their_routes_do_not_break_the_page(self):
+        self.sign_in("admin")
+        shown = labels(self.shell_on(reverse("tokens")))
+        self.assertNotIn("Terms of service", shown)
+        self.assertNotIn("Profiling", shown)
 
     def test_admin_group_appears_only_for_staff(self):
         self.sign_in("user")
@@ -82,6 +104,23 @@ class ShellTest(TestCase):
         self.sign_in("admin")
         admin = next(s for s in self.shell_on(reverse("tokens")).sections if s.title == "Admin")
         self.assertEqual([link.label for link in admin.links], ["Admin panel"])
+
+    @override_settings(AUTHENTICATION_BACKENDS=["django.contrib.auth.backends.ModelBackend"])
+    def test_staff_without_superuser_get_the_admin_panel(self):
+        admin_url = reverse("admin:index")
+        user = User.objects.get(pk=FIXTURE_USER_PK_BY_ROLE["user"])
+        self.client.force_login(user)
+        page = self.client.get(reverse("tokens"))
+        self.assertNotContains(page, ">Admin</li>")
+        self.assertNotContains(page, f'href="{admin_url}"')
+        self.assertEqual(self.client.get(admin_url).status_code, HTTPStatus.FOUND)
+
+        user.is_staff = True
+        user.save()
+        page = self.client.get(reverse("tokens"))
+        self.assertContains(page, ">Admin</li>")
+        self.assertContains(page, f'href="{admin_url}"')
+        self.assertEqual(self.client.get(admin_url).status_code, HTTPStatus.OK)
 
     def test_extra_nav_links_are_shown_signed_out(self):
         shell = self.shell_on(reverse("sso"))
@@ -152,25 +191,20 @@ class ShellTest(TestCase):
         self.assertContains(page, "Sign out")
 
 
-class SilkProfilingAccessTest(TestCase):
+@override_settings(ROOT_URLCONF=__name__)
+class MountedFlagPagesTest(TestCase):
     fixtures: ClassVar[list[str]] = ["gateway_data.json"]
 
-    def test_follows_silks_own_permission_check(self):
-        admin, user = User.objects.get(pk=1), User.objects.get(pk=3)
-        with override_settings(SILKY_ENABLED=True):
-            self.assertTrue(silk_profiling(request_as(admin)))
-            self.assertFalse(silk_profiling(request_as(user)))
-            self.assertFalse(silk_profiling(request_as(AnonymousUser())))
-        with override_settings(SILKY_ENABLED=False):
-            self.assertFalse(silk_profiling(request_as(admin)))
-
-    @override_settings(SILKY_ENABLED=False, TOS_ENABLED=False)
-    def test_unmounted_pages_are_never_reversed(self):
-        shell = build_shell(request_as(User.objects.get(pk=1)))
-        links = [link for section in shell.sections for link in section.links]
-        labels = {link.label for link in (*links, *shell.help_links)}
-        self.assertNotIn("Profiling", labels)
-        self.assertNotIn("Terms of service", labels)
+    def test_follow_their_access_checks_once_mounted(self):
+        self.assertLessEqual(
+            {"Profiling", "Terms of service"},
+            labels(build_shell(request_as(User.objects.get(pk=1)))),
+        )
+        for user in (User.objects.get(pk=3), AnonymousUser()):
+            with self.subTest(user=user):
+                shown = labels(build_shell(request_as(user)))
+                self.assertIn("Terms of service", shown)
+                self.assertNotIn("Profiling", shown)
 
 
 class IconTagTest(TestCase):
