@@ -127,7 +127,7 @@ class ShellTest(TestCase):
         self.assertIsNone(shell.viewer)
         self.assertEqual(shell.sections, ())
         self.assertEqual(
-            [(link.label, link.href) for link in shell.bottom],
+            [(link.label, link.href) for link in shell.help_links],
             list(settings.EXTRA_NAV_LINKS.items()),
         )
 
@@ -181,7 +181,7 @@ class ShellTest(TestCase):
         self.assertNotContains(page, "drawer-side")
         self.assertNotContains(page, "Sign out")
         for url in settings.EXTRA_NAV_LINKS.values():
-            self.assertContains(page, f'href="{url}"')
+            self.assertContains(page, f'href="{url}"', count=1)
 
     def test_admin_keeps_a_top_bar_with_the_shared_nav(self):
         self.sign_in("admin")

@@ -30,12 +30,7 @@
                         <span class="muted text-xs">AI Gateway</span>
                     </span>
                 </a>
-                <nav class="flex flex-wrap items-center gap-1" aria-label="Links">
-                    {% for link in shell.bottom %}
-                        <a href="{{ link.href }}" class="btn btn-ghost btn-sm">{% icon link.icon small=True %}{{ link.label }}</a>
-                    {% endfor %}
-                    {% include "management/_theme_toggle.html" %}
-                </nav>
+                {% include "management/_theme_toggle.html" %}
             </header>
         {% endif %}
 
