@@ -125,13 +125,14 @@ class RequestsScopeTest(RequestsPageTestBase):
 
     def test_admin_picks_an_org_or_all_orgs(self):
         self.assertEqual(self.paths_on(self.get(self.admin)), set(PATHS) - {"/foreign"})
-        self.assertEqual(
-            self.paths_on(self.get(self.admin, org=self.other_org.id)), {"/foreign"}
-        )
+        self.assertEqual(self.paths_on(self.get(self.admin, org=self.other_org.id)), {"/foreign"})
         self.assertEqual(self.paths_on(self.get(self.admin, org="all")), set(PATHS))
 
-    def test_matches_the_usage_page_total_for_every_role(self):
+    def test_matches_the_overview_status_counts_for_every_role(self):
         self.log(self.key, "/retired", model="not-in-the-router")
+        self.log(self.others_key, "/limited", status_code=429, user_id="owner@example.com")
+        self.log(self.team_key, "/invalid", status_code=400)
+        self.log(self.side_key, "/broken", status_code=502)
         viewers = (
             (self.owner, {}),
             (self.other, {}),
@@ -145,8 +146,17 @@ class RequestsScopeTest(RequestsPageTestBase):
             with self.subTest(user=user.username, **params):
                 self.client.force_login(user)
                 usage = self.client.get(reverse("usage"), {"span": "1m", **params})
+                overview = {row.codes: row.count for row in usage.context["statuses"]}
                 log = self.get(user, **params).context["log"]
-                self.assertEqual(log.page.paginator.count, usage.context["total_requests"])
+                self.assertEqual({tab.value: tab.count for tab in log.tabs[1:]}, overview)
+                self.assertEqual(log.page.paginator.count, sum(overview.values()))
+
+    def test_overview_links_to_the_log_with_its_filters(self):
+        self.client.force_login(self.admin)
+        params = {"org": self.other_org.id, "token": self.foreign_key.id, "model": MODEL}
+        response = self.client.get(reverse("usage"), params)
+        query = f"org={self.other_org.id}&amp;key={self.foreign_key.id}&amp;model={MODEL}"
+        self.assertContains(response, f'href="{reverse("requests")}?{query}"')
 
     def test_page_shows_no_ip_address(self):
         self.log(self.key, "/with-ip", ip_address="203.0.113.7", user_agent="probe/1")
@@ -211,7 +221,7 @@ class RequestsPaginationTest(RequestsPageTestBase):
         content = first.content.decode()
         self.assertEqual(len(first.context["log"].rows), PAGE_SIZE)
         self.assertLess(content.index(">/bulk-0</div>"), content.index(">/bulk-1</div>"))
-        self.assertIn(f"Showing 1–{PAGE_SIZE} of {PAGE_SIZE + 2}", content)
+        self.assertIn(f"Showing 1\N{EN DASH}{PAGE_SIZE} of {PAGE_SIZE + 2}", content)
         self.assertIn('href="?page=2">Older</a>', content)
 
         second = self.get(self.owner, page=2)

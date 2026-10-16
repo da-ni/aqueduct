@@ -5,15 +5,24 @@ from django.conf import settings
 from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import urlencode
 from django.views.generic import TemplateView
 
 from gateway.config import get_router_config, model_info_with_context
 from management import usage_report as report
 from management.model_catalog import mode_for
-from management.models import Org
+from management.models import Org, Token
 from management.request_log import chosen_org, visible_requests, visible_tokens
 from management.views.base import BaseAqueductView
+
+
+def _requests_url(org: str | None, token: Token | None, model: str) -> str:
+    """The request log with the same org, key, and model as the Overview page."""
+    query = {"org": org, "key": token.id if token else None, "model": model}
+    params = urlencode({name: value for name, value in query.items() if value})
+    return f"{reverse('requests')}?{params}" if params else reverse("requests")
 
 
 class UsageDashboardView(BaseAqueductView, TemplateView):
@@ -129,6 +138,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                     if params.get(name)
                 ],
                 "now_utc_iso": now.strftime("%Y-%m-%dT%H:%M"),
+                "requests_url": _requests_url(params.get("org"), selected_token, selected_model),
             }
         )
         return context

@@ -122,7 +122,10 @@
 
         <div class="card bg-base-200">
             <div class="card-body gap-4 p-5">
-                <h2 class="text-xl font-semibold">Requests</h2>
+                <div class="flex items-center justify-between gap-3">
+                    <h2 class="text-xl font-semibold">Requests</h2>
+                    <a class="link-plain text-sm" href="{{ requests_url }}">Open the log</a>
+                </div>
                 <div class="flex h-3 gap-0.5 overflow-hidden rounded-full bg-base-300">
                     {% for row in statuses %}{% if row.count %}<div class="{{ row.tone }} min-w-1 bg-current" style="flex: {{ row.count }} 1 0%"></div>{% endif %}{% endfor %}
                 </div>
