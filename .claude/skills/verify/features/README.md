@@ -35,6 +35,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Teams](./teams.md) covers the team list, team members, team admins, and service accounts, and who may see or change each.
 - [Usage](./usage.md) covers the usage dashboard, its time frames, and the org selector for admins.
 - [Models](./models.md) covers the model table, its type tabs and search, the detail panel, and the notice for a switched-off model.
+- [Settings](./settings.md) covers the account details, team roles, terms acceptance, the light and dark switch, and the personal key limits.
 - [Terms of service](./terms-of-service.md) covers the prompt a user sees before accepting the terms.
 
 Not mapped yet: Files, Batches, Vector stores, and MCP servers. Their pages load for every role, but the seed creates no files, batches, or vector stores, and those come from the OpenAI-compatible API, not the UI.
