@@ -49,7 +49,7 @@ class ServiceAccountCreateView(BaseTeamView, TeamAdminRequiredMixin, CreateView)
         context = super().get_context_data(**kwargs)
         # self.team available from BaseTeamView
         context["team"] = self.team
-        context["view_title"] = f"Add Service Account to {self.team.name}"
+        context["view_title"] = "Add a service account"
         context["cancel_url"] = reverse("team", kwargs={"id": self.team.id})
         return context
 
@@ -155,7 +155,7 @@ class ServiceAccountUpdateView(BaseServiceAccountView, UpdateView):
     pk_url_kwarg = "service_account_id"  # Tell base view how to find the SA ID
     context_object_name = "service_account"  # Match template usage
     form_class = ServiceAccountForm
-    template_name = "management/create/service_account.html"
+    template_name = "management/edit/service_account.html"
 
     def get_initial(self) -> dict:
         initial = super().get_initial()
@@ -203,7 +203,7 @@ class ServiceAccountUpdateView(BaseServiceAccountView, UpdateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["view_title"] = f"Edit Service Account: {self.object.name}"
+        context["view_title"] = "Edit service account"
         context["cancel_url"] = self.get_success_url()  # Add cancel URL
         # context['service_account'] is set automatically by UpdateView
         context["team"] = self.team_object  # Pass team for context if needed in template
@@ -241,7 +241,7 @@ class ServiceAccountTransferOwnershipView(BaseServiceAccountView, View):
         context["service_account"] = sa
         context["team"] = team
         context["cancel_url"] = self.get_success_url()
-        context["view_title"] = f"Transfer Ownership of {sa.name}"
+        context["view_title"] = "Transfer ownership"
 
         try:
             current_token = Token.objects.get(service_account=sa)
