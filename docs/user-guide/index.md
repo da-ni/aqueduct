@@ -21,7 +21,7 @@ The sidebar on the left holds every page:
 - Under **Admin**, org admins and admins get the [Organization](organization.md) page. Admins also get the **Admin panel**. See [Admin](admin.md).
 - At the bottom, [Settings](settings.md) shows your account, your teams, and the limits of your personal keys.
 
-Your deployment can add more links above **Settings**, such as a bug report form or this documentation. These links open in a new tab.
+Your deployment can add more links above **Settings**, such as a bug report form or this documentation.
 
 The bottom of the sidebar shows the e-mail address and role you signed in with, a light and dark switch, and the **Sign out** button.
 

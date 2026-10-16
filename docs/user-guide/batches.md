@@ -18,7 +18,7 @@ The table lists the batches of your personal keys and of your teams' service acc
 - **Files**: the input file, and links to the output and error files when they exist. A file name opens its row on the [Files](files.md) page.
 - **Created** and **Expires**: when the batch was created and when Aqueduct deletes it.
 
-The line under the table counts your running batches against the limits for your keys and for each team. Only validating and in-progress batches count toward these limits.
+The line under the table counts your running batches against the limits for your keys and for each team. Validating, in-progress and cancelling batches count toward these limits.
 
 ## Cancel a batch
 

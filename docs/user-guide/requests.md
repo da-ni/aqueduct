@@ -23,7 +23,7 @@ The Requests page is the log of single API requests, newest first. Use it to fin
 
 You see the same requests as on the [Overview](usage.md) page:
 
-- Users see the requests of their own keys and of their teams' service accounts. They also see requests that any key sent with their e-mail address as [`user_id`](../api/index.md#sending-user_id-in-api-requests).
+- Users see the requests of their own keys and of their teams' service accounts. They also see requests that any key in their organization sent with their e-mail address as [`user_id`](../api/index.md#sending-user_id-in-api-requests).
 - Org admins see every request of their organization.
 - Admins also choose an organization, or **All organizations**, in the organization select.
 
