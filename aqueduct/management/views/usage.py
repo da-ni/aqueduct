@@ -112,6 +112,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 "period": period,
                 "kpis": report.kpis(
                     points,
+                    period.step,
                     report.median_ms(in_period),
                     report.totals(previous.of(reqs)) if knows_previous else None,
                     report.median_ms(previous.of(reqs)) if knows_previous else None,

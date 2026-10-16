@@ -79,7 +79,7 @@
                     <span class="muted text-sm">{{ kpi.label }}</span>
                     <span class="text-2xl font-semibold">{{ kpi.value }}</span>
                     <span class="muted min-h-4 font-mono text-xs">{% if kpi.change %}{{ kpi.change }}{% endif %}</span>
-                    <div class="spark mt-3" aria-hidden="true">{% for height in kpi.spark %}<i style="height: {{ height }}%"></i>{% endfor %}</div>
+                    {% include "management/_spark.html" with bars=kpi.spark %}
                 </div>
             </div>
         {% endfor %}
@@ -109,12 +109,7 @@
                 </div>
                 <div class="flex h-72 gap-px sm:gap-1">
                     {% for column in chart %}
-                        <div class="flex min-w-0 flex-1 flex-col items-center gap-2" title="{{ column.title }}">
-                            <div class="vbar w-full max-w-10 flex-1">
-                                {% for css, height in column.segments %}<i class="{{ css }}" style="height: {{ height }}%"></i>{% endfor %}
-                            </div>
-                            <span class="muted h-4 whitespace-nowrap font-mono text-xs">{{ column.label }}</span>
-                        </div>
+                        {% include "management/_chart_column.html" %}
                     {% endfor %}
                 </div>
             </div>
@@ -129,9 +124,9 @@
                 <div class="flex h-3 gap-0.5 overflow-hidden rounded-full bg-base-300">
                     {% for row in statuses %}{% if row.count %}<div class="{{ row.tone }} min-w-1 bg-current" style="flex: {{ row.count }} 1 0%"></div>{% endif %}{% endfor %}
                 </div>
-                <ul class="flex flex-col">
+                <ul class="-mx-2 flex flex-col">
                     {% for row in statuses %}
-                        <li class="flex items-center gap-3 border-t border-base-300 py-2.5 text-sm">
+                        <li class="hover-row flex items-center gap-3 rounded-lg border-t border-base-300 px-2 py-2.5 text-sm">
                             <span class="{{ row.tone }}">{% icon row.icon %}</span>
                             <span class="flex flex-col leading-tight"><span class="font-medium">{{ row.label }}</span><span class="muted font-mono text-xs">{{ row.codes }}</span></span>
                             <span class="ml-auto font-mono">{{ row.count|intcomma }}</span>
@@ -154,11 +149,11 @@
                     <span>More</span>
                 </div>
             </div>
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto lg:overflow-visible">
                 <div class="grid min-w-[640px] grid-cols-[2.5rem_repeat(24,minmax(0,1fr))] gap-1">
                     {% for row in heat %}
                         <span class="muted self-center font-mono text-xs">{{ row.day }}</span>
-                        {% for cell in row.cells %}<span class="{{ cell.css }} h-6 rounded" title="{{ cell.title }}"></span>{% endfor %}
+                        {% for cell in row.cells %}<span class="aq-tip-host heat-cell {{ cell.css }} relative h-6 rounded" role="img" aria-label="{{ cell.tip }}">{% include "management/_tip.html" with tip=cell.tip %}</span>{% endfor %}
                     {% endfor %}
                     <span></span>
                     {% for hour in heat_hours %}<span class="muted text-center font-mono text-xs">{{ hour }}</span>{% endfor %}
@@ -224,9 +219,9 @@
             <div class="card bg-base-200">
                 <div class="card-body gap-3 p-5">
                     <h2 class="text-xl font-semibold">By organization</h2>
-                    <div class="flex max-h-60 flex-col gap-2.5 overflow-y-auto pr-2">
+                    <div class="-mx-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto">
                         {% for org in orgs_usage %}
-                            <div class="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_4rem] items-center gap-4 text-sm">
+                            <div class="hover-row grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_4rem] items-center gap-4 rounded-lg px-2 py-1 text-sm">
                                 <span class="truncate">{{ org.name|default:"No organization" }}</span>
                                 <div><div class="onebar" style="width: {{ org.width }}%"></div></div>
                                 <span class="text-right font-mono">{{ org.value }}</span>
@@ -239,9 +234,9 @@
         <div class="card bg-base-200{% if not orgs_usage %} lg:col-span-2{% endif %}">
             <div class="card-body gap-3 p-5">
                 <h2 class="text-xl font-semibold">{% if selected_token %}By user ID{% else %}Largest keys{% endif %}</h2>
-                <div class="flex max-h-60 flex-col overflow-y-auto pr-2">
+                <div class="-mx-2 flex max-h-60 flex-col overflow-y-auto">
                     {% for key in keys %}
-                        <div class="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_4rem] items-center gap-4 border-t border-base-300 py-2 text-sm">
+                        <div class="hover-row grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_4rem] items-center gap-4 rounded-lg border-t border-base-300 px-2 py-2 text-sm">
                             <span class="flex min-w-0 flex-col leading-tight">
                                 {% if key.href %}<a class="link-plain truncate font-mono" href="{{ key.href }}">{{ key.name }}</a>{% else %}<span class="truncate font-mono">{{ key.name }}</span>{% endif %}
                                 <span class="muted truncate text-xs">{{ key.detail }}</span>

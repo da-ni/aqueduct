@@ -37,7 +37,7 @@
                 <div class="card-body gap-1 p-4">
                     <span class="muted text-sm">{{ stat.label }}</span>
                     <span class="text-2xl font-semibold">{{ stat.value }}</span>
-                    <div class="spark mt-3" aria-hidden="true">{% for height in stat.spark %}<i style="height: {{ height }}%"></i>{% endfor %}</div>
+                    {% include "management/_spark.html" with bars=stat.spark %}
                 </div>
             </div>
         {% endfor %}
@@ -67,12 +67,7 @@
                 </div>
                 <div class="grid h-64 grid-cols-7 gap-3">
                     {% for column in chart %}
-                        <div class="flex min-w-0 flex-col items-center gap-2" title="{{ column.title }}">
-                            <div class="vbar w-full max-w-10 flex-1">
-                                {% for css, height in column.segments %}<i class="{{ css }}" style="height: {{ height }}%"></i>{% endfor %}
-                            </div>
-                            <span class="muted font-mono text-xs">{{ column.label }}</span>
-                        </div>
+                        {% include "management/_chart_column.html" %}
                     {% endfor %}
                 </div>
             </div>
@@ -81,9 +76,9 @@
         <div class="card bg-base-200">
             <div class="card-body gap-4 p-5">
                 <h2 class="text-xl font-semibold">Models it calls</h2>
-                <div class="flex flex-col gap-3">
+                <div class="-mx-2 flex flex-col gap-1">
                     {% for model in report.models %}
-                        <div class="flex flex-col gap-1.5">
+                        <div class="hover-row flex flex-col gap-1.5 rounded-lg px-2 py-1">
                             <div class="flex items-baseline justify-between gap-3 text-sm">
                                 <a class="link-plain break-all font-mono" href="{% url 'models' %}?model={{ model.name|urlencode }}">{{ model.name }}</a>
                                 <span class="font-mono">{{ model.value }}</span>

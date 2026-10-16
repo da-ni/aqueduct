@@ -15,9 +15,9 @@
 
 {% block rows %}
     {% for row in listing.rows %}
-        <tr class="row-pick relative">
+        <tr>
             <td>
-                <a class="link-plain after:absolute after:inset-0" href="{% url 'vector_store_detail' id=row.store.id %}">{{ row.store.name }}</a>
+                <a class="link-plain row-link" href="{% url 'vector_store_detail' id=row.store.id %}">{{ row.store.name }}</a>
                 <div class="muted font-mono text-xs">{{ row.store.id }}</div>
             </td>
             <td>{{ row.team|default:"Yours" }}</td>

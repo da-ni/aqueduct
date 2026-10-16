@@ -14,7 +14,7 @@
 
 {% block rows %}
     {% for row in listing.rows %}
-        <tr id="{{ row.file.id }}" class="row-pick target:bg-base-100">
+        <tr id="{{ row.file.id }}" class="target:bg-base-100">
             <td>
                 <span class="font-semibold">{{ row.file.filename }}</span>
                 <div class="muted font-mono text-xs">{{ row.file.id }}{% if row.team %} · {{ row.team }}{% endif %}</div>

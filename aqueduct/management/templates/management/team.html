@@ -42,7 +42,7 @@
                 <div class="card-body gap-1 p-4">
                     <span class="muted text-sm">{{ stat.label }}</span>
                     <span class="text-2xl font-semibold">{{ stat.value }}</span>
-                    <div class="spark mt-3" aria-hidden="true">{% for height in stat.spark %}<i style="height: {{ height }}%"></i>{% endfor %}</div>
+                    {% include "management/_spark.html" with bars=stat.spark %}
                 </div>
             </div>
         {% endfor %}
