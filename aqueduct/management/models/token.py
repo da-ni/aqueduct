@@ -137,7 +137,7 @@ class Token(models.Model):
         return self._get_from_hierarchy(LimitSet.from_objects)
 
     @classmethod
-    def _exclusion_list_from_objects(
+    def exclusion_list_from_objects(
         cls,
         specific_exclusion: Optional["ModelExclusionMixin"],
         org_exclusion: Optional["ModelExclusionMixin"],
@@ -163,7 +163,7 @@ class Token(models.Model):
         - Service Account Token: Uses the Team exclusion list, falls back to the Org exclusion list.
         - User Token: Uses the UserProfile exclusion list, falls back to the Org exclusion list.
         """
-        return self._get_from_hierarchy(Token._exclusion_list_from_objects)
+        return self._get_from_hierarchy(Token.exclusion_list_from_objects)
 
     def model_excluded(self, model: str) -> bool:
         # Resolve alias to actual model name before checking exclusion

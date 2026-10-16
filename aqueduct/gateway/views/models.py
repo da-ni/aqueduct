@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
-from gateway.config import get_router_config
+from gateway.config import get_router_config, model_info_with_context
 from gateway.decorators import log_request, token_authenticated, tos_accepted
 from gateway.response_type import RawJsonResponse
 from management.models import Request, Token
@@ -15,23 +15,11 @@ MODEL_CREATION_TIMESTAMP = int(timezone.now().timestamp())
 
 
 def _model_group_info_entry(model: dict[str, Any]) -> dict[str, Any]:
-    """Build a LiteLLM ``/model_group/info`` entry for a router config model.
-
-    The generated router config only carries ``max_tokens`` (the context
-    length); LiteLLM-aware clients read ``max_input_tokens`` as the context
-    window, so derive it here — in this HTTP response only, never in the
-    config itself (a config-level value would re-trigger the Router's
-    tiktoken pre-checks).
-    """
-    model_info = dict(model.get("model_info") or {})
-    if "max_input_tokens" not in model_info:
-        max_tokens = model_info.get("max_tokens")
-        if isinstance(max_tokens, int) and not isinstance(max_tokens, bool):
-            model_info["max_input_tokens"] = max_tokens
+    """Build a LiteLLM ``/model_group/info`` entry for a router config model."""
     return {
         "model_group": model["model_name"],
         "model_name": model["model_name"],
-        "model_info": model_info,
+        "model_info": model_info_with_context(model),
     }
 
 
