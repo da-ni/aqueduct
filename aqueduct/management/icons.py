@@ -65,7 +65,11 @@ class Icon(Enum):
     SEARCH = (_el("circle", cx="11", cy="11", r="6.5"), _el("path", d="M16 16l4.5 4.5"))
     WARNING = (_el("path", d="M12 4l9 16H3l9-16zM12 10v5M12 17.5v.5"),)
     OFF = (_el("circle", cx="12", cy="12", r="9"), _el("path", d="M8 12h8"))
+    PLUS = (_el("path", d="M12 5v14M5 12h14"),)
+    ROTATE = (_el("path", d="M20 12a8 8 0 11-2.6-5.9M20 4v5h-5"),)
+    DELETE = (_el("path", d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"),)
     OK = (_el("circle", cx="12", cy="12", r="8.5"), _el("path", d="M8.5 12.5l2.5 2.5 4.5-5"))
+    FAILED = (_el("circle", cx="12", cy="12", r="8.5"), _el("path", d="M9 9l6 6M15 9l-6 6"))
     MENU = (_el("path", d="M4 7h16M4 12h16M4 17h16"),)
     COPY = (
         _el("rect", x="9", y="9", width="11", height="11", rx="2"),

@@ -19,7 +19,7 @@ exceed the cap when over limit).
 Colors shift to warning at >=80% and error at >=100%.
 {% endcomment %}
 {% load humanize %}
-<div class="flex w-full gap-6 pl-7">
+<div class="flex w-full gap-6">
     {# per hour — windows()[1] = ("hour", 3600, rpm*hourly_mult, ...) #}
     {% with limit=limits.windows.1.2 used=usage.hour.req %}
         <div class="flex-1 min-w-0" title="{{ used|floatformat:"0" }} / {{ limit|default:"—" }} requests this hour">

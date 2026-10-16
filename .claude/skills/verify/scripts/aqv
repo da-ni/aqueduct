@@ -211,7 +211,7 @@ def cmd_launch(args) -> None:
         die(f"server not ready after 90s, see {run / 'server.log'}")
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(CookieJar()))
     status, body = http_get(state["base"] + "/verify-login/?username=user", opener)
-    if status != 200 or "API Keys" not in body:
+    if status != 200 or "API keys" not in body:
         die(f"signed-in tokens page not usable (status {status}), see {run / 'server.log'}")
     deadline = time.time() + 30
     while http_get(f"http://127.0.0.1:{state['cdp_port']}/json/version")[0] != 200:

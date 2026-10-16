@@ -12,11 +12,19 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.http import require_POST
-from django.views.generic import CreateView, DeleteView, TemplateView, UpdateView
+from django.views.generic import CreateView, DeleteView, DetailView, TemplateView, UpdateView
 
 from gateway.rate_limiting import get_per_token_usage
 from management.forms import TokenCreateForm
-from management.models import LimitSet, ServiceAccount, Token
+from management.key_activity import (
+    Expiry,
+    KeyKind,
+    key_list,
+    key_report,
+    limit_labels,
+    personal_tokens,
+)
+from management.models import LimitSet, Token
 from management.views.base import BaseAqueductView
 
 
@@ -25,44 +33,47 @@ class UserTokensView(BaseAqueductView, TemplateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        profile = self.profile  # Provided by BaseAqueductView
-        user = profile.user
-
-        tokens = Token.objects.filter(user=user, service_account__isnull=True)
-        teams = profile.teams.all()
-        service_accounts = ServiceAccount.objects.filter(team__in=teams).select_related(
-            "team__org", "token"
-        )
-
+        kind = KeyKind.parse(self.request.GET.get("kind", ""))
+        query = self.request.GET.get("q", "").strip()
         max_tokens = getattr(settings, "MAX_USER_TOKENS", 3)
-        can_add_token = tokens.count() < max_tokens
-
-        # Effective limits for user-owned tokens (UserProfile + Org fallback)
-        user_limits: LimitSet = LimitSet.from_objects(profile, profile.org)
-
-        # Attach each token's current rate-limit usage (per minute/hour/day bucket)
-        # to the token object so templates can render it. All tokens are fetched in a
-        # single ``cache.get_many`` call to avoid one cache lookup per token.
-        per_token_usage = get_per_token_usage([token.id for token in tokens])
-        for token in tokens:
-            token.usage = per_token_usage[token.id]  # type: ignore[attr-defined]
-
-        # Effective limits per service account (Team + Org fallback).
-        # Computed inline from already-select_related data to avoid the
-        # per-SA DB query that sa.token.get_limit() would trigger.
-        per_sa_token_usage = get_per_token_usage([sa.token.id for sa in service_accounts])
-        for sa in service_accounts:
-            sa.effective_limits = LimitSet.from_objects(sa.team, sa.team.org)  # type: ignore[attr-defined]
-            sa.usage = per_sa_token_usage[sa.token.id]  # type: ignore[attr-defined]
-
+        keys = key_list(self.profile, kind, query, timezone.now())
         context.update(
-            {
-                "tokens": tokens,
-                "service_accounts": service_accounts,
-                "can_add_token": can_add_token,
-                "max_tokens": max_tokens,
-                "user_limits": user_limits,
-            }
+            keys=keys,
+            kinds=tuple(KeyKind),
+            kind=kind,
+            query=query,
+            max_tokens=max_tokens,
+            can_add_token=keys.personal_count < max_tokens,
+        )
+        return context
+
+
+class TokenDetailView(BaseAqueductView, DetailView):
+    model = Token
+    template_name = "management/token_detail.html"
+    pk_url_kwarg = "id"
+    context_object_name = "token"
+
+    def get_queryset(self) -> QuerySet:
+        return personal_tokens(self.request.user)
+
+    def get_context_data(self, **kwargs) -> dict[str, object]:
+        context = super().get_context_data(**kwargs)
+        token = self.object
+        now = timezone.now()
+        report = key_report(token, now)
+        limits = LimitSet.from_objects(self.profile, self.profile.org)
+        metric = "requests" if self.request.GET.get("metric") == "requests" else "tokens"
+        context.update(
+            report=report,
+            metric=metric,
+            chart=report.chart(metric),
+            expiry=Expiry.of(token.expires_at, now),
+            limits=limits,
+            limit_labels=limit_labels(limits),
+            usage=get_per_token_usage([token.id])[token.id],
+            excluded_models=token.model_exclusion_list(),
+            excluded_mcp_servers=token.mcp_server_exclusion_list(),
         )
         return context
 
@@ -120,7 +131,7 @@ class TokenEditView(BaseAqueductView, UpdateView):
     success_url = reverse_lazy("tokens")
 
     def get_queryset(self) -> QuerySet:
-        return Token.objects.filter(user=self.request.user, service_account__isnull=True)
+        return personal_tokens(self.request.user)
 
     def get_form_kwargs(self) -> dict:
         kwargs = super().get_form_kwargs()
@@ -141,8 +152,7 @@ class TokenDeleteView(BaseAqueductView, DeleteView):
     success_url = reverse_lazy("tokens")
 
     def get_queryset(self) -> QuerySet:
-        # Only allow deleting tokens owned by the user and not associated with a service account
-        return Token.objects.filter(user=self.request.user, service_account__isnull=True)
+        return personal_tokens(self.request.user)
 
     def form_valid(self, form) -> HttpResponse:
         token_name = self.object.name

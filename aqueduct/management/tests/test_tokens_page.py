@@ -1,9 +1,7 @@
-"""Tests for the tokens list page — per-window request-usage indicators.
+"""Tests for the per-window request-usage indicators on the API key detail page.
 
 Covers the ``_rate_usage.html`` include driven by
-``gateway.rate_limiting.get_per_token_usage`` on ``UserTokensView``: the usage
-values passed to the template (per hour / per day) and the HTML that renders
-them under each API key list item.
+``gateway.rate_limiting.get_per_token_usage`` on ``TokenDetailView``.
 """
 
 from typing import ClassVar
@@ -65,7 +63,7 @@ class TokensPageTest(TestCase):
             self.assertTrue(allowed)
 
         self.client.force_login(user)
-        resp = self.client.get(reverse("tokens"))
+        resp = self.client.get(reverse("token_detail", args=[1]))
 
         self.assertEqual(resp.status_code, 200)
         # The hour and day windows each render a progress bar with the used fill.
@@ -80,15 +78,15 @@ class TokensPageTest(TestCase):
         # The per-minute bar is not rendered.
         self.assertNotContains(resp, "6/10")
 
-    def test_page_renders_em_dash_when_no_request_limit(self):
-        """No request limit -> no progress bar, only the "—" count text."""
+    def test_page_says_no_limit_when_no_request_limit(self):
+        """No request limit -> no progress bar, and the limits read "no limit"."""
         user = User.objects.get(pk=1)
         self.client.force_login(user)
-        resp = self.client.get(reverse("tokens"))
+        resp = self.client.get(reverse("token_detail", args=[1]))
 
         self.assertEqual(resp.status_code, 200)
-        # No request limit -> the include renders the em-dash placeholder, not a fill.
-        self.assertContains(resp, "—")
+        self.assertContains(resp, 'Requests per minute: <span class="font-mono">no limit</span>')
+        self.assertNotContains(resp, "None")
         # No progress bar is rendered at all (every window has no request cap).
         self.assertNotContains(resp, "progress-primary")
         self.assertNotContains(resp, "progress-neutral")
