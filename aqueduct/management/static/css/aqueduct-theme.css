@@ -101,7 +101,8 @@ a.link-plain:hover { text-decoration: underline; }
 
 html[data-theme="light"] .only-dark, html[data-theme="dark"] .only-light { display: none !important; }
 
-.menu :where(li) > a.menu-active, .menu :where(li) > a.menu-active:hover { background: var(--color-base-100); color: var(--color-primary); font-weight: 600; }
+.menu { --menu-active-bg: var(--color-base-100); --menu-active-fg: var(--color-primary); }
+.menu :where(li) > a.menu-active { font-weight: 600; }
 .menu :where(li) > a { min-height: 2.75rem; align-items: center; font-weight: 500; }
 
 .row-pick:hover, .row-pick:has([aria-current="true"]) { background: var(--aq-hover); }
