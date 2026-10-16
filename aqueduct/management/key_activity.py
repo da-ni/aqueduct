@@ -106,13 +106,14 @@ def _sums(since: datetime) -> dict[str, Any]:
     }
 
 
-def activity_by_token(token_ids: Iterable[int], since: datetime) -> dict[int, Activity]:
+def activity_by(field: str, ids: Iterable[int], since: datetime) -> dict[int, Activity]:
+    """Request activity grouped by `field`, a lookup that names a token or a team id."""
     rows = (
-        Request.objects.filter(token_id__in=list(token_ids))
-        .values("token_id")
+        Request.objects.filter(**{f"{field}__in": list(ids)})
+        .values(field)
         .annotate(last_used=Max("timestamp"), **_sums(since))
     )
-    return {row.pop("token_id"): Activity(**row) for row in rows}
+    return {row.pop(field): Activity(**row) for row in rows}
 
 
 @dataclass(frozen=True)
@@ -164,7 +165,7 @@ def key_list(profile: UserProfile, kind: KeyKind | None, query: str, now: dateti
         and (needle in token.name.casefold() or needle in (team or "").casefold())
     ]
     since = now - timedelta(days=WINDOW_DAYS)
-    activity = activity_by_token((token.id for token, *_ in entries), since)
+    activity = activity_by("token_id", (token.id for token, *_ in entries), since)
     busiest = max((a.tokens for a in activity.values()), default=0)
     rows = tuple(
         KeyRow(
@@ -214,12 +215,11 @@ def _heights(values: Sequence[int]) -> tuple[int, ...]:
 
 
 @dataclass(frozen=True)
-class KeyReport:
+class Window:
+    """Totals over the last WINDOW_DAYS days and one entry per day."""
+
     totals: Activity
     days: tuple[Day, ...]
-    models: tuple[Share, ...]
-    clients: str
-    latest: tuple[Request, ...]
 
     @property
     def stats(self) -> tuple[Stat, ...]:
@@ -232,6 +232,13 @@ class KeyReport:
             Stat("Requests", f"{totals.requests:,}", _heights([a.requests for a in days])),
             Stat("Failed", totals.failed_share, _heights([a.failed for a in days])),
         )
+
+
+@dataclass(frozen=True)
+class KeyReport(Window):
+    models: tuple[Share, ...]
+    clients: str
+    latest: tuple[Request, ...]
 
     def chart(self, metric: str) -> tuple[Column, ...]:
         """One column per day, its segments as CSS class and percent of the busiest day."""
@@ -251,15 +258,14 @@ class KeyReport:
         )
 
 
-def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> KeyReport:
+def window(requests: QuerySet[Request], now: datetime) -> Window:
     since = now - timedelta(days=WINDOW_DAYS)
-    requests = Request.objects.filter(token=token)
-    recent = requests.filter(timestamp__gte=since)
     totals = Activity(**requests.aggregate(last_used=Max("timestamp"), **_sums(since)))
 
     per_day = {
         row.pop("day"): Activity(**row)
-        for row in recent.annotate(day=TruncDate("timestamp"))
+        for row in requests.filter(timestamp__gte=since)
+        .annotate(day=TruncDate("timestamp"))
         .values("day")
         .annotate(**_sums(since))
         .order_by()
@@ -269,6 +275,14 @@ def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> K
         Day(day, per_day.get(day, Activity()))
         for day in (today - timedelta(days=n) for n in reversed(range(WINDOW_DAYS)))
     )
+    return Window(totals, days)
+
+
+def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> KeyReport:
+    since = now - timedelta(days=WINDOW_DAYS)
+    requests = Request.objects.filter(token=token)
+    recent = requests.filter(timestamp__gte=since)
+    base = window(requests, now)
 
     by_model = list(
         recent.exclude(model="")
@@ -288,11 +302,11 @@ def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> K
         (row["user_agent"].split(" ")[0] or "Unknown", row["n"])
         for row in recent.values("user_agent").annotate(n=Count("id")).order_by("-n")[:3]
     ]
-    client_text = ", ".join(f"{name} {percent(n, totals.requests)}" for name, n in clients)
+    client_text = ", ".join(f"{name} {percent(n, base.totals.requests)}" for name, n in clients)
 
     return KeyReport(
-        totals=totals,
-        days=days,
+        totals=base.totals,
+        days=base.days,
         models=models,
         clients=client_text,
         latest=tuple(requests.order_by("-timestamp")[:latest]),
