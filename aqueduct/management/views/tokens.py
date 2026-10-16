@@ -208,7 +208,7 @@ class TokenRegenerateView(BaseAqueductView, View):
                 new_key = token.regenerate_key()  # Assumes regenerate_key() saves the token
                 messages.success(
                     request,
-                    f"API key '{token_name}' has been regenerated. The new key is displayed below. "
+                    f"API key '{token_name}' has been regenerated. "
                     f"Please update any clients using the old key.",
                 )
                 messages.info(
