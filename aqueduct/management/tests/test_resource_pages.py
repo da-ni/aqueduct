@@ -161,7 +161,12 @@ class FileDeleteTest(ResourcePagesTestBase):
 
     def test_owner_confirms_and_deletes_their_file(self):
         client = self.as_user(self.owner)
-        self.assertContains(client.get(self.url(self.own_file)), "prompts.jsonl")
+        confirm = client.get(self.url(self.own_file))
+        self.assertContains(
+            confirm, '<h1 class="text-3xl font-semibold">Delete file</h1>', html=True
+        )
+        self.assertContains(confirm, "prompts.jsonl")
+        self.assertEqual(confirm.context["shell"].current.label, "Files")
         response = client.post(self.url(self.own_file), follow=True)
         self.assertRedirects(response, reverse("files"))
         self.assertContains(response, "File &#x27;prompts.jsonl&#x27; deleted.")
