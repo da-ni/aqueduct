@@ -35,4 +35,5 @@ Preconditions:
 - The number inputs have `min="0"`, so the browser blocks a negative value before it reaches the server. Use an out-of-range multiplier to see a server-side form error.
 - Team switch-offs are still edited in the Django admin. The team rows only show them.
 - `Personal keys per person` comes from the server setting `MAX_USER_TOKENS` and is not editable here.
+- A stored switch-off that the config no longer lists shows as a checked box labelled `<name> (not in the current config, kept)`. Saving keeps it. Clearing the box removes it.
 - Without an MCP config, the switch-off form has no MCP fields and keeps the stored MCP switch-offs.

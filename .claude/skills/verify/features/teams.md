@@ -41,4 +41,4 @@ Preconditions:
 - Signed-out requests to every team route redirect to the login page. Check them with `curl` against the base URL, since `aqv login` always signs someone in.
 - Team admins cannot appoint other team admins. Only org admins and admins see `Make team admin` and `Delete`.
 - The token figures on both pages count only service account keys. Members' personal keys do not count toward the team.
-- The `Edit` link next to the default limit opens the organization's limits form and appears for org admins and admins. The `Edit` link next to the team limits opens the Django admin and appears only for staff users, such as `admin`.
+- The `Edit` link next to the default limit opens the organization's limits form and appears for org admins and admins. Staff users, such as `admin`, also get `Edit in admin` there. The `Edit` link next to the team limits opens the Django admin and appears only for staff users, such as `admin`.

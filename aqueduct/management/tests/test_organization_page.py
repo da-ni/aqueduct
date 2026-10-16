@@ -194,6 +194,39 @@ class OrganizationEditFormTest(OrganizationTestBase):
         self.assertTrue(response.context["form"].has_error("excluded_models"))
         self.assertEqual(self.stored(self.org), before)
 
+    def test_switch_offs_missing_from_the_config_are_shown_and_kept(self):
+        self.org.excluded_models = ["retired-model", "gpt-4.1-nano"]
+        self.org.save()
+        form = self.as_user(self.org_admin).get(
+            reverse("organization_switch_offs", args=[self.org.id])
+        )
+        self.assertContains(form, "retired-model (not in the current config, kept)")
+        response = self.post(
+            "organization_switch_offs",
+            {"excluded_models": ["retired-model", "gpt-4.1-nano", "dall-e-2"]},
+        )
+        self.assertEqual(response.status_code, HTTPStatus.FOUND)
+        self.assertCountEqual(
+            Org.objects.get(pk=self.org.pk).excluded_models,
+            ["retired-model", "gpt-4.1-nano", "dall-e-2"],
+        )
+
+    def test_a_switch_off_missing_from_the_config_can_be_removed(self):
+        self.org.excluded_models = ["retired-model"]
+        self.org.save()
+        self.post("organization_switch_offs", {"excluded_models": []})
+        self.assertEqual(Org.objects.get(pk=self.org.pk).excluded_models, [])
+
+    def test_mcp_switch_offs_missing_from_the_config_are_kept(self):
+        self.org.excluded_mcp_servers = ["retired-server"]
+        self.org.save()
+        with mcp_config(TEST_MCP_CONFIG):
+            response = self.post(
+                "organization_switch_offs", {"excluded_mcp_servers": ["retired-server"]}
+            )
+        self.assertEqual(response.status_code, HTTPStatus.FOUND)
+        self.assertEqual(Org.objects.get(pk=self.org.pk).excluded_mcp_servers, ["retired-server"])
+
     def test_empty_limits_clear_the_org_default(self):
         self.org.requests_per_minute = 600
         self.org.save()

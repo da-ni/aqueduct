@@ -29,6 +29,9 @@
         {% if is_org_admin %}
             <a class="link-plain text-sm" href="{% url 'organization_limits' org_object.id %}">Edit</a>
         {% endif %}
+        {% if can_edit_in_admin %}
+            <a class="link-plain text-sm" href="{% url 'admin:management_org_change' org_object.id %}">Edit in admin</a>
+        {% endif %}
     </div>
 
     <section class="card bg-base-200">

@@ -29,6 +29,7 @@ class OrgView(BaseAqueductView, TemplateView):
             rows=team_rows(self.get_teams_for_user(), self.profile, query, timezone.now()),
             org_object=self.org,
             org_limit=self.org.requests_per_minute,
+            can_edit_in_admin=self.request.user.is_staff,
         )
         if self.profile.group == "admin":
             context["all_orgs"] = Org.objects.order_by("name")

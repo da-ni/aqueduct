@@ -206,6 +206,14 @@ class OrgLimitsForm(forms.ModelForm):
         }
 
 
+def switch_off_choices(known: list[str], stored: list[str]) -> list[tuple[str, str]]:
+    """The configured names, then stored names the config no longer has, so a save keeps them."""
+    missing = [name for name in stored if name not in known]
+    return [(name, name) for name in known] + [
+        (name, f"{name} (not in the current config, kept)") for name in missing
+    ]
+
+
 class CheckboxList(forms.CheckboxSelectMultiple):
     template_name = "management/widgets/checkboxes.html"
 
@@ -247,10 +255,15 @@ class OrgSwitchOffsForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["excluded_models"].choices = [(m, m) for m in get_model_choices()]
+        org = self.instance
+        self.fields["excluded_models"].choices = switch_off_choices(
+            get_model_choices(), org.excluded_models
+        )
         servers = get_mcp_server_choices()
         if servers:
-            self.fields["excluded_mcp_servers"].choices = [(s, s) for s in servers]
+            self.fields["excluded_mcp_servers"].choices = switch_off_choices(
+                servers, org.excluded_mcp_servers
+            )
         else:
             # Without the field the form leaves the stored list as it is.
             del self.fields["excluded_mcp_servers"]
