@@ -1,3 +1,4 @@
+import re
 from http import HTTPStatus
 from pathlib import Path
 from typing import ClassVar
@@ -117,6 +118,39 @@ class ShellTest(TestCase):
     def test_gateway_url_is_the_openai_base_url(self):
         self.sign_in("user")
         self.assertEqual(self.shell_on(reverse("tokens")).gateway_url, "http://testserver/v1")
+
+    def test_sidebar_links_to_django_admin_only_for_staff(self):
+        admin_url = reverse("admin:index")
+        self.sign_in("user")
+        page = self.client.get(reverse("tokens"))
+        self.assertContains(page, 'class="drawer-side')
+        self.assertNotContains(page, f'href="{admin_url}"')
+        self.assertNotContains(page, ">Admin</li>")
+        self.sign_in("admin")
+        page = self.client.get(reverse("tokens"))
+        self.assertContains(page, f'href="{admin_url}"')
+        self.assertContains(page, ">Admin</li>")
+
+    def test_current_page_is_marked_and_titled(self):
+        self.sign_in("user")
+        html = self.client.get(reverse("token_create")).content.decode()
+        current = re.findall(r'<a href="([^"]*)"[^>]*aria-current="page"', html)
+        self.assertEqual(current, [reverse("tokens")])
+        self.assertIn("<title>API keys · Aqueduct AI Gateway</title>", html)
+
+    def test_signed_out_page_has_no_sidebar(self):
+        page = self.client.get(reverse("sso"))
+        self.assertNotContains(page, "drawer-side")
+        self.assertNotContains(page, "Sign out")
+        for url in settings.EXTRA_NAV_LINKS.values():
+            self.assertContains(page, f'href="{url}"')
+
+    def test_admin_keeps_a_top_bar_with_the_shared_nav(self):
+        self.sign_in("admin")
+        page = self.client.get(reverse("admin:index"))
+        self.assertContains(page, '<header class="navbar')
+        self.assertContains(page, f'href="{reverse("tokens")}"')
+        self.assertContains(page, "Sign out")
 
 
 class SilkProfilingAccessTest(TestCase):

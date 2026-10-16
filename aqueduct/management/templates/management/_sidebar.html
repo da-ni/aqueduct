@@ -1,0 +1,38 @@
+{% load static ui %}
+<aside class="sticky top-0 flex h-screen w-64 flex-col gap-5 overflow-y-auto border-r border-base-300 bg-base-200 p-4">
+    <a href="/" class="flex items-center gap-3 px-2 py-1">
+        <img src="{% static 'images/Aqueduct_Icon_80x80.png' %}" alt="" class="h-9 w-9">
+        <span class="flex flex-col leading-tight">
+            <span class="text-lg font-semibold">Aqueduct</span>
+            <span class="muted text-xs">AI Gateway</span>
+        </span>
+    </a>
+
+    <nav aria-label="Main">
+        <ul class="menu w-full gap-1 p-0">
+            {% for section in shell.sections %}
+                {% if section.title %}<li class="menu-title label-mono mt-3">{{ section.title }}</li>{% endif %}
+                {% for link in section.links %}{% include "management/_nav_link.html" %}{% endfor %}
+            {% endfor %}
+        </ul>
+    </nav>
+
+    <ul class="menu mt-auto w-full gap-1 p-0">
+        {% for link in shell.bottom %}{% include "management/_nav_link.html" %}{% endfor %}
+    </ul>
+
+    <div class="border-t border-base-300 pt-3">
+        <div class="flex min-h-11 items-center gap-2 pl-3 pr-1.5">
+            {% icon "user" %}
+            <span class="flex min-w-0 flex-1 flex-col leading-tight">
+                <span class="truncate text-sm font-medium" title="{{ shell.viewer.email }}">{{ shell.viewer.email }}</span>
+                {% if shell.viewer.role %}<span class="muted text-xs">{{ shell.viewer.role }}</span>{% endif %}
+            </span>
+            {% include "management/_theme_toggle.html" %}
+            <form action="{% url 'oidc_logout' %}" method="post" class="flex">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Sign out" title="Sign out">{% icon "sign_out" %}</button>
+            </form>
+        </div>
+    </div>
+</aside>
