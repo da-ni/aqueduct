@@ -114,9 +114,10 @@ class Period:
         )
         return cls(start, end, step, "custom range")
 
-    @property
-    def previous(self) -> "Period":
-        return replace(self, start=self.start - (self.end - self.start), end=self.start)
+    def previous(self, now: datetime) -> "Period":
+        """The same stretch one period earlier, cut where this period's elapsed time ends."""
+        length = self.end - self.start
+        return replace(self, start=self.start - length, end=min(self.end, now) - length)
 
     @property
     def buckets(self) -> list[datetime]:

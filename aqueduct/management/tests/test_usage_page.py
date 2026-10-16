@@ -1,5 +1,6 @@
 import re
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -206,6 +207,20 @@ class UsageFiguresTest(UsagePageTestBase):
         response = self.page(self.solo, span="1d")
         self.assertEqual(self.kpi(response, "Requests"), ("2", "+100%"))
         self.assertContains(response, "Change vs previous 24 hours")
+
+    def test_change_compares_equal_elapsed_time_mid_bucket(self):
+        now = datetime(2026, 10, 14, 6, 30, tzinfo=UTC)
+        Request.objects.all().delete()
+        Request.objects.bulk_create(
+            Request(
+                token=self.solo_key, timestamp=now - timedelta(hours=h), status_code=200, model=CHAT
+            )
+            for h in range(1, 14 * 24 + 1)
+        )
+        with mock.patch("django.utils.timezone.now", return_value=now):
+            response = self.page(self.solo, span="1w")
+        # One request per hour: 150 so far this week, 150 in the same stretch a week earlier.
+        self.assertEqual(self.kpi(response, "Requests"), ("150", "+0%"))
 
     def test_no_change_shown_where_the_previous_period_is_not_kept(self):
         response = self.page(self.solo, span="1m")

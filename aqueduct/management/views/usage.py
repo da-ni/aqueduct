@@ -81,7 +81,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
 
         retention_days = getattr(settings, "REQUEST_RETENTION_DAYS", 30)
         retention_start = now - timedelta(days=retention_days)
-        previous = period.previous
+        previous = period.previous(now)
         knows_previous = previous.start >= retention_start
         in_period = period.of(reqs)
         points = report.series(reqs, period)
