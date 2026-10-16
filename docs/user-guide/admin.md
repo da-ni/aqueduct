@@ -190,6 +190,9 @@ be excluded in the detail view admin interface of the specific entity. Excluded
 models are not available in any endpoints (returns 404) and are filtered from
 the model list.
 
+Org admins and admins can also set an org's limits, its excluded models and MCP
+servers, and both merge flags on the Organization page of the management UI.
+
 ![Exclude Models](../assets/user_guide/exclude_models.png)
 
 ### Merge Exclusion Lists

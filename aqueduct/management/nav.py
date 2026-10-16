@@ -21,6 +21,11 @@ def django_admin(request: HttpRequest) -> bool:
     return admin.site.has_permission(request)
 
 
+def org_admin(request: HttpRequest) -> bool:
+    profile = getattr(request.user, "profile", None)
+    return profile is not None and profile.is_org_admin(profile.org)
+
+
 def mounted(url_name: str) -> bool:
     try:
         reverse(url_name)
@@ -87,6 +92,7 @@ NAV: tuple[Group, ...] = (
     Group(
         "Admin",
         (
+            Page("Organization", "organization", Icon.ORGANIZATION, access=org_admin),
             Page(
                 "Admin panel",
                 "admin:index",

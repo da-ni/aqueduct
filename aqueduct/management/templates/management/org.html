@@ -17,14 +17,7 @@
 
     <div class="flex flex-wrap items-center gap-3">
         {% if all_orgs %}
-            <form method="post" action="{% url 'org_switch' %}">
-                {% csrf_token %}
-                <select name="org_id" class="select select-sm w-56" aria-label="Organization" onchange="this.form.submit()">
-                    {% for org in all_orgs %}
-                        <option value="{{ org.id }}"{% if org.id == org_object.id %} selected{% endif %}>{{ org.name }}</option>
-                    {% endfor %}
-                </select>
-            </form>
+            {% include "management/_org_switch.html" %}
         {% endif %}
         <form method="get" role="search">
             <label class="input input-sm w-64">
@@ -33,8 +26,11 @@
             </label>
         </form>
         <span class="ml-auto text-sm">{% if org_limit is None %}<span class="muted">No default request limit</span>{% else %}<span class="muted">Default limit</span> <span class="font-mono font-semibold">{{ org_limit|intcomma }}</span> <span class="muted">requests per minute</span>{% endif %}</span>
+        {% if is_org_admin %}
+            <a class="link-plain text-sm" href="{% url 'organization_limits' org_object.id %}">Edit</a>
+        {% endif %}
         {% if can_edit_in_admin %}
-            <a class="link-plain text-sm" href="{% url 'admin:management_org_change' org_object.id %}">Edit</a>
+            <a class="link-plain text-sm" href="{% url 'admin:management_org_change' org_object.id %}">Edit in admin</a>
         {% endif %}
     </div>
 

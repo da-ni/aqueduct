@@ -5,11 +5,14 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from .models import ServiceAccount, Team, Token
+from .admin import get_mcp_server_choices, get_model_choices
+from .models import Org, ServiceAccount, Team, Token
 
 NAME_INPUT = "input w-full max-w-md"
 DESCRIPTION_INPUT = "textarea w-full max-w-2xl"
 EXPIRY_INPUT = "input w-full max-w-xs"
+NUMBER_INPUT = "input w-full max-w-xs"
+CHECKBOX = "checkbox checkbox-sm"
 
 
 class ServiceAccountForm(forms.ModelForm):
@@ -172,3 +175,96 @@ class TokenCreateForm(forms.ModelForm):
             self.add_error("expires_at", "Expiration date must be in the future.")
 
         return cleaned_data
+
+
+class OrgLimitsForm(forms.ModelForm):
+    class Meta:
+        model = Org
+        fields: ClassVar[list] = [
+            "requests_per_minute",
+            "input_tokens_per_minute",
+            "output_tokens_per_minute",
+            "hourly_limit_multiplier",
+            "daily_limit_multiplier",
+        ]
+        widgets: ClassVar[dict] = {
+            field: forms.NumberInput(attrs={"class": NUMBER_INPUT, "min": 0}) for field in fields
+        }
+        labels: ClassVar[dict] = {
+            "requests_per_minute": "Requests per minute, per key",
+            "input_tokens_per_minute": "Input tokens per minute, per key",
+            "output_tokens_per_minute": "Output tokens per minute, per key",
+            "hourly_limit_multiplier": "Hourly limit, in per-minute limits",
+            "daily_limit_multiplier": "Daily limit, in per-minute limits",
+        }
+        help_texts: ClassVar[dict] = {
+            "requests_per_minute": "Leave it empty for no limit.",
+            "input_tokens_per_minute": "Leave it empty for no limit.",
+            "output_tokens_per_minute": "Leave it empty for no limit.",
+            "hourly_limit_multiplier": "From 1 to 60. Leave it empty for the server default.",
+            "daily_limit_multiplier": "From 1 to 1440. Leave it empty for the server default.",
+        }
+
+
+def switch_off_choices(known: list[str], stored: list[str]) -> list[tuple[str, str]]:
+    """The configured names, then stored names the config no longer has, so a save keeps them."""
+    missing = [name for name in stored if name not in known]
+    return [(name, name) for name in known] + [
+        (name, f"{name} (not in the current config, kept)") for name in missing
+    ]
+
+
+class CheckboxList(forms.CheckboxSelectMultiple):
+    template_name = "management/widgets/checkboxes.html"
+
+
+class OrgSwitchOffsForm(forms.ModelForm):
+    """Org switch-offs, limited to the models and MCP servers the gateway knows."""
+
+    excluded_models = forms.MultipleChoiceField(
+        required=False, widget=CheckboxList(attrs={"class": CHECKBOX}), label="Switched off models"
+    )
+    excluded_mcp_servers = forms.MultipleChoiceField(
+        required=False,
+        widget=CheckboxList(attrs={"class": CHECKBOX}),
+        label="Switched off MCP servers",
+    )
+
+    class Meta:
+        model = Org
+        fields: ClassVar[list] = [
+            "excluded_models",
+            "merge_exclusion_lists",
+            "excluded_mcp_servers",
+            "merge_mcp_server_exclusion_lists",
+        ]
+        widgets: ClassVar[dict] = {
+            "merge_exclusion_lists": forms.CheckboxInput(attrs={"class": CHECKBOX}),
+            "merge_mcp_server_exclusion_lists": forms.CheckboxInput(attrs={"class": CHECKBOX}),
+        }
+        labels: ClassVar[dict] = {
+            "merge_exclusion_lists": "Also switch off the server's default models",
+            "merge_mcp_server_exclusion_lists": "Also switch off the server's default MCP servers",
+        }
+        help_texts: ClassVar[dict] = {
+            "merge_exclusion_lists": "The server configuration can name models to switch off "
+            "everywhere. Clear this to make them available in this organization.",
+            "merge_mcp_server_exclusion_lists": "The server configuration can name MCP servers "
+            "to switch off everywhere. Clear this to make them available in this organization.",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        org = self.instance
+        self.fields["excluded_models"].choices = switch_off_choices(
+            get_model_choices(), org.excluded_models
+        )
+        servers = get_mcp_server_choices()
+        if servers:
+            self.fields["excluded_mcp_servers"].choices = switch_off_choices(
+                servers, org.excluded_mcp_servers
+            )
+        else:
+            # Without the field the form leaves the stored list as it is.
+            del self.fields["excluded_mcp_servers"]
+            del self.fields["merge_mcp_server_exclusion_lists"]

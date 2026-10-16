@@ -1,0 +1,65 @@
+{% extends "management/base.html" %}
+{% load humanize ui %}
+
+{% block page_background %}{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-col gap-2">
+            <h1 class="text-3xl font-semibold">{{ org_object.name }}</h1>
+            <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+                <span>{{ page.people|intcomma }} {{ page.people|pluralize:"person,people" }}</span>
+                <span><a class="link-plain" href="{% url 'org' %}">{{ page.teams|intcomma }} team{{ page.teams|pluralize }}</a></span>
+                <span>{{ page.service_accounts|intcomma }} service account{{ page.service_accounts|pluralize }}</span>
+            </div>
+        </div>
+        {% if all_orgs %}{% include "management/_org_switch.html" %}{% endif %}
+    </header>
+
+    <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-5">
+        <section class="card bg-base-200 lg:col-span-2" aria-labelledby="limits-title">
+            <div class="card-body gap-4 p-5">
+                <div class="flex items-center justify-between gap-3">
+                    <h2 id="limits-title" class="text-xl font-semibold">Limits</h2>
+                    <a class="link-plain text-sm" href="{% url 'organization_limits' org_object.id %}" aria-label="Edit limits">Edit</a>
+                </div>
+                <dl class="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-3 text-sm">
+                    {% for label, value in page.limit_labels %}
+                        <dt class="muted">{{ label }}, per key</dt><dd class="text-right font-mono text-base font-semibold">{{ value }}</dd>
+                    {% endfor %}
+                    {% for label, value in page.multipliers %}
+                        <dt class="muted">{{ label }}</dt><dd class="text-right font-mono text-base font-semibold">{{ value }}</dd>
+                    {% endfor %}
+                    <dt class="muted">Personal keys per person</dt><dd class="text-right font-mono text-base font-semibold">{{ page.max_personal_keys }}</dd>
+                </dl>
+                <p class="muted border-t border-base-300 pt-4 text-sm">Teams and people use these unless they have a limit of their own. The server configuration sets the number of personal keys.</p>
+            </div>
+        </section>
+
+        <section class="card bg-base-200 lg:col-span-3" aria-labelledby="switch-offs-title">
+            <div class="card-body gap-4 p-5">
+                <div class="flex items-center justify-between gap-3">
+                    <h2 id="switch-offs-title" class="text-xl font-semibold">Switched off</h2>
+                    <a class="link-plain text-sm" href="{% url 'organization_switch_offs' org_object.id %}" aria-label="Edit switch-offs">Edit</a>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="table">
+                        <thead><tr><th>For</th><th>Models</th><th>MCP servers</th></tr></thead>
+                        <tbody>
+                            {% for row in page.switch_offs %}
+                                <tr>
+                                    <td>{% if row.team %}<a class="link-plain" href="{% url 'team' row.team.id %}">{{ row.team.name }}</a>{% else %}Everyone in {{ org_object.name }}{% endif %}</td>
+                                    <td>{% if row.models %}<div class="flex flex-wrap gap-1.5">{% for model in row.models %}<span class="badge badge-sm bg-base-100 font-mono">{{ model }}</span>{% endfor %}</div>{% else %}<span class="muted">None</span>{% endif %}</td>
+                                    <td>{% if row.mcp_servers %}<div class="flex flex-wrap gap-1.5">{% for server in row.mcp_servers %}<span class="badge badge-sm bg-base-100 font-mono">{{ server }}</span>{% endfor %}</div>{% else %}<span class="muted">None</span>{% endif %}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="muted border-t border-base-300 pt-4 text-sm">Teams and people that use only their own switch-offs do not get the first row.</p>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
