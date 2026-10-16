@@ -16,7 +16,7 @@ AQV=.claude/skills/verify/scripts/aqv
 $AQV launch
 ```
 
-Launch takes about 15 seconds. It migrates a fresh database, runs `scripts/seed.py`, starts `manage.py runserver --noreload` on a free port, and starts Chromium with a debug port. It is ready when it prints the run state as JSON and a final line `export AQV_RUN=/tmp/aqueduct-verify/run-<id>`. By then it has signed in as `user` over HTTP and loaded the API keys page. Pass that directory to later commands as `--run <dir>`, or set `AQV_RUN` in the same shell call. With exactly one live run, commands find it without either.
+Launch takes about 15 seconds. It migrates a fresh database, runs `scripts/seed.py`, starts the repository's mock OpenAI server (`aqueduct/mock_api/`) as the instance's upstream, starts `manage.py runserver --noreload` on a free port, and starts Chromium with a debug port. It is ready when it prints the run state as JSON and a final line `export AQV_RUN=/tmp/aqueduct-verify/run-<id>`. By then it has signed in as `user` over HTTP and loaded the API keys page. Pass that directory to later commands as `--run <dir>`, or set `AQV_RUN` in the same shell call. With exactly one live run, commands find it without either.
 
 The instance runs the working tree as it was at launch, including uncommitted edits. Django does not reload in this mode. After you change Python code or templates, stop the run and launch a new one.
 
@@ -34,13 +34,27 @@ Seeded accounts, all with the email `<username>@verify.invalid`:
 
 The router config is `example_router_config.yaml` from the main checkout, set by the quartz dev overlay. Seeded requests use its model names.
 
+## Call the gateway
+
+The `/v1` API answers with mock upstream responses, so a key created in the UI works against the gateway. No real provider is involved. Copy the secret from the `Your key is ready` panel, then call the base URL from the run state.
+
+```bash
+BASE=$(python3 -c "import json; print(json.load(open('$AQV_RUN/state.json'))['base'])")
+curl -s -H "Authorization: Bearer $KEY" "$BASE/v1/models"
+curl -s -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"model": "gpt-4.1-nano", "messages": [{"role": "user", "content": "hi"}]}' \
+  "$BASE/v1/chat/completions"
+```
+
+Both return 200. Embeddings and files also work. Each call is stored as a request on the key. Responses come from `aqueduct/mock_api/mock_configs.py`, and the mock's log is `mock.log` in the run directory.
+
 ## Doctor
 
 ```bash
 .claude/skills/verify/scripts/aqv doctor --run <dir>
 ```
 
-It reads only. It checks that the server and browser processes are alive, the login page answers 200, the browser debug port answers, the checkout HEAD still matches the SHA the run launched from, no migration is unapplied, and every seeded account exists. Exit code 0 means the run is worth driving. Run it first whenever a command fails in a way you did not expect.
+It reads only. It checks that the server and browser processes are alive, the mock upstream answers, the login page answers 200, the browser debug port answers, the checkout HEAD still matches the SHA the run launched from, no migration is unapplied, and every seeded account exists. Exit code 0 means the run is worth driving. Run it first whenever a command fails in a way you did not expect.
 
 ## Drive
 
@@ -73,13 +87,13 @@ Evidence goes to `/tmp/aqueduct-verify/evidence/<run-id>/`, outside the run dire
 .claude/skills/verify/scripts/aqv stop --run <dir>
 ```
 
-It stops the server and browser by the process group IDs recorded at launch, never by process name. It copies `server.log` into the evidence folder, deletes the run directory with its database and browser profile, and prints where the evidence is. `aqv runs` lists every run and whether it is live. Stop every run you launched, including after a failed attempt.
+It stops the server, mock upstream, and browser by the process group IDs recorded at launch, never by process name. It copies `server.log` and `mock.log` into the evidence folder, deletes the run directory with its database and browser profile, and prints where the evidence is. `aqv runs` lists every run and whether it is live. Stop every run you launched, including after a failed attempt.
 
 ## Helpers
 
 - `scripts/aqv` is the only command you run. `aqv <command> --help` lists each command's options.
 - `scripts/seed.py` seeds a fresh database. `launch` runs it, and nothing else should.
-- `scripts/verify_settings.py` loads the quartz dev overlay from `~/Projects/quartz/bedrock/services/aqueduct-dev` with the run's own database.
+- `scripts/verify_settings.py` loads the quartz dev overlay from `~/Projects/quartz/bedrock/services/aqueduct-dev` with the run's own database, without the OIDC backend.
 - `scripts/verify_urls.py` adds `/verify-login/` to the overlay's URLs.
 
 Each run is isolated, so parallel runs in separate worktrees work. In a new worktree, the first `uv run` builds a virtual environment, so the first launch there is slower.
