@@ -71,6 +71,7 @@ class Icon(Enum):
     ROTATE = (_el("path", d="M20 12a8 8 0 11-2.6-5.9M20 4v5h-5"),)
     DELETE = (_el("path", d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"),)
     OK = (_el("circle", cx="12", cy="12", r="8.5"), _el("path", d="M8.5 12.5l2.5 2.5 4.5-5"))
+    PENDING = (_el("circle", cx="12", cy="12", r="8.5"), _el("path", d="M12 7.5V12l3 2"))
     FAILED = (_el("circle", cx="12", cy="12", r="8.5"), _el("path", d="M9 9l6 6M15 9l-6 6"))
     MENU = (_el("path", d="M4 7h16M4 12h16M4 17h16"),)
     COPY = (

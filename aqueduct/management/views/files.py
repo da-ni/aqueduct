@@ -1,46 +1,54 @@
-from datetime import UTC, datetime
-
-from django.db.models import Q
+from asgiref.sync import async_to_sync
+from django.contrib import messages
+from django.db.models import QuerySet
+from django.http import HttpResponse
+from django.shortcuts import redirect
+from django.urls import reverse_lazy
 from django.utils import timezone
-from django.views.generic import TemplateView
+from django.views.generic import DeleteView, TemplateView
 
+from gateway.config import get_files_api_client
 from management.models import FileObject
+from management.resources import file_list, own
 from management.views.base import BaseAqueductView
 
 
 class UserFilesView(BaseAqueductView, TemplateView):
-    """
-    Displays a list of FileObject instances accessible by the current user.
-    """
-
     template_name = "management/files.html"
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        profile = self.profile
-        user = profile.user
-        teams = profile.teams.all()
+        context["listing"] = file_list(self.request.user, self.profile.teams.all(), timezone.now())
+        return context
 
-        files = FileObject.objects.filter(
-            Q(token__user=user) | Q(token__service_account__team__in=teams)
-        ).order_by("-created_at")
 
-        now_ts = int(timezone.now().timestamp())
+class FileDeleteView(BaseAqueductView, DeleteView):
+    pk_url_kwarg = "id"
+    template_name = "management/common/confirm_delete.html"
+    success_url = reverse_lazy("files")
 
-        for f in files:
-            f.created_dt = datetime.fromtimestamp(f.created_at, tz=UTC)
-            # Convert expires_at for template display
-            if f.expires_at is not None:
-                f.expires_dt = datetime.fromtimestamp(f.expires_at, tz=UTC)
-                if f.expires_at <= now_ts:
-                    f.expiration_status = "expired"
-                elif f.expires_at <= now_ts + 86400 * 14:  # within 2 weeks
-                    f.expiration_status = "expiring_soon"
-                else:
-                    f.expiration_status = "active"
-            else:
-                f.expires_dt = None
-                f.expiration_status = "never"
+    def get_queryset(self) -> QuerySet[FileObject]:
+        return FileObject.objects.filter(own(self.request.user))
 
-        context["files"] = files
+    def form_valid(self, form) -> HttpResponse:
+        file = self.object
+        try:
+            client = get_files_api_client()
+        except ValueError:
+            messages.error(self.request, "The Files API is not configured.")
+            return redirect(self.success_url)
+        if not async_to_sync(file.adelete_upstream)(client, raise_on_error=False):
+            messages.error(self.request, f"Could not delete '{file.filename}'. Try again later.")
+            return redirect(self.success_url)
+        file.delete()
+        messages.success(self.request, f"File '{file.filename}' deleted.")
+        return redirect(self.success_url)
+
+    def get_context_data(self, **kwargs) -> dict[str, object]:
+        context = super().get_context_data(**kwargs)
+        context.update(
+            object_type_name="file", object_name=self.object.filename, cancel_url=self.success_url
+        )
+        if self.object.batches.exists():
+            context["warning"] = "Batches that use this file as input are removed with it."
         return context
