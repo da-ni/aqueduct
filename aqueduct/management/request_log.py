@@ -9,7 +9,7 @@ from django.urls import reverse
 
 from gateway.config import get_router_config
 from management.models import Org, Request, Team, Token, UserProfile
-from management.usage_report import STATUSES, duration
+from management.usage_report import NO_ORG, STATUSES, duration
 
 PAGE_SIZE = 50
 
@@ -142,8 +142,8 @@ def describe_key(
     else:
         href, note = None, token.user.email
     if with_org:
-        org = account.team.org if account is not None else token.user.profile.org
-        note += f" · {org.name}"
+        owner = account.team if account is not None else getattr(token.user, "profile", None)
+        note += f" · {owner.org.name if owner is not None else NO_ORG}"
     return Key(token, href, note)
 
 

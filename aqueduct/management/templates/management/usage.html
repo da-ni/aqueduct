@@ -222,7 +222,7 @@
                     <div class="-mx-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto">
                         {% for org in orgs_usage %}
                             <div class="hover-row grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_4rem] items-center gap-4 rounded-lg px-2 py-1 text-sm">
-                                <span class="truncate">{{ org.name|default:"No organization" }}</span>
+                                <span class="truncate">{{ org.name }}</span>
                                 <div><div class="onebar" style="width: {{ org.width }}%"></div></div>
                                 <span class="text-right font-mono">{{ org.value }}</span>
                             </div>
