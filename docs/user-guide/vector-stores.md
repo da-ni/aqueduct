@@ -1,33 +1,32 @@
 ---
-title: Vector Stores
+title: Vector stores
 parent: User Guide
-nav_order: 7
+nav_order: 9
 ---
 
-# Vector Stores
+# Vector stores
 
-On the Vector Stores page, you can view and manage vector stores for semantic search and retrieval through the [Vector Stores API](../api/vector-stores.md).
+The Vector stores page lists the vector stores that your keys created through the [Vector Stores API](../api/vector-stores.md). A vector store holds files that are split, embedded, and indexed for file search. Choose **Vector stores** under **Resources** in the sidebar.
 
-![Vector Stores Page](../assets/user_guide/vector_stores.png)
+![Vector stores page](../assets/user_guide/vector_stores.png)
 
-Vector stores contain files that are chunked, embedded, and indexed for efficient similarity search, powering features like file search and retrieval.
+The table lists the stores of your personal keys and of your teams' service accounts. Org admins also see the stores of every team in their organization. Each row shows:
 
-## Your Vector Stores
+- **Vector store**: the name and ID.
+- **Belongs to**: **Yours**, or the team name.
+- **Status**: whether the store is ready or still processing files.
+- **Files**: the number of files against the maximum per store.
+- **Size**: the total size of the files.
+- **Expires**: when the store expires, if it has an expiry.
 
-The "Your Vector Stores" section displays a quota indicator (e.g., "7/10 used") showing your current usage against the maximum allowed vector stores for your token.
+The line under the table counts your stores against the limits for your keys and for each team.
 
-Each vector store is displayed as a card showing:
+## Open a vector store
 
-- **Header**: The vector store name with a truncated unique ID (e.g., "Test VS" + `vs_15ef37ee...`).
-- **Status**: A badge indicating the processing status.
-- **Files**: The number of files in the store (e.g., "2/1000").
-- **Batches**: The number of file batches.
-- **Size**: Total size of files in the vector store.
-- **Created**: The creation date (e.g., "2026-02-19").
-- **Refresh**: Button to update the card's data.
+Choose a store's name to open its page. The page shows the store's status, ID, owner, dates, file count, and size, and lists its **Files** and **File batches** with the status of each.
 
-## Team Vector Stores
+## Refresh a vector store
 
-Team-owned vector stores (if available) would appear in a separate section, displaying resources shared with or owned by your teams. This section follows the same card layout and functionality.
+Aqueduct stores a copy of each vector store's status. To load the current status from the provider, choose the refresh button in the store's row, or **Refresh** on the store's page.
 
-For detailed API usage, parameters, and examples, see the [Vector Stores API reference](../api/vector-stores.md).
+To create a vector store or add files to it, use the [Vector Stores API](../api/vector-stores.md).

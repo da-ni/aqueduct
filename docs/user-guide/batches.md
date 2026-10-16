@@ -1,29 +1,27 @@
 ---
 title: Batches
 parent: User Guide
-nav_order: 6
+nav_order: 8
 ---
 
 # Batches
 
-On the Batches page, you can view and manage batch jobs created from uploaded newline-delimited JSON (`.jsonl`) files.
+The Batches page lists the batch jobs that your keys created through the [Batches API](../api/batches.md). A batch runs the requests of an uploaded JSON Lines (`.jsonl`) file. Choose **Batches** under **Resources** in the sidebar.
 
-![Batches Page](../assets/user_guide/batches.png)
+![Batches page](../assets/user_guide/batches.png)
 
-The table lists all batch jobs associated with your user. Each row shows:
+The table lists the batches of your personal keys and of your teams' service accounts. Each row shows:
 
-- **Batch ID**: Unique identifier for the batch job.
-- **Input File**: The source JSONL file used for this batch.
-- **Output File**: The output JSONL file used for this batch to append results to.
-- **Error File**: The error JSONL file used for this batch to append errors to.
-- **Status**: Current state of the batch (e.g., `validating`, `in_progress`, `completed`, `failed`, etc.).
-- **Progress**: Shows the progress of the batch processing via a radial progress.
-- **Completion & Failure %**: Shows the completion (success) and failure percentage of the already processed requests via a radial progress.
-- **Created At**: Timestamp when the batch job was created.
-- **Actions**: Button to cancel the batch. Only batches with the status `validating` or `in_progress` can be canceled.
+- **Batch**: the batch ID and the API endpoint its requests call.
+- **Status**: the state of the batch, such as **Validating**, **In progress**, **Completed**, **Failed**, or **Cancelled**.
+- **Progress**: a bar with the processed and total requests and the number of failed requests.
+- **Files**: the input file, and links to the output and error files when they exist. A file name opens its row on the [Files](files.md) page.
+- **Created** and **Expires**: when the batch was created and when Aqueduct deletes it.
 
-Input/Output and Error files can be previewed similar to the Files view (🔎 icon).
-Only batches with status `validating` or `in_progress` count towards the batch limit for users and teams.
+The line under the table counts your running batches against the limits for your keys and for each team. Validating, in-progress and cancelling batches count toward these limits.
 
-Batch processing happens at a fixed interval, in which not yet processed batches (with status `validating`) are added to the queue.
-The countdown for the next run is shown on the top left. If the batch could not be processes within the run its status may stay `validating`.
+## Cancel a batch
+
+You can cancel a validating, in-progress, or finalizing batch that your personal keys created. Choose **Cancel** in the batch's row, then confirm. Requests that the batch has not run yet are dropped.
+
+To cancel a service account's batch, use the [Batches API](../api/batches.md) with the service account key.

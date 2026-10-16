@@ -1,7 +1,7 @@
 ---
 title: Teams
 parent: User Guide
-nav_order: 2
+nav_order: 6
 ---
 
 # Teams
@@ -15,45 +15,76 @@ nav_order: 2
 
 ---
 
-## Teams View
+A team groups users of an organization and owns service accounts. A service account has one API key that belongs to the team instead of to a person, for example for a pipeline or a shared application.
 
-The Teams page displays a list of teams within your organization.
+## Read the team list
 
-![Teams Page](../assets/user_guide/teams_page.png)
+Choose **Teams** in the sidebar.
 
-You can view the default organization limits, which apply to tokens when no team or user-specific limits are set.
-Limits include Requests per Minute, Input Tokens per Minute, and Output Tokens per Minute. If you are an admin, you can modify these
-limits in the Admin Panel.
+![Teams page](../assets/user_guide/teams.png)
 
-**If you exceed any of these limits when making a request, the API will respond with a 429 HTTP error (Too Many Requests).**
+Users see the teams they are a member of, with their role in each. Org admins see every team of their organization. Admins also choose the organization in a select above the table.
 
-As an Organization Admin, you can create new teams using the "Create New Team" button, which opens the team creation form. Here,
-you can set the team name and description.
+Each row shows the number of members and service accounts, the request limit per minute of the team, and the tokens of the team's service accounts over the last seven days. The search box filters by team name.
 
-You can also delete teams using the delete ("🗑") button in the team list if you have admin privileges.
+The line above the table shows the default request limit of the organization. This limit applies when no team or user limit is set. Org admins and admins get an **Edit** link that opens the limits form of the [Organization](organization.md#change-the-limits) page. Admins also get **Edit in admin**, which opens the organization in the Admin panel.
 
-## Team Detail View
+If a request goes over a limit, the API answers with HTTP status `429 Too Many Requests`.
 
-Clicking on a team in the list opens the Team Detail page.
+## Create or delete a team
 
-![Team Detail Page](../assets/user_guide/team_detail.png)
+Org admins and admins manage teams:
 
-On this page, you can view the team limits, which function similarly to organization limits. If no team limit is set, the
-organization limit is used by default.
+1. Choose **Create team** on the Teams page.
+2. Enter a **Name** and, optionally, a **Description**.
+3. Choose **Create team**.
 
-Below the limits, you’ll see the service accounts associated with the team. If you have Team Admin privileges, you can create
-service accounts using the "Add Service Account" button. Service accounts require a name and description, and a token is
-generated upon creation. If you create a service account, you own the associated token.
+To delete a team, open it and choose **Delete**, then confirm.
 
-You can transfer ownership of a service account token to another user within the team. If you own a service
-account, you cannot be removed from the team.
+## Open a team
 
-You can regenerate service account tokens, and you can delete service accounts, which also deletes the associated token.
-You can also edit service accounts to change their name and description.
+Choose a team's name to open its page. The page shows:
 
-![Team Admins](../assets/user_guide/team_admin.png)
+- The number of members, the number of service accounts against the maximum of 10, and the request limit.
+- Totals of the team's service accounts over the last seven days.
+- **Service accounts**, with each owner, tokens, last use, and expiry.
+- **Members**, with each member's role.
+- **Limits**, with the rate limits of each service account key and the models and MCP servers that are switched off for the team.
 
-Below the service accounts list, you’ll see the team members. Each member has a tag indicating their permissions (User,
-Team-Admin, Org-Admin, or Admin). If you are a Team-Admin, you can promote standard users to Team-Admin. If you do not have any service accounts, you can be removed from the team.
+![Team page](../assets/user_guide/team_detail.png)
 
-If a user is not part of a team, they can be added using the "Add Users to Team" list. Any user in the organization can be added to a team.
+The team figures count only service account keys. Members' personal keys follow their own limits and do not count toward the team.
+
+Team admins and org admins choose **Edit** to change the team's name and description.
+
+## Manage service accounts
+
+Team admins and org admins manage service accounts on the team page.
+
+To add a service account:
+
+1. Choose **Add service account**.
+2. Enter a **Name** and, optionally, a **Description** and a **Key expiry**.
+3. Choose **Create service account**.
+
+The **Your key is ready** panel shows the new key once. Copy it now. You become the owner of the service account.
+
+The buttons at the end of each service account row are:
+
+- **Rotate** replaces the key and shows the new one in the **Your key is ready** panel. The old key stops working immediately.
+- **Edit** changes the name, the description, or the key expiry.
+- **Transfer** gives the service account to another team member. Choose the **New owner**, then **Transfer ownership**.
+- **Delete** deletes the service account and its key after a confirmation page.
+
+## Manage members
+
+Team admins and org admins manage members:
+
+- To add a member, choose a person in **Add someone from** your organization, then choose **Add member**.
+- To remove a member, choose the delete button in the member's row. You cannot remove a member who owns a service account of the team. Transfer the service account first.
+
+Org admins and admins also appoint team admins. Choose **Make team admin** in a member's row. **Remove team admin** takes the role away. Team admins cannot appoint other team admins.
+
+## Limits and switched-off models
+
+Team limits and switched-off models are set in the Admin panel. Admins get an **Edit** link next to **Limits** on the team page. See [Admin](admin.md).
