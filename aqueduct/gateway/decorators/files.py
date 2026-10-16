@@ -2,14 +2,18 @@ import json
 import logging
 import sys
 from functools import wraps
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import litellm
+from asgiref.sync import sync_to_async
 from django.core.handlers.asgi import ASGIRequest
 
 from gateway.config import get_files_api_client, get_router, resolve_model_alias
 from gateway.decorators.types import AsyncView, ViewResult
 from gateway.response_error import error_response
+
+if TYPE_CHECKING:
+    from management.models import Token
 
 log = logging.getLogger("aqueduct")
 
@@ -38,14 +42,13 @@ def require_files_api_client(view_func: AsyncView) -> AsyncView:
     return wrapper
 
 
-def _lookup_relay_model_name(requested_model: str) -> str | None:
+def _lookup_relay_model_name(model_name: str) -> str | None:
     """Return upstream relay model for a configured deployment, else None."""
     router = get_router()
     if not router:
-        return requested_model
+        return model_name
 
-    requested_model = resolve_model_alias(requested_model)
-    deployment: litellm.Deployment | None = router.get_deployment(model_id=requested_model)
+    deployment: litellm.Deployment | None = router.get_deployment(model_id=model_name)
     if not deployment:
         return None
 
@@ -59,7 +62,7 @@ def _lookup_relay_model_name(requested_model: str) -> str | None:
     return relay_model
 
 
-def rewrite_batch_file_models(content: bytes) -> bytes:
+def rewrite_batch_file_models(content: bytes, excluded_models: set[str]) -> bytes:
     """
     Rewrite model names in a batch input JSONL file.
 
@@ -71,6 +74,8 @@ def rewrite_batch_file_models(content: bytes) -> bytes:
     1. Ensures custom_id is a string type (required by OpenAI Batch API)
     2. Replaces the model name in each request body with the actual upstream model name
     3. Rejects unknown models with a ValueError that includes custom_id
+    4. Rejects models in `excluded_models` (the key's switch-offs, by canonical name) with
+       the same ValueError, so a key cannot tell a switched-off model from a missing one
     """
     lines = content.decode("utf-8").splitlines()
     rewritten_lines = []
@@ -83,8 +88,9 @@ def rewrite_batch_file_models(content: bytes) -> bytes:
             body = request.get("body", {})
             if "model" in body:
                 original_model = body["model"]
-                relay_model = _lookup_relay_model_name(original_model)
-                if relay_model is None:
+                canonical_model = resolve_model_alias(original_model)
+                relay_model = _lookup_relay_model_name(canonical_model)
+                if relay_model is None or canonical_model in excluded_models:
                     custom_id = request.get("custom_id", "<missing custom_id>")
                     raise ValueError(
                         f"Unknown model '{original_model}' for custom_id '{custom_id}'"
@@ -117,7 +123,8 @@ def process_batch_file(view_func: AsyncView) -> AsyncView:
     This decorator (applied after @parse_body):
     1. Reads the file content ONCE from the uploaded file
     2. Extracts a preview (first 10 lines) of the original content
-    3. For batch files: rewrites model names using router config
+    3. For batch files: rewrites model names using router config and rejects models
+       the key cannot use
     4. Passes processed data to the view via kwargs:
        - file_content: bytes - the raw file content (or rewritten for batch)
        - file_preview: str | None - first 10 lines for batch files
@@ -145,9 +152,16 @@ def process_batch_file(view_func: AsyncView) -> AsyncView:
         content = uploaded.read()
 
         if purpose == "batch":
+            token: Token | None = kwargs.get("token")
+            if not token:
+                log.error(
+                    "process_batch_file decorator used without @token_authenticated decorator"
+                )
+                return error_response("Internal server error", status=500)
+            excluded_models = set(await sync_to_async(token.model_exclusion_list)())
             kwargs["file_preview"] = extract_preview(content)
             try:
-                kwargs["file_content"] = rewrite_batch_file_models(content)
+                kwargs["file_content"] = rewrite_batch_file_models(content, excluded_models)
             except ValueError as e:
                 return error_response(f"Batch file validation failed: {e!s}", status=400)
         else:
