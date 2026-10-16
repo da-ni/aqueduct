@@ -1,0 +1,85 @@
+{% extends "management/base.html" %}
+{% load ui %}
+
+{% block page_background %}{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
+        <h1 class="text-3xl font-semibold">Settings</h1>
+    </header>
+
+    <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        <div class="flex flex-col gap-4">
+            <section class="card bg-base-200" aria-labelledby="account-title">
+                <div class="card-body gap-4 p-5">
+                    <h2 id="account-title" class="text-xl font-semibold">Account</h2>
+                    <dl class="grid grid-cols-[8rem_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
+                        <dt class="muted">Signed in as</dt><dd class="break-all font-mono">{{ shell.viewer.email }}</dd>
+                        <dt class="muted">Sign-in</dt><dd>{{ sign_in_provider }}</dd>
+                        <dt class="muted">Organization</dt><dd>{{ view.org.name }}</dd>
+                        <dt class="muted">Role</dt><dd>{% if shell.viewer.role %}<span class="badge badge-sm bg-base-100 font-mono">{{ shell.viewer.role }}</span>{% else %}<span class="muted">none</span>{% endif %}</dd>
+                        <dt class="muted">Teams</dt>
+                        <dd class="flex flex-wrap gap-x-2">
+                            {% for membership in memberships %}
+                                {% if not forloop.first %}<span aria-hidden="true">·</span>{% endif %}
+                                <a class="link-plain" href="{% url 'team' membership.team.id %}">{{ membership.team.name }}</a>
+                                <span class="muted">{% if membership.is_admin %}admin{% else %}member{% endif %}</span>
+                            {% empty %}
+                                <span class="muted">You are in no team.</span>
+                            {% endfor %}
+                        </dd>
+                    </dl>
+                    <p class="muted text-sm">Your sign-in provider sets your e-mail address and organization.</p>
+                    <form action="{% url 'oidc_logout' %}" method="post" class="border-t border-base-300 pt-4">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline btn-primary">{% icon "sign_out" small=True %}Sign out</button>
+                    </form>
+                </div>
+            </section>
+
+            {% if show_terms %}
+                <section class="card bg-base-200">
+                    <div class="card-body flex-row flex-wrap items-center justify-between gap-3 p-5">
+                        <div class="flex flex-col gap-1">
+                            <h2 class="text-xl font-semibold">Terms of service</h2>
+                            <span class="muted text-sm">{% if terms_accepted_on %}You accepted the current version on {{ terms_accepted_on|date:"j F Y" }}.{% else %}You have not accepted the current version.{% endif %}</span>
+                        </div>
+                        <a class="link-plain" href="{% url 'tos' %}">Read the terms</a>
+                    </div>
+                </section>
+            {% endif %}
+        </div>
+
+        <div class="flex flex-col gap-4">
+            <section class="card bg-base-200" aria-labelledby="appearance-title">
+                <div class="card-body gap-4 p-5">
+                    <h2 id="appearance-title" class="text-xl font-semibold">Appearance</h2>
+                    <div class="only-light join" role="group" aria-labelledby="appearance-title">
+                        <button type="button" class="btn btn-sm btn-primary join-item" aria-pressed="true">{% icon "sun" small=True %}Light</button>
+                        <button type="button" class="btn btn-sm join-item" aria-pressed="false" data-toggle-theme>{% icon "moon" small=True %}Dark</button>
+                    </div>
+                    <div class="only-dark join" role="group" aria-labelledby="appearance-title">
+                        <button type="button" class="btn btn-sm join-item" aria-pressed="false" data-toggle-theme>{% icon "sun" small=True %}Light</button>
+                        <button type="button" class="btn btn-sm btn-primary join-item" aria-pressed="true">{% icon "moon" small=True %}Dark</button>
+                    </div>
+                    <p class="muted text-sm">This browser remembers your choice.</p>
+                </div>
+            </section>
+
+            <section class="card bg-base-200" aria-labelledby="limits-title">
+                <div class="card-body gap-4 p-5">
+                    <h2 id="limits-title" class="text-xl font-semibold">Limits of your personal keys</h2>
+                    <dl class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2.5 text-sm">
+                        {% for label, value in limit_labels %}
+                            <dt class="muted">{{ label }}</dt><dd class="text-right font-mono text-base font-semibold">{{ value }}</dd>
+                        {% endfor %}
+                        <dt class="muted">Personal keys</dt><dd class="text-right font-mono text-base font-semibold">{{ personal_keys }} of {{ max_tokens }}</dd>
+                    </dl>
+                    <p class="muted border-t border-base-300 pt-4 text-sm">{% if limits_set_for_account %}An admin set limits for your account. Limits not set there come from the organization default.{% else %}From the organization default.{% endif %}</p>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}
