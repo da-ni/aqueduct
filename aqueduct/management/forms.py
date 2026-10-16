@@ -7,27 +7,31 @@ from django.utils import timezone
 
 from .models import ServiceAccount, Team, Token
 
+NAME_INPUT = "input w-full max-w-md"
+DESCRIPTION_INPUT = "textarea w-full max-w-2xl"
+EXPIRY_INPUT = "input w-full max-w-xs"
+
 
 class ServiceAccountForm(forms.ModelForm):
     token_expires_at = forms.DateTimeField(
         required=False,
         widget=forms.DateTimeInput(
-            attrs={"type": "datetime-local", "class": "input"}, format="%Y-%m-%dT%H:%M"
+            attrs={"type": "datetime-local", "class": EXPIRY_INPUT}, format="%Y-%m-%dT%H:%M"
         ),
-        label="API Key Expiration Date (optional)",
-        help_text="Set an expiration date for the service account API key (optional).",
+        label="Key expiry (optional)",
+        help_text="Leave it empty and the key never expires.",
     )
 
     class Meta:
         model = ServiceAccount
         fields: ClassVar[list] = ["name", "description"]
         widgets: ClassVar[dict] = {
-            "name": forms.TextInput(attrs={"placeholder": "Enter service account name"}),
-            "description": forms.Textarea(
-                attrs={"rows": 3, "placeholder": "Optional description..."}
+            "name": forms.TextInput(
+                attrs={"placeholder": "For example rag-pipeline", "class": NAME_INPUT}
             ),
+            "description": forms.Textarea(attrs={"rows": 3, "class": DESCRIPTION_INPUT}),
         }
-        labels: ClassVar[dict] = {"name": "Service Account Name", "description": "Description"}
+        labels: ClassVar[dict] = {"name": "Name", "description": "Description (optional)"}
 
     def __init__(self, *args, **kwargs):
         # Pop the team object passed from the view
@@ -79,7 +83,7 @@ class ServiceAccountForm(forms.ModelForm):
                 )
         expires_at = cleaned_data.get("token_expires_at")
         if expires_at and expires_at <= timezone.now():
-            self.add_error("expires_at", "Expiration date must be in the future.")
+            self.add_error("token_expires_at", "Expiration date must be in the future.")
         return cleaned_data
 
 
@@ -88,12 +92,12 @@ class TeamCreateForm(forms.ModelForm):
         model = Team
         fields: ClassVar[list] = ["name", "description"]
         widgets: ClassVar[dict] = {
-            "name": forms.TextInput(attrs={"placeholder": "Enter team name"}),
-            "description": forms.Textarea(
-                attrs={"rows": 3, "placeholder": "Optional description..."}
+            "name": forms.TextInput(
+                attrs={"placeholder": "For example NLP Lab", "class": NAME_INPUT}
             ),
+            "description": forms.Textarea(attrs={"rows": 3, "class": DESCRIPTION_INPUT}),
         }
-        labels: ClassVar[dict] = {"name": "Team Name", "description": "Description"}
+        labels: ClassVar[dict] = {"name": "Name", "description": "Description (optional)"}
 
     def __init__(self, *args, **kwargs):
         # Pop the organization kwarg before initializing the parent ModelForm
@@ -132,12 +136,18 @@ class TokenCreateForm(forms.ModelForm):
         model = Token
         fields: ClassVar[list] = ["name", "expires_at"]
         widgets: ClassVar[dict] = {
-            "name": forms.TextInput(attrs={"placeholder": "For example thesis-eval"}),
+            "name": forms.TextInput(
+                attrs={"placeholder": "For example thesis-eval", "class": NAME_INPUT}
+            ),
             "expires_at": forms.DateTimeInput(
-                attrs={"type": "datetime-local", "class": "input"}, format="%Y-%m-%dT%H:%M"
+                attrs={"type": "datetime-local", "class": EXPIRY_INPUT}, format="%Y-%m-%dT%H:%M"
             ),
         }
         labels: ClassVar[dict] = {"name": "Name", "expires_at": "Expiry (optional)"}
+        help_texts: ClassVar[dict] = {
+            "expires_at": "Leave it empty and the key never expires. "
+            "Rotate it yourself from time to time."
+        }
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)

@@ -13,7 +13,7 @@ This directory is the maintained source for verifying what users see and do in t
 
 - Start every recipe from a fresh launch unless it says otherwise. Recipes change data, and the seed runs only once per launch.
 - Sign in with `aqv login <username>`. Each recipe names the account.
-- Name elements by ARIA role and accessible name, as the recipes do. The icon buttons on the API keys page carry the key's name, such as `Rotate user-laptop`. The service account cards on the team page use `Regenerate`, `Edit`, and `Delete`, so add `--nth` or open the item's own URL when a page lists several.
+- Name elements by ARIA role and accessible name, as the recipes do. The icon buttons on the API keys page and the team page carry the item's name, such as `Rotate user-laptop` or `Delete verify-pipeline`.
 - The browser accepts every `confirm()` dialog, so a click on a guarded button goes through.
 - Read stored values with `aqv shell -c`.
 

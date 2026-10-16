@@ -40,6 +40,6 @@ Preconditions:
 
 - The secret appears only once, in the `Your key is ready` panel after create or rotate. A later page load shows only `sk-...` and the last four characters.
 - The key's name link, `Edit <name>`, and `Delete <name>` all match `--name <name>` without `--exact`.
-- Service account rows show `Managed by the team` instead of buttons. Rotate, edit, and delete them on the team page, where the button is `Regenerate`. Rotating there also shows the `Your key is ready` panel.
+- Service account rows show `Managed by the team` instead of buttons. Rotate, edit, and delete them on the team page, where the buttons are `Rotate <name>`, `Edit <name>`, and `Delete <name>`. Rotating there also shows the `Your key is ready` panel.
 - The tabs appear only for a user in at least one team that has a service account.
 - The three-key limit counts personal keys only.
