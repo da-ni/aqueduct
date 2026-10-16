@@ -1,0 +1,525 @@
+#!/usr/bin/env python3
+"""aqv drives a private Aqueduct instance for verification.
+
+`aqv launch` starts a fresh, seeded instance from this checkout with its own database,
+port, and headless Chromium. Every other command acts on one run, chosen with
+--run DIR, the AQV_RUN variable, or the only live run.
+"""
+
+import argparse
+import json
+import os
+import re
+import signal
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from collections.abc import Callable
+from http.cookiejar import CookieJar
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from playwright.sync_api import Locator
+
+os.environ.setdefault(
+    "NODE_OPTIONS", "--no-deprecation"
+)  # Playwright's Node driver warns on every call
+
+SCRIPTS = Path(__file__).resolve().parent
+BEDROCK_OVERLAY = Path.home() / "Projects/quartz/bedrock/services/aqueduct-dev"
+ROOT = Path("/tmp/aqueduct-verify")
+EVIDENCE_ROOT = ROOT / "evidence"
+VIEWPORT = {"width": 1440, "height": 900}
+TOUR_PAGES = [
+    "/aqueduct/management/tokens/",
+    "/aqueduct/management/org/",
+    "/aqueduct/management/team/{team_id}",
+    "/aqueduct/management/usage/",
+    "/aqueduct/management/models/",
+    "/aqueduct/management/files/",
+    "/aqueduct/management/batches/",
+    "/aqueduct/management/mcp-servers/",
+    "/aqueduct/management/vector-stores/",
+]
+TOUR_USERS = ["user", "team-member", "team-admin", "org-admin", "admin", "other-org-admin"]
+
+
+def die(message: str) -> None:
+    print(f"aqv: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+def git(repo: Path, *args: str) -> str:
+    return subprocess.check_output(["git", *args], cwd=repo, text=True).strip()
+
+
+def free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def headless_shell() -> str:
+    """Playwright's headless-shell build.
+
+    The full Chrome binary dumps core when started directly on quartz.
+    """
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        full = Path(p.chromium.executable_path)
+    revision = full.parents[1].name.rsplit("-", 1)[-1]
+    shell = (
+        full.parents[2]
+        / f"chromium_headless_shell-{revision}/chrome-headless-shell-linux64/chrome-headless-shell"
+    )
+    if not shell.exists():
+        die(f"no headless shell at {shell}; run `playwright install chromium`")
+    return str(shell)
+
+
+def django_env(repo: Path, run: Path) -> dict:
+    env = dict(os.environ)
+    env.update(
+        DJANGO_SETTINGS_MODULE="verify_settings",
+        AQV_DB=str(run / "db.sqlite3"),
+        PYTHONPATH=os.pathsep.join([str(repo / "aqueduct"), str(SCRIPTS), str(BEDROCK_OVERLAY)]),
+        PYTHONUNBUFFERED="1",
+    )
+    return env
+
+
+def django(state: dict, *args: str, check: bool = True) -> subprocess.CompletedProcess:
+    repo, run = Path(state["repo"]), Path(state["run"])
+    done = subprocess.run(
+        ["uv", "run", "python", *args],
+        cwd=repo / "aqueduct",
+        env=django_env(repo, run),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if check and done.returncode != 0:
+        die(f"`python {' '.join(args)}` failed:\n{done.stdout[-2000:]}\n{done.stderr[-4000:]}")
+    return done
+
+
+def http_get(url: str, opener=None) -> tuple[int, str]:
+    opener = opener or urllib.request.build_opener()
+    try:
+        with opener.open(url, timeout=10) as response:
+            return response.status, response.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as error:
+        return error.code, ""
+    except (urllib.error.URLError, OSError):
+        return 0, ""
+
+
+def load_state(args) -> dict:
+    chosen = getattr(args, "run", None) or os.environ.get("AQV_RUN")
+    if not chosen:
+        live = [run for run, state in all_runs() if alive(state["server_pid"])]
+        if len(live) != 1:
+            die(f"pass --run DIR; live runs: {[str(r) for r in live] or 'none'}")
+        chosen = live[0]
+    state_file = Path(chosen) / "state.json"
+    if not state_file.exists():
+        die(f"no run at {chosen}")
+    return json.loads(state_file.read_text())
+
+
+def all_runs():
+    for state_file in sorted(ROOT.glob("run-*/state.json")):
+        yield state_file.parent, json.loads(state_file.read_text())
+
+
+def cmd_launch(args) -> None:
+    repo = Path(git(SCRIPTS, "rev-parse", "--show-toplevel"))
+    ROOT.mkdir(parents=True, exist_ok=True)
+    run = Path(tempfile.mkdtemp(prefix="run-", dir=ROOT))
+    evidence = EVIDENCE_ROOT / run.name
+    evidence.mkdir(parents=True)
+    state = {
+        "run": str(run),
+        "repo": str(repo),
+        "sha": git(repo, "rev-parse", "HEAD"),
+        "dirty": bool(git(repo, "status", "--porcelain")),
+        "port": free_port(),
+        "cdp_port": free_port(),
+        "evidence": str(evidence),
+    }
+    state["base"] = f"http://127.0.0.1:{state['port']}"
+    print(f"aqv: migrating a fresh database in {run}", file=sys.stderr)
+    django(state, "manage.py", "migrate", "--no-input")
+    seeded = django(state, str(SCRIPTS / "seed.py")).stdout.strip().splitlines()[-1]
+    state["seed"] = json.loads(seeded)
+
+    with (run / "server.log").open("w") as log:
+        server = subprocess.Popen(
+            [
+                "uv",
+                "run",
+                "python",
+                "manage.py",
+                "runserver",
+                f"127.0.0.1:{state['port']}",
+                "--noreload",
+            ],
+            cwd=repo / "aqueduct",
+            env=django_env(repo, run),
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    browser = subprocess.Popen(
+        [
+            headless_shell(),
+            "--no-sandbox",
+            f"--remote-debugging-port={state['cdp_port']}",
+            f"--user-data-dir={run / 'chromium'}",
+            "--no-first-run",
+            "about:blank",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    state.update(server_pid=server.pid, browser_pid=browser.pid)
+    (run / "state.json").write_text(json.dumps(state, indent=2))
+
+    deadline = time.time() + 90
+    while time.time() < deadline:
+        if not alive(server.pid):
+            die(f"server exited during startup, see {run / 'server.log'}")
+        if http_get(state["base"] + "/login/")[0] == 200:
+            break
+        time.sleep(1)
+    else:
+        die(f"server not ready after 90s, see {run / 'server.log'}")
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(CookieJar()))
+    status, body = http_get(state["base"] + "/verify-login/?username=user", opener)
+    if status != 200 or "API Keys" not in body:
+        die(f"signed-in tokens page not usable (status {status}), see {run / 'server.log'}")
+    deadline = time.time() + 30
+    while http_get(f"http://127.0.0.1:{state['cdp_port']}/json/version")[0] != 200:
+        if not alive(browser.pid) or time.time() > deadline:
+            die(
+                "headless browser did not open its debug port; "
+                f"stop this run with `aqv stop --run {run}`"
+            )
+        time.sleep(0.5)
+    print(json.dumps(state, indent=2))
+    print(f"export AQV_RUN={run}")
+
+
+def cmd_doctor(args) -> None:
+    state = load_state(args)
+    repo = Path(state["repo"])
+    checks = {
+        "server process alive": alive(state["server_pid"]),
+        "browser process alive": alive(state["browser_pid"]),
+        "login page answers 200": http_get(state["base"] + "/login/")[0] == 200,
+        "browser debug port answers": http_get(
+            f"http://127.0.0.1:{state['cdp_port']}/json/version"
+        )[0]
+        == 200,
+        "checkout HEAD matches the launched SHA": git(repo, "rev-parse", "HEAD") == state["sha"],
+    }
+    plan = django(state, "manage.py", "showmigrations", "--plan", check=False).stdout
+    checks["no unapplied migrations"] = "[ ]" not in plan and "[X]" in plan
+    accounts = django(
+        state,
+        "manage.py",
+        "shell",
+        "-c",
+        "from django.contrib.auth import get_user_model; "
+        "print(sorted(get_user_model().objects.values_list('username', flat=True)))",
+        check=False,
+    ).stdout.strip()
+    checks["seeded accounts present"] = all(f"'{name}'" in accounts for name in TOUR_USERS)
+    for name, ok in checks.items():
+        print(("ok    " if ok else "FAIL  ") + name)
+    print(
+        f"run {state['run']}  base {state['base']}  sha {state['sha'][:10]}"
+        + (" (dirty tree at launch)" if state["dirty"] else "")
+    )
+    sys.exit(0 if all(checks.values()) else 1)
+
+
+class Browser:
+    """One CDP connection to the run's Chromium. The page and its cookies outlive the command."""
+
+    def __init__(self, state: dict):
+        from playwright.sync_api import sync_playwright
+
+        self.state = state
+        self.playwright = sync_playwright().start()
+        browser = self.playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{state['cdp_port']}")
+        context = browser.contexts[0]
+        self.page = context.pages[0] if context.pages else context.new_page()
+        self.page.set_viewport_size(VIEWPORT)
+        self.page.on("dialog", lambda dialog: dialog.accept())
+        self.documents = []
+        self.page.on("response", self._record)
+
+    def _record(self, response) -> None:
+        try:
+            if (
+                response.request.resource_type == "document"
+                and response.frame == self.page.main_frame
+            ):
+                self.documents.append(response.status)
+        except Exception:
+            pass
+
+    def settle(self) -> None:
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=10000)
+        except Exception:
+            self.page.wait_for_load_state("load")
+
+    def report(self) -> None:
+        title = self.page.title()
+        crashed = bool(re.search(r" at /", title)) and "Traceback" in self.page.content()
+        print(
+            json.dumps(
+                {
+                    "status": self.documents[-1] if self.documents else None,
+                    "url": self.page.url.replace(self.state["base"], ""),
+                    "title": title,
+                    "server_error_page": crashed,
+                }
+            )
+        )
+
+    def locate(self, args: argparse.Namespace) -> "Locator":
+        page = self.page
+        if args.role:
+            locator = page.get_by_role(args.role, name=args.name, exact=args.exact)
+        elif args.label:
+            locator = page.get_by_label(args.label, exact=args.exact)
+        elif args.text:
+            locator = page.get_by_text(args.text, exact=args.exact)
+        elif args.selector:
+            locator = page.locator(args.selector)
+        else:
+            die("name the target with --role/--name, --label, --text, or --selector")
+        return locator.nth(args.nth) if args.nth is not None else locator
+
+    def close(self) -> None:
+        self.playwright.stop()
+
+
+def with_browser(action: Callable[["Browser", argparse.Namespace], None]) -> Callable:
+    def run(args):
+        browser = Browser(load_state(args))
+        try:
+            action(browser, args)
+        finally:
+            browser.close()
+
+    return run
+
+
+@with_browser
+def cmd_login(b: Browser, args) -> None:
+    b.page.context.clear_cookies()
+    b.page.goto(f"{b.state['base']}/verify-login/?username={args.username}&next={args.next}")
+    b.settle()
+    b.report()
+
+
+@with_browser
+def cmd_open(b: Browser, args) -> None:
+    b.page.goto(b.state["base"] + args.path)
+    b.settle()
+    b.report()
+
+
+@with_browser
+def cmd_click(b: Browser, args) -> None:
+    b.locate(args).click()
+    b.settle()
+    b.report()
+
+
+@with_browser
+def cmd_fill(b: Browser, args) -> None:
+    b.locate(args).fill(args.value)
+    b.report()
+
+
+@with_browser
+def cmd_select(b: Browser, args) -> None:
+    b.locate(args).select_option(args.value)
+    b.settle()
+    b.report()
+
+
+@with_browser
+def cmd_text(b: Browser, args) -> None:
+    print(b.page.locator(args.selector).first.inner_text())
+
+
+@with_browser
+def cmd_aria(b: Browser, args) -> None:
+    snapshot = b.page.locator(args.selector).first.aria_snapshot()
+    if args.save:
+        path = Path(b.state["evidence"]) / f"{args.save}.aria.txt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(snapshot)
+        print(path)
+    else:
+        print(snapshot)
+
+
+@with_browser
+def cmd_shot(b: Browser, args) -> None:
+    path = Path(b.state["evidence"]) / f"{args.name}.png"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    b.page.screenshot(path=str(path), full_page=not args.viewport)
+    print(path)
+
+
+@with_browser
+def cmd_tour(b: Browser, args) -> None:
+    team_id = b.state["seed"]["team_id"]
+    results = []
+    for user in args.users:
+        b.page.context.clear_cookies()
+        b.page.goto(f"{b.state['base']}/verify-login/?username={user}")
+        for template in args.pages:
+            path = template.format(team_id=team_id)
+            b.documents.clear()
+            b.page.goto(b.state["base"] + path)
+            b.settle()
+            slug = path.strip("/").replace("aqueduct/management/", "").replace("/", "_") or "root"
+            shot = Path(b.state["evidence"]) / "tour" / user / f"{slug}.png"
+            shot.parent.mkdir(parents=True, exist_ok=True)
+            b.page.screenshot(path=str(shot), full_page=True)
+            status = b.documents[0] if b.documents else None
+            results.append(
+                {
+                    "user": user,
+                    "path": path,
+                    "status": status,
+                    "landed": b.page.url.replace(b.state["base"], ""),
+                    "screenshot": str(shot),
+                }
+            )
+    summary = Path(b.state["evidence"]) / "tour" / "summary.json"
+    summary.write_text(json.dumps(results, indent=2))
+    for row in results:
+        flag = "5XX " if (row["status"] or 0) >= 500 else "    "
+        print(f"{flag}{row['user']:<16} {row['status']}  {row['path']}  ->  {row['landed']}")
+    print(summary)
+    if any((row["status"] or 0) >= 500 for row in results):
+        sys.exit(2)
+
+
+def cmd_shell(args) -> None:
+    done = django(load_state(args), "manage.py", "shell", "-c", args.code, check=False)
+    print(done.stdout, end="")
+    if done.returncode != 0:
+        print(done.stderr[-4000:], file=sys.stderr)
+        sys.exit(done.returncode)
+
+
+def cmd_stop(args) -> None:
+    state = load_state(args)
+    run = Path(state["run"])
+    for key in ("browser_pid", "server_pid"):
+        pid = state[key]
+        if alive(pid):
+            os.killpg(pid, signal.SIGTERM)
+            for _ in range(50):
+                if not alive(pid):
+                    break
+                time.sleep(0.1)
+            else:
+                os.killpg(pid, signal.SIGKILL)
+    log = run / "server.log"
+    if log.exists():
+        (Path(state["evidence"]) / "server.log").write_bytes(log.read_bytes())
+    subprocess.run(["rm", "-rf", str(run)], check=True)
+    print(f"stopped; evidence kept in {state['evidence']}")
+
+
+def cmd_runs(args) -> None:
+    for run, state in all_runs():
+        print(
+            f"{'live' if alive(state['server_pid']) else 'dead'}  {run}  "
+            f"{state['base']}  sha {state['sha'][:10]}"
+        )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="aqv", description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    def command(name: str, handler: Callable, help_text: str) -> argparse.ArgumentParser:
+        p = sub.add_parser(name, help=help_text)
+        p.add_argument("--run", help="run directory (default: $AQV_RUN or the only live run)")
+        p.set_defaults(handler=handler)
+        return p
+
+    def target(p):
+        p.add_argument("--role", help="ARIA role, used with --name")
+        p.add_argument("--name", help="accessible name for --role")
+        p.add_argument("--label", help="form label text")
+        p.add_argument("--text", help="visible text")
+        p.add_argument("--selector", help="CSS selector, last resort")
+        p.add_argument(
+            "--exact", action="store_true", help="match the name, label, or text exactly"
+        )
+        p.add_argument("--nth", type=int, help="pick the nth match, from 0")
+
+    command("launch", cmd_launch, "start a fresh seeded instance and browser")
+    command("doctor", cmd_doctor, "read-only health check of a run")
+    command("runs", cmd_runs, "list runs and whether they are live")
+    command("stop", cmd_stop, "stop a run's processes and delete its data, keeping evidence")
+    p = command("login", cmd_login, "sign the browser in as a seeded account")
+    p.add_argument("username")
+    p.add_argument("--next", default="/aqueduct/management/tokens/")
+    p = command("open", cmd_open, "navigate to a path")
+    p.add_argument("path")
+    target(command("click", cmd_click, "click an element"))
+    p = command("fill", cmd_fill, "type into a field")
+    target(p)
+    p.add_argument("--value", required=True)
+    p = command("select", cmd_select, "choose an option in a select")
+    target(p)
+    p.add_argument("--value", required=True)
+    p = command("text", cmd_text, "print the visible text of an element")
+    p.add_argument("--selector", default="body")
+    p = command("aria", cmd_aria, "print or save an ARIA snapshot")
+    p.add_argument("--selector", default="body")
+    p.add_argument("--save", help="save under evidence as NAME.aria.txt")
+    p = command("shot", cmd_shot, "save a full-page screenshot under evidence")
+    p.add_argument("name", help="file name without .png; may include subfolders")
+    p.add_argument("--viewport", action="store_true", help="capture only the viewport")
+    p = command("tour", cmd_tour, "screenshot every page as every role")
+    p.add_argument("--users", nargs="+", default=TOUR_USERS)
+    p.add_argument("--pages", nargs="+", default=TOUR_PAGES)
+    p = command("shell", cmd_shell, "run Python in the run's Django shell, to read side effects")
+    p.add_argument("-c", "--code", required=True)
+
+    args = parser.parse_args()
+    args.handler(args)
+
+
+if __name__ == "__main__":
+    main()

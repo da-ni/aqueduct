@@ -152,6 +152,8 @@ suppress-none-returning = true
 "**/gateway/views/decorators.py" = ["ANN401"]
 # Too much noise for tests
 "**/tests/**/*.py" = ["S", "ANN"]
+# Agent CLI scripts print their output, shell out by design, and are not a package
+".claude/skills/**" = ["T201", "S", "INP001", "PLR2004"]
 
 [tool.mypy]
 python_version = "3.11"
