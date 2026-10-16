@@ -110,16 +110,14 @@ class TeamListTest(TeamsPagesTestBase):
         self.assertIn("1,200", row)
         self.assertIn(">2.5K<", row)
 
-    def test_org_default_limit_links_to_the_admin_only_for_staff(self):
+    def test_org_default_limit_links_to_its_edit_page_only_for_org_admins(self):
         self.org.requests_per_minute = 600
         self.org.save()
-        url = reverse("admin:management_org_change", args=[self.org.id])
+        url = reverse("organization_limits", args=[self.org.id])
         response = self.as_user(self.org_admin).get(reverse("org"))
         self.assertContains(response, '<span class="font-mono font-semibold">600</span>')
-        self.assertNotContains(response, url)
-        self.org_admin.is_staff = True
-        self.org_admin.save()
-        self.assertContains(self.as_user(self.org_admin).get(reverse("org")), url)
+        self.assertContains(response, url)
+        self.assertNotContains(self.as_user(self.member).get(reverse("org")), url)
 
 
 class TeamDetailTest(TeamsPagesTestBase):

@@ -1,0 +1,9 @@
+<form method="post" action="{% url 'org_switch' %}">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.path }}">
+    <select name="org_id" class="select select-sm w-56" aria-label="Organization" onchange="this.form.submit()">
+        {% for org in all_orgs %}
+            <option value="{{ org.id }}"{% if org.id == org_object.id %} selected{% endif %}>{{ org.name }}</option>
+        {% endfor %}
+    </select>
+</form>

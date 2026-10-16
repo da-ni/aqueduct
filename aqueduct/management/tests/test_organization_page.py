@@ -1,0 +1,259 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
+from http import HTTPStatus
+from pathlib import Path
+
+from django.conf import settings
+from django.forms.models import model_to_dict
+from django.test import override_settings
+from django.urls import reverse
+
+from gateway.config import get_mcp_config
+from management.models import Org, ServiceAccount, UserGroup
+from management.tests.test_api_keys_pages import make_token
+from management.tests.test_teams_pages import TeamsPagesTestBase
+
+TEST_MCP_CONFIG = Path(settings.BASE_DIR).parent / "test-mcp.json"
+
+LIMITS = {
+    "requests_per_minute": "600",
+    "input_tokens_per_minute": "",
+    "output_tokens_per_minute": "5000",
+    "hourly_limit_multiplier": "30",
+    "daily_limit_multiplier": "",
+}
+SWITCH_OFFS = {"excluded_models": ["gpt-4.1-nano"], "merge_exclusion_lists": "on"}
+
+
+@contextmanager
+def mcp_config(path: Path | str) -> Iterator[None]:
+    get_mcp_config.cache_clear()
+    try:
+        with override_settings(MCP_CONFIG_FILE_PATH=path):
+            yield
+    finally:
+        get_mcp_config.cache_clear()
+
+
+EDITS = (("organization_limits", LIMITS), ("organization_switch_offs", SWITCH_OFFS))
+
+
+class OrganizationTestBase(TeamsPagesTestBase):
+    def setUp(self):
+        super().setUp()
+        self.admin = self.user("admin", UserGroup.ADMIN, self.other_org)
+
+    def stored(self, org: Org) -> dict:
+        return model_to_dict(Org.objects.get(pk=org.pk))
+
+
+class OrganizationPageTest(OrganizationTestBase):
+    url = reverse("organization")
+
+    def test_signed_out_goes_to_sign_in(self):
+        self.assert_sent_to_sign_in(self.client.get(self.url), self.url)
+
+    def test_users_and_team_admins_are_sent_to_the_teams_page(self):
+        for user in (self.member, self.team_admin, self.outsider):
+            with self.subTest(user=user.username):
+                response = self.as_user(user).get(self.url)
+                self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
+
+    def test_org_admin_sees_their_org_with_edit_links(self):
+        self.org.requests_per_minute = 600
+        self.org.save()
+        response = self.as_user(self.org_admin).get(self.url)
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertContains(response, '<h1 class="text-3xl font-semibold">lab-org</h1>', html=True)
+        self.assertContains(response, "4 people")
+        self.assertContains(response, "2 teams")
+        self.assertContains(response, "1 service account")
+        self.assertContains(response, "600")
+        self.assertContains(response, reverse("organization_limits", args=[self.org.id]))
+        self.assertContains(response, reverse("organization_switch_offs", args=[self.org.id]))
+        self.assertNotContains(response, reverse("org_switch"))
+
+    def test_org_admin_of_another_org_sees_only_their_own(self):
+        response = self.as_user(self.other_org_admin).get(self.url)
+        self.assertContains(response, "other-org")
+        self.assertNotContains(response, "lab-org")
+        self.assertNotContains(response, reverse("organization_limits", args=[self.org.id]))
+
+    def test_switch_offs_list_the_org_and_each_team_with_its_own(self):
+        self.org.excluded_models = ["dall-e-2"]
+        self.org.save()
+        self.team.excluded_models = ["gpt-image-1"]
+        self.team.save()
+        response = self.as_user(self.org_admin).get(self.url)
+        content = response.content.decode()
+        everyone = content.split("Everyone in lab-org", 1)[1].split("</tr>", 1)[0]
+        self.assertIn("dall-e-2", everyone)
+        team_row = content.split(f'href="{reverse("team", args=[self.team.id])}"', 1)[1]
+        self.assertIn("gpt-image-1", team_row.split("</tr>", 1)[0])
+        self.assertNotIn("Robotics", content)
+
+    @override_settings(AQUEDUCT_DEFAULT_MODEL_EXCLUSION_LIST=["whisper-1"])
+    def test_org_row_includes_server_defaults_only_while_the_org_merges_them(self):
+        page = self.as_user(self.org_admin).get(self.url).content.decode()
+        self.assertIn("whisper-1", page.split("Everyone in lab-org", 1)[1].split("</tr>", 1)[0])
+        self.org.merge_exclusion_lists = False
+        self.org.save()
+        page = self.as_user(self.org_admin).get(self.url).content.decode()
+        self.assertNotIn("whisper-1", page.split("Everyone in lab-org", 1)[1].split("</tr>", 1)[0])
+
+    def test_admin_switches_org_and_comes_back_to_this_page(self):
+        response = self.as_user(self.admin).get(self.url)
+        self.assertContains(response, reverse("org_switch"))
+        response = self.client.post(
+            reverse("org_switch"), {"org_id": self.org.id, "next": self.url}
+        )
+        self.assertRedirects(response, self.url, fetch_redirect_response=False)
+        self.assertContains(self.client.get(self.url), "lab-org")
+
+    def test_org_switch_ignores_a_foreign_next(self):
+        self.as_user(self.admin)
+        response = self.client.post(
+            reverse("org_switch"), {"org_id": self.org.id, "next": "https://evil.example/"}
+        )
+        self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
+
+    def test_service_account_count_counts_only_this_org(self):
+        ServiceAccount.objects.create(name="far", team=self.foreign_team)
+        response = self.as_user(self.org_admin).get(reverse("organization"))
+        self.assertContains(response, "1 service account")
+
+
+class OrganizationEditPermissionTest(OrganizationTestBase):
+    def url(self, name: str, org: Org | None = None) -> str:
+        return reverse(name, args=[(org or self.org).id])
+
+    def test_signed_out_goes_to_sign_in_and_changes_nothing(self):
+        before = self.stored(self.org)
+        for name, data in EDITS:
+            with self.subTest(name):
+                url = self.url(name)
+                self.assert_sent_to_sign_in(self.client.get(url), url)
+                self.assert_sent_to_sign_in(self.client.post(url, data), url)
+        self.assertEqual(self.stored(self.org), before)
+
+    def test_refused_roles_get_404_and_change_nothing(self):
+        before = self.stored(self.org)
+        for user in (self.member, self.team_admin, self.outsider, self.other_org_admin):
+            for name, data in EDITS:
+                with self.subTest(user=user.username, form=name):
+                    client = self.as_user(user)
+                    self.assertEqual(client.get(self.url(name)).status_code, HTTPStatus.NOT_FOUND)
+                    response = client.post(self.url(name), data)
+                    self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+        self.assertEqual(self.stored(self.org), before)
+
+    def test_org_admin_and_admin_may_edit(self):
+        for user in (self.org_admin, self.admin):
+            for name, data in EDITS:
+                with self.subTest(user=user.username, form=name):
+                    response = self.as_user(user).post(self.url(name), data)
+                    self.assertRedirects(
+                        response, reverse("organization"), fetch_redirect_response=False
+                    )
+        org = Org.objects.get(pk=self.org.pk)
+        self.assertEqual(org.requests_per_minute, 600)
+        self.assertIsNone(org.input_tokens_per_minute)
+        self.assertEqual(org.output_tokens_per_minute, 5000)
+        self.assertEqual(org.hourly_limit_multiplier, 30)
+        self.assertEqual(org.excluded_models, ["gpt-4.1-nano"])
+
+    def test_unknown_org_is_404(self):
+        self.as_user(self.admin)
+        url = reverse("organization_limits", args=[999_999])
+        self.assertEqual(self.client.get(url).status_code, HTTPStatus.NOT_FOUND)
+
+
+class OrganizationEditFormTest(OrganizationTestBase):
+    def post(self, name: str, data: dict):
+        url = reverse(name, args=[self.org.id])
+        return self.as_user(self.org_admin).post(url, data)
+
+    def test_bad_limits_are_form_errors_and_change_nothing(self):
+        before = self.stored(self.org)
+        for field, value in (
+            ("requests_per_minute", "-1"),
+            ("output_tokens_per_minute", "lots"),
+            ("hourly_limit_multiplier", "61"),
+            ("daily_limit_multiplier", "0"),
+        ):
+            with self.subTest(field=field, value=value):
+                response = self.post("organization_limits", {**LIMITS, field: value})
+                self.assertEqual(response.status_code, HTTPStatus.OK)
+                self.assertTrue(response.context["form"].has_error(field))
+        self.assertEqual(self.stored(self.org), before)
+
+    def test_unknown_model_is_a_form_error_and_changes_nothing(self):
+        before = self.stored(self.org)
+        response = self.post("organization_switch_offs", {"excluded_models": ["no-such-model"]})
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertTrue(response.context["form"].has_error("excluded_models"))
+        self.assertEqual(self.stored(self.org), before)
+
+    def test_empty_limits_clear_the_org_default(self):
+        self.org.requests_per_minute = 600
+        self.org.save()
+        self.post("organization_limits", {**LIMITS, "requests_per_minute": ""})
+        self.assertIsNone(Org.objects.get(pk=self.org.pk).requests_per_minute)
+
+    def test_without_an_mcp_config_the_stored_mcp_switch_offs_stay(self):
+        self.org.excluded_mcp_servers = ["kept"]
+        self.org.save()
+        with mcp_config("/nonexistent/mcp.json"):
+            response = self.post("organization_switch_offs", SWITCH_OFFS)
+        self.assertEqual(response.status_code, HTTPStatus.FOUND)
+        self.assertEqual(Org.objects.get(pk=self.org.pk).excluded_mcp_servers, ["kept"])
+
+    def test_mcp_servers_switch_off_for_the_org(self):
+        with mcp_config(TEST_MCP_CONFIG):
+            self.post(
+                "organization_switch_offs", {**SWITCH_OFFS, "excluded_mcp_servers": ["aqueduct"]}
+            )
+        key = make_token(self.member, "laptop")
+        self.assertTrue(key.mcp_server_excluded("aqueduct"))
+        self.assertFalse(key.mcp_server_excluded("test-server"))
+
+
+class OrganizationEditGatewayTest(OrganizationTestBase):
+    """An edit here changes what the gateway enforces for keys in the org."""
+
+    def switch_off(self, user, org: Org, data: dict):
+        url = reverse("organization_switch_offs", args=[org.id])
+        return self.as_user(user).post(url, data)
+
+    def test_switch_off_reaches_personal_and_service_account_keys_of_the_org(self):
+        personal = make_token(self.member, "laptop")
+        foreign = make_token(self.other_org_admin, "elsewhere")
+        self.assertFalse(personal.model_excluded("gpt-4.1-nano"))
+
+        self.switch_off(self.org_admin, self.org, SWITCH_OFFS)
+
+        self.assertTrue(personal.model_excluded("gpt-4.1-nano"))
+        self.assertTrue(self.pipeline_key.model_excluded("gpt-4.1-nano"))
+        self.assertFalse(personal.model_excluded("whisper-1"))
+        self.assertFalse(foreign.model_excluded("gpt-4.1-nano"))
+
+        self.switch_off(self.org_admin, self.org, {"merge_exclusion_lists": "on"})
+        self.assertFalse(personal.model_excluded("gpt-4.1-nano"))
+
+    def test_foreign_org_admin_cannot_switch_off_a_model_for_this_org(self):
+        personal = make_token(self.member, "laptop")
+        response = self.switch_off(self.other_org_admin, self.org, SWITCH_OFFS)
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+        self.assertFalse(personal.model_excluded("gpt-4.1-nano"))
+
+    @override_settings(AQUEDUCT_DEFAULT_MODEL_EXCLUSION_LIST=["whisper-1"])
+    def test_clearing_merge_makes_the_server_defaults_available(self):
+        personal = make_token(self.member, "laptop")
+        self.assertTrue(personal.model_excluded("whisper-1"))
+        self.switch_off(self.org_admin, self.org, {})
+        self.assertFalse(personal.model_excluded("whisper-1"))
+
+    def test_models_page_shows_the_org_switch_off(self):
+        self.switch_off(self.org_admin, self.org, SWITCH_OFFS)
+        response = self.as_user(self.member).get(reverse("models"), {"model": "gpt-4.1-nano"})
+        self.assertContains(response, "Off for you")

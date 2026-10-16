@@ -98,12 +98,12 @@ class ShellTest(TestCase):
         self.assertNotIn("Terms of service", shown)
         self.assertNotIn("Profiling", shown)
 
-    def test_admin_group_appears_only_for_staff(self):
+    def test_admin_group_appears_only_for_org_admins_and_staff(self):
         self.sign_in("user")
         self.assertNotIn("Admin", [s.title for s in self.shell_on(reverse("tokens")).sections])
         self.sign_in("admin")
         admin = next(s for s in self.shell_on(reverse("tokens")).sections if s.title == "Admin")
-        self.assertEqual([link.label for link in admin.links], ["Admin panel"])
+        self.assertEqual([link.label for link in admin.links], ["Organization", "Admin panel"])
 
     @override_settings(AUTHENTICATION_BACKENDS=["django.contrib.auth.backends.ModelBackend"])
     def test_staff_without_superuser_get_the_admin_panel(self):
