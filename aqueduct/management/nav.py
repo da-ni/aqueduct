@@ -105,7 +105,7 @@ NAV: tuple[Group, ...] = (
         ),
     ),
 )
-NAV_BOTTOM: tuple[Page, ...] = ()
+NAV_BOTTOM: tuple[Page, ...] = (Page("Settings", "settings", Icon.SETTINGS),)
 HELP: tuple[Page, ...] = (Page("Terms of service", "tos", Icon.FILE, access=terms_of_service),)
 
 
