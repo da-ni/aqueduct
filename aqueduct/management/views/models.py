@@ -1,30 +1,30 @@
-from copy import deepcopy
+from typing import Any
 
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 
-from gateway.config import get_router_config
+from management.model_catalog import Category, load_catalog
+from management.nav import gateway_url
+from management.views.base import BaseAqueductView
 
 
-class ModelListView(LoginRequiredMixin, TemplateView):
-    """
-    Displays a list of models from the Pydantic RouterConfig.
-    """
-
+class ModelListView(BaseAqueductView, TemplateView):
     template_name = "management/model_list.html"
 
-    def get_context_data(self, **kwargs) -> dict[str, object]:
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        try:
-            model_list = deepcopy(get_router_config())["model_list"]
-        except KeyError:
-            model_list = []
-        else:
-            for model in model_list:
-                litellm_params: dict = model.get("litellm_params", {})
-                if not litellm_params.get("api_key", "").startswith("os.environ/"):
-                    litellm_params["api_key"] = "*********"
-
-        context["model_list"] = model_list
-        context["site_host"] = f"{self.request.scheme}://{self.request.get_host()}"
+        params = self.request.GET
+        # Only the sign-in flow creates profiles, so a user made with createsuperuser has none.
+        catalog = load_catalog(getattr(self.request.user, "profile", None))
+        category = Category.parse(params.get("type", ""))
+        query = params.get("q", "").strip()
+        cards = catalog.search(category, query)
+        selected = catalog.find(params.get("model", "")) or next(iter(cards or catalog.cards), None)
+        context.update(
+            catalog=catalog,
+            category=category,
+            query=query,
+            cards=cards,
+            selected=selected,
+            snippet=selected.curl(gateway_url(self.request)) if selected else None,
+        )
         return context

@@ -1,13 +1,18 @@
 import json
+import re
 import shlex
+import tempfile
 from pathlib import Path
+from typing import ClassVar
 from urllib.parse import urlsplit
 
 import yaml
 from django.conf import settings
-from django.test import SimpleTestCase
-from django.urls import resolve
+from django.contrib.auth import get_user_model
+from django.test import SimpleTestCase, TestCase, override_settings
+from django.urls import resolve, reverse
 
+from gateway.config import get_router_config
 from management.model_catalog import (
     MODES,
     OTHER_MODE,
@@ -17,13 +22,16 @@ from management.model_catalog import (
     mode_for,
     parse_card,
 )
+from management.models import Org, Team, Token, UserProfile
+
+User = get_user_model()
 
 ROUTER_CONFIG_PATH = Path(settings.BASE_DIR).parent / "example_router_config.yaml"
 EXAMPLE_ENTRIES = yaml.safe_load(ROUTER_CONFIG_PATH.read_text())["model_list"]
 
 RICH_ENTRY = {
     "model_name": "rich",
-    "litellm_params": {"model": "hosted_vllm/meta-llama/Llama-3.3-70B", "api_key": "secret"},
+    "litellm_params": {"model": "hosted_vllm/meta-llama/Llama-3.3-70B"},
     "model_info": {
         "aliases": ["main"],
         "max_tokens": 131072,
@@ -239,3 +247,145 @@ class CatalogTest(SimpleTestCase):
         self.assertEqual(Category.parse("images"), Category.IMAGES)
         for raw in ("", "Images", "video"):
             self.assertIsNone(Category.parse(raw))
+
+
+def rows(response) -> list[str]:
+    return re.findall(r'#model-detail"[^>]*>([^<]+)</a>', response.content.decode())
+
+
+def selected(response) -> str:
+    return re.search(r"<h2[^>]*>([^<]+)</h2>", response.content.decode()).group(1)
+
+
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    },
+    LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG_PATH,
+)
+class ModelsPageTest(TestCase):
+    fixtures: ClassVar[list[str]] = ["gateway_data.json"]
+
+    def setUp(self):
+        self.org = Org.objects.get(name="E060")
+        self.whale = Team.objects.get(name="Whale")
+
+    def page(self, user_pk=3, **params):
+        self.client.force_login(User.objects.get(pk=user_pk))
+        response = self.client.get(reverse("models"), params)
+        self.assertEqual(response.status_code, 200)
+        return response
+
+    def switch_off(self, holder, *models, merge=True):
+        holder.excluded_models = list(models)
+        holder.merge_exclusion_lists = merge
+        holder.save()
+
+    def test_signed_out_goes_to_sign_in(self):
+        response = self.client.get(reverse("models"))
+        self.assertRedirects(
+            response, f"{reverse('sso')}?next={reverse('models')}", fetch_redirect_response=False
+        )
+
+    def test_user_sees_every_model_and_no_switch_off(self):
+        response = self.page()
+        self.assertEqual(rows(response), [raw["model_name"] for raw in EXAMPLE_ENTRIES])
+        self.assertEqual(selected(response), "gpt-4.1-nano")
+        self.assertNotContains(response, "Off for")
+        self.assertNotContains(response, "Switched off")
+        self.assertContains(response, "curl http://testserver/v1/chat/completions")
+
+    def test_team_member_sees_the_team_switch_off(self):
+        self.switch_off(self.whale, "whisper-1")
+        response = self.page(model="whisper-1")
+        self.assertContains(response, "Off for Whale", count=1)
+        self.assertContains(response, "Switched off for Whale service accounts.")
+        self.assertContains(response, "Still available for your personal keys.")
+        self.assertNotContains(response, "in admin</a>")
+
+    def test_non_member_does_not_see_the_team_switch_off(self):
+        self.switch_off(self.whale, "whisper-1")
+        outsider = User.objects.create_user("outsider", "outsider@example.com")
+        UserProfile.objects.create(user=outsider, org=self.org)
+        response = self.page(user_pk=outsider.pk, model="whisper-1")
+        self.assertNotContains(response, "Off for")
+        self.assertNotContains(response, "Switched off")
+
+    def test_org_switch_off_reaches_only_scopes_that_merge(self):
+        self.switch_off(self.org, "dall-e-2")
+        self.assertContains(self.page(), "Off for you")
+        self.switch_off(UserProfile.objects.get(user_id=3), merge=False)
+        self.assertContains(self.page(), "Off for Whale")
+        self.switch_off(self.whale, merge=False)
+        self.assertNotContains(self.page(), "Off for")
+
+    def test_staff_get_an_admin_link_per_switched_off_scope(self):
+        self.switch_off(self.whale, "whisper-1")
+        self.switch_off(UserProfile.objects.get(user_id=1), "whisper-1")
+        response = self.page(user_pk=1, model="whisper-1")
+        self.assertContains(
+            response, "Switched off for your personal keys and Whale service accounts."
+        )
+        for url in (
+            reverse("admin:management_team_change", args=[self.whale.pk]),
+            reverse("admin:auth_user_change", args=[1]),
+        ):
+            self.assertContains(response, f'href="{url}"')
+
+    def test_type_tab_lists_only_that_type(self):
+        response = self.page(type="images")
+        self.assertEqual(rows(response), ["dall-e-2", "gpt-image-1"])
+        self.assertEqual(selected(response), "dall-e-2")
+        self.assertContains(response, 'aria-current="page">Images</a>')
+
+    def test_unknown_type_lists_every_model(self):
+        self.assertEqual(len(rows(self.page(type="video"))), len(EXAMPLE_ENTRIES))
+
+    def test_search_matches_an_alias(self):
+        response = self.page(q="stt")
+        self.assertEqual(rows(response), ["whisper-1"])
+        self.assertEqual(selected(response), "whisper-1")
+
+    def test_search_without_a_match_says_so(self):
+        response = self.page(q="no-such-model")
+        self.assertEqual(rows(response), [])
+        self.assertContains(response, "No model matches.")
+
+    def test_model_accepts_an_alias(self):
+        self.assertEqual(selected(self.page(model="tts")), "gpt-4o-mini-tts")
+
+    def test_unknown_model_selects_the_first_listed(self):
+        self.assertEqual(selected(self.page(type="audio", model="nope")), "gpt-4o-mini-tts")
+
+    def test_deep_link_to_a_filtered_out_model_still_shows_it(self):
+        response = self.page(type="images", model="whisper-1")
+        self.assertEqual(rows(response), ["dall-e-2", "gpt-image-1"])
+        self.assertEqual(selected(response), "whisper-1")
+        self.assertContains(response, "curl http://testserver/v1/audio/transcriptions")
+
+    def test_a_literal_api_key_never_reaches_the_page(self):
+        raw = {**EXAMPLE_ENTRIES[0], "litellm_params": {"model": "openai/x", "api_key": "sk-leak"}}
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml") as config:
+            yaml.safe_dump({"model_list": [raw]}, config)
+            self.addCleanup(get_router_config.cache_clear)
+            get_router_config.cache_clear()
+            with override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=config.name):
+                response = self.page()
+        self.assertContains(response, raw["model_name"])
+        self.assertNotContains(response, "sk-leak")
+
+    def test_switch_offs_match_what_the_gateway_enforces(self):
+        self.switch_off(self.org, "dall-e-2")
+        self.switch_off(UserProfile.objects.get(user_id=1), "gpt-4.1-nano", "tts")
+        self.switch_off(self.whale, "whisper-1")
+        catalog = self.page(user_pk=1).context["catalog"]
+        for team, token in ((None, Token.objects.get(pk=1)), ("Whale", Token.objects.get(pk=2))):
+            outcomes = set()
+            for card in catalog.cards:
+                page_off = any(scope.team == team for scope in card.off_for)
+                outcomes.add(page_off)
+                for key in (card.name, *card.aliases):
+                    with self.subTest(token=token.name, key=key):
+                        self.assertEqual(page_off, token.model_excluded(key))
+            self.assertEqual(outcomes, {True, False})

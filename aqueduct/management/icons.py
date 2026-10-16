@@ -62,6 +62,9 @@ class Icon(Enum):
     EXTERNAL = (
         _el("path", d="M14 5h5v5M19 5l-8 8M11 7H6a1 1 0 00-1 1v10a1 1 0 001 1h10a1 1 0 001-1v-5"),
     )
+    SEARCH = (_el("circle", cx="11", cy="11", r="6.5"), _el("path", d="M16 16l4.5 4.5"))
+    WARNING = (_el("path", d="M12 4l9 16H3l9-16zM12 10v5M12 17.5v.5"),)
+    OFF = (_el("circle", cx="12", cy="12", r="9"), _el("path", d="M8 12h8"))
     MENU = (_el("path", d="M4 7h16M4 12h16M4 17h16"),)
     COPY = (
         _el("rect", x="9", y="9", width="11", height="11", rx="2"),
