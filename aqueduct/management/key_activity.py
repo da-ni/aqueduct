@@ -197,7 +197,7 @@ class Stat:
 
 @dataclass(frozen=True)
 class Column:
-    day: date
+    label: str
     title: str
     segments: tuple[tuple[str, int], ...]
 
@@ -209,7 +209,7 @@ class Share:
     width: int
 
 
-def _heights(values: Sequence[int]) -> tuple[int, ...]:
+def heights(values: Sequence[float]) -> tuple[int, ...]:
     top = max(values, default=0)
     return tuple(round(100 * v / top) if top else 0 for v in values)
 
@@ -226,11 +226,11 @@ class Window:
         days = [d.activity for d in self.days]
         totals = self.totals
         return (
-            Stat("Input tokens", compact(totals.input), _heights([a.input for a in days])),
-            Stat("Output tokens", compact(totals.output), _heights([a.output for a in days])),
-            Stat("Cache hits", totals.cache_hits, _heights([a.cached for a in days])),
-            Stat("Requests", f"{totals.requests:,}", _heights([a.requests for a in days])),
-            Stat("Failed", totals.failed_share, _heights([a.failed for a in days])),
+            Stat("Input tokens", compact(totals.input), heights([a.input for a in days])),
+            Stat("Output tokens", compact(totals.output), heights([a.output for a in days])),
+            Stat("Cache hits", totals.cache_hits, heights([a.cached for a in days])),
+            Stat("Requests", f"{totals.requests:,}", heights([a.requests for a in days])),
+            Stat("Failed", totals.failed_share, heights([a.failed for a in days])),
         )
 
 
@@ -241,21 +241,30 @@ class KeyReport(Window):
     latest: tuple[Request, ...]
 
     def chart(self, metric: str) -> tuple[Column, ...]:
-        """One column per day, its segments as CSS class and percent of the busiest day."""
-        if metric == "requests":
-            values = [
-                (("i", d.activity.requests - d.activity.failed), ("f", d.activity.failed))
-                for d in self.days
-            ]
-            titles = [f"{d.activity.requests:,} requests" for d in self.days]
-        else:
-            values = [d.activity.segments for d in self.days]
-            titles = [f"{compact(d.activity.tokens)} tokens" for d in self.days]
-        top = max((sum(n for _, n in segs) for segs in values), default=0)
-        return tuple(
-            Column(d.day, title, tuple((css, round(100 * n / top)) for css, n in segs if n))
-            for d, title, segs in zip(self.days, titles, values, strict=True)
+        return chart([(f"{d.day:%-d %b}", d.activity) for d in self.days], metric)
+
+
+def chart(
+    points: Sequence[tuple[str, Activity]], metric: str, every: int = 1
+) -> tuple[Column, ...]:
+    """One column per point, its segments as CSS class and percent of the busiest point.
+
+    Only every `every`-th column keeps its axis label, so dense charts stay readable."""
+    if metric == "requests":
+        values = [(("i", a.requests - a.failed), ("f", a.failed)) for _, a in points]
+        titles = [f"{a.requests:,} requests" for _, a in points]
+    else:
+        values = [a.segments for _, a in points]
+        titles = [f"{compact(a.tokens)} tokens" for _, a in points]
+    top = max((sum(n for _, n in segs) for segs in values), default=0)
+    return tuple(
+        Column(
+            label if index % every == 0 else "",
+            f"{label}: {title}",
+            tuple((css, round(100 * n / top)) for css, n in segs if n),
         )
+        for index, ((label, _), title, segs) in enumerate(zip(points, titles, values, strict=True))
+    )
 
 
 def window(requests: QuerySet[Request], now: datetime) -> Window:
