@@ -4,26 +4,32 @@ from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django.utils import timezone
 from django.views.generic import TemplateView, View
 
 from management.models import Org
+from management.team_overview import team_rows
 from management.views.base import BaseAqueductView
 
 
 class OrgView(BaseAqueductView, TemplateView):
-    """Displays the organization dashboard showing accessible teams."""
+    """The teams page: the teams the user may open, with their size, limit, and usage."""
 
-    template_name = "management/org.html"  # Adjust path if needed
+    template_name = "management/org.html"
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        # Pass org admin status and list of teams to the template
-        context["is_org_admin"] = self.is_org_admin()
-        context["teams"] = self.get_teams_for_user()
-        context["org_object"] = self.org
-        # Add all orgs for admin users
+        query = self.request.GET.get("q", "").strip()
+        context.update(
+            is_org_admin=self.is_org_admin(),
+            query=query,
+            rows=team_rows(self.get_teams_for_user(), self.profile, query, timezone.now()),
+            org_object=self.org,
+            org_limit=self.org.requests_per_minute,
+            can_edit_in_admin=self.request.user.is_staff,
+        )
         if self.profile.group == "admin":
-            context["all_orgs"] = Org.objects.all()
+            context["all_orgs"] = Org.objects.order_by("name")
         return context
 
 

@@ -2,21 +2,26 @@
 from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
-from django.http import Http404, HttpResponse
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, UpdateView
 
 from management.forms import TeamCreateForm
 from management.models import ServiceAccount, Team, UserProfile
+from management.team_overview import team_page
+from management.views.base import (
+    BaseAqueductView,
+    BaseTeamView,
+    OrgAdminRequiredMixin,
+    TeamAdminRequiredMixin,
+    TeamViewerRequiredMixin,
+)
 
-# Removed Http404 as it wasn't used directly
-# Import base views/mixins and models/forms
-from management.views.base import BaseAqueductView, BaseTeamView, OrgAdminRequiredMixin
 
-
-class TeamCreateView(OrgAdminRequiredMixin, BaseAqueductView, CreateView):
+class TeamCreateView(BaseAqueductView, OrgAdminRequiredMixin, CreateView):
     """
     Handles creation of new Teams. Requires Org Admin privileges.
     """
@@ -45,14 +50,14 @@ class TeamCreateView(OrgAdminRequiredMixin, BaseAqueductView, CreateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["view_title"] = "Create New Team"
+        context["view_title"] = "Create a team"
         return context
 
 
-class TeamUpdateView(BaseTeamView, UpdateView):
+class TeamUpdateView(BaseTeamView, TeamAdminRequiredMixin, UpdateView):
     """
     Handles editing an existing Team (name, description).
-    Requires Team Admin privileges (checked in dispatch).
+    Requires Team Admin privileges, checked by TeamAdminRequiredMixin.
     Uses TeamCreateForm for validation.
     """
 
@@ -61,24 +66,6 @@ class TeamUpdateView(BaseTeamView, UpdateView):
     template_name = "management/edit/team.html"
     pk_url_kwarg = "id"
     context_object_name = "team"  # Match DetailView/template usage
-
-    def dispatch(self, request, *args, **kwargs) -> HttpResponse:
-        # Fetch team first using BaseTeamView's mechanism
-        # self.team will be set if successful, or Http404 raised
-        try:
-            _ = self.team  # Trigger fetch
-        except Http404:
-            messages.error(request, "The requested team was not found.")
-            return redirect(reverse_lazy("org"))  # Redirect if team doesn't exist
-
-        # Permission Check: User must be admin of this specific team
-        if not self.profile.is_team_admin(self.team):
-            messages.error(
-                request, f"You do not have permission to edit the team '{self.team.name}'."
-            )
-            return redirect(reverse("team", kwargs={"id": self.team.id}))  # Redirect to team detail
-
-        return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self) -> dict:
         """Pass the team's organization to the form for validation."""
@@ -100,13 +87,13 @@ class TeamUpdateView(BaseTeamView, UpdateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["view_title"] = f"Edit Team: {self.object.name}"
+        context["view_title"] = "Edit team"
         context["cancel_url"] = self.get_success_url()  # Add cancel URL
         # context['team'] is set automatically by UpdateView
         return context
 
 
-class TeamDeleteView(OrgAdminRequiredMixin, BaseTeamView, DeleteView):
+class TeamDeleteView(BaseTeamView, OrgAdminRequiredMixin, DeleteView):
     """
     Handles deletion of a Team. Requires Org Admin privileges.
     Ensures the team belongs to the admin's organization implicitly via BaseTeamView fetching
@@ -140,7 +127,7 @@ class TeamDeleteView(OrgAdminRequiredMixin, BaseTeamView, DeleteView):
         return context
 
 
-class TeamAdminManagementView(OrgAdminRequiredMixin, BaseTeamView, View):
+class TeamAdminManagementView(BaseTeamView, OrgAdminRequiredMixin, View):
     """
     Allows org-admins to add or remove team admin status for team members.
     Only org-admins can use this view. POST to add or remove.
@@ -202,7 +189,7 @@ class TeamAdminManagementView(OrgAdminRequiredMixin, BaseTeamView, View):
         return redirect(reverse("team", kwargs={"id": team.id}))
 
 
-class TeamDetailView(BaseTeamView, DetailView):
+class TeamDetailView(BaseTeamView, TeamViewerRequiredMixin, DetailView):
     """
     Displays team details, members, and service accounts.
     Allows Team Admins (or Org Admins) to manage membership via POST requests.
@@ -213,73 +200,21 @@ class TeamDetailView(BaseTeamView, DetailView):
     context_object_name = "team"
     pk_url_kwarg = "id"
 
-    def dispatch(self, request, *args, **kwargs) -> HttpResponse:
-        # Fetch team first using BaseTeamView's mechanism
-        # self.team will be set if successful, or Http404 raised
-        try:
-            # Trigger team fetching via property access
-            _ = self.team
-        except Http404:
-            messages.error(request, "The requested team was not found.")
-            return redirect(reverse_lazy("org"))  # Redirect if team doesn't exist
-
-        # Now check if the user has permission to view this team
-        # Users should see teams they are members of OR if they are admin of the team's org.
-        if self.team not in self.get_teams_for_user():
-            messages.error(
-                request, f"You do not have permission to view the team '{self.team.name}'."
-            )
-            return redirect(reverse_lazy("org"))  # Redirect to org dashboard
-
-        return super().dispatch(request, *args, **kwargs)
-
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        # self.team and self.team_org are available from BaseTeamView
-        # self.profile is available from BaseAqueductView
-        # context['team'] is set automatically by DetailView using get_object() -> self.team
-
-        context["is_org_admin"] = self.profile.is_org_admin(
-            self.team_org
-        )  # Check against team's org
-        # is_team_admin checks org admin status implicitly
-        context["is_team_admin"] = self.profile.is_team_admin(self.team)
-
-        context["org_object"] = self.team_org  # Pass the org object for limit display
-
-        context["service_accounts"] = self.team.service_accounts.select_related(
-            "token__user__profile"
-        ).all()
-
+        team = self.team
+        can_manage_admins = self.profile.is_org_admin(self.team_org)
+        page = team_page(team, self.profile, can_manage_admins, timezone.now())
         max_service_accounts = getattr(settings, "MAX_SERVICE_ACCOUNTS_PER_TEAM", 10)
-        context["max_service_accounts"] = max_service_accounts
-        context["can_add_service_account"] = (
-            context["service_accounts"].count() < max_service_accounts
+        context.update(
+            page=page,
+            is_team_admin=self.profile.is_team_admin(team),
+            can_manage_admins=can_manage_admins,
+            can_delete=self.is_org_admin(),
+            can_edit_in_admin=self.request.user.is_staff,
+            max_service_accounts=max_service_accounts,
+            can_add_service_account=len(page.service_accounts) < max_service_accounts,
         )
-
-        context["profile_ids_owning_service_accounts"] = set(
-            self.team.service_accounts.filter(token__user__profile__isnull=False).values_list(
-                "token__user__profile__id", flat=True
-            )
-        )
-
-        current_member_profile_ids = self.team.member_profiles.values_list("id", flat=True)
-        # Show profiles from the TEAM's org, not necessarily the user's org if different
-        context["available_profiles"] = self.team_org.user_profiles.exclude(
-            id__in=current_member_profile_ids
-        )
-
-        # --- Build member_badges: list of dicts for each member with badge info ---
-        member_badges = []
-        for member in self.team.member_profiles.all():
-            badge = {
-                "profile": member,
-                "group": member.group,
-                "is_team_admin": member.is_team_admin(self.team),
-                "is_org_admin": member.is_org_admin(self.team_org),  # Check against team's org
-            }
-            member_badges.append(badge)
-        context["member_badges"] = member_badges
         return context
 
     @transaction.atomic  # Ensure membership changes are atomic.

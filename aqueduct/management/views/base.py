@@ -161,6 +161,22 @@ class TeamAdminRequiredMixin:
         return super().dispatch(request, *args, **kwargs)
 
 
+class TeamViewerRequiredMixin:
+    """Lets a view through only for a team the user may see: their own, or any in their org
+    for an org admin. List it after `BaseTeamView` so the login check runs first."""
+
+    def dispatch(self, request, *args, **kwargs) -> HttpResponse:
+        try:
+            team = self.team
+        except Http404:
+            messages.error(request, "The requested team was not found.")
+            return redirect(reverse_lazy("org"))
+        if team not in self.get_teams_for_user():
+            messages.error(request, f"You do not have permission to view the team '{team.name}'.")
+            return redirect(reverse_lazy("org"))
+        return super().dispatch(request, *args, **kwargs)
+
+
 class BaseTeamView(BaseAqueductView):
     """
     Base view providing context for a specific Team instance fetched via URL kwarg.
@@ -225,7 +241,9 @@ class BaseTeamView(BaseAqueductView):
         return self.team
 
 
-class BaseServiceAccountView(TeamAdminRequiredMixin, BaseAqueductView):
+# View comes last so that the login check runs first and the team admin check runs before
+# the handler, also for subclasses that add only a generic view.
+class BaseServiceAccountView(BaseAqueductView, TeamAdminRequiredMixin, View):
     """
     Base view for operations on a specific ServiceAccount instance.
 
