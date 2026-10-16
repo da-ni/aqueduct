@@ -1,143 +1,159 @@
 {% extends "management/base.html" %}
-{% load static %}
+{% load ui %}
 
-{% block title %}Models{% endblock %}
+{% block page_background %}{% endblock %}
 
 {% block content %}
-<div class="container mx-auto p-6">
-    <div class="mb-6">
-        <h1 class="text-3xl font-bold mb-2">Models</h1>
-        <p class="text-lg text-base-content/70">
-            AI models available through the Aqueduct gateway.
-        </p>
-        <div class="mt-3 flex items-center gap-2">
-            <span class="text-sm text-base-content/60">Gateway URL:</span>
-            <pre class="bg-base-200 rounded px-2 py-1 text-sm font-mono overflow-x-auto whitespace-nowrap">{{ site_host }}</pre>
-            <button type="button"
-                    class="btn btn-xs btn-ghost"
-                    onclick="navigator.clipboard.writeText('{{ site_host }}')"
-                    title="Copy gateway URL">
-                <span class="h-3.5 w-3.5 inline-flex">
-                    <img src="{% static 'icons/copy.svg' %}" alt="Copy" class="w-3.5 h-3.5 [[data-theme=dark]_&]:invert">
-                </span>
-            </button>
+<div class="flex flex-col gap-6">
+    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
+        <h1 class="text-3xl font-semibold">Models</h1>
+    </header>
+
+    <div class="flex flex-wrap items-center gap-3">
+        {% if catalog.categories|length > 1 %}
+            <nav class="join" aria-label="Model type">
+                <a class="btn btn-sm join-item{% if not category %} btn-primary{% endif %}" href="{% querystring type=None model=None %}"{% if not category %} aria-current="page"{% endif %}>All</a>
+                {% for tab in catalog.categories %}
+                    <a class="btn btn-sm join-item{% if tab == category %} btn-primary{% endif %}" href="{% querystring type=tab.value model=None %}"{% if tab == category %} aria-current="page"{% endif %}>{{ tab.label }}</a>
+                {% endfor %}
+            </nav>
+        {% endif %}
+        <form method="get" role="search">
+            {% if category %}<input type="hidden" name="type" value="{{ category.value }}">{% endif %}
+            <label class="input input-sm w-64">
+                {% icon "search" small=True %}
+                <input type="search" name="q" value="{{ query }}" placeholder="Search models and aliases" aria-label="Search models and aliases">
+            </label>
+        </form>
+        <div class="copy-field sm ml-auto">
+            <span>{{ shell.gateway_url }}</span>
+            <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ shell.gateway_url }}"
+                    aria-label="Copy gateway URL" title="Copy gateway URL">{% icon "copy" small=True %}</button>
         </div>
     </div>
 
-    {% if model_list %}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {% for model in model_list %}
-        <div class="card bg-base-100 border border-base-300 hover:border-primary/50 transition-all duration-200">
-            <div class="card-body">
-                <div class="flex items-start gap-3">
-                    <img src="{% static 'icons/model.svg' %}" alt="{{ model.model_name }}"
-                         class="h-10 w-10 flex-shrink-0 mt-1 [[data-theme=dark]_&]:invert">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <h2 class="card-title text-lg">
-                                {{ model.model_name }}
-                            </h2>
-                            {% if model.model_info.request_limit_multiplier and model.model_info.request_limit_multiplier != 1 %}
-                            <span class="badge badge-soft badge-success badge-sm">{{ model.model_info.request_limit_multiplier }}x Limits</span>
-                            {% endif %}
-                        </div>
-                        <div class="flex flex-wrap items-center gap-1.5 mt-1">
-                            {% if model.model_info.aliases %}
-                            <span class="text-xs text-base-content/50">Aliases:</span>
-                            {% for alias in model.model_info.aliases %}
-                            <span class="badge badge-soft badge-primary badge-sm">{{ alias }}</span>
+    {% if selected %}
+        <section class="grid grid-cols-1 gap-4 xl:grid-cols-5">
+            <div class="card min-w-0 bg-base-200 xl:col-span-3">
+                <div class="card-body overflow-x-auto p-3">
+                    <table class="table table-fixed model-table">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th class="w-32">Type</th>
+                                {% if catalog.has_context %}<th class="w-24 text-right">Context</th>{% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for card in cards %}
+                                <tr class="row-pick relative">
+                                    <td>
+                                        <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                            <a class="truncate font-mono font-semibold after:absolute after:inset-0"
+                                               href="{% querystring model=card.name %}#model-detail"{% if card == selected %} aria-current="true"{% endif %}>{{ card.name }}</a>
+                                            {% if card.deprecation_date %}<span class="badge badge-outline badge-deprecated badge-sm flex-none font-mono uppercase">Deprecated</span>{% endif %}
+                                            {% if card.off_badge %}<span class="badge badge-outline badge-sm flex-none font-mono uppercase">{{ card.off_badge }}</span>{% endif %}
+                                        </div>
+                                    </td>
+                                    <td class="truncate">{{ card.mode.label }}</td>
+                                    {% if catalog.has_context %}<td class="text-right font-mono">{{ card.context|default:"n/a" }}</td>{% endif %}
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="3" class="muted">No model matches.</td></tr>
                             {% endfor %}
-                            {% endif %}
-                            {% if model.model_info.supports_vision %}
-                            <span class="badge badge-soft badge-accent badge-sm">Vision</span>
-                            {% endif %}
-                        </div>
-                        {% with mode=model.model_info.mode|default:"chat" %}
-                        {% if mode != "chat" %}
-                        <div class="flex items-center gap-1.5 mt-2">
-                            <span class="status status-md
-                                {% if mode == "embedding" %}status-info
-                                {% elif mode == "audio_speech" %}status-secondary
-                                {% elif mode == "audio_transcriptions" %}status-accent
-                                {% elif mode == "image_generations" %}status-warning
-                                {% endif %}"></span>
-                            <span class="text-xs text-base-content/60">
-                                {% if mode == "embedding" %}Embedding
-                                {% elif mode == "audio_speech" %}Text-to-Speech
-                                {% elif mode == "audio_transcriptions" %}Speech-to-Text
-                                {% elif mode == "image_generations" %}Image Generation
-                                {% endif %}
-                            </span>
-                        </div>
-                        {% endif %}
-                        {% endwith %}
-                    </div>
-                </div>
-
-                <div class="flex items-start justify-between mt-auto pt-4 border-t border-base-300">
-                    <details class="bg-base-200 rounded-lg group w-3/4">
-                        <summary class="flex items-center gap-2 px-3 py-2 text-sm font-medium cursor-pointer list-none select-none">
-                            <svg class="w-4 h-4 transition-transform duration-200 group-open:rotate-90" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                            </svg>
-                            Provider Settings
-                        </summary>
-                        <div class="px-3 pb-3 text-sm space-y-1">
-                            <div class="flex gap-4">
-                                <span class="text-base-content/60">TPM:</span>
-                                <span class="font-mono">{{ model.litellm_params.tpm|default:"—" }}</span>
-                            </div>
-                            <div class="flex gap-4">
-                                <span class="text-base-content/60">RPM:</span>
-                                <span class="font-mono">{{ model.litellm_params.rpm|default:"—" }}</span>
-                            </div>
-                            <div class="flex gap-4">
-                                <span class="text-base-content/60">Timeout:</span>
-                                <span class="font-mono">{% if model.litellm_params.timeout %}{{ model.litellm_params.timeout }}s{% else %}—{% endif %}</span>
-                            </div>
-                        </div>
-                    </details>
-                    <div class="tooltip tooltip-left" data-tip="Copy model name">
-                        <button class="btn btn-ghost btn-sm btn-square" onclick="navigator.clipboard.writeText('{{ model.model_name }}')">
-                            <span class="h-4 w-4 inline-flex">
-                                <img src="{% static 'icons/copy.svg' %}" alt="Copy" class="w-4 h-4 [[data-theme=dark]_&]:invert">
-                            </span>
-                        </button>
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        </div>
-        {% endfor %}
-    </div>
+
+            <aside id="model-detail" class="card min-w-0 bg-base-200 xl:col-span-2" aria-labelledby="model-detail-name">
+                <div class="card-body gap-5 p-5">
+                    <div class="flex flex-col gap-2">
+                        <p class="label-mono">{{ selected.mode.label }}</p>
+                        <div class="flex items-start justify-between gap-2">
+                            <h2 id="model-detail-name" class="break-all font-mono text-xl font-semibold">{{ selected.name }}</h2>
+                            <button type="button" class="btn btn-ghost btn-sm btn-square" data-copy="{{ selected.name }}"
+                                    aria-label="Copy model name" title="Copy model name">{% icon "copy" small=True %}</button>
+                        </div>
+                    </div>
+
+                    {% if selected.deprecation_date %}
+                        <div class="flex items-start gap-2 rounded-lg bg-base-100 px-3 py-2 text-sm">
+                            {% icon "warning" small=True extra_class="st-warn mt-0.5" %}
+                            <span><span class="font-semibold">Deprecated.</span> Retirement date: {{ selected.deprecation_date|date:"j M Y" }}.</span>
+                        </div>
+                    {% endif %}
+
+                    {% if selected.off_for %}
+                        <div class="flex items-start gap-2 rounded-lg bg-base-100 px-3 py-2 text-sm">
+                            {% icon "off" small=True extra_class="st-off mt-0.5" %}
+                            <span class="flex flex-col gap-1">
+                                <span><span class="font-semibold">Switched off for {{ selected.off_names }}.</span>
+                                    API requests with those keys get “Model not found”. An admin can change this.{% if selected.on_for %}
+                                    Still available for {{ selected.on_names }}.{% endif %}</span>
+                                {% for scope in selected.off_for %}{% if scope.admin_url %}
+                                    <a class="link-plain" href="{{ scope.admin_url }}">Edit {{ scope.team|default:"your profile" }} in admin</a>
+                                {% endif %}{% endfor %}
+                            </span>
+                        </div>
+                    {% endif %}
+
+                    {% if selected.specs or selected.served_model %}
+                        <div class="grid grid-cols-2 gap-2">
+                            {% for spec in selected.specs %}
+                                <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2">
+                                    <span class="muted text-xs">{{ spec.label }}</span>
+                                    <span class="font-mono font-semibold">{{ spec.value }}</span>
+                                </div>
+                            {% endfor %}
+                            {% if selected.served_model %}
+                                <div class="col-span-2 flex flex-col rounded-lg bg-base-100 px-3 py-2">
+                                    <span class="muted text-xs">Served model</span>
+                                    <span class="break-all font-mono text-sm font-semibold">{{ selected.served_model }}</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    <div class="flex flex-col gap-2">
+                        <span class="text-sm font-semibold">Aliases</span>
+                        <div class="flex flex-wrap gap-1.5">
+                            {% for alias in selected.aliases %}
+                                <span class="badge badge-sm bg-base-100 font-mono">{{ alias }}</span>
+                            {% empty %}
+                                <span class="muted text-sm">None</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    {% if selected.capabilities %}
+                        <div class="flex flex-col gap-2">
+                            <span class="text-sm font-semibold">Capabilities</span>
+                            <div class="flex flex-wrap gap-1.5">
+                                {% for capability in selected.capabilities %}<span class="badge badge-sm bg-base-100 font-mono">{{ capability }}</span>{% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    {% if snippet %}
+                        <div class="flex flex-col gap-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-sm font-semibold">Use it</span>
+                                <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ snippet }}"
+                                        aria-label="Copy example" title="Copy example">{% icon "copy" small=True %}</button>
+                            </div>
+                            <pre class="overflow-x-auto rounded-lg bg-base-100 p-3 font-mono text-[11px] leading-relaxed">{{ snippet }}</pre>
+                        </div>
+                    {% endif %}
+                </div>
+            </aside>
+        </section>
     {% else %}
-    <div class="flex flex-col items-center justify-center py-16">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-base-content/30 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-        <h3 class="text-xl font-semibold text-base-content/70 mb-2">No Models Available</h3>
-        <p class="text-base-content/50 text-center max-w-md">
-            No models are currently configured. Please check your router configuration file.
-        </p>
-    </div>
+        <div class="card bg-base-200">
+            <div class="card-body">
+                <p class="muted">No models are configured.</p>
+            </div>
+        </div>
     {% endif %}
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const successIconSrc = "{% static 'icons/check.svg' %}";
-    const copyIconSrc = "{% static 'icons/copy.svg' %}";
-
-    document.querySelectorAll('button').forEach(button => {
-        if (button.onclick && button.onclick.toString().includes('clipboard')) {
-            button.addEventListener('click', function() {
-                const originalHTML = this.innerHTML;
-                this.innerHTML = '<span class="h-4 w-4 inline-flex"><img src="' + successIconSrc + '" alt="Copied" class="w-4 h-4 [[data-theme=dark]_&]:invert"></span>';
-                setTimeout(() => {
-                    this.innerHTML = originalHTML;
-                }, 2000);
-            });
-        }
-    });
-});
-</script>
 {% endblock %}

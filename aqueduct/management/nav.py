@@ -145,6 +145,10 @@ class Shell:
         return next((link for link in (*nav, *self.bottom, *self.help_links) if link.active), None)
 
 
+def gateway_url(request: HttpRequest) -> str:
+    return f"{request.scheme}://{request.get_host()}/v1"
+
+
 def build_shell(request: HttpRequest) -> Shell:
     view_name = request.resolver_match.view_name if request.resolver_match else ""
 
@@ -171,7 +175,7 @@ def build_shell(request: HttpRequest) -> Shell:
         bottom=extra + visible(NAV_BOTTOM),
         help_links=extra + visible(HELP),
         viewer=_viewer(request),
-        gateway_url=f"{request.scheme}://{request.get_host()}/v1",
+        gateway_url=gateway_url(request),
         retention_days=(
             settings.REQUEST_RETENTION_DAYS if settings.REQUEST_RETENTION_ENABLED else None
         ),
