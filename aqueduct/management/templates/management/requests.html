@@ -1,0 +1,135 @@
+{% extends "management/base.html" %}
+{% load humanize ui %}
+
+{% block page_background %}{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
+        <h1 class="text-3xl font-semibold">Requests</h1>
+    </header>
+
+    <div class="flex flex-wrap items-center gap-3">
+        <nav class="join" aria-label="Status">
+            {% for tab in log.tabs %}
+                <a class="btn btn-sm join-item{% if tab.outcome == outcome %} btn-primary{% endif %}"
+                   href="{% querystring status=tab.value page=None request=None %}"
+                   {% if tab.outcome == outcome %}aria-current="page"{% endif %}>{{ tab.label }} <span class="font-mono text-xs opacity-70">{{ tab.count|intcomma }}</span></a>
+            {% endfor %}
+        </nav>
+        <form method="get" class="flex flex-wrap items-center gap-3">
+            {% if outcome %}<input type="hidden" name="status" value="{{ outcome.value }}">{% endif %}
+            {% if orgs %}
+                <select class="select select-sm w-48" name="org" aria-label="Organization">
+                    <option value="all"{% if not org %} selected{% endif %}>All organizations</option>
+                    {% for choice in orgs %}
+                        <option value="{{ choice.id }}"{% if choice == org %} selected{% endif %}>{{ choice.name }}</option>
+                    {% endfor %}
+                </select>
+            {% endif %}
+            <select class="select select-sm w-60" name="key" aria-label="Key">
+                <option value="">All keys</option>
+                {% for key in log.keys %}
+                    <option value="{{ key.token.id }}"{% if key == log.key %} selected{% endif %}>{{ key.name }} · {{ key.note }}</option>
+                {% endfor %}
+            </select>
+            <select class="select select-sm w-60" name="model" aria-label="Model">
+                <option value="">All models</option>
+                {% for model in log.models %}
+                    <option{% if model == log.model %} selected{% endif %}>{{ model }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline">Apply</button>
+        </form>
+    </div>
+
+    <section class="card bg-base-200">
+        <div class="card-body p-3">
+            <div class="overflow-x-auto">
+                <table class="table table-sm table-fixed min-w-[1020px]">
+                    <thead>
+                        <tr>
+                            <th class="w-12"><span class="sr-only">Details</span></th>
+                            <th class="w-36">Time</th>
+                            <th class="w-[20%]">Key</th>
+                            <th>Model and path</th>
+                            <th class="w-20">Status</th>
+                            <th class="w-20 text-right">Input</th>
+                            <th class="w-28 text-right">From cache</th>
+                            <th class="w-20 text-right">Output</th>
+                            <th class="w-24 text-right">Response</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in log.rows %}
+                            {% with request=row.request %}
+                                <tr id="request-{{ request.id }}" class="font-mono text-[13px]">
+                                    <td>
+                                        <a class="btn btn-ghost btn-xs btn-square"
+                                           href="{% if row.is_open %}{% querystring request=None %}{% else %}{% querystring request=request.id %}#request-{{ request.id }}{% endif %}"
+                                           aria-expanded="{{ row.is_open|yesno:'true,false' }}"
+                                           aria-label="{% if row.is_open %}Hide{% else %}Show{% endif %} details of request {{ request.id }}">{% if row.is_open %}{% icon "chevron" small=True extra_class="rotate-90" %}{% else %}{% icon "chevron" small=True %}{% endif %}</a>
+                                    </td>
+                                    <td class="muted">{{ request.timestamp|date:"j M H:i:s" }}</td>
+                                    <td class="truncate">
+                                        {% if row.key.href %}<a class="link-plain" href="{{ row.key.href }}">{{ row.key.name }}</a>{% else %}{{ row.key.name }}{% endif %}
+                                        <div class="muted truncate font-sans text-xs">{{ row.key.note }}</div>
+                                    </td>
+                                    <td class="truncate">{{ request.model|default:"n/a" }}<div class="muted text-xs">{{ request.path }}</div></td>
+                                    <td>
+                                        {% if row.outcome %}
+                                            <span class="{{ row.outcome.tone }} inline-flex items-center gap-1.5" title="{{ row.status_phrase }}">{% icon row.outcome.icon small=True %}{{ request.status_code }}</span>
+                                        {% elif request.status_code %}
+                                            <span class="inline-flex items-center gap-1.5" title="{{ row.status_phrase }}">{{ request.status_code }}</span>
+                                        {% else %}
+                                            <span class="st-off inline-flex items-center gap-1.5">{% icon "off" small=True %}n/a</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-right">{{ request.input_tokens|intcomma }}</td>
+                                    <td class="text-right">{{ request.cached_input_tokens|intcomma }}</td>
+                                    <td class="text-right">{{ request.output_tokens|intcomma }}</td>
+                                    <td class="text-right">{{ row.response_time }}</td>
+                                </tr>
+                                {% if row.is_open %}
+                                    <tr>
+                                        <td></td>
+                                        <td colspan="8">
+                                            <dl class="grid grid-cols-2 gap-2 pb-2 md:grid-cols-5" aria-label="Details of request {{ request.id }}">
+                                                <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">User agent</dt><dd class="break-all font-mono text-[13px]">{{ request.user_agent|default:"not sent" }}</dd></div>
+                                                <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">User ID sent by the client</dt><dd class="break-all font-mono text-[13px]">{{ request.user_id|default:"not sent" }}</dd></div>
+                                                <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">Gateway overhead</dt><dd class="font-mono text-[13px]">{{ row.overhead }}</dd></div>
+                                                <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">Output speed</dt><dd class="font-mono text-[13px]">{{ row.output_speed }}</dd></div>
+                                                <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">What the status means</dt><dd class="text-[13px]">{% if row.status_phrase %}{{ request.status_code }} {{ row.status_phrase }}. {% endif %}{{ row.meaning }}</dd></div>
+                                            </dl>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            {% endwith %}
+                        {% empty %}
+                            <tr><td colspan="9" class="muted">No request matches.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-1">
+                <span class="muted font-mono text-xs">
+                    {% if log.page.paginator.count %}Showing {{ log.page.start_index|intcomma }}–{{ log.page.end_index|intcomma }} of {{ log.page.paginator.count|intcomma }}{% else %}Showing 0{% endif %}
+                    · Requests are kept for {{ retention_days }} days
+                </span>
+                <nav class="join" aria-label="Pages">
+                    {% if log.page.has_previous %}
+                        <a class="btn btn-sm join-item" href="{% querystring page=log.page.previous_page_number request=None %}">Newer</a>
+                    {% else %}
+                        <button type="button" class="btn btn-sm join-item" disabled>Newer</button>
+                    {% endif %}
+                    {% if log.page.has_next %}
+                        <a class="btn btn-sm join-item" href="{% querystring page=log.page.next_page_number request=None %}">Older</a>
+                    {% else %}
+                        <button type="button" class="btn btn-sm join-item" disabled>Older</button>
+                    {% endif %}
+                </nav>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
