@@ -115,7 +115,7 @@ class TokenCreateView(BaseAqueductView, CreateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["view_title"] = "Create New API Key"
+        context["view_title"] = "Create an API key"
 
         now = timezone.now().replace(second=0, microsecond=0)
         context["now"] = now.strftime("%Y-%m-%dT%H:%M")
@@ -140,7 +140,7 @@ class TokenEditView(BaseAqueductView, UpdateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["view_title"] = "Edit API Key"
+        context["view_title"] = "Edit API key"
         context["cancel_url"] = self.get_success_url()
         return context
 
