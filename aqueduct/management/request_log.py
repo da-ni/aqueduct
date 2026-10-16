@@ -128,15 +128,23 @@ class Key:
         return self.token.name
 
 
-def describe_key(token: Token, profile: UserProfile, team_ids: Collection[int]) -> Key:
-    """How the log names a key: a link when the viewer may open it, and whose key it is."""
+def describe_key(
+    token: Token, profile: UserProfile, team_ids: Collection[int], *, with_org: bool = False
+) -> Key:
+    """How the log names a key: a link when the viewer may open it, whose key it is, and, with
+    `with_org`, its org."""
     account = token.service_account
     if account is not None:
         href = reverse("team", args=[account.team_id]) if account.team_id in team_ids else None
-        return Key(token, href, f"Service account · {account.team.name}")
-    if token.user_id == profile.user_id:
-        return Key(token, reverse("token_detail", args=[token.id]), "Personal")
-    return Key(token, None, token.user.email if token.user else "")
+        note = f"Service account · {account.team.name}"
+    elif token.user_id == profile.user_id:
+        href, note = reverse("token_detail", args=[token.id]), "Personal"
+    else:
+        href, note = None, token.user.email
+    if with_org:
+        org = account.team.org if account is not None else token.user.profile.org
+        note += f" · {org.name}"
+    return Key(token, href, note)
 
 
 @dataclass(frozen=True)
@@ -215,9 +223,9 @@ def request_log(
     scope = visible_requests(profile, org, teams)
     team_ids = set(teams.values_list("id", flat=True))
     keys = tuple(
-        describe_key(token, profile, team_ids)
+        describe_key(token, profile, team_ids, with_org=org is None)
         for token in Token.objects.filter(id__in=scope.values("token_id"))
-        .select_related("user", "service_account__team")
+        .select_related("user__profile__org", "service_account__team__org")
         .order_by("name", "id")
     )
 
@@ -238,12 +246,14 @@ def request_log(
 
     if outcome is not None:
         filtered = filtered.filter(outcome.matches)
-    page = Paginator(
+    paginator = Paginator(
         filtered.select_related("token__user", "token__service_account__team").order_by(
             "-timestamp", "-id"
         ),
         PAGE_SIZE,
-    ).get_page(page_number)
+    )
+    paginator.count = counts[outcome.name if outcome else "total"]
+    page = paginator.get_page(page_number)
     rows = tuple(
         Row(request, describe_key(request.token, profile, team_ids), request.id == open_id)
         for request in page

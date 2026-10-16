@@ -35,7 +35,6 @@ Preconditions:
 
 ## Gotchas
 
-- `aqv login --next` drops everything after the first `&` in the path. Sign in first, then `aqv open` a path with more than one parameter.
 - The time frames end with the current minute, hour, or day and start at a whole bucket. `7 days` is today and the six days before it, not the last 168 hours, so the oldest seeded requests fall into the previous period. That makes the seeded change figures very large.
 - The seed puts no requests in `Other Org`, so `By organization` lists only `Verify Org`.
 - The time frame buttons, the `Everyone` and `My keys` switch, and the dropdown entries are links. Click them with `--role link`.

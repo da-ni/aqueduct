@@ -182,6 +182,18 @@ class RequestsFilterTest(RequestsPageTestBase):
         response = self.get(self.owner, key=self.key.id)
         self.assertEqual(self.paths_on(response), {"/own"})
 
+    def test_key_filter_names_the_org_of_each_key_across_all_orgs(self):
+        options = self.key_options(self.get(self.admin, org="all"))
+        self.assertIn("owner-laptop · owner@example.com · lab-org", options)
+        self.assertIn("team-sa · Service account · NLP Lab · lab-org", options)
+        self.assertIn("foreign-laptop · foreigner@example.com · other-org", options)
+        options = self.key_options(self.get(self.admin, org=self.org.id))
+        self.assertIn("owner-laptop · owner@example.com", options)
+        self.assertNotIn("lab-org", " ".join(options))
+
+    def key_options(self, response) -> list[str]:
+        return [key.name + " · " + key.note for key in response.context["log"].keys]
+
     def test_key_filter_ignores_a_key_outside_the_scope(self):
         response = self.get(self.owner, key=self.foreign_key.id)
         self.assertEqual(self.paths_on(response), {"/own", "/sent-as-owner"})
@@ -227,6 +239,17 @@ class RequestsPaginationTest(RequestsPageTestBase):
         second = self.get(self.owner, page=2)
         self.assertEqual(self.paths_on(second), {"/own", "/sent-as-owner"})
         self.assertIn('href="?page=1">Newer</a>', second.content.decode())
+
+    def test_paginator_reuses_the_tab_counts(self):
+        self.log(self.key, "/limited", status_code=429)
+        self.client.force_login(self.org_admin)
+        for params in ({}, {"status": "429"}):
+            with self.subTest(**params), CaptureQueriesContext(connection) as queries:
+                log = self.client.get(reverse("requests"), params).context["log"]
+            tab = next(tab for tab in log.tabs if tab.value == params.get("status"))
+            self.assertEqual(log.page.paginator.count, tab.count)
+            counts = [q["sql"] for q in queries if "COUNT(" in q["sql"].upper()]
+            self.assertEqual(len(counts), 1, counts)
 
     def test_query_count_does_not_grow_with_rows(self):
         self.client.force_login(self.org_admin)
