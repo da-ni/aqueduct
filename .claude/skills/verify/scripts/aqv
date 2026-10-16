@@ -17,6 +17,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from http.cookiejar import CookieJar
@@ -47,6 +48,7 @@ TOUR_PAGES = [
     "/aqueduct/management/vector-stores/",
 ]
 TOUR_USERS = ["user", "team-member", "team-admin", "org-admin", "admin", "other-org-admin"]
+PROCESSES = ("browser_pid", "server_pid", "mock_pid")
 
 
 def die(message: str) -> None:
@@ -133,10 +135,19 @@ def http_get(url: str, opener=None) -> tuple[int, str]:
         return 0, ""
 
 
+def process_alive(state: dict, key: str) -> bool:
+    """Whether the run's process `key` is running. A failed launch may not have recorded it."""
+    return key in state and alive(state[key])
+
+
+def save_state(state: dict) -> None:
+    (Path(state["run"]) / "state.json").write_text(json.dumps(state, indent=2))
+
+
 def load_state(args) -> dict:
     chosen = getattr(args, "run", None) or os.environ.get("AQV_RUN")
     if not chosen:
-        live = [run for run, state in all_runs() if alive(state["server_pid"])]
+        live = [run for run, state in all_runs() if process_alive(state, "server_pid")]
         if len(live) != 1:
             die(f"pass --run DIR; live runs: {[str(r) for r in live] or 'none'}")
         chosen = live[0]
@@ -169,6 +180,11 @@ def cmd_launch(args) -> None:
     }
     state["base"] = f"http://127.0.0.1:{state['port']}"
     state["mock_base"] = f"http://127.0.0.1:{state['mock_port']}"
+    save_state(state)
+
+    def fail(message: str) -> None:
+        die(f"{message}; stop this run with `aqv stop --run {run}`")
+
     print(f"aqv: migrating a fresh database in {run}", file=sys.stderr)
     django(state, "manage.py", "migrate", "--no-input")
     seeded = django(state, str(SCRIPTS / "seed.py")).stdout.strip().splitlines()[-1]
@@ -194,6 +210,8 @@ def cmd_launch(args) -> None:
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
+    state["mock_pid"] = mock.pid
+    save_state(state)
 
     with (run / "server.log").open("w") as log:
         server = subprocess.Popen(
@@ -212,6 +230,8 @@ def cmd_launch(args) -> None:
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
+    state["server_pid"] = server.pid
+    save_state(state)
     browser = subprocess.Popen(
         [
             headless_shell(),
@@ -225,39 +245,31 @@ def cmd_launch(args) -> None:
         stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
-    state.update(server_pid=server.pid, browser_pid=browser.pid, mock_pid=mock.pid)
-    (run / "state.json").write_text(json.dumps(state, indent=2))
+    state["browser_pid"] = browser.pid
+    save_state(state)
 
     deadline = time.time() + 30
     while http_get(state["mock_base"] + "/health")[0] != 200:
         if not alive(mock.pid) or time.time() > deadline:
-            die(
-                die(
-                    f"mock upstream did not start, see {run / 'mock.log'}; "
-                    f"stop this run with `aqv stop --run {run}`"
-                )
-            )
+            fail(f"mock upstream did not start, see {run / 'mock.log'}")
         time.sleep(0.5)
     deadline = time.time() + 90
     while time.time() < deadline:
         if not alive(server.pid):
-            die(f"server exited during startup, see {run / 'server.log'}")
+            fail(f"server exited during startup, see {run / 'server.log'}")
         if http_get(state["base"] + "/login/")[0] == 200:
             break
         time.sleep(1)
     else:
-        die(f"server not ready after 90s, see {run / 'server.log'}")
+        fail(f"server not ready after 90s, see {run / 'server.log'}")
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(CookieJar()))
     status, body = http_get(state["base"] + "/verify-login/?username=user", opener)
     if status != 200 or "API keys" not in body:
-        die(f"signed-in tokens page not usable (status {status}), see {run / 'server.log'}")
+        fail(f"signed-in tokens page not usable (status {status}), see {run / 'server.log'}")
     deadline = time.time() + 30
     while http_get(f"http://127.0.0.1:{state['cdp_port']}/json/version")[0] != 200:
         if not alive(browser.pid) or time.time() > deadline:
-            die(
-                "headless browser did not open its debug port; "
-                f"stop this run with `aqv stop --run {run}`"
-            )
+            fail("headless browser did not open its debug port")
         time.sleep(0.5)
     print(json.dumps(state, indent=2))
     print(f"export AQV_RUN={run}")
@@ -267,8 +279,8 @@ def cmd_doctor(args) -> None:
     state = load_state(args)
     repo = Path(state["repo"])
     checks = {
-        "server process alive": alive(state["server_pid"]),
-        "browser process alive": alive(state["browser_pid"]),
+        "server process alive": process_alive(state, "server_pid"),
+        "browser process alive": process_alive(state, "browser_pid"),
         "mock upstream answers": http_get(state["mock_base"] + "/health")[0] == 200,
         "login page answers 200": http_get(state["base"] + "/login/")[0] == 200,
         "browser debug port answers": http_get(
@@ -376,7 +388,8 @@ def with_browser(action: Callable[["Browser", argparse.Namespace], None]) -> Cal
 @with_browser
 def cmd_login(b: Browser, args) -> None:
     b.page.context.clear_cookies()
-    b.page.goto(f"{b.state['base']}/verify-login/?username={args.username}&next={args.next}")
+    query = urllib.parse.urlencode({"username": args.username, "next": args.next})
+    b.page.goto(f"{b.state['base']}/verify-login/?{query}")
     b.settle()
     b.report()
 
@@ -480,9 +493,9 @@ def cmd_shell(args) -> None:
 def cmd_stop(args) -> None:
     state = load_state(args)
     run = Path(state["run"])
-    for key in ("browser_pid", "server_pid", "mock_pid"):
-        pid = state[key]
-        if alive(pid):
+    for key in PROCESSES:
+        if process_alive(state, key):
+            pid = state[key]
             os.killpg(pid, signal.SIGTERM)
             for _ in range(50):
                 if not alive(pid):
@@ -501,7 +514,7 @@ def cmd_stop(args) -> None:
 def cmd_runs(args) -> None:
     for run, state in all_runs():
         print(
-            f"{'live' if alive(state['server_pid']) else 'dead'}  {run}  "
+            f"{'live' if process_alive(state, 'server_pid') else 'dead'}  {run}  "
             f"{state['base']}  sha {state['sha'][:10]}"
         )
 
