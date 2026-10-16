@@ -137,7 +137,6 @@ class Shell:
     help_links: tuple[Link, ...]
     viewer: Viewer | None
     gateway_url: str
-    retention_days: float | None
 
     @property
     def current(self) -> Link | None:
@@ -176,9 +175,6 @@ def build_shell(request: HttpRequest) -> Shell:
         help_links=extra + visible(HELP),
         viewer=_viewer(request),
         gateway_url=gateway_url(request),
-        retention_days=(
-            settings.REQUEST_RETENTION_DAYS if settings.REQUEST_RETENTION_ENABLED else None
-        ),
     )
 
 
