@@ -67,11 +67,11 @@
                 </div>
                 <div class="grid h-64 grid-cols-7 gap-3">
                     {% for column in chart %}
-                        <div class="flex min-w-0 flex-col items-center gap-2" title="{{ column.day|date:'j M' }}: {{ column.title }}">
+                        <div class="flex min-w-0 flex-col items-center gap-2" title="{{ column.title }}">
                             <div class="vbar w-full max-w-10 flex-1">
                                 {% for css, height in column.segments %}<i class="{{ css }}" style="height: {{ height }}%"></i>{% endfor %}
                             </div>
-                            <span class="muted font-mono text-xs">{{ column.day|date:"j M" }}</span>
+                            <span class="muted font-mono text-xs">{{ column.label }}</span>
                         </div>
                     {% endfor %}
                 </div>
