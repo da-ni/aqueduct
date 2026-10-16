@@ -182,6 +182,12 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         self.assertContains(response, "Requests per day")
         self.assertContains(response, '<i class="f" style="height: 100%"></i>', html=True)
 
+    def test_chart_column_names_its_day_and_counts(self):
+        self.request_log(self.key, timedelta(minutes=5), status_code=500)
+        response = self.get(self.owner, "token_detail", self.key.id, metric="requests")
+        today = f"{timezone.localdate():%-d %b}"
+        self.assertContains(response, f'aria-label="{today}: 1 request (Answered 0, Failed 1)"')
+
     def test_other_users_key_is_not_found(self):
         response = self.get(self.other, "token_detail", self.key.id)
         self.assertEqual(response.status_code, 404)

@@ -1,7 +1,7 @@
 """Figures for the Overview page, computed from a queryset of requests the viewer may see."""
 
 import math
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from enum import StrEnum
@@ -16,10 +16,14 @@ from management.key_activity import (
     Activity,
     Column,
     Share,
+    SparkBar,
+    Tip,
+    as_requests,
+    as_tokens,
     chart,
     compact,
-    heights,
     percent,
+    spark,
 )
 from management.models import Request
 
@@ -186,7 +190,18 @@ class Kpi:
     label: str
     value: str
     change: str | None
-    spark: tuple[int, ...]
+    spark: tuple[SparkBar, ...]
+
+
+def _share(ratio: float) -> str:
+    return f"{round(100 * ratio)}%"
+
+
+def _span_label(moments: Sequence[datetime], step: Step) -> str:
+    first, last = (
+        timezone.localtime(m).strftime(step.label_format) for m in (moments[0], moments[-1])
+    )
+    return first if first == last else f"{first} to {last}"
 
 
 def _summed(activities: Sequence[Activity]) -> Activity:
@@ -195,19 +210,26 @@ def _summed(activities: Sequence[Activity]) -> Activity:
 
 def kpis(
     points: Sequence[tuple[datetime, Activity]],
+    step: Step,
     median: int | None,
     before: Activity | None,
     before_median: int | None,
 ) -> tuple[Kpi, ...]:
     """The headline figures, each with its change against the previous period when known."""
-    activities = [a for _, a in points]
-    size = math.ceil(len(activities) / SPARK_BARS) or 1
-    bars = [_summed(activities[i : i + size]) for i in range(0, len(activities), size)]
-    now = _summed(activities)
+    size = math.ceil(len(points) / SPARK_BARS) or 1
+    buckets = [points[i : i + size] for i in range(0, len(points), size)]
+    labels = [_span_label([moment for moment, _ in bucket], step) for bucket in buckets]
+    bars = [_summed([a for _, a in bucket]) for bucket in buckets]
+    now = _summed([a for _, a in points])
     known = before if before is not None and before.requests else None
 
     def relative(field: str) -> str | None:
         return _relative(getattr(now, field), getattr(known, field)) if known else None
+
+    def bars_of(
+        value: Callable[[Activity], float], show: Callable[[float], str]
+    ) -> tuple[SparkBar, ...]:
+        return spark([(label, value(a)) for label, a in zip(labels, bars, strict=True)], show)
 
     def points(part: str, whole: str) -> str | None:
         if not known:
@@ -219,31 +241,34 @@ def kpis(
 
     return (
         Kpi(
-            "Input tokens", compact(now.input), relative("input"), heights([a.input for a in bars])
+            "Input tokens",
+            compact(now.input),
+            relative("input"),
+            bars_of(lambda a: a.input, as_tokens),
         ),
         Kpi(
             "Output tokens",
             compact(now.output),
             relative("output"),
-            heights([a.output for a in bars]),
+            bars_of(lambda a: a.output, as_tokens),
         ),
         Kpi(
             "Cache hits",
             now.cache_hits,
             points("cached", "input"),
-            heights([_ratio(a.cached, a.input) for a in bars]),
+            bars_of(lambda a: _ratio(a.cached, a.input), _share),
         ),
         Kpi(
             "Requests",
             f"{now.requests:,}",
             relative("requests"),
-            heights([a.requests for a in bars]),
+            bars_of(lambda a: a.requests, as_requests),
         ),
         Kpi(
             "Failed",
             now.failed_share,
             points("failed", "requests"),
-            heights([_ratio(a.failed, a.requests) for a in bars]),
+            bars_of(lambda a: _ratio(a.failed, a.requests), _share),
         ),
         Kpi(
             "Median response",
@@ -290,7 +315,7 @@ def statuses(requests: QuerySet[Request], total: int) -> tuple[StatusRow, ...]:
 
 @dataclass(frozen=True)
 class HeatCell:
-    title: str
+    tip: Tip
     css: str
 
 
@@ -316,8 +341,8 @@ def heat(requests: QuerySet[Request], now: datetime, weeks: int) -> tuple[HeatRo
     def cell(day: int, hour: int) -> HeatCell:
         value = average.get((day, hour), 0)
         level = math.ceil(levels * value / top) if value else 0
-        title = f"{WEEKDAYS[day - 1]} {hour:02d}:00: {compact(round(value))} tokens per hour"
-        return HeatCell(title, HEAT_CLASSES[level])
+        when = f"{WEEKDAYS[day - 1]} {hour:02d}:00 to {(hour + 1) % 24:02d}:00"
+        return HeatCell(Tip(when, f"{as_tokens(value)} per hour"), HEAT_CLASSES[level])
 
     return tuple(
         HeatRow(name, tuple(cell(day, hour) for hour in range(24)))

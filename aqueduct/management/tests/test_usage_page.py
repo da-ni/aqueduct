@@ -245,7 +245,11 @@ class UsageFiguresTest(UsagePageTestBase):
         weekday = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")[moment.isoweekday() - 1]
         response = self.page(self.solo)
         # 1,500 tokens in one hour slot, spread over four weeks.
-        self.assertContains(response, f"{weekday} {moment.hour:02d}:00: 375 tokens per hour")
+        until = (moment.hour + 1) % 24
+        self.assertContains(
+            response,
+            f'aria-label="{weekday} {moment.hour:02d}:00 to {until:02d}:00: 375 tokens per hour"',
+        )
 
     @override_settings(REQUEST_RETENTION_DAYS=7)
     def test_retention_warning_when_the_time_frame_reaches_past_retention(self):

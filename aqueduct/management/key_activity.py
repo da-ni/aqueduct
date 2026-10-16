@@ -1,4 +1,4 @@
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from enum import StrEnum
@@ -28,6 +28,26 @@ def compact(count: int) -> str:
 
 def percent(part: int, whole: int) -> str:
     return f"{round(100 * part / whole)}%" if whole else "n/a"
+
+
+def as_tokens(count: float) -> str:
+    return f"{compact(round(count))} tokens"
+
+
+def as_cached(count: float) -> str:
+    return f"{compact(round(count))} cached tokens"
+
+
+def as_requests(count: float) -> str:
+    return f"{round(count):,} request" + ("" if round(count) == 1 else "s")
+
+
+def as_failed(count: float) -> str:
+    return f"{round(count):,} failed"
+
+
+TOKEN_SERIES = {"c": "Input from cache", "i": "New input", "o": "Output"}
+REQUEST_SERIES = {"i": "Answered", "f": "Failed"}
 
 
 class KeyKind(StrEnum):
@@ -189,17 +209,51 @@ class Day:
 
 
 @dataclass(frozen=True)
+class Tip:
+    """What a chart mark shows on hover and tells a screen reader."""
+
+    heading: str
+    value: str
+    parts: tuple[tuple[str, str, str], ...] = ()
+    """Swatch CSS class, series name and value of each stacked segment."""
+
+    def __str__(self) -> str:
+        detail = ", ".join(f"{name} {value}" for _, name, value in self.parts)
+        return f"{self.heading}: {self.value}" + (f" ({detail})" if detail else "")
+
+
+@dataclass(frozen=True)
+class SparkBar:
+    height: int
+    tip: Tip
+
+
+def spark(
+    points: Sequence[tuple[str, float]], show: Callable[[float], str]
+) -> tuple[SparkBar, ...]:
+    """One bar per labelled value, its height in percent of the largest."""
+    return tuple(
+        SparkBar(height, Tip(label, show(value)))
+        for (label, value), height in zip(points, heights([v for _, v in points]), strict=True)
+    )
+
+
+@dataclass(frozen=True)
 class Stat:
     label: str
     value: str
-    spark: tuple[int, ...]
+    spark: tuple[SparkBar, ...]
 
 
 @dataclass(frozen=True)
 class Column:
     label: str
-    title: str
+    tip: Tip
     segments: tuple[tuple[str, int], ...]
+
+    @property
+    def height(self) -> int:
+        return sum(height for _, height in self.segments)
 
 
 @dataclass(frozen=True)
@@ -223,14 +277,17 @@ class Window:
 
     @property
     def stats(self) -> tuple[Stat, ...]:
-        days = [d.activity for d in self.days]
         totals = self.totals
+
+        def daily(field: str) -> list[tuple[str, float]]:
+            return [(f"{d.day:%-d %b}", getattr(d.activity, field)) for d in self.days]
+
         return (
-            Stat("Input tokens", compact(totals.input), heights([a.input for a in days])),
-            Stat("Output tokens", compact(totals.output), heights([a.output for a in days])),
-            Stat("Cache hits", totals.cache_hits, heights([a.cached for a in days])),
-            Stat("Requests", f"{totals.requests:,}", heights([a.requests for a in days])),
-            Stat("Failed", totals.failed_share, heights([a.failed for a in days])),
+            Stat("Input tokens", compact(totals.input), spark(daily("input"), as_tokens)),
+            Stat("Output tokens", compact(totals.output), spark(daily("output"), as_tokens)),
+            Stat("Cache hits", totals.cache_hits, spark(daily("cached"), as_cached)),
+            Stat("Requests", f"{totals.requests:,}", spark(daily("requests"), as_requests)),
+            Stat("Failed", totals.failed_share, spark(daily("failed"), as_failed)),
         )
 
 
@@ -251,19 +308,25 @@ def chart(
 
     Only every `every`-th column keeps its axis label, so dense charts stay readable."""
     if metric == "requests":
+        names, show = REQUEST_SERIES, as_requests
         values = [(("i", a.requests - a.failed), ("f", a.failed)) for _, a in points]
-        titles = [f"{a.requests:,} requests" for _, a in points]
     else:
+        names, show = TOKEN_SERIES, as_tokens
         values = [a.segments for _, a in points]
-        titles = [f"{compact(a.tokens)} tokens" for _, a in points]
     top = max((sum(n for _, n in segs) for segs in values), default=0)
+
+    def tip(label: str, segs: tuple[tuple[str, int], ...]) -> Tip:
+        total = sum(n for _, n in segs)
+        parts = tuple((css, names[css], f"{n:,}") for css, n in segs) if total else ()
+        return Tip(label, show(total), parts)
+
     return tuple(
         Column(
             label if index % every == 0 else "",
-            f"{label}: {title}",
+            tip(label, segs),
             tuple((css, round(100 * n / top)) for css, n in segs if n),
         )
-        for index, ((label, _), title, segs) in enumerate(zip(points, titles, values, strict=True))
+        for index, ((label, _), segs) in enumerate(zip(points, values, strict=True))
     )
 
 
