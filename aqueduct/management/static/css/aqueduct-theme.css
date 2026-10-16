@@ -105,7 +105,16 @@ html[data-theme="light"] .only-dark, html[data-theme="dark"] .only-light { displ
 .menu :where(li) > a.menu-active { font-weight: 600; }
 .menu :where(li) > a { min-height: 2.75rem; align-items: center; font-weight: 500; }
 
-.row-pick:hover, .row-pick:has([aria-current="true"]) { background: var(--aq-hover); }
+/* Every table row highlights under the pointer or keyboard focus; the empty-state row does not. */
+.table > tbody > tr:not(:has(> td[colspan]:only-child)):hover,
+.table > tbody > tr:has(:focus-visible),
+.table > tbody > tr:has([aria-current="true"]),
+.hover-row:hover { background: var(--aq-hover); }
+/* A .row-link stretches over its row, so the whole row opens it. */
+tr:has(.row-link) { position: relative; }
+a.row-link::after { content: ""; position: absolute; inset: 0; }
+a.row-link:focus-visible { outline: none; }
+a.row-link:focus-visible::after { outline: 3px solid var(--color-primary); outline-offset: -3px; }
 .model-table th, .key-table th, .resource-table th { font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--aq-muted); }
 .badge-deprecated { --badge-color: var(--aq-warn); }
 

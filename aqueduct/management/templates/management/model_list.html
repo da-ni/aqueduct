@@ -46,10 +46,10 @@
                         </thead>
                         <tbody>
                             {% for card in cards %}
-                                <tr class="row-pick relative">
+                                <tr>
                                     <td>
                                         <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                                            <a class="truncate font-mono font-semibold after:absolute after:inset-0"
+                                            <a class="truncate font-mono font-semibold row-link"
                                                href="{% querystring model=card.name %}#model-detail"{% if card == selected %} aria-current="true"{% endif %}>{{ card.name }}</a>
                                             {% if card.deprecation_date %}<span class="badge badge-outline badge-deprecated badge-sm flex-none font-mono uppercase">Deprecated</span>{% endif %}
                                             {% if card.off_badge %}<span class="badge badge-outline badge-sm flex-none font-mono uppercase">{{ card.off_badge }}</span>{% endif %}

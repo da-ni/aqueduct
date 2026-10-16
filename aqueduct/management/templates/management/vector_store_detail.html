@@ -53,7 +53,7 @@
                         <thead><tr><th>File</th><th>Status</th><th class="text-right">Size</th><th>Added</th></tr></thead>
                         <tbody>
                             {% for file in detail.files %}
-                                <tr class="row-pick">
+                                <tr>
                                     <td>
                                         <span class="font-semibold">{{ file.entry.file_obj.filename|default:"Deleted file" }}</span>
                                         <div class="muted font-mono text-xs">{{ file.entry.id }}</div>
@@ -80,7 +80,7 @@
                             <thead><tr><th>Batch</th><th>Status</th><th class="w-1/3">Progress</th><th>Created</th></tr></thead>
                             <tbody>
                                 {% for batch in detail.batches %}
-                                    <tr class="row-pick">
+                                    <tr>
                                         <td class="font-mono font-semibold">{{ batch.batch.id }}</td>
                                         <td>{% include "management/_status.html" with status=batch.status %}</td>
                                         <td>

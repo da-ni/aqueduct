@@ -14,7 +14,7 @@
 
 {% block rows %}
     {% for row in listing.rows %}
-        <tr class="row-pick">
+        <tr>
             <td>
                 <span class="font-mono font-semibold">{{ row.batch.id }}</span>
                 <div class="muted font-mono text-xs">{{ row.batch.endpoint }}{% if row.team %} · {{ row.team }}{% endif %}</div>

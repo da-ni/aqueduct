@@ -51,9 +51,9 @@
                     </thead>
                     <tbody>
                         {% for row in rows %}
-                            <tr class="row-pick relative">
+                            <tr>
                                 <td>
-                                    <a class="link-plain after:absolute after:inset-0" href="{% url 'team' row.team.id %}">{{ row.team.name }}</a>
+                                    <a class="link-plain row-link" href="{% url 'team' row.team.id %}">{{ row.team.name }}</a>
                                     {% if row.team.description %}<div class="muted truncate text-xs">{{ row.team.description }}</div>{% endif %}
                                 </td>
                                 {% if not is_org_admin %}<td>{{ row.role|default:"" }}</td>{% endif %}
