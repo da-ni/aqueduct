@@ -39,16 +39,8 @@ header * li {
     padding: 0 !important;
 }
 
-header .hidden {
-    display: inline !important;
-}
-
 header * a:link, header * a:visited {
-    color: var(--color-base-content) !important;
-}
-
-header * .ml-4 {
-    margin-left: calc(var(--spacing) * 4) !important;
+    color: var(--color-base-content);
 }
 
 header {
