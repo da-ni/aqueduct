@@ -62,7 +62,7 @@ Choose a key's name to open its page. The page shows the key's last seven days:
 - **Latest requests**.
 - **Limits**, the rate limits of the key and the models and MCP servers that are switched off for it.
 
-**Open in usage** opens the [Overview](usage.md) for this key alone.
+**Open in Overview** opens the [Overview](usage.md) for this key alone.
 
 ![API key page](../assets/user_guide/key_detail.png)
 
