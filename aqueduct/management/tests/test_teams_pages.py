@@ -347,6 +347,8 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Expiration date must be in the future.")
+        self.assertContains(response, 'class="input w-full max-w-xs input-error"')
+        self.assertContains(response, 'class="input w-full max-w-md"')
         self.pipeline_key.refresh_from_db()
         self.assertIsNone(self.pipeline_key.expires_at)
 

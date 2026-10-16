@@ -9,6 +9,7 @@
                 <p>Are you sure you want to delete the {{ object_type_name|default:"item" }}:
                     <strong>{{ object_name|default:object }}</strong>?
                 </p>
+                {% if warning %}<p class="text-sm mt-2">{{ warning }}</p>{% endif %}
                 <p class="text-sm text-error mt-2">This action cannot be undone.</p>
 
                 <form method="post" action="">

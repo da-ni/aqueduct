@@ -6,7 +6,7 @@ This directory is the maintained source for verifying what users see and do in t
 
 - Launch a private instance with `.claude/skills/verify/scripts/aqv launch`, as `../SKILL.md` describes.
 - Run `aqv doctor` and require exit code 0.
-- The seed gives `Verify Org` with `Verify Team` (team admin `team-admin`, member `team-member`), the service account `verify-pipeline`, the personal keys `user-laptop`, `member-notebook`, `team-admin-cli`, and `org-admin-scripts`, and 280 requests over the last 7 days.
+- The seed gives `Verify Org` with `Verify Team` (team admin `team-admin`, member `team-member`), the service account `verify-pipeline`, the personal keys `user-laptop`, `member-notebook`, `team-admin-cli`, and `org-admin-scripts`, 280 requests over the last 7 days, and files, batches, and vector stores for `user` and `verify-pipeline`.
 - Never drive `aqueduct-dev.service` on port 8085.
 
 ## Driving conventions
@@ -38,5 +38,5 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Models](./models.md) covers the model table, its type tabs and search, the detail panel, and the notice for a switched-off model.
 - [Settings](./settings.md) covers the account details, team roles, terms acceptance, the light and dark switch, and the personal key limits.
 - [Terms of service](./terms-of-service.md) covers the prompt a user sees before accepting the terms.
-
-Not mapped yet: Files, Batches, Vector stores, and MCP servers. Their pages load for every role, but the seed creates no files, batches, or vector stores, and those come from the OpenAI-compatible API, not the UI.
+- [Files, batches, and vector stores](./resources.md) covers the three resource lists, the file preview, file delete, batch cancel, and the vector store detail page.
+- [MCP servers](./mcp-servers.md) covers the server cards, their URLs, their switched-off badges, and the client configuration.

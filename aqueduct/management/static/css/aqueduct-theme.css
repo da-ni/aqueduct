@@ -36,7 +36,7 @@ html[data-theme="light"] {
   --aq-ok: #1B7A43; --aq-warn: #8A5A00; --aq-err: #B3261E;
   --aq-band: var(--deep); --aq-band-muted: #D0EBF7; --aq-band-link: var(--spray);
   --aq-hover: #D0EBF7;
-  --viz-cached: #449FD6; --viz-in: #0A84C6; --viz-out: #07486B;
+  --viz-cached: #449FD6; --viz-in: #0A84C6; --viz-out: #07486B; --viz-track: #D0EBF7;
 }
 
 html[data-theme="dark"] {
@@ -65,7 +65,7 @@ html[data-theme="dark"] {
   --aq-ok: #7ADFA4; --aq-warn: #F2C14E; --aq-err: #FF9A8F;
   --aq-band: #041721; --aq-band-muted: #9DB6C0; --aq-band-link: var(--spray);
   --aq-hover: var(--deep);
-  --viz-cached: #0A84C6; --viz-in: #6BBAE6; --viz-out: #D0EBF7;
+  --viz-cached: #0A84C6; --viz-in: #6BBAE6; --viz-out: #D0EBF7; --viz-track: #1D4C63;
 }
 
 html[data-theme] {
@@ -106,7 +106,7 @@ html[data-theme="light"] .only-dark, html[data-theme="dark"] .only-light { displ
 .menu :where(li) > a { min-height: 2.75rem; align-items: center; font-weight: 500; }
 
 .row-pick:hover, .row-pick:has([aria-current="true"]) { background: var(--aq-hover); }
-.model-table th, .key-table th { font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--aq-muted); }
+.model-table th, .key-table th, .resource-table th { font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--aq-muted); }
 .badge-deprecated { --badge-color: var(--aq-warn); }
 
 .copy-field { display: flex; align-items: center; gap: .25rem; min-width: 0; height: 2.5rem; padding: 0 .25rem 0 .75rem;
@@ -125,6 +125,11 @@ html[data-theme="light"] .only-dark, html[data-theme="dark"] .only-light { displ
 .tbar .o, .sw.o, .vbar .o { background: var(--viz-out); }
 .sw.f, .vbar .f { background: var(--aq-err); }
 .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+/* Progress of a batch: completed, then failed, over the total. */
+.pbar { display: flex; gap: 2px; height: 8px; overflow: hidden; border-radius: 9999px; background: var(--viz-track); }
+.pbar > i { display: block; }
+.pbar .i { background: var(--viz-in); }
+.pbar .f { background: var(--aq-err); }
 .onebar { height: 10px; border-radius: 0 4px 4px 0; background: var(--viz-in); min-width: 3px; }
 .spark { display: flex; align-items: flex-end; gap: 3px; height: 28px; }
 .spark > i { display: block; flex: 1; max-width: 10px; min-height: 2px; border-radius: 2px 2px 0 0; background: var(--viz-in); opacity: .55; }

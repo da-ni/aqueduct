@@ -1,6 +1,7 @@
 import shlex
 
 from django import template
+from django.forms import BoundField
 from django.utils.html import format_html, format_html_join
 from django.utils.safestring import SafeString
 
@@ -38,3 +39,12 @@ def key_snippet(secret: str, gateway_url: str) -> str:
         f"curl {shlex.quote(gateway_url + '/models')} \\\n"
         '  -H "Authorization: Bearer $AQUEDUCT_API_KEY"'
     )
+
+
+@register.filter
+def widget(field: BoundField) -> SafeString:
+    classes = field.field.widget.attrs.get("class", "")
+    if not (field.errors and classes):
+        return field.as_widget()
+    component = classes.split()[0]
+    return field.as_widget(attrs={"class": f"{classes} {component}-error"})

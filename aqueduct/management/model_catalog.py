@@ -184,16 +184,15 @@ def _and_join(items: list[str]) -> str:
     return " and ".join([", ".join(head), *tail] if head else tail)
 
 
+def split_scopes(name: str, scopes: Sequence[Scope]) -> tuple[tuple[Scope, ...], tuple[Scope, ...]]:
+    return (
+        tuple(scope for scope in scopes if name in scope.excluded),
+        tuple(scope for scope in scopes if name not in scope.excluded),
+    )
+
+
 @dataclass(frozen=True)
-class ModelCard:
-    name: str
-    aliases: tuple[str, ...]
-    mode: Mode
-    served_model: str | None
-    context: str | None
-    specs: tuple[Spec, ...]
-    capabilities: tuple[str, ...]
-    deprecation_date: date | None
+class Availability:
     off_for: tuple[Scope, ...]
     on_for: tuple[Scope, ...]
 
@@ -217,6 +216,18 @@ class ModelCard:
     @property
     def on_names(self) -> str:
         return _and_join([scope.name for scope in self.on_for])
+
+
+@dataclass(frozen=True)
+class ModelCard(Availability):
+    name: str
+    aliases: tuple[str, ...]
+    mode: Mode
+    served_model: str | None
+    context: str | None
+    specs: tuple[Spec, ...]
+    capabilities: tuple[str, ...]
+    deprecation_date: date | None
 
     def matches(self, text: str) -> bool:
         needle = text.casefold()
@@ -278,6 +289,7 @@ def parse_card(entry: Mapping[str, Any], scopes: Sequence[Scope] = ()) -> ModelC
     if isinstance(multiplier, int | float) and not isinstance(multiplier, bool) and multiplier != 1:
         capabilities += (f"{multiplier:g}x request limit",)
     served = (entry.get("litellm_params") or {}).get("model")
+    off_for, on_for = split_scopes(name, scopes)
     return ModelCard(
         name=name,
         aliases=tuple(info.get("aliases") or ()),
@@ -287,8 +299,8 @@ def parse_card(entry: Mapping[str, Any], scopes: Sequence[Scope] = ()) -> ModelC
         specs=tuple(Spec(label, value) for label, value in cells if value),
         capabilities=capabilities,
         deprecation_date=_date(info.get("deprecation_date")),
-        off_for=tuple(scope for scope in scopes if name in scope.excluded),
-        on_for=tuple(scope for scope in scopes if name not in scope.excluded),
+        off_for=off_for,
+        on_for=on_for,
     )
 
 
@@ -299,22 +311,19 @@ def _admin_url(viewer: AbstractUser, obj: Model) -> str | None:
     return reverse(f"admin:{meta.app_label}_{meta.model_name}_change", args=[obj.pk])
 
 
-def scopes_for(profile: UserProfile) -> tuple[Scope, ...]:
+Exclusions = Callable[[Any, Any], list[str]]
+
+
+def scopes_for(
+    profile: UserProfile, exclusions: Exclusions = Token.exclusion_list_from_objects
+) -> tuple[Scope, ...]:
     viewer = profile.user
-    personal = Scope(
-        None,
-        frozenset(Token.exclusion_list_from_objects(profile, profile.org)),
-        _admin_url(viewer, viewer),
-    )
+    personal = Scope(None, frozenset(exclusions(profile, profile.org)), _admin_url(viewer, viewer))
     teams = profile.teams.select_related("org").order_by("name")
     return (
         personal,
         *(
-            Scope(
-                team.name,
-                frozenset(Token.exclusion_list_from_objects(team, team.org)),
-                _admin_url(viewer, team),
-            )
+            Scope(team.name, frozenset(exclusions(team, team.org)), _admin_url(viewer, team))
             for team in teams
         ),
     )

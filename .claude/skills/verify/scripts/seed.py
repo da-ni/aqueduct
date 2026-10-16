@@ -1,7 +1,8 @@
 """Seed a fresh verification database. Run once per instance, right after migrate.
 
-Two orgs, one account per role, a team with a service account, personal keys, and a
-week of requests whose models come from the router config the instance loads.
+Two orgs, one account per role, a team with a service account, personal keys, a
+week of requests whose models come from the router config the instance loads, and
+files, batches, and vector stores for `user` and for the team's service account.
 """
 
 import json
@@ -18,6 +19,8 @@ from tos.models import TermsOfService, UserAgreement  # noqa: E402
 
 from gateway.config import get_router_config  # noqa: E402
 from management.models import (  # noqa: E402
+    Batch,
+    FileObject,
     Org,
     Request,
     ServiceAccount,
@@ -26,6 +29,8 @@ from management.models import (  # noqa: E402
     Token,
     UserGroup,
     UserProfile,
+    VectorStore,
+    VectorStoreFile,
 )
 
 User = get_user_model()
@@ -119,6 +124,86 @@ for day in range(7):
             )
         )
 Request.objects.bulk_create(rows)
+
+user_key, pipeline_key = keys[0], keys[4]
+stamp = int(now.timestamp())
+expires = stamp + 30 * 86_400
+PREVIEW = '{"custom_id": "q1", "method": "POST", "url": "/v1/chat/completions"}'
+
+
+def make_file(file_id: str, token: Token, filename: str, purpose: str, size: int) -> FileObject:
+    return FileObject.objects.create(
+        id=file_id,
+        token=token,
+        filename=filename,
+        purpose=purpose,
+        bytes=size,
+        created_at=stamp - 3600,
+        expires_at=expires if purpose.startswith("batch") else None,
+        preview=PREVIEW if purpose == "batch" else "",
+    )
+
+
+def make_batch(batch_id: str, token: Token, input_file: FileObject, status: str, **fields) -> Batch:
+    return Batch.objects.create(
+        id=batch_id,
+        token=token,
+        input_file=input_file,
+        completion_window="24h",
+        created_at=stamp - 1800,
+        expires_at=stamp + 86_400,
+        endpoint="/v1/chat/completions",
+        status=status,
+        **fields,
+    )
+
+
+prompts = make_file("file-user-prompts", user_key, "eval-prompts.jsonl", "batch", 4_800_000)
+results = make_file("file-user-results", user_key, "eval-results.jsonl", "batch_output", 6_100_000)
+corpus = make_file("file-user-corpus", user_key, "thesis-corpus.pdf", "user_data", 7_600_000)
+team_input = make_file("file-team-input", pipeline_key, "nightly.jsonl", "batch", 900_000)
+make_batch(
+    "batch-user-running",
+    user_key,
+    prompts,
+    "in_progress",
+    request_counts={"total": 4000, "completed": 1228, "failed": 12},
+)
+make_batch(
+    "batch-user-done",
+    user_key,
+    prompts,
+    "completed",
+    output_file=results,
+    request_counts={"total": 500, "completed": 500, "failed": 0},
+)
+make_batch(
+    "batch-team-running",
+    pipeline_key,
+    team_input,
+    "in_progress",
+    request_counts={"total": 200, "completed": 50, "failed": 0},
+)
+thesis = VectorStore.objects.create(
+    id="vs_user_thesis", token=user_key, name="thesis-corpus", status="completed", created_at=stamp
+)
+VectorStoreFile.objects.create(
+    id="vsf-user-corpus",
+    vector_store=thesis,
+    file_obj=corpus,
+    status="completed",
+    created_at=stamp,
+    usage_bytes=7_600_000,
+)
+VectorStore.objects.create(
+    id="vs_team_papers",
+    token=pipeline_key,
+    name="group-papers",
+    status="in_progress",
+    created_at=stamp,
+    expires_after={"anchor": "last_active_at", "days": 14},
+    last_active_at=stamp,
+)
 
 print(
     json.dumps(
