@@ -2,7 +2,7 @@ import datetime as dt
 from datetime import timedelta
 
 from django.conf import settings
-from django.db.models import Q, QuerySet
+from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -11,7 +11,8 @@ from django.views.generic import TemplateView
 from gateway.config import get_router_config, model_info_with_context
 from management import usage_report as report
 from management.model_catalog import mode_for
-from management.models import Org, Request, Token
+from management.models import Org
+from management.request_log import chosen_org, visible_requests, visible_tokens
 from management.views.base import BaseAqueductView
 
 
@@ -25,21 +26,11 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         params = self.request.GET
         profile = self.profile
         is_global_admin = profile.is_admin()
-        selected_org = self._get_selected_org(is_global_admin)
+        selected_org = chosen_org(profile, params.get("org"))
         sees_others = selected_org is None or profile.is_org_admin(selected_org)
-
-        tokens = self._tokens_in_scope(selected_org, sees_others)
-        if selected_org is None:
-            reqs = Request.objects.all()
-        elif sees_others:
-            reqs = Request.objects.filter(token__in=tokens)
-        else:
-            # Also count requests that name the user's email as `user`, even when they ran on
-            # another key in the same org.
-            reqs = Request.objects.filter(
-                Q(token__in=tokens)
-                | Q(user_id=profile.user.email, token__user__profile__org=profile.org)
-            )
+        teams = self.get_teams_for_user()
+        tokens = visible_tokens(profile, selected_org, teams)
+        reqs = visible_requests(profile, selected_org, teams)
 
         mine = sees_others and params.get("scope") == "mine"
         if mine:
@@ -59,7 +50,6 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
             entry["model_name"]: mode_for(model_info_with_context(entry).get("mode")).label
             for entry in get_router_config().get("model_list", [])
         }
-        reqs = reqs.filter(model__in=model_kinds)
         selected_model = params.get("model", "")
         if selected_model in model_kinds:
             reqs = reqs.filter(model=selected_model)
@@ -142,34 +132,6 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
             }
         )
         return context
-
-    def _tokens_in_scope(self, selected_org: Org | None, sees_others: bool) -> QuerySet[Token]:
-        """Keys whose usage the viewer may see, so also the keys `?token=` may name."""
-        if selected_org is None:
-            return Token.objects.all()
-        if sees_others:
-            return Token.objects.filter(
-                Q(user__profile__org=selected_org) | Q(service_account__team__org=selected_org)
-            )
-        return Token.objects.filter(
-            Q(user=self.profile.user) | Q(service_account__team__in=self.get_teams_for_user())
-        )
-
-    def _get_selected_org(self, is_global_admin: bool) -> Org | None:
-        """Optional org selection based on the query param and user permissions"""
-        sel = self.request.GET.get("org")
-        if sel == "all" and is_global_admin:
-            selected_org = None
-        else:
-            try:
-                selected_org = (
-                    Org.objects.get(pk=int(sel))
-                    if sel and sel.isdigit() and is_global_admin
-                    else self.profile.org
-                )
-            except Org.DoesNotExist:
-                selected_org = self.org
-        return selected_org
 
     @staticmethod
     def _validate_custom_range(
