@@ -14,7 +14,7 @@ A signed-in user sees their personal API keys, creates a new one and sees its se
 
 ## How to get to it (user POV)
 
-- Choose **API Keys** in the top navigation. The path is `/aqueduct/management/tokens/`.
+- Choose **API keys** in the sidebar. The path is `/aqueduct/management/tokens/`.
 - Signing in lands on the same page.
 - Choose **Create New API Key** on the API keys page.
 

@@ -11,7 +11,7 @@ A signed-in user who has not accepted the current terms sees them before any man
 ## How to get to it (user POV)
 
 - Sign in as a user who has not accepted the terms and open any management page. The browser lands on `/terms-of-service/confirm/?next=<path>`.
-- Choose **Terms of Service** under **More** to read the terms without the prompt.
+- Choose **Terms of service** under **Help** in the footer to read the terms without the prompt.
 
 ## Driving it with aqv
 

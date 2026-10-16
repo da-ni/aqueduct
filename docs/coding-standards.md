@@ -31,11 +31,11 @@ Every new or changed view gets tests for who may use it and who may not. Cover a
 
 The management UI is server-rendered Django templates with no frontend build step. The redesign keeps that.
 
-- Pages extend `management/base.html` and fill `{% block content %}`. Navigation lives in one template that `base.html` includes (`management/header.html` today), so every page gets the same navigation.
+- Pages extend `management/base.html` and fill `{% block content %}`. The navigation is data in `management/nav.py`. Add a page to the sidebar there, with `access` set to the check its view uses. `_sidebar.html` renders it on every page, and `header.html` renders it as the top bar of Django admin and Silk. Templates read the `shell` context variable. They do not check roles, read feature flags, or reverse URLs that only exist behind a flag. `management/tests/test_shell.py` opens every nav page whose route is mounted as a signed-out visitor, a user, an org admin, and an admin. It fails when the shell lists a page that does not return 200 for that role, leaves out a page that does, or lists a page whose route is not mounted.
 - A fragment used on more than one page is a partial named `_<name>.html` next to the pages, like `_limits_display.html`. Create and edit forms live in `create/` and `edit/`. Delete confirmations use `common/confirm_delete.html`.
-- `management/_cdn.html` loads every third-party asset with a pinned version. Add or upgrade an asset there and nowhere else.
+- `management/_cdn.html` loads every third-party asset with a pinned version, then the theme in `css/aqueduct-theme.css` and the shared script in `js/aqueduct.js`. Add or upgrade an asset there and nowhere else.
 - Build pages from daisyUI components, and use Tailwind utilities for layout. Take colors from the daisyUI theme, such as `bg-base-200`, `text-base-content`, and `btn-primary`, so both light and dark mode work. The templates contain no hex colors.
-- New icons are inline SVGs that stroke `currentColor`, as in the redesign mockup, so they follow the theme. The `[[data-theme=dark]_&]:invert` class exists only for the older `<img>` icons.
+- New icons are inline SVGs that stroke `currentColor`, as in the redesign mockup, so they follow the theme. Add each one to the `Icon` enum in `management/icons.py` and render it with `{% icon "name" %}` from `{% load ui %}`. The `[[data-theme=dark]_&]:invert` class exists only for the older `<img>` icons.
 
 ## Check UI changes in a running instance
 
