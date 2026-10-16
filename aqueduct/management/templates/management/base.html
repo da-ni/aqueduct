@@ -86,8 +86,7 @@
                         <div>
                             <button class="btn btn-sm btn-soft flex items-center gap-1"
                                     data-copy="{{ message }}">
-                                <img src="{% static 'icons/copy.svg' %}" alt="Copy Icon"
-                                     class="h-4 w-4 inline-block [[data-theme=dark]_&]:invert">
+                                {% icon "copy" small=True %}
                                 <span class="copy-label">Copy</span>
                             </button>
                         </div>
