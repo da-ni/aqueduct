@@ -34,6 +34,7 @@
 - Use `reset`/`patch_external_api` to avoid cross-test bleed when custom mocks are set
 
 ## Checklist
+- Standards: read `docs/coding-standards.md` before writing or reviewing code, and check finished work against it
 - Scope: identify touched app/module, entrypoints, and side effects (DB/auth/external API)
 - Baseline: check `git status` and read nearby implementation/tests in the same area
 - Pattern-match first: find 1-3 similar endpoints/tests and mirror structure, naming, and error style
