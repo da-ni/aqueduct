@@ -171,7 +171,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         top_items = self._get_top_items(reqs_span, selected_org, selected_token)
 
         # Retention warning
-        retention_days = getattr(settings, "REQUEST_RETENTION_DAYS", 7)
+        retention_days = getattr(settings, "REQUEST_RETENTION_DAYS", 30)
         retention_warning = (now - start_time).days > retention_days
 
         # Simple statistics

@@ -8,9 +8,6 @@
                 <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ shell.gateway_url }}"
                         aria-label="Copy gateway URL" title="Copy gateway URL">{% icon "copy" small=True %}</button>
             </div>
-            {% if shell.retention_days %}
-                <span class="muted text-sm">Usage data is kept for {{ shell.retention_days|floatformat }} day{{ shell.retention_days|pluralize }}.</span>
-            {% endif %}
         </div>
         {% if shell.help_links %}
             <div class="flex flex-col gap-2 text-sm">

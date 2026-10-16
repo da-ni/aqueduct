@@ -85,7 +85,7 @@ celery:
   # app to a specific backend while both run side-by-side.
   brokerUrl: ""
   workerConcurrency: 1
-  requestRetentionDays: 7
+  requestRetentionDays: 30
   schedule: "0 4 * * *"
   workerDeployment:
     replicas: 1
