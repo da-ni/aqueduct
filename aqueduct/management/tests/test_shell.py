@@ -211,7 +211,7 @@ class IconTagTest(TestCase):
     def test_renders_a_stroked_svg(self):
         html = Template('{% load ui %}{% icon "copy" small=True %}').render(Context())
         self.assertInHTML(
-            '<svg class="aq-ic sm" viewBox="0 0 24 24" aria-hidden="true">'
+            '<svg class="aq-ic sm" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">'
             '<rect x="9" y="9" width="11" height="11" rx="2"/>'
             '<path d="M5 15V6a2 2 0 012-2h9"/></svg>',
             html,

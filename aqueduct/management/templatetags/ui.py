@@ -23,5 +23,7 @@ def icon(name: Icon | str, small: bool = False, extra_class: str = "") -> SafeSt
         ((tag, format_html_join(" ", '{}="{}"', attrs)) for tag, attrs in name.value),
     )
     return format_html(
-        '<svg class="{}" viewBox="0 0 24 24" aria-hidden="true">{}</svg>', classes, body
+        '<svg class="{}" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">{}</svg>',
+        classes,
+        body,
     )
