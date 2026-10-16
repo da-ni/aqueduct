@@ -299,6 +299,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 # Aqueduct processors
                 "management.context_processors.settings",
+                "management.context_processors.shell",
             ]
         },
     }
