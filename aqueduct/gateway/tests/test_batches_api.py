@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
-from gateway.tests.utils import _build_chat_headers
+from gateway.tests.utils import _build_chat_headers, _build_chat_payload
 from gateway.tests.utils.base import GatewayBatchesTestCase
 from management.models import Batch as BatchModel
 from management.models import BatchStatus, FileObject, Org, ServiceAccount, Team, Token, UserProfile
@@ -647,3 +647,70 @@ class TestCatchRouterExceptionsIntegration(GatewayBatchesTestCase):
 
         self.assertEqual(resp.status_code, 400)
         self.assertIn("Cannot cancel batch", resp.json()["error"]["message"])
+
+
+class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
+    """A switched-off model is rejected at batch upload exactly like an unknown model.
+
+    The exact 'Unknown model' wording is the contract. A key must not learn whether a model
+    it cannot use exists.
+    """
+
+    def _upload_batch_file(self, model: str, headers: dict | None = None):
+        payload = _build_chat_payload(model, messages=[{"role": "user", "content": "Test"}])
+        line = {"custom_id": "1", "method": "POST", "url": self.url_chat, "body": payload}
+        f = SimpleUploadedFile(
+            "excluded.jsonl", json.dumps(line).encode() + b"\n", content_type="application/jsonl"
+        )
+        return self.client.post(
+            self.url_files, {"file": f, "purpose": "batch"}, headers=headers or self.headers
+        )
+
+    def _sa_headers(self) -> dict:
+        sa_token = Token.objects.get(pk=2)
+        secret = sa_token._set_new_key()
+        sa_token.save(update_fields=["key_hash", "key_preview"])
+        headers = _build_chat_headers(secret)
+        headers.pop("Content-Type", None)
+        return headers
+
+    def _assert_upload_rejected(self, resp, requested_model: str):
+        self.assertEqual(
+            resp.status_code, 400, f"Expected 400, got {resp.status_code}: {resp.content}"
+        )
+        self.assertEqual(
+            resp.json()["error"]["message"],
+            f"Batch file validation failed: Unknown model '{requested_model}' for custom_id '1'",
+        )
+        self.assertFalse(FileObject.objects.exists())
+
+    def test_personal_key_profile_switch_off_rejects_upload(self):
+        UserProfile.objects.get(user_id=1).add_excluded_model(self.model)
+
+        resp = self._upload_batch_file(self.model)
+
+        self._assert_upload_rejected(resp, self.model)
+
+    def test_personal_key_profile_switch_off_rejects_alias_upload(self):
+        UserProfile.objects.get(user_id=1).add_excluded_model(self.model)
+
+        resp = self._upload_batch_file("main")
+
+        self._assert_upload_rejected(resp, "main")
+
+    def test_service_account_key_team_switch_off_rejects_upload(self):
+        Team.objects.get(name="Whale").add_excluded_model(self.model)
+
+        resp = self._upload_batch_file(self.model, headers=self._sa_headers())
+
+        self._assert_upload_rejected(resp, self.model)
+
+    def test_switch_off_of_another_model_keeps_upload(self):
+        UserProfile.objects.get(user_id=1).add_excluded_model("dall-e-2")
+
+        resp = self._upload_batch_file(self.model)
+
+        self.assertEqual(
+            resp.status_code, 200, f"Expected 200, got {resp.status_code}: {resp.content}"
+        )
+        self.assertTrue(FileObject.objects.filter(id=resp.json()["id"], token_id=1).exists())
