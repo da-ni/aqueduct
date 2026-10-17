@@ -6,7 +6,9 @@
 
 {% block content %}
 <div class="flex flex-col gap-6">
-    {% include "management/_usage_tabs.html" with tab="keys" %}
+    <div class="breadcrumbs p-0 text-sm">
+        <ul><li><a href="{{ overview_url }}">Overview</a></li><li>All keys</li></ul>
+    </div>
 
     <header class="flex min-h-12 flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 class="text-3xl font-semibold">All keys</h1>

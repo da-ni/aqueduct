@@ -379,39 +379,3 @@ class UsageChartTest(UsagePageTestBase):
         html = response.content.decode()
         self.assertIn('href="?span=1m" data-metric-show="tokens" aria-current="page"', html)
         self.assertIn('href="?span=1m&amp;metric=requests" data-metric-show="requests"', html)
-
-
-class UsageTabsTest(UsagePageTestBase):
-    def tabs(self, response) -> dict[str, tuple[str, bool]]:
-        nav = re.search(
-            r'<nav class="join" aria-label="Usage">(.*?)</nav>', response.content.decode(), re.S
-        )
-        self.assertIsNotNone(nav, "no usage tabs on the page")
-        return {
-            label: (href.replace("&amp;", "&"), bool(current))
-            for href, current, label in re.findall(
-                r'href="([^"]*)"( aria-current="page")?>([^<]*)</a>', nav.group(1)
-            )
-        }
-
-    def test_overview_marks_its_tab_and_both_tabs_keep_the_filters(self):
-        response = self.page(self.admin, org=self.org.id, model=CHAT, span="1m", metric="requests")
-        query = f"org={self.org.id}&model={CHAT}&span=1m"
-        self.assertEqual(
-            self.tabs(response),
-            {
-                "Overview": (f"{reverse('usage')}?{query}&metric=requests", True),
-                "All keys": (f"{reverse('usage_keys')}?{query}", False),
-            },
-        )
-
-    def test_all_keys_marks_its_tab_and_both_tabs_keep_the_filters(self):
-        self.client.force_login(self.org_admin)
-        response = self.client.get(reverse("usage_keys"), {"scope": "mine", "span": "1d"})
-        self.assertEqual(
-            self.tabs(response),
-            {
-                "Overview": (f"{reverse('usage')}?scope=mine&span=1d", False),
-                "All keys": (f"{reverse('usage_keys')}?scope=mine&span=1d", True),
-            },
-        )

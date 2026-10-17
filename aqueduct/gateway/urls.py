@@ -9,7 +9,7 @@ app_name = "gateway"
 
 urlpatterns = [
     # Redirect to the management views if no direct path is given
-    path("", RedirectView.as_view(url="/aqueduct/management/tokens/", permanent=True)),
+    path("", RedirectView.as_view(pattern_name="usage")),
     # Completions endpoints
     path("completions", views.completions, name="completions"),
     path("v1/completions", views.completions, name="v1_completions"),

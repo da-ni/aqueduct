@@ -16,7 +16,6 @@ A signed-in user sees their personal API keys and the service account keys of th
 ## How to get to it (user POV)
 
 - Choose **API keys** in the sidebar. The path is `/aqueduct/management/tokens/`.
-- Signing in lands on the same page.
 - Choose a key's name in the table to open its detail page at `/aqueduct/management/tokens/<id>/`. A service account's name opens its team page instead.
 - Choose **Create API key** on the API keys page.
 
@@ -26,7 +25,7 @@ Preconditions:
 
 - A fresh launch. `user` holds one key, `user-laptop`, with ID 1. `team-admin` owns the service account key `verify-pipeline`, ID 5.
 
-- **List.** Run `aqv login user`. The page shows the heading `API keys`, the text `1 of 3 personal keys`, and a row for `user-laptop` with `Personal · sk-...`.
+- **List.** Run `aqv login user --next /aqueduct/management/tokens/`. The page shows the heading `API keys`, the text `1 of 3 personal keys`, and a row for `user-laptop` with `Personal · sk-...`.
 - **Detail.** Run `aqv click --role link --name user-laptop --exact`. The path is `/aqueduct/management/tokens/1/`, and the page shows `Input tokens`, `Tokens per day`, `Models it calls`, `Latest requests`, and `Limits`. Run `aqv shot api-keys/detail-user`.
 - **Create.** From the list, run `aqv click --role link --name "Create API key"`, then `aqv fill --label Name --value proof-key`, then `aqv click --role button --name "Create key"`. The page returns to `/aqueduct/management/tokens/`, shows `Your key is ready` with the full secret starting with `sk-`, and reads `2 of 3 personal keys`. Run `aqv shot api-keys/create-user`.
 - **Stored value.** Run `aqv shell -c "from management.models import Token; t = Token.objects.get(name='proof-key'); print(t.user.username, t.service_account_id, t.key_preview)"`. It prints `user None` and the same last four characters the secret ends with.

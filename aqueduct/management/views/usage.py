@@ -62,17 +62,6 @@ def _heat(
     return tokens
 
 
-def _tab_urls(filters: Filters, metric: str = "tokens") -> dict[str, str]:
-    """The Overview and All keys tabs, both on the selection of `filters`. The Overview tab
-    keeps the chart's `metric`, as the page's metric switch writes it into its own links."""
-    query = urlencode(filters.query)
-    overview = urlencode(filters.query | ({"metric": metric} if metric == "requests" else {}))
-    return {
-        "overview_url": f"{reverse('usage')}?{overview}",
-        "all_keys_url": f"{reverse('usage_keys')}?{query}",
-    }
-
-
 def _org_tokens(filters: Filters) -> QuerySet[Token]:
     return Token.objects.all() if filters.org is None else Token.objects.filter(of_org(filters.org))
 
@@ -118,22 +107,24 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
 
         if selected_key is not None:
             keys = report.user_id_shares(in_period, total.tokens)
+            more_keys = False
         else:
             team_ids = set(self.get_teams_for_user().values_list("id", flat=True))
             windows = _key_windows(filters)
-            keys = report.key_shares(
-                report.top_keys(in_period)
+            ranked = (
+                report.top_keys(in_period, report.TOP_KEYS + 1)
                 if windows is None
-                else report.ranked_totals(windows, report.KeyOrder.TOKENS, _org_tokens(filters))[
-                    : report.TOP_KEYS
-                ],
+                else report.ranked_totals(windows, report.KeyOrder.TOKENS, _org_tokens(filters))
+            )
+            more_keys = len(ranked) > report.TOP_KEYS
+            keys = report.key_shares(
+                ranked[: report.TOP_KEYS],
                 total.tokens,
                 lambda token: describe_key(token, profile, team_ids, with_org=selected_org is None),
             )
 
         context.update(
             {
-                **_tab_urls(filters, metric),
                 "filters": filters,
                 "period": period,
                 "kpis": report.kpis(report.slots(timeline.points, period.step)),
@@ -156,6 +147,8 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 ),
                 "approximate_tip": report.APPROXIMATE_MEDIAN if org_wide else "",
                 "keys": keys,
+                "more_keys": more_keys,
+                "all_keys_url": f"{reverse('usage_keys')}?{urlencode(filters.query)}",
                 "orgs_usage": ()
                 if selected_org is not None
                 else report.org_shares(
@@ -218,8 +211,8 @@ class KeyUsageView(BaseAqueductView, TemplateView):
         )
         context.update(
             {
-                **_tab_urls(filters),
                 "filters": filters,
+                "overview_url": f"{reverse('usage')}?{urlencode(filters.query)}",
                 "keys": keys,
                 "count": count,
                 "q": q,

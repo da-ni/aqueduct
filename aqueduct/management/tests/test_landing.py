@@ -1,0 +1,67 @@
+import re
+from unittest import mock
+from urllib.parse import parse_qs, urlparse
+
+from django.test import override_settings
+from django.urls import reverse
+
+from management.tests.test_usage_page import UsagePageTestBase
+
+OIDC = override_settings(
+    OIDC_RP_CLIENT_ID="aqueduct", OIDC_OP_AUTHORIZATION_ENDPOINT="https://sso.example.com/authorize"
+)
+
+
+@OIDC
+class LandingTest(UsagePageTestBase):
+    """Every role lands on the Overview after signing in, unless `next` names a page here."""
+
+    def roles(self):
+        return {"admin": self.admin, "org admin": self.org_admin, "user": self.solo}
+
+    def sign_in(self, user, **params):
+        """Sign in through the SSO flow from the login page, as the browser follows it."""
+        self.client.logout()
+        login = self.client.get(reverse("sso"), params)
+        init = re.search(r'href="([^"]*)" class="btn btn-primary', login.content.decode())
+        assert init is not None, "no login button"
+        provider = self.client.get(init.group(1).replace("&amp;", "&"))
+        state = parse_qs(urlparse(provider["Location"]).query)["state"][0]
+        user.backend = "django.contrib.auth.backends.ModelBackend"
+        with mock.patch("mozilla_django_oidc.views.auth.authenticate", return_value=user):
+            return self.client.get(
+                reverse("oidc_authentication_callback"), {"code": "c", "state": state}
+            )
+
+    def test_every_role_lands_on_the_overview(self):
+        for role, user in self.roles().items():
+            with self.subTest(role):
+                landing = self.sign_in(user)
+                self.assertRedirects(landing, reverse("usage"))
+
+    def test_sign_in_returns_to_the_page_that_asked_for_it(self):
+        page = f"{reverse('requests')}?span=1d"
+        self.assertRedirects(self.sign_in(self.solo, next=page), page)
+
+    def test_sign_in_ignores_a_next_outside_the_site(self):
+        landing = self.sign_in(self.solo, next="https://evil.example.com/")
+        self.assertRedirects(landing, reverse("usage"))
+
+    def test_signed_in_visit_to_the_login_page_lands_on_the_overview(self):
+        for role, user in self.roles().items():
+            with self.subTest(role):
+                self.client.force_login(user)
+                self.assertRedirects(self.client.get(reverse("sso")), reverse("usage"))
+
+    def test_signed_in_visit_to_the_login_page_follows_only_a_safe_next(self):
+        self.client.force_login(self.solo)
+        page = reverse("tokens")
+        self.assertRedirects(self.client.get(reverse("sso"), {"next": page}), page)
+        unsafe = self.client.get(reverse("sso"), {"next": "//evil.example.com/"})
+        self.assertRedirects(unsafe, reverse("usage"))
+
+    def test_site_root_opens_the_overview(self):
+        self.client.force_login(self.solo)
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("usage"))

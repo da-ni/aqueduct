@@ -5,6 +5,7 @@ from django.urls import reverse
 
 from management.tests.test_api_keys_pages import make_token
 from management.tests.test_usage_page import EMBEDDING, KEY_NAMES, UsagePageTestBase
+from management.usage_report import TOP_KEYS
 
 
 class KeyUsagePageTestBase(UsagePageTestBase):
@@ -161,7 +162,28 @@ class KeyUsageMatchesOverviewTest(KeyUsagePageTestBase):
             listed = self.keys_page(self.org_admin, **params).context["keys"]
             self.assertEqual(listed[: len(top)], top, params)
 
-    def test_overview_links_to_all_keys_with_its_filters(self):
+    def busy_keys(self, user, n: int) -> None:
+        for i in range(n):
+            key = make_token(user, f"busy-{user.username}-{i}")
+            self.log(key, timedelta(hours=1), 200, model=EMBEDDING, input_tokens=10)
+
+    def test_overview_links_to_all_keys_with_its_filters_when_top_keys_leaves_keys_out(self):
+        self.busy_keys(self.org_admin, TOP_KEYS + 1)
         response = self.page(self.org_admin, span="1m", model=EMBEDDING, scope="mine")
         url = f"{reverse('usage_keys')}?scope=mine&amp;model={EMBEDDING}&amp;span=1m"
         self.assertContains(response, f'href="{url}">View all keys')
+
+    def test_view_all_keys_shows_only_while_top_keys_leaves_keys_out(self):
+        whole_org = ({}, {"span": "1d"})  # from the key windows, and from the requests
+        self.busy_keys(self.org_admin, TOP_KEYS - 3)  # lab-org already has three keys in use
+        for params in (*whole_org, {"scope": "mine"}):
+            self.assertNotContains(self.page(self.org_admin, **params), "View all keys")
+        self.busy_keys(self.solo, 1)
+        for params in whole_org:
+            self.assertContains(self.page(self.org_admin, **params), "View all keys")
+        self.assertNotContains(self.page(self.org_admin, scope="mine"), "View all keys")
+
+    def test_breadcrumb_returns_to_the_overview_with_the_filters(self):
+        response = self.keys_page(self.org_admin, scope="mine", span="1d", q="lap")
+        self.assertContains(response, f'href="{reverse("usage")}?scope=mine&amp;span=1d">Overview')
+        self.assertNotContains(response, 'aria-label="Usage"')
