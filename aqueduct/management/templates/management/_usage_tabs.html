@@ -1,0 +1,4 @@
+<nav class="join" aria-label="Usage">
+    <a class="btn btn-sm join-item{% if tab == 'overview' %} btn-primary{% endif %}" href="{{ overview_url }}"{% if tab == 'overview' %} aria-current="page"{% endif %}>Overview</a>
+    <a class="btn btn-sm join-item{% if tab == 'keys' %} btn-primary{% endif %}" href="{{ all_keys_url }}"{% if tab == 'keys' %} aria-current="page"{% endif %}>All keys</a>
+</nav>

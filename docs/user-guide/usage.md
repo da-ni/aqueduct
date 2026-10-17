@@ -45,7 +45,7 @@ The gateway keeps requests for a limited time, 30 days by default. If the time f
 
 ## See the usage of every key
 
-The **All keys** page lists every key you can see that has requests in the time frame, 50 keys to a page. Choose **View all keys** under **Top keys** to open it. It has the same columns as **Top keys** and uses the same organization, key scope, model, and time frame filters, so its first rows are the **Top keys** of the Overview.
+The **All keys** page lists every key you can see that has requests in the time frame, 50 keys to a page. Choose the **All keys** tab at the top of the Overview, or **View all keys** under **Top keys**, to open it. The **Overview** tab returns with the same filters. It has the same columns as **Top keys** and uses the same organization, key scope, model, and time frame filters, so its first rows are the **Top keys** of the Overview.
 
 - **Tokens**, **Requests**, and **Name** sort the list. The list opens sorted by tokens.
 - To find a key, type part of its name in the search field and press Enter. Org admins and admins can also type part of the owner's e-mail address.
