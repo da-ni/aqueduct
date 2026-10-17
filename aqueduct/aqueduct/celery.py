@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import time
 from datetime import timedelta
 
 from celery import Celery
@@ -29,6 +30,7 @@ def delete_old_requests(self: object) -> None:
     """
     Deletes Request objects older than REQUEST_RETENTION_DAYS.
     """
+    from management import usage_rollup
     from management.models import Request  # Import here to avoid issues at startup
 
     retention_days = getattr(settings, "REQUEST_RETENTION_DAYS", 30)
@@ -37,6 +39,26 @@ def delete_old_requests(self: object) -> None:
     count = old_requests.count()
     old_requests.delete()
     logger.info("Deleted %s requests older than %s days (before %s)", count, retention_days, cutoff)
+
+    # The rollups keep no more than the requests they are counted from.
+    started = time.monotonic()
+    usage_rollup.rebuild()
+    usage_rollup.refresh_key_windows()
+    logger.info("Rebuilt the usage rollups in %.1f s", time.monotonic() - started)
+
+
+@app.task(bind=True, ignore_result=True)
+def refresh_usage_rollups(self: object) -> None:
+    from management import usage_rollup
+
+    usage_rollup.refresh()
+
+
+@app.task(bind=True, ignore_result=True)
+def refresh_key_usage_windows(self: object) -> None:
+    from management import usage_rollup
+
+    usage_rollup.refresh_key_windows()
 
 
 @app.task(bind=True, ignore_result=True)

@@ -12,6 +12,7 @@ from django.utils.http import urlencode
 
 from management.key_activity import FAILED, router_models, served
 from management.models import Org, Request, Team, Token, UserProfile
+from management.models.token import of_org
 from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
 
 PAGE_SIZE = 50
@@ -42,7 +43,7 @@ def visible_tokens(profile: UserProfile, org: Org | None, teams: QuerySet[Team])
     if org is None:
         return Token.objects.all()
     if profile.is_org_admin(org):
-        return Token.objects.filter(Q(user__profile__org=org) | Q(service_account__team__org=org))
+        return Token.objects.filter(of_org(org))
     return Token.objects.filter(
         Q(user=profile.user, service_account__isnull=True) | Q(service_account__team__in=teams)
     )
@@ -264,7 +265,7 @@ def read_filters(
         requests = requests.filter(token=key.token)
 
     key_q = params.get("key_q", "").strip()
-    matches = ()
+    matches: tuple[Key, ...] = ()
     if key_q:
         found = tokens.filter(key_search(key_q, by_owner=sees_others))
         matches = tuple(describe(token) for token in found[:KEY_MATCHES])

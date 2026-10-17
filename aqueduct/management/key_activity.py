@@ -189,7 +189,9 @@ class KeyRow:
 
 
 def personal_tokens(user: AbstractBaseUser | AnonymousUser) -> QuerySet[Token]:
-    return Token.objects.filter(user=user, service_account__isnull=True)
+    if user.pk is None:
+        return Token.objects.none()
+    return Token.objects.filter(user_id=user.pk, service_account__isnull=True)
 
 
 @dataclass(frozen=True)
@@ -348,6 +350,7 @@ def chart(
     """One column per point, its segments as CSS class and percent of the busiest point.
 
     Only every `every`-th column keeps its axis label, so dense charts stay readable."""
+    values: list[tuple[tuple[str, int], ...]]
     if metric == "requests":
         names, show = REQUEST_SERIES, as_requests
         values = [(("i", a.requests - a.failed), ("f", a.failed)) for _, a in points]

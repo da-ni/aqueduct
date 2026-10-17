@@ -253,6 +253,14 @@ CELERY_BEAT_SCHEDULE = {
         "task": "aqueduct.celery.delete_old_requests",
         "schedule": crontab.from_string(REQUEST_RETENTION_SCHEDULE),
     },
+    "refresh-usage-rollups": {
+        "task": "aqueduct.celery.refresh_usage_rollups",
+        "schedule": crontab(minute="*/10"),
+    },
+    "refresh-key-usage-windows": {
+        "task": "aqueduct.celery.refresh_key_usage_windows",
+        "schedule": crontab(minute="20"),
+    },
     "delete-expired-files-and-batches": {
         "task": "aqueduct.celery.delete_expired_files_and_batches",
         "schedule": crontab.from_string(REQUEST_RETENTION_SCHEDULE),

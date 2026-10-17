@@ -1,7 +1,7 @@
 import hashlib
 import secrets
 from collections.abc import Callable
-from typing import Any, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 from django.conf import settings
 from django.db import models
@@ -12,9 +12,20 @@ from gateway.config import resolve_model_alias
 from management.models.mixins import LimitSet, MCPServerExclusionMixin, ModelExclusionMixin
 from management.models.service_account import ServiceAccount
 
+if TYPE_CHECKING:
+    from management.models.org import Org
+
 _T = TypeVar("_T")
 HIERARCHY = ("user__profile__org", "service_account__team__org")
 """The relations a token's limits and exclusions come from."""
+
+
+def of_org(org: "Org") -> models.Q:
+    """The keys that belong to `org`: a service account's key to its team's org, any other key
+    to its owner's org."""
+    return models.Q(service_account__team__org=org) | models.Q(
+        service_account__isnull=True, user__profile__org=org
+    )
 
 
 class Token(models.Model):

@@ -20,7 +20,7 @@ from django.db.models import (
     Subquery,
     Sum,
 )
-from django.db.models.functions import ExtractHour, ExtractIsoWeekDay, Trunc
+from django.db.models.functions import Coalesce, ExtractHour, ExtractIsoWeekDay, Trunc
 from django.utils import timezone
 
 from management.key_activity import (
@@ -40,6 +40,7 @@ from management.key_activity import (
     spark,
 )
 from management.models import Org, Request, Token
+from management.models.token import of_org
 
 if TYPE_CHECKING:
     from management.request_log import Key
@@ -80,7 +81,8 @@ class Step:
 
     def floor(self, moment: datetime) -> datetime:
         local = timezone.localtime(moment)
-        return local.replace(microsecond=0, **dict.fromkeys(self.zeroed, 0))
+        zeroed: dict[str, Any] = dict.fromkeys(self.zeroed, 0)
+        return local.replace(microsecond=0, **zeroed)
 
 
 MINUTE = Step("minute", timedelta(minutes=1), "%H:%M", ("second",))
@@ -178,7 +180,7 @@ class Median(Aggregate):
     template = "%(function)s(0.5) WITHIN GROUP (ORDER BY %(expressions)s)"
     output_field = IntegerField()
 
-    def as_sqlite(self, compiler, connection, **extra_context) -> tuple[str, Sequence[Any]]:
+    def as_sqlite(self, compiler: Any, connection: Any, **extra_context: Any) -> tuple[str, Any]:
         return super().as_sql(
             compiler,
             connection,
@@ -187,7 +189,7 @@ class Median(Aggregate):
             **extra_context,
         )
 
-    def get_db_converters(self, connection) -> list[Callable[..., Any]]:
+    def get_db_converters(self, connection: Any) -> list[Callable[..., Any]]:
         if connection.vendor == "sqlite":
             return [_lower_median]
         return super().get_db_converters(connection)
@@ -347,7 +349,7 @@ def org_requests(org: Org | None) -> QuerySet[Request]:
     serves. `None` means every org."""
     if org is None:
         return served(Request.objects.all())
-    tokens = Token.objects.filter(Q(user__profile__org=org) | Q(service_account__team__org=org))
+    tokens = Token.objects.filter(of_org(org))
     return served(Request.objects.filter(token__in=tokens))
 
 
@@ -452,7 +454,7 @@ def _widths(values: Iterable[int], top: int | None = None) -> list[int]:
 
 
 def _figures(
-    rows: Sequence[dict], total: int, busiest: int | None = None
+    rows: Sequence[dict[str, Any]], total: int, busiest: int | None = None
 ) -> list[tuple[Activity, str, str, int]]:
     """Activity, median response, token share, and bar width of each grouped row, as
     `model_rows` shows them. `total` is the period's token count, and `busiest` the token count
@@ -498,7 +500,7 @@ class KeyOrder(StrEnum):
             return None
 
 
-def _by_key(requests: QuerySet[Request]) -> QuerySet:
+def _by_key(requests: QuerySet[Request]) -> QuerySet[Request, dict[str, Any]]:
     return requests.values("token_id").annotate(**TOTALS, tokens=Sum(TOKENS, default=0))
 
 
@@ -521,7 +523,9 @@ def key_totals(requests: QuerySet[Request]) -> KeyTotals:
     return KeyTotals(found["n"], found["top"], found["all"])
 
 
-def ranked_keys(requests: QuerySet[Request], order: KeyOrder = KeyOrder.TOKENS) -> QuerySet:
+def ranked_keys(
+    requests: QuerySet[Request], order: KeyOrder = KeyOrder.TOKENS
+) -> QuerySet[Request, dict[str, Any]]:
     """One row of totals per key, in `order`."""
     return _by_key(requests).order_by(*order.ordering)
 
@@ -531,18 +535,18 @@ class CountedKeys:
     """`ranked_keys` whose number is already known, so that a `Paginator` slices them without
     counting them again."""
 
-    rows: QuerySet
+    rows: QuerySet[Request, dict[str, Any]]
     size: int
 
     def __len__(self) -> int:
         return self.size
 
-    def __getitem__(self, page: slice) -> list[dict]:
+    def __getitem__(self, page: slice) -> list[dict[str, Any]]:
         return list(self.rows[page])
 
 
 def key_shares(
-    rows: Sequence[dict],
+    rows: Sequence[dict[str, Any]],
     requests: QuerySet[Request],
     total: int,
     describe: Callable[[Token], "Key"],
@@ -588,7 +592,11 @@ def user_id_shares(requests: QuerySet[Request], total: int) -> tuple[KeyShare, .
 
 def org_shares(requests: QuerySet[Request]) -> tuple[Share, ...]:
     rows = list(
-        requests.values(name=F("token__user__profile__org__name"))
+        requests.values(
+            name=Coalesce(
+                "token__service_account__team__org__name", "token__user__profile__org__name"
+            )
+        )
         .annotate(tokens=Sum(TOKENS, default=0))
         .order_by("-tokens", "name")
     )
