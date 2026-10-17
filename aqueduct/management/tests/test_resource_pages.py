@@ -30,13 +30,7 @@ from mock_api.mock_configs import MockConfig
 
 User = get_user_model()
 
-PAGES = override_settings(
-    STORAGES={
-        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-    },
-    MCP_CONFIG_FILE_PATH=Path(settings.BASE_DIR).parent / "test-mcp.json",
-)
+PAGES = override_settings(MCP_CONFIG_FILE_PATH=Path(settings.BASE_DIR).parent / "test-mcp.json")
 NOW = int(time.time())
 
 

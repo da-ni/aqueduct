@@ -8,7 +8,7 @@ from typing import ClassVar
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from django.urls import reverse
 
 from gateway.rate_limiting import check_and_reserve
@@ -17,17 +17,6 @@ from management.models import LimitSet
 User = get_user_model()
 
 
-# Render full management pages without the hashed-manifest staticfiles storage
-# (no collectstatic is run in the test environment), so {% static %} resolves.
-_RENDER_HTML = override_settings(
-    STORAGES={
-        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-    }
-)
-
-
-@_RENDER_HTML
 class TokensPageTest(TestCase):
     fixtures: ClassVar[list[str]] = ["gateway_data.json"]
 

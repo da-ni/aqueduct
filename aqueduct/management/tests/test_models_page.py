@@ -353,13 +353,7 @@ def selected_panel(content: str) -> str:
     return re.search(r'<h2 id="model-detail-name-panel"[^>]*>([^<]+)</h2>', content).group(1)
 
 
-@override_settings(
-    STORAGES={
-        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-    },
-    LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG_PATH,
-)
+@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG_PATH)
 class ModelsPageTest(TestCase):
     fixtures: ClassVar[list[str]] = ["gateway_data.json"]
 

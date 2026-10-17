@@ -410,6 +410,10 @@ STORAGES = {
     # ...
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}
 }
+if TESTING:
+    # The manifest exists only after collectstatic. management/tests/test_static.py checks
+    # that every {% static %} path exists instead.
+    STORAGES["staticfiles"] = {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
