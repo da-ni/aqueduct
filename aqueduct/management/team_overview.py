@@ -1,16 +1,16 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import StrEnum
 
 from django.db.models import Count, QuerySet
 
 from management.key_activity import (
-    WINDOW_DAYS,
     Activity,
     Expiry,
     Window,
     activity_by,
     limit_labels,
+    week,
     window,
 )
 from management.models import (
@@ -80,8 +80,9 @@ def team_rows(
             "team_id", "is_admin"
         )
     }
-    since = now - timedelta(days=WINDOW_DAYS)
-    activity = activity_by("token__service_account__team_id", (t.id for t in found), since)
+    activity = activity_by(
+        "token__service_account__team_id", (t.id for t in found), week(now).start
+    )
     widths = _bar_widths(activity)
     return tuple(
         TeamRow(
@@ -133,8 +134,9 @@ def team_page(team: Team, viewer: UserProfile, can_manage_admins: bool, now: dat
     org = team.org
     accounts = list(team.service_accounts.select_related("token__user").order_by("name"))
     tokens = {sa.id: getattr(sa, "token", None) for sa in accounts}
-    since = now - timedelta(days=WINDOW_DAYS)
-    activity = activity_by("token_id", (t.id for t in tokens.values() if t is not None), since)
+    activity = activity_by(
+        "token_id", (t.id for t in tokens.values() if t is not None), week(now).start
+    )
     widths = _bar_widths(activity)
     service_accounts = tuple(
         ServiceAccountRow(
