@@ -4,18 +4,164 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-17 22:47+0000\n"
+"POT-Creation-Date: 2026-10-17 23:10+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+msgid ""
+"Apps using it stop working, and its requests, files, batches, and vector "
+"stores are deleted."
+msgstr ""
+"Apps, die ihn nutzen, funktionieren nicht mehr, und seine Anfragen, Dateien, "
+"Batches und Vektorspeicher werden gelöscht."
+
+msgid ""
+"Its key stops working, and the key's requests, files, batches, and vector "
+"stores are deleted."
+msgstr ""
+"Sein Schlüssel funktioniert nicht mehr, und die Anfragen, Dateien, Batches "
+"und Vektorspeicher des Schlüssels werden gelöscht."
+
+#, python-format
+msgid ""
+"Its %(count)s service account is deleted with its key and the key's "
+"requests, files, batches, and vector stores. Members keep their personal "
+"keys."
+msgid_plural ""
+"Its %(count)s service accounts are deleted with their keys and the keys' "
+"requests, files, batches, and vector stores. Members keep their personal "
+"keys."
+msgstr[0] ""
+"Sein Dienstkonto wird mit seinem Schlüssel und dessen Anfragen, Dateien, "
+"Batches und Vektorspeichern gelöscht. Mitglieder behalten ihre persönlichen "
+"Schlüssel."
+msgstr[1] ""
+"Seine %(count)s Dienstkonten werden mit ihren Schlüsseln und deren Anfragen, "
+"Dateien, Batches und Vektorspeichern gelöscht. Mitglieder behalten ihre "
+"persönlichen Schlüssel."
+
+msgid "Members keep their personal keys."
+msgstr "Mitglieder behalten ihre persönlichen Schlüssel."
+
+msgid ""
+"Batches that use it as input are deleted with it, and vector stores drop it."
+msgstr ""
+"Batches, die sie als Eingabe nutzen, werden mit ihr gelöscht, und sie wird "
+"aus Vektorspeichern entfernt."
+
+#, python-format
+msgid "Delete %(name)s?"
+msgstr "%(name)s löschen?"
+
 msgid "Delete"
 msgstr "Löschen"
 
+msgid "Platform admin"
+msgstr "Plattform-Admin"
+
+msgid "Org admin"
+msgstr "Organisations-Admin"
+
+msgid "Team admin"
+msgstr "Team-Admin"
+
+msgid "Member"
+msgstr "Mitglied"
+
+msgid "Language of the management pages. Blank follows the browser."
+msgstr ""
+"Sprache der Verwaltungsseiten. Ohne Auswahl gilt die Sprache des Browsers."
+
+msgid "Overview"
+msgstr "Übersicht"
+
+msgid "Models"
+msgstr "Modelle"
+
+msgid "MCP servers"
+msgstr "MCP-Server"
+
+msgid "API keys"
+msgstr "API-Schlüssel"
+
+msgid "Requests"
+msgstr "Anfragen"
+
+msgid "Teams"
+msgstr "Teams"
+
+msgid "Resources"
+msgstr "Ressourcen"
+
+msgid "Files"
+msgstr "Dateien"
+
+msgid "Batches"
+msgstr "Batches"
+
+msgid "Vector stores"
+msgstr "Vektorspeicher"
+
+msgid "Admin"
+msgstr "Verwaltung"
+
+msgid "Organization"
+msgstr "Organisation"
+
+msgid "Admin panel"
+msgstr "Admin-Bereich"
+
+msgid "Profiling"
+msgstr "Profiling"
+
+msgid "Settings"
+msgstr "Einstellungen"
+
+msgid "Terms of service"
+msgstr "Nutzungsbedingungen"
+
+msgid "Privacy"
+msgstr "Datenschutz"
+
+msgid "Matrix support channel"
+msgstr "Matrix-Supportkanal"
+
+msgid "GitHub repository"
+msgstr "GitHub-Repository"
+
+msgid "Access denied"
+msgstr "Zugriff verweigert"
+
+msgid "Aqueduct AI Gateway"
+msgstr "Aqueduct AI Gateway"
+
+msgid "You don't have access. Ask your org admin."
+msgstr ""
+"Sie haben keinen Zugriff. Wenden Sie sich an die Admins Ihrer Organisation."
+
+msgid "Go to Overview"
+msgstr "Zur Übersicht"
+
+msgid "Page not found"
+msgstr "Seite nicht gefunden"
+
+msgid "This page doesn't exist or you can't open it."
+msgstr "Diese Seite gibt es nicht, oder Sie können sie nicht öffnen."
+
 msgid "Cancel"
 msgstr "Abbrechen"
+
+msgid "Gateway"
+msgstr "Gateway"
+
+msgid "Copy gateway URL"
+msgstr "Gateway-URL kopieren"
+
+msgid "Help"
+msgstr "Hilfe"
 
 msgid "Copied"
 msgstr "Kopiert"
@@ -23,11 +169,235 @@ msgstr "Kopiert"
 msgid "Copy failed"
 msgstr "Kopieren fehlgeschlagen"
 
+msgid "Viewing"
+msgstr "Ansicht"
+
+msgid "All organizations"
+msgstr "Alle Organisationen"
+
+msgid "Changes the organization on every page."
+msgstr "Wechselt die Organisation auf jeder Seite."
+
+msgid "Switch"
+msgstr "Wechseln"
+
+#, python-format
+msgid "%(first)s–%(last)s of %(total)s"
+msgstr "%(first)s–%(last)s von %(total)s"
+
+msgid "Pages"
+msgstr "Seiten"
+
+msgid "Previous"
+msgstr "Zurück"
+
+msgid "Next"
+msgstr "Weiter"
+
+msgid "Aqueduct"
+msgstr "Aqueduct"
+
+msgid "Main"
+msgstr "Hauptmenü"
+
+msgid "Sign out"
+msgstr "Abmelden"
+
+msgid "Switch between light and dark"
+msgstr "Zwischen hellem und dunklem Design wechseln"
+
+msgid "Skip to content"
+msgstr "Zum Inhalt springen"
+
+msgid "Close navigation"
+msgstr "Navigation schließen"
+
+msgid "Open navigation"
+msgstr "Navigation öffnen"
+
+msgid "Dismiss"
+msgstr "Schließen"
+
+msgid "Menu"
+msgstr "Menü"
+
+msgid "Account"
+msgstr "Konto"
+
+msgid "Sign in"
+msgstr "Anmelden"
+
+msgid "Sign in to Aqueduct"
+msgstr "Bei Aqueduct anmelden"
+
+#, python-format
+msgid "Sign in with %(provider)s"
+msgstr "Mit %(provider)s anmelden"
+
+#, python-format
+msgid "For members of %(name)s"
+msgstr "Für Mitglieder von %(name)s"
+
+#, python-format
+msgid "Last updated %(date)s"
+msgstr "Zuletzt aktualisiert am %(date)s"
+
+msgid "No privacy information has been published yet."
+msgstr "Es wurden noch keine Datenschutzhinweise veröffentlicht."
+
+msgid "Email"
+msgstr "E-Mail"
+
+msgid "Set by your sign-in provider."
+msgstr "Von Ihrem Anmeldedienst festgelegt."
+
+msgid "Role"
+msgstr "Rolle"
+
+msgid "None"
+msgstr "Keine"
+
 msgid "Language"
 msgstr "Sprache"
 
 msgid "Follows your browser until you choose one."
 msgstr "Folgt Ihrem Browser, bis Sie eine Sprache wählen."
 
+#, python-format
+msgid "Accepted %(date)s"
+msgstr "Akzeptiert am %(date)s"
+
+msgid "Not accepted"
+msgstr "Nicht akzeptiert"
+
+msgid "Read the terms"
+msgstr "Nutzungsbedingungen lesen"
+
+msgid "Personal key limits"
+msgstr "Limits persönlicher Schlüssel"
+
+msgid "Personal keys"
+msgstr "Persönliche Schlüssel"
+
+#, python-format
+msgid "%(used)s of %(limit)s"
+msgstr "%(used)s von %(limit)s"
+
+msgid "Set for your account. Others use the organization default."
+msgstr ""
+"Für Ihr Konto festgelegt. Die übrigen Limits folgen der Vorgabe der "
+"Organisation."
+
+msgid "Organization default"
+msgstr "Vorgabe der Organisation"
+
+#, python-format
+msgid "%(count)s year ago"
+msgid_plural "%(count)s years ago"
+msgstr[0] "vor %(count)s Jahr"
+msgstr[1] "vor %(count)s Jahren"
+
+#, python-format
+msgid "in %(count)s year"
+msgid_plural "in %(count)s years"
+msgstr[0] "in %(count)s Jahr"
+msgstr[1] "in %(count)s Jahren"
+
+#, python-format
+msgid "%(count)s month ago"
+msgid_plural "%(count)s months ago"
+msgstr[0] "vor %(count)s Monat"
+msgstr[1] "vor %(count)s Monaten"
+
+#, python-format
+msgid "in %(count)s month"
+msgid_plural "in %(count)s months"
+msgstr[0] "in %(count)s Monat"
+msgstr[1] "in %(count)s Monaten"
+
+#, python-format
+msgid "%(count)s week ago"
+msgid_plural "%(count)s weeks ago"
+msgstr[0] "vor %(count)s Woche"
+msgstr[1] "vor %(count)s Wochen"
+
+#, python-format
+msgid "in %(count)s week"
+msgid_plural "in %(count)s weeks"
+msgstr[0] "in %(count)s Woche"
+msgstr[1] "in %(count)s Wochen"
+
+#, python-format
+msgid "%(count)s day ago"
+msgid_plural "%(count)s days ago"
+msgstr[0] "vor %(count)s Tag"
+msgstr[1] "vor %(count)s Tagen"
+
+#, python-format
+msgid "in %(count)s day"
+msgid_plural "in %(count)s days"
+msgstr[0] "in %(count)s Tag"
+msgstr[1] "in %(count)s Tagen"
+
+#, python-format
+msgid "%(count)s hour ago"
+msgid_plural "%(count)s hours ago"
+msgstr[0] "vor %(count)s Stunde"
+msgstr[1] "vor %(count)s Stunden"
+
+#, python-format
+msgid "in %(count)s hour"
+msgid_plural "in %(count)s hours"
+msgstr[0] "in %(count)s Stunde"
+msgstr[1] "in %(count)s Stunden"
+
+#, python-format
+msgid "%(count)s minute ago"
+msgid_plural "%(count)s minutes ago"
+msgstr[0] "vor %(count)s Minute"
+msgstr[1] "vor %(count)s Minuten"
+
+#, python-format
+msgid "in %(count)s minute"
+msgid_plural "in %(count)s minutes"
+msgstr[0] "in %(count)s Minute"
+msgstr[1] "in %(count)s Minuten"
+
+msgid "just now"
+msgstr "gerade eben"
+
+msgid "You cannot login without agreeing to the terms of this site."
+msgstr ""
+"Ohne Zustimmung zu den Nutzungsbedingungen können Sie sich nicht anmelden."
+
+msgid "Only org admins can do that."
+msgstr "Das können nur Organisations-Admins."
+
+msgid "Only team admins can do that."
+msgstr "Das können nur Team-Admins."
+
+msgid "Only platform admins can do that."
+msgstr "Das können nur Plattform-Admins."
+
+#, python-format
+msgid "Viewing %(name)s."
+msgstr "Ansicht: %(name)s."
+
+msgid "Viewing all organizations."
+msgstr "Ansicht: alle Organisationen."
+
 msgid "Choose one of the offered languages."
 msgstr "Wählen Sie eine der angebotenen Sprachen."
+
+#, python-format
+msgid "Version of %(date)s"
+msgstr "Fassung vom %(date)s"
+
+msgid "Accept the terms to continue"
+msgstr "Akzeptieren Sie die Nutzungsbedingungen, um fortzufahren"
+
+msgid "Decline and sign out"
+msgstr "Ablehnen und abmelden"
+
+msgid "Accept"
+msgstr "Akzeptieren"

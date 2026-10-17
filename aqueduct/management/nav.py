@@ -6,6 +6,9 @@ from django.contrib import admin
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.http import HttpRequest
 from django.urls import NoReverseMatch, reverse
+from django.utils.functional import Promise
+from django.utils.translation import gettext
+from django.utils.translation import gettext_lazy as _
 from silk.config import SilkyConfig
 
 from management.icons import Icon
@@ -52,7 +55,7 @@ def privacy_notice(request: HttpRequest) -> bool:
 
 @dataclass(frozen=True)
 class Page:
-    label: str
+    label: str | Promise
     url_name: str
     icon: Icon
     access: Access = signed_in
@@ -68,7 +71,7 @@ class Page:
 
 @dataclass(frozen=True)
 class Group:
-    title: str | None
+    title: str | Promise | None
     pages: tuple[Page, ...]
 
 
@@ -76,21 +79,21 @@ NAV: tuple[Group, ...] = (
     Group(
         None,
         (
-            Page("Overview", "usage", Icon.OVERVIEW),
-            Page("Models", "models", Icon.MODELS),
-            Page("MCP servers", "mcp_servers", Icon.MCP),
-            Page("API keys", "tokens", Icon.KEY, url_families=("tokens", "token")),
-            Page("Requests", "requests", Icon.REQUESTS),
-            Page("Teams", "org", Icon.TEAMS, url_families=("org", "team", "service_account")),
+            Page(_("Overview"), "usage", Icon.OVERVIEW),
+            Page(_("Models"), "models", Icon.MODELS),
+            Page(_("MCP servers"), "mcp_servers", Icon.MCP),
+            Page(_("API keys"), "tokens", Icon.KEY, url_families=("tokens", "token")),
+            Page(_("Requests"), "requests", Icon.REQUESTS),
+            Page(_("Teams"), "org", Icon.TEAMS, url_families=("org", "team", "service_account")),
         ),
     ),
     Group(
-        "Resources",
+        _("Resources"),
         (
-            Page("Files", "files", Icon.FILE, url_families=("files", "file")),
-            Page("Batches", "batches", Icon.BATCH),
+            Page(_("Files"), "files", Icon.FILE, url_families=("files", "file")),
+            Page(_("Batches"), "batches", Icon.BATCH),
             Page(
-                "Vector stores",
+                _("Vector stores"),
                 "vector_stores",
                 Icon.VECTOR_STORE,
                 url_families=("vector_stores", "vector_store"),
@@ -98,11 +101,11 @@ NAV: tuple[Group, ...] = (
         ),
     ),
     Group(
-        "Admin",
+        _("Admin"),
         (
-            Page("Organization", "organization", Icon.ORGANIZATION, access=org_admin),
+            Page(_("Organization"), "organization", Icon.ORGANIZATION, access=org_admin),
             Page(
-                "Admin panel",
+                _("Admin panel"),
                 "admin:index",
                 Icon.ADMIN,
                 access=django_admin,
@@ -110,7 +113,7 @@ NAV: tuple[Group, ...] = (
                 external=True,
             ),
             Page(
-                "Profiling",
+                _("Profiling"),
                 "silk:summary",
                 Icon.PROFILING,
                 access=silk_profiling,
@@ -120,16 +123,16 @@ NAV: tuple[Group, ...] = (
         ),
     ),
 )
-NAV_BOTTOM: tuple[Page, ...] = (Page("Settings", "settings", Icon.SETTINGS),)
+NAV_BOTTOM: tuple[Page, ...] = (Page(_("Settings"), "settings", Icon.SETTINGS),)
 HELP: tuple[Page, ...] = (
-    Page("Terms of service", "tos", Icon.FILE, access=terms_of_service),
-    Page("Privacy", "privacy", Icon.FILE, access=privacy_notice),
+    Page(_("Terms of service"), "tos", Icon.FILE, access=terms_of_service),
+    Page(_("Privacy"), "privacy", Icon.FILE, access=privacy_notice),
 )
 
 
 @dataclass(frozen=True)
 class Link:
-    label: str
+    label: str | Promise
     href: str
     icon: Icon
     active: bool = False
@@ -138,7 +141,7 @@ class Link:
 
 @dataclass(frozen=True)
 class Section:
-    title: str | None
+    title: str | Promise | None
     links: tuple[Link, ...]
 
 
@@ -204,8 +207,8 @@ def build_shell(request: HttpRequest) -> Shell:
         contact_links=tuple(
             Link(label, url, icon, external=True)
             for label, url, icon in (
-                ("Matrix support channel", settings.MATRIX_SUPPORT_URL, Icon.MATRIX),
-                ("GitHub repository", settings.GITHUB_REPOSITORY_URL, Icon.GITHUB),
+                (gettext("Matrix support channel"), settings.MATRIX_SUPPORT_URL, Icon.MATRIX),
+                (gettext("GitHub repository"), settings.GITHUB_REPOSITORY_URL, Icon.GITHUB),
             )
             if url
         ),
@@ -227,7 +230,7 @@ def _viewer(request: HttpRequest) -> Viewer | None:
     if not user.is_authenticated:
         return None
     try:
-        role: str | None = user.profile.group.label
+        role: str | None = str(user.profile.group.label)
     except (ObjectDoesNotExist, ValidationError):
         role = None
     return Viewer(email=user.email, role=role)

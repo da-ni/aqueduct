@@ -156,7 +156,7 @@
                             <td class="truncate max-md:w-full max-md:pb-0" title="{{ member.profile.user.email }}"><span class="font-medium">{{ member.profile.user.email }}</span>{% if member.is_viewer %} <span class="muted">(you)</span>{% endif %}</td>
                             <td class="max-md:py-1">
                                 <div class="flex flex-wrap items-center gap-3">
-                                    <span>{{ member.role }}</span>
+                                    <span>{{ member.role.label }}</span>
                                     {% if member.can_change_admin %}
                                         <form action="{% url 'team_admins_manage' team.id %}" method="post">
                                             {% csrf_token %}

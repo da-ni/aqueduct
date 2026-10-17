@@ -7,6 +7,7 @@ from django.template.defaultfilters import date as format_date
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from django.utils.safestring import SafeString
+from django.utils.translation import gettext, ngettext_lazy
 
 from management.deletion import deletion
 from management.icons import Icon
@@ -78,12 +79,36 @@ def when(value: object, style: str = "datetime") -> SafeString | str:
 
 
 AGO_UNITS = (
-    ("year", 365 * 86400),
-    ("month", 30 * 86400),
-    ("week", 7 * 86400),
-    ("day", 86400),
-    ("hour", 3600),
-    ("minute", 60),
+    (
+        365 * 86400,
+        ngettext_lazy("%(count)s\xa0year ago", "%(count)s\xa0years ago", "count"),
+        ngettext_lazy("in %(count)s\xa0year", "in %(count)s\xa0years", "count"),
+    ),
+    (
+        30 * 86400,
+        ngettext_lazy("%(count)s\xa0month ago", "%(count)s\xa0months ago", "count"),
+        ngettext_lazy("in %(count)s\xa0month", "in %(count)s\xa0months", "count"),
+    ),
+    (
+        7 * 86400,
+        ngettext_lazy("%(count)s\xa0week ago", "%(count)s\xa0weeks ago", "count"),
+        ngettext_lazy("in %(count)s\xa0week", "in %(count)s\xa0weeks", "count"),
+    ),
+    (
+        86400,
+        ngettext_lazy("%(count)s\xa0day ago", "%(count)s\xa0days ago", "count"),
+        ngettext_lazy("in %(count)s\xa0day", "in %(count)s\xa0days", "count"),
+    ),
+    (
+        3600,
+        ngettext_lazy("%(count)s\xa0hour ago", "%(count)s\xa0hours ago", "count"),
+        ngettext_lazy("in %(count)s\xa0hour", "in %(count)s\xa0hours", "count"),
+    ),
+    (
+        60,
+        ngettext_lazy("%(count)s\xa0minute ago", "%(count)s\xa0minutes ago", "count"),
+        ngettext_lazy("in %(count)s\xa0minute", "in %(count)s\xa0minutes", "count"),
+    ),
 )
 
 
@@ -91,14 +116,14 @@ def ago(value: datetime, now: datetime) -> str:
     """How long ago, or how soon, `value` is, in one unit rounded half up: "2 days ago" for 1
     day and 18 hours, "1 day ago" for 23 hours and 40 minutes, "in 3 hours"."""
     seconds = (now - value).total_seconds()
-    for index, (name, size) in enumerate(AGO_UNITS):
+    for index, (size, _past, _future) in enumerate(AGO_UNITS):
         if abs(seconds) >= size:
-            unit, count = name, int(abs(seconds) / size + 0.5)
-            if index and count >= round(AGO_UNITS[index - 1][1] / size):
-                unit, count = AGO_UNITS[index - 1][0], 1
-            label = f"{count}\xa0{unit}{'' if count == 1 else 's'}"
-            return f"{label} ago" if seconds > 0 else f"in {label}"
-    return "just now"
+            unit, count = index, int(abs(seconds) / size + 0.5)
+            if index and count >= round(AGO_UNITS[index - 1][0] / size):
+                unit, count = index - 1, 1
+            past, future = AGO_UNITS[unit][1:]
+            return str((past if seconds > 0 else future) % {"count": count})
+    return gettext("just now")
 
 
 @register.filter
@@ -109,16 +134,18 @@ def dash(value: object) -> object:
 
 
 @register.simple_tag
-def confirm(
-    title: str, detail: str = "", action: str = "Delete", dismiss: str = "Cancel"
-) -> SafeString:
+def confirm(title: str, detail: str = "", action: str = "", dismiss: str = "") -> SafeString:
     """Attributes that make a link or a submit button ask `title` in the shared confirm dialog
-    first. `dismiss` labels the button that backs out, for when "Cancel" would read as the
-    action. See `management/_confirm_dialog.html`."""
+    first. `action` labels the button that goes ahead, "Delete" by default. `dismiss` labels the
+    button that backs out, for when "Cancel" would read as the action. See
+    `management/_confirm_dialog.html`."""
     attrs = format_html(
-        'data-confirm="{}" data-confirm-detail="{}" data-confirm-action="{}"', title, detail, action
+        'data-confirm="{}" data-confirm-detail="{}" data-confirm-action="{}"',
+        title,
+        detail,
+        action or gettext("Delete"),
     )
-    if dismiss != "Cancel":
+    if dismiss:
         attrs = format_html('{} data-confirm-dismiss="{}"', attrs, dismiss)
     return attrs
 

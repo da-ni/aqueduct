@@ -1,14 +1,14 @@
 {% extends "management/base.html" %}
-{% load ui %}
+{% load i18n ui %}
 
-{% block title %}Terms of service · {{ block.super }}{% endblock %}
+{% block title %}{% translate "Terms of service" %} · {{ block.super }}{% endblock %}
 
 {% block content %}
 <section class="card mx-auto max-w-4xl bg-base-100" aria-labelledby="tos-title">
     <div class="card-body gap-4 p-6">
         <header class="flex flex-col gap-1">
-            <h1 id="tos-title" class="text-2xl font-semibold">Terms of service</h1>
-            <p class="muted text-sm">Version of {{ tos.created|when:"date" }}</p>
+            <h1 id="tos-title" class="text-2xl font-semibold">{% translate "Terms of service" %}</h1>
+            <p class="muted text-sm">{% blocktranslate with date=tos.created|when:"date" %}Version of {{ date }}{% endblocktranslate %}</p>
         </header>
         <div class="prose max-w-none">{{ tos.content|safe }}</div>
     </div>

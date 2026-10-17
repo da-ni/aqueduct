@@ -4,6 +4,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponseBase, HttpResponseRedirect
 from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.translation import gettext_noop
 from django.views.decorators.cache import never_cache
 from django.views.generic import TemplateView
 from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
@@ -20,6 +21,10 @@ def safe_next(request: HttpRequest) -> str | None:
     """The `next` parameter when it points into this site, else `None`."""
     next_url = request.GET.get("next")
     return next_url if is_safe(request, next_url) else None
+
+
+# django-tos ships no German, so its message is translated in this project's catalog.
+gettext_noop("You cannot login without agreeing to the terms of this site.")
 
 
 @never_cache

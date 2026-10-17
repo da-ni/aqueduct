@@ -1,11 +1,12 @@
 {% extends 'management/base.html' %}
-{% block title %}Sign in · {{ block.super }}{% endblock %}
+{% load i18n %}
+{% block title %}{% translate "Sign in" %} · {{ block.super }}{% endblock %}
 
 {% block content %}
   <div class="card mx-auto mt-10 max-w-sm bg-base-200">
     <div class="card-body gap-6 p-6">
-      <h1 class="text-center text-2xl font-semibold">Sign in to Aqueduct</h1>
-      <a href="{% url 'oidc_authentication_init' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="btn btn-primary w-full">Sign in with {{ OIDC_PROVIDER|default:"SSO" }}</a>
+      <h1 class="text-center text-2xl font-semibold">{% translate "Sign in to Aqueduct" %}</h1>
+      <a href="{% url 'oidc_authentication_init' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="btn btn-primary w-full">{% blocktranslate with provider=OIDC_PROVIDER|default:"SSO" %}Sign in with {{ provider }}{% endblocktranslate %}</a>
     </div>
   </div>
 {% endblock %}

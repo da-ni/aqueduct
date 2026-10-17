@@ -1,20 +1,20 @@
-{% load ui %}
+{% load i18n ui %}
 <footer class="aq-band print:hidden">
     <div class="mx-auto flex w-full max-w-7xl flex-wrap items-start justify-between gap-8 px-4 py-8 sm:px-8">
         {% if shell.viewer %}
             <div class="flex flex-col gap-2">
-                <p class="label-mono">Gateway</p>
+                <p class="label-mono">{% translate "Gateway" %}</p>
                 <div class="flex items-center gap-2">
                     <span class="font-mono text-sm">{{ shell.gateway_url }}</span>
                     <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ shell.gateway_url }}"
-                            aria-label="Copy gateway URL" title="Copy gateway URL">{% icon "copy" small=True %}</button>
+                            aria-label="{% translate 'Copy gateway URL' %}" title="{% translate 'Copy gateway URL' %}">{% icon "copy" small=True %}</button>
                 </div>
             </div>
         {% endif %}
         {% if shell.help_links or shell.contact_links %}
             <div class="flex flex-col gap-2 text-sm">
                 {% if shell.help_links %}
-                    <p class="label-mono">Help</p>
+                    <p class="label-mono">{% translate "Help" %}</p>
                     <span class="flex flex-wrap gap-4">
                         {% for link in shell.help_links %}<a href="{{ link.href }}">{{ link.label }}</a>{% endfor %}
                     </span>

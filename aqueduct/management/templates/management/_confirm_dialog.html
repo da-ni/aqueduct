@@ -1,6 +1,6 @@
 {% comment %}
 The one confirm dialog of every page. A link or submit button asks in it first when it carries
-the attributes of {% confirm title detail action dismiss="Cancel" %} or {% confirm_delete obj %} from `ui`:
+the attributes of {% confirm title detail action dismiss %} or {% confirm_delete obj %} from `ui`:
 
     <a href="{% url 'token_delete' token.id %}" {% confirm_delete token %}>Delete</a>
     <button type="submit" name="remove" value="7" {% confirm "Remove ana@example.com?" "She loses access." "Remove" %}>Remove</button>

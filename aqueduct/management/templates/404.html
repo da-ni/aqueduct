@@ -1,12 +1,13 @@
 {% extends "management/base.html" %}
+{% load i18n %}
 
-{% block title %}Page not found · Aqueduct AI Gateway{% endblock %}
+{% block title %}{% translate "Page not found" %} · {% translate "Aqueduct AI Gateway" %}{% endblock %}
 
 {% block content %}
 <div class="flex max-w-2xl flex-col gap-4">
     <p class="label-mono">404</p>
-    <h1 class="text-3xl font-semibold">Page not found</h1>
-    <p>This page doesn't exist or you can't open it.</p>
-    <div><a class="btn btn-primary" href="{% url 'usage' %}">Go to Overview</a></div>
+    <h1 class="text-3xl font-semibold">{% translate "Page not found" %}</h1>
+    <p>{% translate "This page doesn't exist or you can't open it." %}</p>
+    <div><a class="btn btn-primary" href="{% url 'usage' %}">{% translate "Go to Overview" %}</a></div>
 </div>
 {% endblock %}

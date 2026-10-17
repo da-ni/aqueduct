@@ -7,6 +7,7 @@ from django.db.models import QuerySet
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
+from django.utils.translation import gettext_lazy as _
 from django.views import View
 
 from management.models import Org, ServiceAccount, Team, UserProfile
@@ -76,8 +77,8 @@ class BaseAqueductView(LoginRequiredMixin, View):
         return self.profile.teams.all()
 
 
-ONLY_ORG_ADMINS = "Only org admins can do that."
-ONLY_TEAM_ADMINS = "Only team admins can do that."
+ONLY_ORG_ADMINS = _("Only org admins can do that.")
+ONLY_TEAM_ADMINS = _("Only team admins can do that.")
 
 
 class OrgAdminRequiredMixin:

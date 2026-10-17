@@ -15,7 +15,7 @@ from django.shortcuts import render
 from django.template import Context, Template, TemplateSyntaxError
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import NoReverseMatch, include, path, reverse
-from django.utils import timezone
+from django.utils import timezone, translation
 
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
 from management.models import PrivacyNotice
@@ -360,6 +360,18 @@ class WhenFilterTest(TestCase):
         ]:
             with self.subTest(label=label):
                 self.assertIn(f">{label}</time>", self.render(moment, "relative"))
+
+    def test_relative_label_in_german_takes_the_plural_of_its_unit(self):
+        now = timezone.now()
+        with translation.override("de"):
+            for moment, label in [
+                (now - timedelta(seconds=20), "gerade eben"),
+                (now - timedelta(days=1, hours=2), "vor 1\xa0Tag"),
+                (now - timedelta(days=1, hours=18), "vor 2\xa0Tagen"),
+                (now + timedelta(hours=3, minutes=1), "in 3\xa0Stunden"),
+            ]:
+                with self.subTest(label=label):
+                    self.assertIn(f">{label}</time>", self.render(moment, "relative"))
 
     def test_plain_date(self):
         self.assertInHTML(
