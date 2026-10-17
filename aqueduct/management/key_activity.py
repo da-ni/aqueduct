@@ -18,15 +18,17 @@ if TYPE_CHECKING:
 
 EXPIRY_WARNING = timedelta(days=7)
 FAILED = Q(status_code__gte=400)
-_MILLION, _THOUSAND = 1_000_000, 1_000
+_SUFFIXES, _STEP = ("", "K", "M", "B", "T"), 1000
 
 
 def compact(count: int) -> str:
-    if count >= _MILLION:
-        return f"{count / _MILLION:.1f}".removesuffix(".0") + "M"
-    if count >= _THOUSAND:
-        return f"{count / _THOUSAND:.1f}".removesuffix(".0") + "K"
-    return str(count)
+    magnitude = float(abs(count))
+    for suffix in _SUFFIXES:
+        digits = f"{magnitude:.1f}"
+        if float(digits) < _STEP or suffix == _SUFFIXES[-1]:
+            break
+        magnitude /= _STEP
+    return ("-" if count < 0 else "") + digits.removesuffix(".0") + suffix
 
 
 def percent(part: int, whole: int) -> str:
