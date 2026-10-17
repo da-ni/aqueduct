@@ -2,7 +2,6 @@ import logging
 
 from asgiref.sync import async_to_sync
 from django.contrib import messages
-from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -11,7 +10,7 @@ from django.views import View
 from django.views.generic import TemplateView
 
 from management.models import VectorStore
-from management.resources import store_detail, store_list, stores_visible_to, with_files
+from management.resources import scope, store_detail, store_list, syncable
 from management.views.base import BaseAqueductView
 
 log = logging.getLogger(__name__)
@@ -24,7 +23,8 @@ class UserVectorStoresView(BaseAqueductView, TemplateView):
         context = super().get_context_data(**kwargs)
         context["listing"] = store_list(
             self.request.user,
-            self.get_teams_for_user(),
+            scope(self.profile, self.viewed_org),
+            syncable(self.request.user, self.get_teams_for_user()),
             self.profile.teams.all(),
             timezone.now(),
             self.request.GET.get("page"),
@@ -37,21 +37,13 @@ class VectorStoreDetailView(BaseAqueductView, TemplateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        store = (
-            with_files(stores_visible_to(self.request.user, self.get_teams_for_user()))
-            .filter(id=self.kwargs["id"])
-            .first()
-        )
-        context["detail"] = (
-            store_detail(
-                store,
-                self.request.user,
-                self.profile.teams.all(),
-                timezone.now(),
-                self.request.GET.get("page"),
-            )
-            if store
-            else None
+        context["detail"] = store_detail(
+            self.kwargs["id"],
+            self.request.user,
+            scope(self.profile, self.viewed_org),
+            syncable(self.request.user, self.get_teams_for_user()),
+            timezone.now(),
+            self.request.GET.get("page"),
         )
         return context
 
@@ -78,14 +70,11 @@ class VectorStoreCardRefreshView(BaseAqueductView, View):
     """
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
-        user = self.profile.user
-        teams = self.get_teams_for_user()
         vector_store_id = self.kwargs.get("id")
 
         try:
             vs = VectorStore.objects.get(
-                Q(id=vector_store_id)
-                & (Q(token__user=user) | Q(token__service_account__team__in=teams))
+                syncable(request.user, self.get_teams_for_user()), id=vector_store_id
             )
         except VectorStore.DoesNotExist:
             messages.error(request, "Vector store not found.")
@@ -106,14 +95,11 @@ class VectorStoreDetailRefreshView(BaseAqueductView):
     """
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
-        user = self.profile.user
-        teams = self.get_teams_for_user()
         vector_store_id = self.kwargs.get("id")
 
         try:
             vs = VectorStore.objects.get(
-                Q(id=vector_store_id)
-                & (Q(token__user=user) | Q(token__service_account__team__in=teams))
+                syncable(request.user, self.get_teams_for_user()), id=vector_store_id
             )
         except VectorStore.DoesNotExist:
             messages.error(request, "Vector store not found.")

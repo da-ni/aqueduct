@@ -7,7 +7,7 @@
     <th>File</th>
     <th>Purpose</th>
     <th class="text-right">Size</th>
-    <th>Uploaded</th>
+    <th>Created</th>
     <th>Expires</th>
     <th><span class="sr-only">Actions</span></th>
 {% endblock %}
@@ -17,16 +17,16 @@
         <tr id="{{ row.file.id }}" class="file-row">
             <td>
                 <span class="font-semibold">{{ row.file.filename }}</span>
-                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.file.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.file.id }}" aria-label="Copy ID of {{ row.file.filename }}" title="Copy file ID">{% icon "copy" small=True %}</button>{% if row.team %} · {{ row.team }}{% endif %}</div>
+                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.file.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.file.id }}" aria-label="Copy ID of {{ row.file.filename }}" title="Copy file ID">{% icon "copy" small=True %}</button>{% if row.owner != "You" %} · {{ row.owner }}{% endif %}</div>
             </td>
             <td><span class="badge badge-sm bg-base-100 font-mono">{{ row.purpose }}</span></td>
             <td class="text-right font-mono">{{ row.file.bytes|filesizeformat }}</td>
-            <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.uploaded|when }}</td>
+            <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.created|when|dash }}</td>
             <td>{{ row.expiry|expiry }}</td>
             <td>
                 <div class="flex justify-end gap-1">
                     {% if row.file.preview %}
-                        <button type="button" class="btn btn-ghost btn-sm" popovertarget="preview-{{ row.file.id }}" aria-label="Preview {{ row.file.filename }}">Preview</button>
+                        <button type="button" class="btn btn-ghost btn-sm btn-square" popovertarget="preview-{{ row.file.id }}" aria-label="Preview {{ row.file.filename }}" title="Preview">{% icon "file" small=True %}</button>
                         <div id="preview-{{ row.file.id }}" popover class="m-auto w-[min(40rem,90vw)] rounded-box bg-base-100 p-5 text-left shadow-lg backdrop:bg-black/40">
                             <div class="flex items-center justify-between gap-4">
                                 <h2 class="font-semibold">{{ row.file.filename }}</h2>
@@ -43,7 +43,7 @@
             </td>
         </tr>
     {% empty %}
-        <tr><td colspan="6" class="muted">You have no files. Upload one through the Files API.</td></tr>
+        <tr><td colspan="6" class="muted">No files{{ listing.scope.whose }} yet. Upload with the <a class="link" href="{{ listing.docs }}">Files API</a>.</td></tr>
     {% endfor %}
 {% endblock %}
 
