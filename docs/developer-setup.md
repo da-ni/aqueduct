@@ -110,6 +110,10 @@ uv run python manage.py seed_demo --write-router-config /tmp/seed-router.yaml
 export LITELLM_ROUTER_CONFIG_FILE_PATH=/tmp/seed-router.yaml
 ```
 
+The written config gives each model a Hugging Face model card link and, when the name has one,
+its quantization. It gives no token limits. Write the config again after a change to the model
+mix or to `seed_demo`.
+
 Then seed:
 
 ```bash

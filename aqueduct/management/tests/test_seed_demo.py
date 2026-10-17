@@ -172,10 +172,31 @@ class SeedDemoTest(TestCase):
             entries = yaml.safe_load(router.read_text())["model_list"]
 
         self.assertEqual(
-            [(e["model_name"], e["model_info"]["mode"]) for e in entries],
-            [("gpt-4.1-nano", "chat"), ("unserved-model", "embedding")],
+            [e["model_info"] for e in entries], [{"mode": "chat"}, {"mode": "embedding"}]
         )
         self.assertFalse(self.seeded_orgs().exists())
+
+    def test_router_config_links_each_default_model_card_and_quantization(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            router = Path(tmp) / "router.yaml"
+            call_command("seed_demo", write_router_config=router, stdout=StringIO())
+            entries = yaml.safe_load(router.read_text())["model_list"]
+
+        info = {e["model_name"]: e["model_info"] for e in entries}
+        self.assertEqual(
+            info["Qwen/Qwen3.8-27B-FP8"],
+            {
+                "mode": "chat",
+                "model_card_url": "https://huggingface.co/Qwen/Qwen3.8-27B-FP8",
+                "quantization": "FP8",
+            },
+        )
+        self.assertEqual(info["QuantTrio/Qwen3.6-35B-A3B-AWQ"]["quantization"], "AWQ")
+        self.assertNotIn("quantization", info["zai-org/GLM-5.3"])
+        for name, model_info in info.items():
+            with self.subTest(model=name):
+                self.assertEqual(model_info["model_card_url"], f"https://huggingface.co/{name}")
+                self.assertFalse({"max_tokens", "max_input_tokens"} & model_info.keys())
 
     def test_model_figures_shape_its_requests(self):
         with tempfile.TemporaryDirectory() as tmp:
