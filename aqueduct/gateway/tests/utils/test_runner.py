@@ -1,6 +1,7 @@
 import atexit
 import logging
 import os
+import shutil
 import signal
 import subprocess
 
@@ -67,8 +68,7 @@ class MockServerState:
 
         from gateway.tests.utils.mcp import MCP_CONFIG_PATH
 
-        if MCP_CONFIG_PATH.exists():
-            MCP_CONFIG_PATH.unlink()
+        shutil.rmtree(MCP_CONFIG_PATH.parent, ignore_errors=True)
 
 
 def get_shared_mock_server() -> MockAPIServer | None:

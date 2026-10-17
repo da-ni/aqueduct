@@ -3,6 +3,7 @@ import logging
 import os
 import socket
 import subprocess
+import tempfile
 import time
 from contextlib import asynccontextmanager
 from copy import deepcopy
@@ -28,7 +29,10 @@ from mock_api.helpers import get_available_port
 
 logger = logging.getLogger(__name__)
 
-MCP_CONFIG_PATH = Path("/tmp/aqueduct/test-mcp-config.json")
+# One directory per test run, so concurrent runs on one machine neither overwrite nor delete
+# each other's config. Forked live servers inherit the path.
+MCP_CONFIG_PATH = Path(tempfile.gettempdir()) / f"aqueduct-test-mcp-{os.getpid()}" / "config.json"
+MCP_SERVER_LOG_PATH = MCP_CONFIG_PATH.parent / "server.log"
 MCP_TEST_CONFIG = {
     "mcpServers": {"test-server": {"type": "streamable-http", "url": "http://localhost:3001/mcp"}}
 }
@@ -174,28 +178,30 @@ class MCPLiveServerTestCase(ChannelsLiveServerTestCase):
         cls._update_mcp_config_port(port)
 
         logger.info("Starting MCP everything server on port %s...", port)
-        try:
-            env = os.environ.copy()
-            env["PORT"] = str(port)
-            cls.mcp_server_process = subprocess.Popen(
-                [
-                    "npx",
-                    "--prefer-offline",  # only download when missing => tests can run offline
-                    "-y",
-                    "@modelcontextprotocol/server-everything@2025.11.25",
-                    "streamableHttp",
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                env=env,
-                cwd=str(MCP_CONFIG_PATH.parent),
-                start_new_session=True,
-            )
-        except FileNotFoundError as err:
-            raise RuntimeError(
-                "npx command not found. Please ensure Node.js and npm are installed."
-            ) from err
+        env = os.environ.copy()
+        env["PORT"] = str(port)
+        # A file, not a pipe: nothing reads a pipe while tests run, and a full pipe blocks the
+        # server on its next log line.
+        with MCP_SERVER_LOG_PATH.open("w") as server_log:
+            try:
+                cls.mcp_server_process = subprocess.Popen(
+                    [
+                        "npx",
+                        "--prefer-offline",  # only download when missing => tests can run offline
+                        "-y",
+                        "@modelcontextprotocol/server-everything@2025.11.25",
+                        "streamableHttp",
+                    ],
+                    stdout=server_log,
+                    stderr=subprocess.STDOUT,
+                    env=env,
+                    cwd=str(MCP_CONFIG_PATH.parent),
+                    start_new_session=True,
+                )
+            except FileNotFoundError as err:
+                raise RuntimeError(
+                    "npx command not found. Please ensure Node.js and npm are installed."
+                ) from err
 
         # Set global variables enabling the tests to share the MCP server process
         set_shared_mcp_server(cls.mcp_server_process, cls.mcp_server_port)
@@ -209,8 +215,8 @@ class MCPLiveServerTestCase(ChannelsLiveServerTestCase):
         while time.time() - start_time < timeout:
             # Check if process is still running
             if cls.mcp_server_process.poll() is not None:
-                stdout, _ = cls.mcp_server_process.communicate()
-                raise RuntimeError(f"MCP server failed to start. stdout: {stdout}")
+                output = MCP_SERVER_LOG_PATH.read_text()
+                raise RuntimeError(f"MCP server failed to start. Output: {output}")
 
             # Try to connect to the server
             try:
