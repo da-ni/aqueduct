@@ -18,7 +18,7 @@ from .service_account import (
     ServiceAccountTransferOwnershipView,
     ServiceAccountUpdateView,
 )
-from .settings import SettingsView
+from .settings import LanguageView, SettingsView
 from .team import (
     TeamAdminManagementView,
     TeamAvailabilityEditView,

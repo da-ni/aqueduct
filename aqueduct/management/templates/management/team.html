@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load ui %}
+{% load l10n ui %}
 {% block title %}{{ team.name }} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
@@ -76,8 +76,8 @@
                                 <div class="flex items-center gap-3">
                                     <div class="min-w-0 flex-1">
                                         {% if row.activity.tokens %}
-                                            <span class="aq-tip-host relative z-10 block min-w-3" style="width: {{ row.bar_width }}%" role="img" aria-label="{{ row.tip }}">
-                                                <span class="tbar">{% for css, count in row.activity.segments %}{% if count %}<i class="{{ css }}" style="flex: {{ count }} 1 0%"></i>{% endif %}{% endfor %}</span>
+                                            <span class="aq-tip-host relative z-10 block min-w-3" style="width: {{ row.bar_width|unlocalize }}%" role="img" aria-label="{{ row.tip }}">
+                                                <span class="tbar">{% for css, count in row.activity.segments %}{% if count %}<i class="{{ css }}" style="flex: {{ count|unlocalize }} 1 0%"></i>{% endif %}{% endfor %}</span>
                                                 {% include "management/_tip.html" with tip=row.tip %}
                                             </span>
                                         {% endif %}

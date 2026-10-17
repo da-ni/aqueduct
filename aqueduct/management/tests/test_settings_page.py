@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import include, path, reverse
@@ -122,3 +123,97 @@ class SettingsPageTest(TestCase):
             f"{accepted.day} {accepted:%b %Y}</time></span>",
         )
         self.assertContains(response, f'href="{reverse("tos")}"')
+
+
+LANGUAGE_COOKIE = settings.LANGUAGE_COOKIE_NAME
+
+
+def html_lang(response) -> str:
+    return response.content.decode().split('<html lang="', 1)[1].split('"', 1)[0]
+
+
+@PAGES
+class LanguageTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="ana", email="ana@example.com")
+        UserProfile.objects.create(
+            user=self.user, org=Org.objects.create(name="Informatics")
+        ).group = UserGroup.USER
+
+    def choose(self, language: str, next_url: str = ""):
+        return self.client.post(reverse("language"), {"language": language, "next": next_url})
+
+    def saved(self) -> str:
+        self.user.profile.refresh_from_db()
+        return self.user.profile.language
+
+    def test_card_offers_each_language_in_its_own_words_and_marks_the_shown_one(self):
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("settings"))
+        self.assertContains(page, "Follows your browser until you choose one.")
+        self.assertRegex(page.content.decode(), r'lang="de" class="[^"]*"[^>]*>Deutsch</button>')
+        self.assertRegex(
+            page.content.decode(), r'lang="en" class="[^"]*btn-primary" aria-pressed="true">English'
+        )
+        self.choose("de")
+        page = self.client.get(reverse("settings"))
+        self.assertRegex(
+            page.content.decode(), r'lang="de" class="[^"]*btn-primary" aria-pressed="true">Deutsch'
+        )
+        self.assertContains(page, ">English</button>")
+        self.assertNotContains(page, "Folgt Ihrem Browser")
+
+    def test_choice_is_saved_in_the_profile_and_the_cookie_and_returns_to_the_page(self):
+        self.client.force_login(self.user)
+        back = f"{reverse('usage')}?span=7d"
+        response = self.choose("de", back)
+        self.assertRedirects(response, back, fetch_redirect_response=False)
+        self.assertEqual(self.saved(), "de")
+        self.assertEqual(response.cookies[LANGUAGE_COOKIE].value, "de")
+        self.assertEqual(html_lang(self.client.get(reverse("settings"))), "de")
+
+        self.choose("en")
+        self.assertEqual(self.saved(), "en")
+        self.assertEqual(html_lang(self.client.get(reverse("settings"))), "en")
+
+    def test_next_outside_the_site_returns_to_settings(self):
+        self.client.force_login(self.user)
+        for unsafe in ("https://evil.example.com/", "//evil.example.com/", ""):
+            with self.subTest(next=unsafe):
+                response = self.choose("de", unsafe)
+                self.assertRedirects(response, reverse("settings"), fetch_redirect_response=False)
+
+    def test_unknown_language_changes_nothing(self):
+        self.client.force_login(self.user)
+        for language in ("fr", "", "de-at", "Deutsch"):
+            with self.subTest(language=language):
+                response = self.choose(language)
+                self.assertRedirects(response, reverse("settings"), fetch_redirect_response=False)
+                self.assertNotIn(LANGUAGE_COOKIE, response.cookies)
+                self.assertEqual(self.saved(), "")
+        page = self.client.get(reverse("settings"))
+        self.assertContains(page, "Choose one of the offered languages.")
+
+    def test_signed_out_visitor_cannot_save_a_language(self):
+        response = self.choose("de")
+        self.assertRedirects(
+            response, f"{reverse('sso')}?next={reverse('language')}", fetch_redirect_response=False
+        )
+        self.assertNotIn(LANGUAGE_COOKIE, response.cookies)
+        self.assertEqual(self.saved(), "")
+
+    def test_page_language_follows_the_cookie_then_the_browser_then_english(self):
+        self.client.force_login(self.user)
+        url = reverse("settings")
+        self.assertEqual(html_lang(self.client.get(url)), "en")
+        self.assertEqual(html_lang(self.client.get(url, HTTP_ACCEPT_LANGUAGE="fr, de;q=0.8")), "de")
+        self.assertEqual(html_lang(self.client.get(url, HTTP_ACCEPT_LANGUAGE="fr")), "en")
+        self.client.cookies[LANGUAGE_COOKIE] = "en"
+        self.assertEqual(html_lang(self.client.get(url, HTTP_ACCEPT_LANGUAGE="de")), "en")
+
+    def test_german_page_uses_the_german_catalog(self):
+        self.client.force_login(self.user)
+        self.client.cookies[LANGUAGE_COOKIE] = "de"
+        page = self.client.get(reverse("settings"))
+        self.assertContains(page, "Sprache</h2>")
+        self.assertContains(page, "Folgt Ihrem Browser, bis Sie eine Sprache wählen.")

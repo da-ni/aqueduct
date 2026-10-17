@@ -40,3 +40,55 @@ The management UI is server-rendered Django templates with no frontend build ste
 ## Check UI changes in a running instance
 
 Before you open a pull request that changes a page, load the page in a running instance as each role it treats differently: signed out, user, team admin, org admin, and admin. Add screenshots of visual changes to the pull request. When the repository has a verification skill in `.claude/skills/verify/`, use it for this check.
+
+## Write translatable strings
+
+The management pages come in English and German, in the formal "Sie". The language follows the browser until the user picks one on the Settings page; the choice is saved in `UserProfile.language` and copied into the `django_language` cookie when they sign in. Gateway API responses stay English.
+
+- Wrap every string a reader sees in `{% translate %}` or `{% blocktranslate %}` in templates, and in `gettext` in Python. Use `gettext_lazy` for strings in module constants, class attributes, and model or form fields, which Python evaluates before a request picks the language.
+- Translate whole sentences. Put values in through named placeholders, as in `{% blocktranslate with name=team.name %}Delete {{ name }}?{% endblocktranslate %}` or `gettext("Delete %(name)s?") % {"name": name}`. Never build a sentence by joining fragments, since German orders the words differently.
+- Use `{% blocktranslate count n=keys %}` or `ngettext` for every string with a number in it, never an `if` on the number.
+- Give each time span its own phrase, such as "in the last 7 days" and "today", instead of one sentence with the span put in.
+- Avoid nouns for people, such as user or owner, where the sentence works without one, since German has to give them a gender. "Created by ana@example.com" translates without one, "Owner: ana@example.com" does not.
+- Language names are written in their own language, "Deutsch" and "English", and never translated.
+- Render a number inside a `style` attribute through `|unlocalize` from `{% load l10n %}`. German writes 12.5 as 12,5, which is no CSS number.
+- Script text comes from data attributes that the template renders, as the copy button's `data-copied` does. `aqueduct.js` holds no visible text.
+
+`management/tests/test_i18n.py` enforces these. Its docstring names the commands that refresh `aqueduct/locale/de/LC_MESSAGES/django.po` and the compiled `django.mo`; commit both. Its two lists only shrink. A template leaves `UNTRANSLATED_TEMPLATES` once all its text is wrapped, and a msgid in `UNTRANSLATED` is waiting for its German text.
+
+### Glossary
+
+| English | German |
+|---|---|
+| API key | API-Schlüssel |
+| Personal key | persönlicher Schlüssel |
+| Service account | Dienstkonto |
+| Organization | Organisation |
+| Org admin | Organisations-Admin |
+| Team admin | Team-Admin |
+| Member | Mitglied |
+| Request | Anfrage |
+| Request log | Anfrageprotokoll |
+| Token, tokens | Token |
+| Cached | aus dem Cache |
+| Rate-limited | Limit erreicht |
+| Usage | Nutzung |
+| Overview | Übersicht |
+| Models | Modelle |
+| Context length | Kontextlänge |
+| Answered, OK | OK |
+| Failed | Fehlgeschlagen |
+| Never | Nie |
+| Files | Dateien |
+| Batches | Batches |
+| Vector stores | Vektorspeicher |
+| MCP server | MCP-Server |
+| Median response time | Median der Antwortzeit |
+| Settings | Einstellungen |
+| Sign in, Sign out | Anmelden, Abmelden |
+| Terms of service | Nutzungsbedingungen |
+| Privacy | Datenschutz |
+| Copy, Copied | Kopieren, Kopiert |
+| Delete, Cancel, Save | Löschen, Abbrechen, Speichern |
+
+German compact numbers use "Tsd.", "Mio.", "Mrd.", and "Bio.".

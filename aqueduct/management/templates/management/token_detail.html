@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load humanize ui %}
+{% load humanize l10n ui %}
 {% block title %}{{ token.name }} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
@@ -100,7 +100,7 @@
                                 <a class="link-plain break-all font-mono" href="{% url 'models' %}?model={{ model.name|urlencode }}">{{ model.name }}</a>
                                 <span class="font-mono">{{ model.value }}</span>
                             </div>
-                            <div class="onebar" style="width: {{ model.width }}%"></div>
+                            <div class="onebar" style="width: {{ model.width|unlocalize }}%"></div>
                         </div>
                     {% empty %}
                         <p class="muted text-sm">No requests in the last 7 days.</p>

@@ -46,6 +46,13 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
         related_name="user_profiles",
     )
 
+    language = models.CharField(
+        max_length=8,
+        choices=settings.LANGUAGES,
+        blank=True,
+        help_text="Language of the management pages. Blank follows the browser.",
+    )
+
     teams: "models.ManyToManyField[Team, UserProfile]" = models.ManyToManyField(
         Team, through="TeamMembership", related_name="member_profiles", blank=True
     )

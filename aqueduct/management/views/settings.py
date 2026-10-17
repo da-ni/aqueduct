@@ -1,14 +1,22 @@
 from datetime import datetime
 
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.models import AbstractBaseUser
+from django.http import HttpResponse
+from django.shortcuts import redirect
+from django.urls import reverse
+from django.utils.translation import gettext as _
 from django.views.generic import TemplateView
 from tos.models import UserAgreement
 
 from management.key_activity import personal_tokens
 from management.models import LimitSet
 from management.nav import terms_of_service
+from management.views.auth import is_safe, remember_language
 from management.views.base import BaseAqueductView
+
+LANGUAGE_CODES = frozenset(code for code, _name in settings.LANGUAGES)
 
 SHOWN_LIMITS = ("requests_per_minute", "input_tokens_per_minute", "output_tokens_per_minute")
 
@@ -33,5 +41,23 @@ class SettingsView(BaseAqueductView, TemplateView):
             max_tokens=settings.MAX_USER_TOKENS,
             show_terms=show_terms,
             terms_accepted_on=accepted_terms_on(self.request.user) if show_terms else None,
+            languages=sorted(settings.LANGUAGES, key=lambda language: language[1]),
+            language_chosen=bool(profile.language),
         )
         return context
+
+
+class LanguageView(BaseAqueductView):
+    """Saves the language of the management pages in the viewer's profile."""
+
+    def post(self, request, *args, **kwargs) -> HttpResponse:
+        back = request.POST.get("next")
+        response = redirect(back if is_safe(request, back) else reverse("settings"))
+        language = request.POST.get("language", "")
+        if language not in LANGUAGE_CODES:
+            messages.error(request, _("Choose one of the offered languages."))
+            return response
+        self.profile.language = language
+        self.profile.save(update_fields=["language"])
+        remember_language(response, language)
+        return response

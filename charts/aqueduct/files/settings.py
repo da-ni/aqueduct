@@ -79,6 +79,7 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -126,6 +127,7 @@ MAX_TEAM_VECTOR_STORES = int(os.environ.get("MAX_TEAM_VECTOR_STORES", 50))
 MAX_VECTOR_STORE_FILES = int(os.environ.get("MAX_VECTOR_STORE_FILES", 1000))
 
 OIDC_PROVIDER = "SSO"
+OIDC_CALLBACK_CLASS = "management.views.auth.OIDCCallbackView"
 
 
 def my_org_name_extractor(groups: list[str]) -> str | None:
@@ -324,6 +326,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "django.template.context_processors.i18n",
                 # Aqueduct processors
                 "management.context_processors.shell",
             ]
@@ -403,7 +406,12 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+# LocaleMiddleware picks the language from the `django_language` cookie, then Accept-Language.
+# The cookie is a copy of `UserProfile.language`, set by `management.views.auth.remember_language`.
+# No i18n_patterns: the gateway catch-all and the OIDC redirect URIs need fixed paths.
+LANGUAGE_CODE = "en"
+LANGUAGES = [("en", "English"), ("de", "Deutsch")]
+LOCALE_PATHS = [BASE_DIR / "locale"]
 USE_I18N = True
 
 STORAGES = {

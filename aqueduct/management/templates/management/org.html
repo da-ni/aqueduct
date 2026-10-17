@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load humanize ui %}
+{% load humanize l10n ui %}
 
 {% block page_background %}{% endblock %}
 
@@ -63,7 +63,7 @@
                                 <td class="max-lg:hidden">
                                     <div class="flex items-center gap-3">
                                         <div class="min-w-0 flex-1">
-                                            {% if row.activity.tokens %}<div class="onebar" style="width: {{ row.bar_width }}%"></div>{% endif %}
+                                            {% if row.activity.tokens %}<div class="onebar" style="width: {{ row.bar_width|unlocalize }}%"></div>{% endif %}
                                         </div>
                                         <span class="w-14 text-right font-mono">{{ row.activity.tokens_short }}</span>
                                     </div>

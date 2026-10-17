@@ -2,6 +2,7 @@ import re
 from unittest import mock
 from urllib.parse import parse_qs, urlparse
 
+from django.conf import settings
 from django.test import override_settings
 from django.urls import reverse
 
@@ -77,3 +78,18 @@ class LandingTest(UsagePageTestBase):
         self.client.force_login(self.admin)
         login = self.client.get(reverse("admin_sso"), {"next": reverse("admin:index")})
         self.assertRedirects(login, reverse("admin:index"), fetch_redirect_response=False)
+
+    def test_sign_in_restores_the_language_saved_in_the_profile(self):
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "en"
+        self.solo.profile.language = "de"
+        self.solo.profile.save()
+        landing = self.sign_in(self.solo)
+        self.assertEqual(landing.cookies[settings.LANGUAGE_COOKIE_NAME].value, "de")
+        page = self.client.get(reverse("settings"), HTTP_ACCEPT_LANGUAGE="en")
+        self.assertContains(page, '<html lang="de"')
+
+    def test_sign_in_without_a_saved_language_leaves_the_browser_choice(self):
+        landing = self.sign_in(self.solo)
+        self.assertNotIn(settings.LANGUAGE_COOKIE_NAME, landing.cookies)
+        page = self.client.get(reverse("settings"), HTTP_ACCEPT_LANGUAGE="de")
+        self.assertContains(page, '<html lang="de"')
