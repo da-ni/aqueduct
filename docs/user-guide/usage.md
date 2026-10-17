@@ -39,9 +39,18 @@ The gateway keeps requests for a limited time, 30 days by default. If the time f
 - **Tokens per minute, hour, or day**: a chart of the time frame. **Tokens** and **Requests** switch what it counts.
 - **Requests**: the requests split into answered (`2xx`), rate-limited (`429`), other client errors (`4xx`), and model or provider errors (`5xx`). **Open the log**, or a status group, opens the [Requests](requests.md) page with the same filters.
 - **By model**: each model with requests in the time frame, with its tokens, cache hits, requests, median response time, and share. Choose a model to open the log for that model.
-- **Top keys**: the 10 keys that used the most tokens, with the same columns as **By model**. Choose a key to open its page. You can open your own keys and the service accounts of your teams.
+- **Top keys**: the 10 keys that used the most tokens, with the same columns as **By model**. Choose a key to open its page. You can open your own keys and the service accounts of your teams. **View all keys** opens the [All keys](#see-the-usage-of-every-key) page with the same filters.
 - **By organization**: the tokens of each organization, when an admin views all organizations.
 - **Activity across your organization**: the average tokens per hour for each weekday and hour over the last 28 days. This section covers every user and key of the organization, whatever the time frame, key, and model you chose. When an admin views all organizations, it covers all organizations. The figures can be up to an hour old.
+
+## See the usage of every key
+
+The **All keys** page lists every key you can see that has requests in the time frame, 50 keys to a page. Choose **View all keys** under **Top keys** to open it. It has the same columns as **Top keys** and uses the same organization, key scope, model, and time frame filters, so its first rows are the **Top keys** of the Overview.
+
+- **Tokens**, **Requests**, and **Name** sort the list. The list opens sorted by tokens.
+- To find a key, type part of its name in the search field and press Enter. Org admins and admins can also type part of the owner's e-mail address.
+- **Share** is the key's share of all tokens in the time frame, also while you search. The token bars are scaled to the key with the most tokens.
+- **Previous** and **Next** move between pages. A change of filter, sort, or search returns to the first page.
 
 ## See usage per client user
 

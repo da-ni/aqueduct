@@ -218,6 +218,14 @@ _NOT_PAGE_PARAMS = frozenset(
 )
 
 
+def key_search(text: str, *, by_owner: bool) -> Q:
+    """Keys whose name holds `text`, or, with `by_owner`, whose owner's email does. Only a
+    viewer who sees the whole org may search by owner, or they would learn who created a
+    service account's key."""
+    found = Q(name__icontains=text)
+    return found | Q(user__email__icontains=text) if by_owner else found
+
+
 def read_filters(
     profile: UserProfile,
     teams: QuerySet[Team],
@@ -258,9 +266,7 @@ def read_filters(
     key_q = params.get("key_q", "").strip()
     matches = ()
     if key_q:
-        # Only a viewer who sees the whole org may learn who created a service account's key.
-        by_owner = Q(user__email__icontains=key_q) if sees_others else Q()
-        found = tokens.filter(Q(name__icontains=key_q) | by_owner)
+        found = tokens.filter(key_search(key_q, by_owner=sees_others))
         matches = tuple(describe(token) for token in found[:KEY_MATCHES])
 
     models = tuple(sorted(router_models()))

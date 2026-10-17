@@ -8,7 +8,18 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from django.core.cache import cache
-from django.db.models import Aggregate, Count, F, IntegerField, Q, QuerySet, Sum
+from django.db.models import (
+    Aggregate,
+    Count,
+    F,
+    IntegerField,
+    Max,
+    OuterRef,
+    Q,
+    QuerySet,
+    Subquery,
+    Sum,
+)
 from django.db.models.functions import ExtractHour, ExtractIsoWeekDay, Trunc
 from django.utils import timezone
 
@@ -433,15 +444,19 @@ class KeyShare:
         return compact(self.activity.output)
 
 
-def _widths(values: Iterable[int]) -> list[int]:
+def _widths(values: Iterable[int], top: int | None = None) -> list[int]:
+    """Bar widths in percent of `top`, by default of the largest value."""
     values = list(values)
-    top = max(values, default=0)
+    top = max(values, default=0) if top is None else top
     return [round(100 * v / top) if top else 0 for v in values]
 
 
-def _figures(rows: Sequence[dict], total: int) -> list[tuple[Activity, str, str, int]]:
+def _figures(
+    rows: Sequence[dict], total: int, busiest: int | None = None
+) -> list[tuple[Activity, str, str, int]]:
     """Activity, median response, token share, and bar width of each grouped row, as
-    `model_rows` shows them. `total` is the period's token count."""
+    `model_rows` shows them. `total` is the period's token count, and `busiest` the token count
+    of a full-width bar, by default the first row's."""
     return [
         (
             Activity(**{name: row[name] for name in TOTALS}),
@@ -449,20 +464,77 @@ def _figures(rows: Sequence[dict], total: int) -> list[tuple[Activity, str, str,
             percent(row["tokens"], total),
             width,
         )
-        for row, width in zip(rows, _widths(r["tokens"] for r in rows), strict=True)
+        for row, width in zip(rows, _widths((r["tokens"] for r in rows), busiest), strict=True)
     ]
 
 
-def key_shares(
-    requests: QuerySet[Request], total: int, describe: Callable[[Token], "Key"]
-) -> tuple[KeyShare, ...]:
-    """The keys that used the most tokens. `describe` names a key and links it where the viewer
-    may open it."""
-    rows = list(
-        requests.values("token_id")
-        .annotate(**TOTALS, tokens=Sum(TOKENS, default=0))
-        .order_by("-tokens", "-requests", "token_id")[:TOP_KEYS]
+class KeyOrder(StrEnum):
+    """How the All keys page sorts its rows."""
+
+    TOKENS = "tokens"
+    REQUESTS = "requests"
+    NAME = "name"
+
+    @property
+    def label(self) -> str:
+        return self.value.capitalize()
+
+    @property
+    def ordering(self) -> tuple[str | Subquery, ...]:
+        if self is KeyOrder.NAME:
+            # A join on the token would sort every request by name before grouping. The
+            # subquery runs once per key, after grouping by `token_id`.
+            name = Token.objects.filter(pk=OuterRef("token_id")).values("name")
+            return (Subquery(name), "token_id")
+        if self is KeyOrder.REQUESTS:
+            return ("-requests", "-tokens", "token_id")
+        return ("-tokens", "-requests", "token_id")
+
+    @classmethod
+    def parse(cls, raw: str) -> "KeyOrder | None":
+        try:
+            return cls(raw)
+        except ValueError:
+            return None
+
+
+def _by_key(requests: QuerySet[Request]) -> QuerySet:
+    return requests.values("token_id").annotate(**TOTALS, tokens=Sum(TOKENS, default=0))
+
+
+@dataclass(frozen=True)
+class KeyTotals:
+    """The keys with requests in a period, the token count of the busiest one, and the tokens
+    of all of them."""
+
+    keys: int
+    busiest: int
+    tokens: int
+
+
+def key_totals(requests: QuerySet[Request]) -> KeyTotals:
+    found = (
+        _by_key(requests)
+        .order_by()
+        .aggregate(n=Count("token_id"), top=Max("tokens", default=0), all=Sum("tokens", default=0))
     )
+    return KeyTotals(found["n"], found["top"], found["all"])
+
+
+def key_shares(
+    requests: QuerySet[Request],
+    total: int,
+    describe: Callable[[Token], "Key"],
+    *,
+    order: KeyOrder = KeyOrder.TOKENS,
+    start: int = 0,
+    stop: int = TOP_KEYS,
+    busiest: int | None = None,
+) -> tuple[KeyShare, ...]:
+    """The keys at `start:stop` in `order`, by default the ones that used the most tokens.
+    `describe` names a key and links it where the viewer may open it. Bars are as wide as
+    `busiest` tokens, by default the first row's."""
+    rows = list(_by_key(requests).order_by(*order.ordering)[start:stop])
     ids = [row["token_id"] for row in rows]
     medians = {
         row["token_id"]: row["median"]
@@ -476,7 +548,9 @@ def key_shares(
     ).in_bulk(ids)
     rows = [row for row in rows if row["token_id"] in tokens]  # deleted since the grouping
     keys = [describe(tokens[row["token_id"]]) for row in rows]
-    figures = _figures([row | {"median": medians.get(row["token_id"])} for row in rows], total)
+    figures = _figures(
+        [row | {"median": medians.get(row["token_id"])} for row in rows], total, busiest
+    )
     return tuple(
         KeyShare(key.name, key.note, key.href, *figure)
         for key, figure in zip(keys, figures, strict=True)

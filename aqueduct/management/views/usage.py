@@ -1,13 +1,17 @@
+import math
 from datetime import timedelta
 
 from django.conf import settings
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import urlencode
 from django.views.generic import TemplateView
 
 from gateway.config import get_router_config, model_info_with_context
 from management import usage_report as report
 from management.model_catalog import mode_for
-from management.request_log import describe_key, read_filters
+from management.models import Token
+from management.request_log import PAGE_SIZE, describe_key, key_search, parse_id, read_filters
 from management.views.base import BaseAqueductView
 
 
@@ -64,9 +68,64 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 "heat_hours": report.HEAT_HOURS,
                 "models": report.model_rows(in_period, model_kinds, filters.log_url),
                 "keys": keys,
+                "all_keys_url": f"{reverse('usage_keys')}?{urlencode(filters.query)}",
                 "orgs_usage": report.org_shares(in_period) if selected_org is None else (),
                 "retention_warning": period.start < now - timedelta(days=retention_days),
                 "retention_days": int(retention_days),
+            }
+        )
+        return context
+
+
+class KeyUsageView(BaseAqueductView, TemplateView):
+    """The All keys page: the usage of every key the viewer may see, a page at a time, with the
+    Overview's filters, so its first rows are the Overview's Top keys."""
+
+    template_name = "management/usage_keys.html"
+
+    def get_context_data(self, **kwargs) -> dict[str, object]:
+        context = super().get_context_data(**kwargs)
+        params = self.request.GET.copy()
+        params.pop("key", None)
+        teams = self.get_teams_for_user()
+        filters = read_filters(
+            self.profile, teams, params, default_span=report.DEFAULT_SPAN, now=timezone.now()
+        )
+        in_period = filters.period.of(filters.requests)
+        everyone = report.key_totals(in_period)
+
+        q = params.get("q", "").strip()
+        listed = in_period
+        count = everyone.keys
+        if q:
+            found = Token.objects.filter(key_search(q, by_owner=filters.can_pick_scope))
+            listed = in_period.filter(token__in=found)
+            count = report.key_totals(listed).keys
+
+        order = report.KeyOrder.parse(params.get("sort", "")) or report.KeyOrder.TOKENS
+        pages = max(1, math.ceil(count / PAGE_SIZE))
+        page = min(parse_id(params.get("page")) or 1, pages)
+        team_ids = set(teams.values_list("id", flat=True))
+        keys = report.key_shares(
+            listed,
+            everyone.tokens,
+            lambda token: describe_key(token, self.profile, team_ids, with_org=filters.org is None),
+            order=order,
+            start=(page - 1) * PAGE_SIZE,
+            stop=page * PAGE_SIZE,
+            busiest=everyone.busiest,
+        )
+        context.update(
+            {
+                "filters": filters,
+                "overview_url": f"{reverse('usage')}?{urlencode(filters.query)}",
+                "keys": keys,
+                "count": count,
+                "q": q,
+                "orders": tuple(report.KeyOrder),
+                "order": order,
+                "page": page,
+                "pages": pages,
             }
         )
         return context
