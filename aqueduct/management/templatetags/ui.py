@@ -57,10 +57,12 @@ WHEN_FORMATS = {"date": "j M Y", "datetime": "j M Y H:i"}
 
 
 @register.filter(expects_localtime=True)
-def when(value: date | None, style: str = "datetime") -> SafeString | str:
-    if value is None:
+def when(value: object, style: str = "datetime") -> SafeString | str:
+    if not isinstance(value, date):
         return ""
     if style == "relative":
+        if not isinstance(value, datetime):
+            raise template.TemplateSyntaxError("when:'relative' needs a datetime, not a date")
         short = naturaltime(value)
     elif style in WHEN_FORMATS:
         short = format_date(value, WHEN_FORMATS[style])

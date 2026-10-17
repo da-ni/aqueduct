@@ -302,6 +302,11 @@ class WhenFilterTest(TestCase):
 
     def test_missing_value_renders_nothing(self):
         self.assertEqual(self.render(None), "")
+        self.assertEqual(self.render(""), "")
+
+    def test_relative_needs_a_datetime(self):
+        with self.assertRaisesMessage(TemplateSyntaxError, "needs a datetime"):
+            self.render(date(2026, 3, 4), "relative")
 
     def test_unknown_style_raises(self):
         with self.assertRaisesMessage(TemplateSyntaxError, "unknown when style 'ago'"):
