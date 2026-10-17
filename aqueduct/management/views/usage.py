@@ -7,7 +7,7 @@ from django.views.generic import TemplateView
 from gateway.config import get_router_config, model_info_with_context
 from management import usage_report as report
 from management.model_catalog import mode_for
-from management.request_log import read_filters
+from management.request_log import describe_key, read_filters
 from management.views.base import BaseAqueductView
 
 
@@ -32,51 +32,40 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         }
 
         retention_days = getattr(settings, "REQUEST_RETENTION_DAYS", 30)
-        retention_start = now - timedelta(days=retention_days)
-        previous = period.previous(now)
-        knows_previous = previous.start >= retention_start
         in_period = period.of(reqs)
-        points = report.series(reqs, period)
+        timeline = report.series(reqs, period)
+        total = timeline.total
         metric = "requests" if params.get("metric") == "requests" else "tokens"
         heat_weeks = max(1, min(4, int(retention_days // 7)))
 
         if selected_key is not None:
-            keys = report.user_id_shares(in_period)
+            keys = report.user_id_shares(in_period, total.tokens)
         else:
+            team_ids = set(self.get_teams_for_user().values_list("id", flat=True))
             keys = report.key_shares(
                 in_period,
-                viewer_id=profile.user.id,
-                team_ids=set(self.get_teams_for_user().values_list("id", flat=True)),
-                with_org=selected_org is None,
+                total.tokens,
+                lambda token: describe_key(token, profile, team_ids, with_org=selected_org is None),
             )
-        spark_slots = report.slots(points, period.step)
-        requests_in_period = sum(a.requests for _, a in points)
-        kpis = report.kpis(
-            spark_slots,
-            report.median_ms(in_period),
-            report.slot_medians(in_period, spark_slots),
-            report.totals(previous.of(reqs)) if knows_previous else None,
-            report.median_ms(previous.of(reqs)) if knows_previous else None,
-        )
 
         context.update(
             {
                 "filters": filters,
                 "period": period,
-                "kpis": kpis,
-                "compares_previous": any(kpi.change for kpi in kpis),
-                "requests_in_period": requests_in_period,
+                "kpis": report.kpis(report.slots(timeline.points, period.step)),
+                "requests_in_period": total.requests,
                 "metric": metric,
-                "chart": report.columns(points, period.step, metric),
-                "statuses": report.statuses(in_period, requests_in_period, filters.log_url),
-                "heat": report.heat(reqs, now, heat_weeks),
+                "chart": report.columns(timeline.points, period.step, metric),
+                "statuses": report.statuses(timeline, filters.log_url),
+                "heat_org": selected_org,
+                "heat": report.heat(selected_org, now, heat_weeks),
                 "heat_days": heat_weeks * 7,
                 "heat_legend": report.HEAT_CLASSES[1:],
                 "heat_hours": report.HEAT_HOURS,
                 "models": report.model_rows(in_period, model_kinds, filters.log_url),
                 "keys": keys,
                 "orgs_usage": report.org_shares(in_period) if selected_org is None else (),
-                "retention_warning": period.start < retention_start,
+                "retention_warning": period.start < now - timedelta(days=retention_days),
                 "retention_days": int(retention_days),
             }
         )

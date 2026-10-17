@@ -35,13 +35,13 @@ The gateway keeps requests for a limited time, 30 days by default. If the time f
 
 ## Read the page
 
-- **Totals**: input tokens, output tokens, cache hits, requests, the share of failed requests, and the median response time. Each total shows a bar per stretch of the time frame. **Failed** counts every `4xx` and `5xx` request. When the previous period of the same length is still kept, each total shows its change against that period.
+- **Totals**: input tokens read from the cache, new input tokens, output tokens, requests, and the share of failed requests. Each total shows a bar per stretch of the time frame. **Failed** counts every `4xx` and `5xx` request.
 - **Tokens per minute, hour, or day**: a chart of the time frame. **Tokens** and **Requests** switch what it counts.
 - **Requests**: the requests split into answered (`2xx`), rate-limited (`429`), other client errors (`4xx`), and model or provider errors (`5xx`). **Open the log**, or a status group, opens the [Requests](requests.md) page with the same filters.
-- **Usage by weekday and hour**: the average tokens per hour for each weekday and hour, over the last 28 days, whatever the time frame.
 - **By model**: each model with requests in the time frame, with its tokens, cache hits, requests, median response time, and share. Choose a model to open the log for that model.
-- **Largest keys**: the keys that used the most tokens, with the same columns as **By model**. Choose a key to open its page. You can open your own keys and the service accounts of your teams.
+- **Top keys**: the 10 keys that used the most tokens, with the same columns as **By model**. Choose a key to open its page. You can open your own keys and the service accounts of your teams.
 - **By organization**: the tokens of each organization, when an admin views all organizations.
+- **Activity across your organization**: the average tokens per hour for each weekday and hour over the last 28 days. This section covers every user and key of the organization, whatever the time frame, key, and model you chose. When an admin views all organizations, it covers all organizations. The figures can be up to an hour old.
 
 ## See usage per client user
 
@@ -50,4 +50,4 @@ If a service sends requests for many people with one key, it can send the [`user
 1. Open the key's page from **API keys**.
 2. Choose **Open in Overview**.
 
-The page then shows only this key, and **By user ID** replaces **Largest keys**. **Show all keys** returns to all keys.
+The page then shows only this key, and **By user ID** replaces **Top keys**. **Show all keys** returns to all keys.
