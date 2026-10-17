@@ -4,9 +4,9 @@ The request log lists single API requests, newest first, 50 per page. Each row s
 
 ## Sub-features
 
-- `requests-list` shows the rows, the count, and the retention note `Requests are kept for <n> days`. A model name in a row filters the log on that model. With no rows, the page reads `No request matches these filters.` when a filter, a status tab, or a time frame other than `All retained` narrows it, and `No requests in the last <n> days.` otherwise.
+- `requests-list` shows the rows, the count, and the retention note `Requests are kept for <n> days`. A model name in a row filters the log on that model. With no rows, the page reads `No request matches these filters.` when a filter, a status tab, or a time frame other than `30 days` narrows it, and `No requests in the last 30 days.` otherwise.
 - `requests-status` filters by `All`, `Failed` (4xx and 5xx), `2xx`, `429`, `Other 4xx`, or `5xx`, each tab with its count.
-- `requests-filters` is the filter bar the Overview page shares: `Everyone` and `My keys` for org admins and admins, the `Key:` and `Model:` dropdowns, and the time frame. The log opens on `All retained`. There is no custom range, and `?start=` and `?end=` are ignored.
+- `requests-filters` is the filter bar the Overview page shares: `Everyone` and `My keys` for org admins and admins, the `Key:` and `Model:` dropdowns, and the time frame. The log opens on `30 days`. There is no custom range, `?start=` and `?end=` are ignored, and an unknown `?span=` (such as the retired `all`) falls back to `30 days`.
 - `requests-org` lets an admin choose one org or all orgs in the `Organization:` dropdown.
 - `requests-detail` opens one row's details.
 - `requests-pages` moves between pages with `Newer` and `Older`.

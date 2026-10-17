@@ -84,7 +84,7 @@
                                 {% endif %}
                             {% endwith %}
                         {% empty %}
-                            <tr><td colspan="9" class="muted">{% if narrowed %}No request matches these filters.{% else %}No requests in the last {{ retention_days }} days.{% endif %}</td></tr>
+                            <tr><td colspan="9" class="muted">{% if narrowed %}No request matches these filters.{% else %}No requests in the last {{ filters.period.label }}.{% endif %}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

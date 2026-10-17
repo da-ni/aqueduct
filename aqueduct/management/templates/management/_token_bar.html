@@ -1,0 +1,7 @@
+{% if activity.tokens %}
+    <div class="tbar" style="width: {{ width }}%">
+        {% for css, count in activity.segments %}{% if count %}<i class="{{ css }}" style="flex: {{ count }} 1 0%"></i>{% endif %}{% endfor %}
+    </div>
+{% else %}
+    <span class="muted text-xs">Not metered in tokens</span>
+{% endif %}

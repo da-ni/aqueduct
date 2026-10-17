@@ -226,6 +226,18 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         opened = self.client.get(f"{log}?key={self.key.id}&request={limited.id}")
         self.assertContains(opened, f'aria-label="Details of request {limited.id}"')
 
+    def test_latest_requests_are_those_the_log_opens_on(self):
+        shown = self.request_log(self.key, timedelta(days=29))
+        self.request_log(self.key, timedelta(days=31))
+        detail = self.get(self.owner, "token_detail", self.key.id)
+        self.assertEqual([row.request for row in detail.context["latest"]], [shown])
+        log = self.get(self.owner, "requests", key=self.key.id).context["log"]
+        self.assertEqual([row.request for row in log.rows], [shown])
+        shown.delete()
+        self.assertContains(
+            self.get(self.owner, "token_detail", self.key.id), "No requests in the last 30 days."
+        )
+
     def test_requests_metric_charts_failed_requests(self):
         self.request_log(self.key, timedelta(minutes=5), status_code=500)
         response = self.get(self.owner, "token_detail", self.key.id, metric="requests")

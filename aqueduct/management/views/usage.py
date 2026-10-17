@@ -76,8 +76,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 "models": report.model_rows(in_period, model_kinds, filters.log_url),
                 "keys": keys,
                 "orgs_usage": report.org_shares(in_period) if selected_org is None else (),
-                "retention_warning": filters.span is not report.Span.ALL
-                and period.start < retention_start,
+                "retention_warning": period.start < retention_start,
                 "retention_days": int(retention_days),
             }
         )
