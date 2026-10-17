@@ -4,12 +4,12 @@
         <span class="muted font-mono text-xs">{{ pages.start_index|intcomma }}–{{ pages.end_index|intcomma }} of {{ pages.paginator.count|intcomma }}</span>
         <nav class="join" aria-label="Pages">
             {% if pages.has_previous %}
-                <a class="btn btn-sm join-item" href="{% querystring page=pages.previous_page_number %}">Previous</a>
+                <a class="btn btn-sm join-item" href="{% querystring page=pages.previous_page_number file=None %}">Previous</a>
             {% else %}
                 <button type="button" class="btn btn-sm join-item" disabled>Previous</button>
             {% endif %}
             {% if pages.has_next %}
-                <a class="btn btn-sm join-item" href="{% querystring page=pages.next_page_number %}">Next</a>
+                <a class="btn btn-sm join-item" href="{% querystring page=pages.next_page_number file=None %}">Next</a>
             {% else %}
                 <button type="button" class="btn btn-sm join-item" disabled>Next</button>
             {% endif %}

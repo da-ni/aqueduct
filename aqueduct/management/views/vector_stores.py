@@ -11,7 +11,7 @@ from django.views import View
 from django.views.generic import TemplateView
 
 from management.models import VectorStore
-from management.resources import store_detail, store_list, stores_visible_to
+from management.resources import store_detail, store_list, stores_visible_to, with_files
 from management.views.base import BaseAqueductView
 
 log = logging.getLogger(__name__)
@@ -23,7 +23,11 @@ class UserVectorStoresView(BaseAqueductView, TemplateView):
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         context["listing"] = store_list(
-            self.request.user, self.get_teams_for_user(), timezone.now()
+            self.request.user,
+            self.get_teams_for_user(),
+            self.profile.teams.all(),
+            timezone.now(),
+            self.request.GET.get("page"),
         )
         return context
 
@@ -34,12 +38,18 @@ class VectorStoreDetailView(BaseAqueductView, TemplateView):
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         store = (
-            stores_visible_to(self.request.user, self.get_teams_for_user())
+            with_files(stores_visible_to(self.request.user, self.get_teams_for_user()))
             .filter(id=self.kwargs["id"])
             .first()
         )
         context["detail"] = (
-            store_detail(store, self.request.user, self.profile.teams.all(), timezone.now())
+            store_detail(
+                store,
+                self.request.user,
+                self.profile.teams.all(),
+                timezone.now(),
+                self.request.GET.get("page"),
+            )
             if store
             else None
         )

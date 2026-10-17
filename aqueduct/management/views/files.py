@@ -3,13 +3,12 @@ from django.contrib import messages
 from django.db.models import QuerySet
 from django.http import HttpResponse
 from django.shortcuts import redirect
-from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import DeleteView, TemplateView
 
 from gateway.config import get_files_api_client
 from management.models import FileObject
-from management.resources import file_list, own
+from management.resources import file_list, list_url, own
 from management.views.base import BaseAqueductView
 
 
@@ -18,14 +17,22 @@ class UserFilesView(BaseAqueductView, TemplateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["listing"] = file_list(self.request.user, self.profile.teams.all(), timezone.now())
+        context["listing"] = file_list(
+            self.request.user,
+            self.profile.teams.all(),
+            timezone.now(),
+            page=self.request.GET.get("page"),
+            file_id=self.request.GET.get("file"),
+        )
         return context
 
 
 class FileDeleteView(BaseAqueductView, DeleteView):
     pk_url_kwarg = "id"
     template_name = "management/common/confirm_delete.html"
-    success_url = reverse_lazy("files")
+
+    def get_success_url(self) -> str:
+        return list_url("files", self.request.GET.get("page"))
 
     def get_queryset(self) -> QuerySet[FileObject]:
         return FileObject.objects.filter(own(self.request.user))
@@ -36,18 +43,20 @@ class FileDeleteView(BaseAqueductView, DeleteView):
             client = get_files_api_client()
         except ValueError:
             messages.error(self.request, "The Files API is not configured.")
-            return redirect(self.success_url)
+            return redirect(self.get_success_url())
         if not async_to_sync(file.adelete_upstream)(client, raise_on_error=False):
             messages.error(self.request, f"Could not delete '{file.filename}'. Try again later.")
-            return redirect(self.success_url)
+            return redirect(self.get_success_url())
         file.delete()
         messages.success(self.request, f"File '{file.filename}' deleted.")
-        return redirect(self.success_url)
+        return redirect(self.get_success_url())
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         context.update(
-            object_type_name="file", object_name=self.object.filename, cancel_url=self.success_url
+            object_type_name="file",
+            object_name=self.object.filename,
+            cancel_url=self.get_success_url(),
         )
         if self.object.batches.exists():
             context["warning"] = "Batches that use this file as input are removed with it."

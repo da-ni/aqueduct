@@ -37,7 +37,7 @@
                         </div>
                     {% endif %}
                     {% if row.deletable %}
-                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'file_delete' row.file.id %}" aria-label="Delete {{ row.file.filename }}" title="Delete">{% icon "delete" small=True %}</a>
+                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'file_delete' row.file.id %}?page={{ listing.pages.number }}" aria-label="Delete {{ row.file.filename }}" title="Delete">{% icon "delete" small=True %}</a>
                     {% endif %}
                 </div>
             </td>

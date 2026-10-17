@@ -79,7 +79,7 @@ class ResourcePagesTestBase(TestCase):
             token=token,
             filename=filename,
             bytes=2048,
-            created_at=NOW,
+            created_at=fields.pop("created_at", NOW),
             purpose=fields.pop("purpose", "batch"),
             **fields,
         )
@@ -134,6 +134,41 @@ class FilesPageTest(ResourcePagesTestBase):
         self.assertContains(response, "Preview prompts.jsonl")
         self.assertContains(response, "2 files · 4.0\xa0KB · up to 8 MB per file")
 
+    def test_files_are_paged_newest_first_and_the_summary_counts_them_all(self):
+        for n in range(50):
+            self.file(self.owner_key, f"older-{n}.jsonl", created_at=NOW - 100 - n)
+        client = self.as_user(self.owner)
+        first = client.get(reverse("files"))
+        self.assertContains(first, "prompts.jsonl")
+        self.assertContains(first, "older-47.jsonl")
+        self.assertNotContains(first, "older-48.jsonl")
+        self.assertContains(first, 'href="?page=2">Next</a>')
+        second = client.get(reverse("files"), {"page": 2})
+        self.assertContains(second, "older-48.jsonl")
+        self.assertContains(second, "older-49.jsonl")
+        self.assertNotContains(second, "prompts.jsonl")
+        for response in (first, second):
+            self.assertContains(response, "52 files · 104.0\xa0KB · up to 8 MB per file")
+
+    def test_a_file_link_opens_the_page_that_holds_the_file(self):
+        for n in range(50):
+            self.file(self.owner_key, f"newer-{n}.jsonl", created_at=NOW + 100 + n)
+        response = self.as_user(self.owner).get(reverse("files"), {"file": self.own_file.id})
+        self.assertContains(response, f'id="{self.own_file.id}"')
+        self.assertNotContains(response, "newer-49.jsonl")
+        # Paging away from the linked file drops `file`, so the link moves.
+        self.assertContains(response, 'href="?page=1">Previous</a>')
+        # A file the viewer cannot see opens the first page.
+        hidden = self.as_user(self.owner).get(reverse("files"), {"file": self.outsider_file.id})
+        self.assertContains(hidden, "newer-49.jsonl")
+        self.assertNotContains(hidden, "secret.jsonl")
+
+    def test_a_page_that_is_not_a_number_opens_the_first_page(self):
+        for page in ("\u00b2", "x", "-1", "0", "999"):
+            with self.subTest(page=page):
+                response = self.as_user(self.owner).get(reverse("files"), {"page": page})
+                self.assertContains(response, "prompts.jsonl")
+
     def test_outsider_sees_only_their_own_file(self):
         response = self.as_user(self.outsider).get(reverse("files"))
         self.assertContains(response, "secret.jsonl")
@@ -171,6 +206,18 @@ class FileDeleteTest(ResourcePagesTestBase):
         self.assertRedirects(response, reverse("files"))
         self.assertContains(response, "File &#x27;prompts.jsonl&#x27; deleted.")
         self.assertFalse(FileObject.objects.filter(id=self.own_file.id).exists())
+
+    def test_deleting_returns_to_the_page_the_owner_was_on(self):
+        for n in range(50):
+            self.file(self.owner_key, f"older-{n}.jsonl", created_at=NOW - 100 - n)
+        client = self.as_user(self.owner)
+        listing = client.get(reverse("files"), {"page": 2})
+        url = f"{self.url(FileObject.objects.get(id='file-older-49.jsonl'))}?page=2"
+        self.assertContains(listing, f'href="{url}"')
+        self.assertContains(client.get(url), f'href="{reverse("files")}?page=2"')
+        response = client.post(url, follow=True)
+        self.assertRedirects(response, f"{reverse('files')}?page=2")
+        self.assertContains(response, "older-48.jsonl")
 
     def test_other_users_and_teammates_get_404_and_keep_the_file(self):
         cases = ((self.outsider, self.own_file), (self.org_admin, self.own_file))
@@ -240,7 +287,8 @@ class BatchesPageTest(ResourcePagesTestBase):
         self.assertContains(response, "batch-running")
         self.assertContains(response, "In progress")
         self.assertContains(response, "1,240 of 4,000 · 12 failed")
-        self.assertContains(response, f'href="{reverse("files")}#{self.running.input_file.id}"')
+        file_id = self.running.input_file.id
+        self.assertContains(response, f'href="{reverse("files")}?file={file_id}#{file_id}"')
         self.assertContains(response, "batch-team")
         self.assertNotContains(response, "batch-outsider")
         self.assertContains(response, reverse("batch_cancel", args=[self.running.id]))
@@ -273,6 +321,14 @@ class BatchCancelTest(ResourcePagesTestBase):
         response = self.as_user(self.owner).post(url, follow=True)
         self.assertRedirects(response, reverse("batches"))
         self.assertContains(response, "is being cancelled")
+        self.assertEqual(self.status_of(self.running), "cancelled")
+
+    def test_cancelling_returns_to_the_page_the_owner_was_on(self):
+        url = reverse("batch_cancel", args=[self.running.id])
+        response = self.as_user(self.owner).post(url, {"page": "2"})
+        self.assertRedirects(
+            response, f"{reverse('batches')}?page=2", fetch_redirect_response=False
+        )
         self.assertEqual(self.status_of(self.running), "cancelled")
 
     def test_others_get_404_and_the_batch_keeps_running(self):
@@ -351,12 +407,37 @@ class VectorStoresPageTest(ResourcePagesTestBase):
         foreign = self.as_user(self.foreign_admin).get(reverse("vector_stores"))
         self.assertNotContains(foreign, "group-papers")
 
+    def test_quotas_cover_only_the_viewers_keys_and_their_own_teams(self):
+        response = self.as_user(self.org_admin).get(reverse("vector_stores"))
+        self.assertContains(response, "group-papers")
+        self.assertContains(response, "Your keys: 0 of 10 vector stores")
+        self.assertNotContains(response, "NLP Lab: 1 of 50 vector stores")
+
+    def test_detail_pages_the_store_files(self):
+        for n in range(50):
+            entry_file = self.file(self.owner_key, f"chunk-{n}.pdf", purpose="user_data")
+            VectorStoreFile.objects.create(
+                id=f"vsf-chunk-{n}",
+                vector_store=self.own_store,
+                file_obj=entry_file,
+                status="completed",
+                created_at=NOW + 1 + n,
+            )
+        url = reverse("vector_store_detail", args=[self.own_store.id])
+        first = self.as_user(self.owner).get(url)
+        self.assertContains(first, "chunk-49.pdf")
+        self.assertNotContains(first, "thesis.pdf")
+        self.assertContains(first, "51 <span")
+        self.assertContains(self.as_user(self.owner).get(url, {"page": 2}), "thesis.pdf")
+
     def test_detail_lists_the_store_files(self):
         url = reverse("vector_store_detail", args=[self.own_store.id])
         response = self.as_user(self.owner).get(url)
         self.assertContains(response, "thesis-corpus")
         self.assertContains(response, "thesis.pdf")
-        self.assertContains(response, f'href="{reverse("files")}#{self.thesis.id}"')
+        self.assertContains(
+            response, f'href="{reverse("files")}?file={self.thesis.id}#{self.thesis.id}"'
+        )
         self.assertContains(response, "Ready")
 
     def test_detail_links_a_file_only_when_the_files_page_lists_it(self):
@@ -369,7 +450,7 @@ class VectorStoresPageTest(ResourcePagesTestBase):
             created_at=NOW,
         )
         url = reverse("vector_store_detail", args=[self.team_store.id])
-        link = f'href="{reverse("files")}#{team_file.id}"'
+        link = f'href="{reverse("files")}?file={team_file.id}#{team_file.id}"'
         member = self.as_user(self.teammate).get(url)
         self.assertContains(member, link)
         # An org admin sees the team's store but not the team's files.
