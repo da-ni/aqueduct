@@ -10,6 +10,10 @@
     </header>
 
     <div class="flex flex-wrap items-center gap-3">
+        {% include "management/_filters.html" %}
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3">
         <nav class="join" aria-label="Status">
             {% for tab in log.tabs %}
                 <a class="btn btn-sm join-item{% if tab.outcome == outcome %} btn-primary{% endif %}"
@@ -17,30 +21,6 @@
                    {% if tab.outcome == outcome %}aria-current="page"{% endif %}>{{ tab.label }} <span class="font-mono text-xs opacity-70">{{ tab.count|intcomma }}</span></a>
             {% endfor %}
         </nav>
-        <form method="get" class="flex flex-wrap items-center gap-3">
-            {% if outcome %}<input type="hidden" name="status" value="{{ outcome.value }}">{% endif %}
-            {% if orgs %}
-                <select class="select select-sm w-48" name="org" aria-label="Organization">
-                    <option value="all"{% if not org %} selected{% endif %}>All organizations</option>
-                    {% for choice in orgs %}
-                        <option value="{{ choice.id }}"{% if choice == org %} selected{% endif %}>{{ choice.name }}</option>
-                    {% endfor %}
-                </select>
-            {% endif %}
-            <select class="select select-sm w-60" name="key" aria-label="Key">
-                <option value="">All keys</option>
-                {% for key in log.keys %}
-                    <option value="{{ key.token.id }}"{% if key == log.key %} selected{% endif %}>{{ key.name }} · {{ key.note }}</option>
-                {% endfor %}
-            </select>
-            <select class="select select-sm w-60" name="model" aria-label="Model">
-                <option value="">All models</option>
-                {% for model in log.models %}
-                    <option{% if model == log.model %} selected{% endif %}>{{ model }}</option>
-                {% endfor %}
-            </select>
-            <button type="submit" class="btn btn-sm btn-outline">Apply</button>
-        </form>
     </div>
 
     <section class="card bg-base-200">
@@ -63,9 +43,9 @@
                     <tbody>
                         {% for row in log.rows %}
                             {% with request=row.request %}
-                                <tr id="request-{{ request.id }}" class="font-mono text-[13px]">
+                                <tr id="request-{{ request.id }}" class="cursor-pointer font-mono text-[13px]" data-row-toggle>
                                     <td>
-                                        <a class="btn btn-ghost btn-xs btn-square"
+                                        <a class="btn btn-ghost btn-xs btn-square" data-row-toggle-link
                                            href="{% if row.is_open %}{% querystring request=None %}{% else %}{% querystring request=request.id %}#request-{{ request.id }}{% endif %}"
                                            aria-expanded="{{ row.is_open|yesno:'true,false' }}"
                                            aria-label="{% if row.is_open %}Hide{% else %}Show{% endif %} details of request {{ request.id }}">{% if row.is_open %}{% icon "chevron" small=True extra_class="rotate-90" %}{% else %}{% icon "chevron" small=True %}{% endif %}</a>

@@ -1,15 +1,21 @@
-from collections.abc import Collection
+import datetime as dt
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from enum import StrEnum
 from http import HTTPStatus
 
 from django.core.paginator import Page, Paginator
 from django.db.models import Count, Q, QuerySet
+from django.http import Http404
+from django.shortcuts import get_object_or_404
 from django.urls import reverse
+from django.utils import timezone
+from django.utils.http import urlencode
 
 from gateway.config import get_router_config
 from management.models import Org, Request, Team, Token, UserProfile
-from management.usage_report import NO_ORG, STATUSES, duration
+from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
 
 PAGE_SIZE = 50
 
@@ -147,6 +153,171 @@ def describe_key(
     return Key(token, href, note)
 
 
+FILTER_PARAMS = frozenset({"org", "scope", "key", "model", "span", "start", "end"})
+RESET_PARAMS = frozenset({"page", "request"})
+
+
+@dataclass(frozen=True)
+class Filters:
+    """The selection the Overview page and the request log share: org, whose keys, key, model,
+    and time frame. `requests` holds the visible requests narrowed by all but the time frame."""
+
+    orgs: tuple[Org, ...]
+    org: Org | None
+    can_pick_scope: bool
+    mine: bool
+    keys: tuple[Key, ...]
+    key: Key | None
+    models: tuple[str, ...]
+    model: str | None
+    span: Span | None
+    period: Period
+    custom_start: str
+    custom_end: str
+    custom_error: str | None
+    page_params: tuple[tuple[str, str], ...]
+    """The page's own query parameters, such as the status tab, without the filters."""
+    now_utc_iso: str
+    requests: QuerySet[Request]
+
+    @property
+    def spans(self) -> tuple[Span, ...]:
+        return tuple(Span)
+
+    @property
+    def query(self) -> dict[str, str]:
+        found = {}
+        if self.orgs:
+            found["org"] = str(self.org.id) if self.org else "all"
+        if self.mine:
+            found["scope"] = "mine"
+        if self.key:
+            found["key"] = str(self.key.token.id)
+        if self.model:
+            found["model"] = self.model
+        if self.span:
+            found["span"] = self.span.value
+        else:
+            found |= {"start": self.custom_start, "end": self.custom_end}
+        return found
+
+    @property
+    def kept(self) -> tuple[tuple[str, str], ...]:
+        """What the custom range form passes on besides the range."""
+        ranged = {"span", "start", "end"}
+        return (
+            *((name, value) for name, value in self.query.items() if name not in ranged),
+            *self.page_params,
+        )
+
+    def log_url(self, **narrower: str) -> str:
+        """The request log with this selection, narrowed or overridden by `narrower`."""
+        return f"{reverse('requests')}?{urlencode(self.query | narrower)}"
+
+
+def read_filters(
+    profile: UserProfile,
+    teams: QuerySet[Team],
+    params: Mapping[str, str],
+    *,
+    default_span: Span,
+    now: datetime,
+) -> Filters:
+    """Parse the shared filters. A key outside what the viewer may see is a 404."""
+    org = chosen_org(profile, params.get("org"))
+    sees_others = org is None or profile.is_org_admin(org)
+    scope = visible_requests(profile, org, teams)
+    team_ids = set(teams.values_list("id", flat=True))
+    requests = scope
+    mine = sees_others and params.get("scope") == "mine"
+    if mine:
+        requests = requests.filter(
+            Q(token__user=profile.user, token__service_account__isnull=True)
+            | Q(token__service_account__team__in=profile.teams.all())
+        )
+
+    tokens = Token.objects.select_related(
+        "user__profile__org", "service_account__team__org"
+    ).order_by("name", "id")
+
+    def describe(token: Token) -> Key:
+        return describe_key(token, profile, team_ids, with_org=org is None)
+
+    keys = tuple(describe(token) for token in tokens.filter(id__in=requests.values("token_id")))
+    key = None
+    if raw_key := params.get("key", ""):
+        if not raw_key.isdigit():
+            raise Http404
+        allowed = Q(id__in=scope.values("token_id")) | Q(
+            id__in=visible_tokens(profile, org, teams).values("id")
+        )
+        key = describe(get_object_or_404(tokens.filter(allowed), pk=int(raw_key)))
+        if key.token not in (k.token for k in keys):
+            keys = (key, *keys)
+        requests = requests.filter(token=key.token)
+    models = tuple(sorted(router_models()))
+    model = params.get("model") if params.get("model") in models else None
+    if model is not None:
+        requests = requests.filter(model=model)
+
+    custom_start, custom_end = params.get("start", ""), params.get("end", "")
+    start, end, custom_error = _custom_range(custom_start, custom_end, now)
+    span = Span.parse(params.get("span", "")) or default_span
+    if start and end and not custom_error:
+        period, span = Period.between(start, end), None
+    else:
+        period = Period.last(span, now)
+
+    return Filters(
+        orgs=tuple(Org.objects.order_by("name")) if profile.is_admin() else (),
+        org=org,
+        can_pick_scope=sees_others,
+        mine=mine,
+        keys=keys,
+        key=key,
+        models=models,
+        model=model,
+        span=span,
+        period=period,
+        custom_start=custom_start,
+        custom_end=custom_end,
+        custom_error=custom_error,
+        page_params=tuple(
+            (name, value)
+            for name, value in params.items()
+            if name not in FILTER_PARAMS | RESET_PARAMS
+        ),
+        now_utc_iso=now.strftime("%Y-%m-%dT%H:%M"),
+        requests=requests,
+    )
+
+
+def _custom_range(
+    start_raw: str, end_raw: str, now: datetime
+) -> tuple[datetime | None, datetime | None, str | None]:
+    """The custom range as UTC datetimes, and the first problem with it, if any."""
+    if not start_raw and not end_raw:
+        return None, None, None
+    try:
+        start = dt.datetime.fromisoformat(start_raw) if start_raw else None
+        end = dt.datetime.fromisoformat(end_raw) if end_raw else None
+    except ValueError:
+        return None, None, "Invalid date format."
+    if start is not None and timezone.is_naive(start):
+        start = timezone.make_aware(start, dt.UTC)
+    if end is not None and timezone.is_naive(end):
+        end = timezone.make_aware(end, dt.UTC)
+    if not (start and end):
+        return start, end, None
+    if end > now:
+        return start, end, "End time is in the future."
+    if start >= end:
+        return start, end, "Start must be before end."
+    if end - start < timedelta(minutes=1):
+        return start, end, "Range must be at least 1 minute."
+    return start, end, None
+
+
 @dataclass(frozen=True)
 class Row:
     request: Request
@@ -203,41 +374,19 @@ class RequestLog:
     page: Page
     rows: tuple[Row, ...]
     tabs: tuple[Tab, ...]
-    keys: tuple[Key, ...]
-    models: tuple[str, ...]
-    key: Key | None
-    model: str | None
 
 
 def request_log(
     profile: UserProfile,
-    org: Org | None,
     teams: QuerySet[Team],
+    filters: Filters,
     *,
     outcome: Outcome | None,
-    key_id: int | None,
-    model: str | None,
     page_number: str | None,
     open_id: int | None,
 ) -> RequestLog:
-    scope = visible_requests(profile, org, teams)
     team_ids = set(teams.values_list("id", flat=True))
-    keys = tuple(
-        describe_key(token, profile, team_ids, with_org=org is None)
-        for token in Token.objects.filter(id__in=scope.values("token_id"))
-        .select_related("user__profile__org", "service_account__team__org")
-        .order_by("name", "id")
-    )
-
-    models = tuple(router_models())
-    key = next((k for k in keys if k.token.id == key_id), None)
-    model = model if model in models else None
-
-    filtered = scope
-    if key is not None:
-        filtered = filtered.filter(token=key.token)
-    if model is not None:
-        filtered = filtered.filter(model=model)
+    filtered = filters.period.of(filters.requests)
 
     counts = filtered.aggregate(
         total=Count("id"), **{o.name: Count("id", filter=o.matches) for o in Outcome}
@@ -258,4 +407,4 @@ def request_log(
         Row(request, describe_key(request.token, profile, team_ids), request.id == open_id)
         for request in page
     )
-    return RequestLog(page, rows, tabs, keys, models, key, model)
+    return RequestLog(page, rows, tabs)

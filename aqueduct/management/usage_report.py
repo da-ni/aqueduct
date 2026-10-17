@@ -22,6 +22,7 @@ from management.key_activity import (
     as_tokens,
     chart,
     compact,
+    heights,
     percent,
     spark,
 )
@@ -192,36 +193,65 @@ class Kpi:
     value: str
     change: str | None
     spark: tuple[SparkBar, ...]
+    href: str | None = None
 
 
 def _share(ratio: float) -> str:
     return f"{round(100 * ratio)}%"
 
 
-def _span_label(moments: Sequence[datetime], step: Step) -> str:
-    first, last = (
-        timezone.localtime(m).strftime(step.label_format) for m in (moments[0], moments[-1])
-    )
-    return first if first == last else f"{first} to {last}"
-
-
 def _summed(activities: Sequence[Activity]) -> Activity:
     return Activity(**{field: sum(getattr(a, field) for a in activities) for field in TOTALS})
 
 
+@dataclass(frozen=True)
+class Slot:
+    """The buckets one spark bar covers: `start <= timestamp < end`."""
+
+    label: str
+    start: datetime
+    end: datetime
+    activity: Activity
+
+
+def slots(points: Sequence[tuple[datetime, Activity]], step: Step) -> tuple[Slot, ...]:
+    """The period's buckets grouped into at most `SPARK_BARS` spark bars."""
+    size = math.ceil(len(points) / SPARK_BARS) or 1
+
+    def slot(group: Sequence[tuple[datetime, Activity]]) -> Slot:
+        first, last = (
+            timezone.localtime(m).strftime(step.label_format) for m in (group[0][0], group[-1][0])
+        )
+        return Slot(
+            first if first == last else f"{first} to {last}",
+            group[0][0],
+            group[-1][0] + step.size,
+            _summed([a for _, a in group]),
+        )
+
+    return tuple(slot(points[i : i + size]) for i in range(0, len(points), size))
+
+
+def slot_medians(
+    requests: QuerySet[Request], spark_slots: Sequence[Slot]
+) -> tuple[int | None, ...]:
+    return tuple(
+        median_ms(requests.filter(timestamp__gte=s.start, timestamp__lt=s.end)) for s in spark_slots
+    )
+
+
 def kpis(
-    points: Sequence[tuple[datetime, Activity]],
-    step: Step,
+    spark_slots: Sequence[Slot],
     median: int | None,
+    medians: Sequence[int | None],
     before: Activity | None,
     before_median: int | None,
+    log_url: str,
 ) -> tuple[Kpi, ...]:
-    """The headline figures, each with its change against the previous period when known."""
-    size = math.ceil(len(points) / SPARK_BARS) or 1
-    buckets = [points[i : i + size] for i in range(0, len(points), size)]
-    labels = [_span_label([moment for moment, _ in bucket], step) for bucket in buckets]
-    bars = [_summed([a for _, a in bucket]) for bucket in buckets]
-    now = _summed([a for _, a in points])
+    """The headline figures, each with its change against the previous period when known.
+
+    `medians` holds the median response time of each slot."""
+    now = _summed([s.activity for s in spark_slots])
     known = before if before is not None and before.requests else None
 
     def relative(field: str) -> str | None:
@@ -230,7 +260,7 @@ def kpis(
     def bars_of(
         value: Callable[[Activity], float], show: Callable[[float], str]
     ) -> tuple[SparkBar, ...]:
-        return spark([(label, value(a)) for label, a in zip(labels, bars, strict=True)], show)
+        return spark([(s.label, value(s.activity)) for s in spark_slots], show)
 
     def points(part: str, whole: str) -> str | None:
         if not known:
@@ -240,6 +270,12 @@ def kpis(
             _ratio(getattr(known, part), getattr(known, whole)),
         )
 
+    median_bars = tuple(
+        SparkBar(height, Tip(s.label, duration(ms)))
+        for s, ms, height in zip(
+            spark_slots, medians, heights([ms or 0 for ms in medians]), strict=True
+        )
+    )
     return (
         Kpi(
             "Input tokens",
@@ -264,6 +300,7 @@ def kpis(
             f"{now.requests:,}",
             relative("requests"),
             bars_of(lambda a: a.requests, as_requests),
+            log_url,
         ),
         Kpi(
             "Failed",
@@ -275,7 +312,7 @@ def kpis(
             "Median response",
             duration(median),
             _relative(median, before_median) if known and median and before_median else None,
-            (),
+            median_bars,
         ),
     )
 
@@ -288,6 +325,7 @@ class StatusRow:
     tone: str
     count: int
     share: str
+    href: str
 
 
 STATUSES = (
@@ -304,12 +342,23 @@ STATUSES = (
 )
 
 
-def statuses(requests: QuerySet[Request], total: int) -> tuple[StatusRow, ...]:
+def statuses(
+    requests: QuerySet[Request], total: int, link: Callable[..., str]
+) -> tuple[StatusRow, ...]:
+    """Requests per status group. `link(status=codes)` opens the log on that group."""
     counts = requests.aggregate(
         **{f"s{i}": Count("id", filter=match) for i, (*_, match) in enumerate(STATUSES)}
     )
     return tuple(
-        StatusRow(label, codes, icon, tone, counts[f"s{i}"], percent(counts[f"s{i}"], total))
+        StatusRow(
+            label,
+            codes,
+            icon,
+            tone,
+            counts[f"s{i}"],
+            percent(counts[f"s{i}"], total),
+            link(status=codes),
+        )
         for i, (label, codes, icon, tone, _) in enumerate(STATUSES)
     )
 
@@ -361,10 +410,13 @@ class ModelRow:
     median: str
     share: str
     width: int
+    log_url: str
 
 
-def model_rows(requests: QuerySet[Request], kinds: Mapping[str, str]) -> tuple[ModelRow, ...]:
-    """Every model with requests, busiest first."""
+def model_rows(
+    requests: QuerySet[Request], kinds: Mapping[str, str], link: Callable[..., str]
+) -> tuple[ModelRow, ...]:
+    """Every model with requests, busiest first. `link(model=name)` opens the log on one."""
     found = {
         row.pop("model"): Activity(**row)
         for row in requests.values("model").annotate(**TOTALS).order_by()
@@ -382,6 +434,7 @@ def model_rows(requests: QuerySet[Request], kinds: Mapping[str, str]) -> tuple[M
             median=duration(median_ms(requests.filter(model=name))),
             share=percent(activity.tokens, total),
             width=round(100 * activity.tokens / busiest) if busiest else 0,
+            log_url=link(model=name),
         )
         for name, activity in ranked
     )

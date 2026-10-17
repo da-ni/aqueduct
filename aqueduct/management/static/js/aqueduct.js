@@ -32,5 +32,10 @@
     if (event.target.closest('[data-toggle-theme]')) toggleTheme();
     const copyButton = event.target.closest('[data-copy]');
     if (copyButton) copy(copyButton);
+    const row = event.target.closest('[data-row-toggle]');
+    // Clicks on the row's own links, and drags that select text, keep their usual effect.
+    if (row && !event.target.closest('a, button') && !getSelection().toString()) {
+      row.querySelector('[data-row-toggle-link]').click();
+    }
   });
 })();

@@ -8,65 +8,22 @@
     <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
         <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
             <h1 class="text-3xl font-semibold">Overview</h1>
-            {% if selected_token %}
-                <span class="muted">for the key <span class="font-mono">{{ selected_token.name }}</span></span>
-                <a class="link-plain text-sm" href="{% querystring token=None %}">Show all keys</a>
+            {% if filters.key %}
+                <span class="muted">for the key <span class="font-mono">{{ filters.key.name }}</span></span>
+                <a class="link-plain text-sm" href="{% querystring key=None %}">Show all keys</a>
             {% endif %}
         </div>
     </header>
 
     <div class="flex flex-wrap items-center gap-3">
-        {% if is_global_admin %}
-            <details class="dropdown">
-                <summary class="btn btn-sm" aria-label="Organization">{% icon "organization" small=True %}{% if selected_org %}{{ selected_org.name }}{% else %}All organizations{% endif %}</summary>
-                <ul class="menu dropdown-content z-10 mt-1 max-h-80 w-64 flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow">
-                    <li><a href="{% querystring org='all' token=None %}"{% if not selected_org %} aria-current="true" class="menu-active"{% endif %}>All organizations</a></li>
-                    {% for org in orgs %}
-                        <li><a href="{% querystring org=org.id token=None %}"{% if org == selected_org %} aria-current="true" class="menu-active"{% endif %}>{{ org.name }}</a></li>
-                    {% endfor %}
-                </ul>
-            </details>
-        {% endif %}
-        {% if can_pick_scope %}
-            <nav class="join" aria-label="Keys">
-                <a class="btn btn-sm join-item{% if not mine %} btn-primary{% endif %}" href="{% querystring scope=None %}"{% if not mine %} aria-current="page"{% endif %}>Everyone</a>
-                <a class="btn btn-sm join-item{% if mine %} btn-primary{% endif %}" href="{% querystring scope='mine' %}"{% if mine %} aria-current="page"{% endif %}>My keys</a>
-            </nav>
-        {% endif %}
-        <nav class="join" aria-label="Time frame">
-            {% for span in spans %}
-                <a class="btn btn-sm join-item{% if span == selected_span %} btn-primary{% endif %}" href="{% querystring span=span.value start=None end=None %}"{% if span == selected_span %} aria-current="page"{% endif %}>{{ span.label }}</a>
-            {% endfor %}
-        </nav>
-        <details class="dropdown"{% if custom_error %} open{% endif %}>
-            <summary class="btn btn-sm{% if not selected_span %} btn-primary{% endif %}">Custom range</summary>
-            <form method="get" class="dropdown-content z-10 mt-1 flex w-72 flex-col gap-3 rounded-box bg-base-100 p-4 shadow">
-                {% for name, value in kept_params %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
-                <label class="flex flex-col gap-1 text-sm">From (UTC)
-                    <input type="datetime-local" name="start" class="input input-sm w-full" value="{{ custom_start }}" max="{{ now_utc_iso }}" required>
-                </label>
-                <label class="flex flex-col gap-1 text-sm">To (UTC)
-                    <input type="datetime-local" name="end" class="input input-sm w-full" value="{{ custom_end }}" max="{{ now_utc_iso }}" required>
-                </label>
-                <button type="submit" class="btn btn-sm btn-primary">Apply</button>
-            </form>
-        </details>
-        <details class="dropdown">
-            <summary class="btn btn-sm" aria-label="Model">{% icon "models" small=True %}{{ selected_model|default:"All models" }}</summary>
-            <ul class="menu dropdown-content z-10 mt-1 max-h-80 w-64 flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow">
-                <li><a href="{% querystring model=None %}"{% if not selected_model %} aria-current="true" class="menu-active"{% endif %}>All models</a></li>
-                {% for name in model_names %}
-                    <li><a class="font-mono{% if name == selected_model %} menu-active{% endif %}" href="{% querystring model=name %}"{% if name == selected_model %} aria-current="true"{% endif %}>{{ name }}</a></li>
-                {% endfor %}
-            </ul>
-        </details>
+        {% include "management/_filters.html" %}
         {% if compares_previous %}
             <span class="muted ml-auto font-mono text-xs">Change vs previous {{ period.label }}</span>
         {% endif %}
     </div>
 
-    {% if custom_error %}
-        <div class="alert alert-error" role="alert">{% icon "failed" %}<span>{{ custom_error }}</span></div>
+    {% if filters.custom_error %}
+        <div class="alert alert-error" role="alert">{% icon "failed" %}<span>{{ filters.custom_error }}</span></div>
     {% endif %}
     {% if retention_warning %}
         <div class="alert alert-warning" role="alert">{% icon "warning" %}<span>The time frame reaches back further than the {{ retention_days }} days requests are kept. Older requests are missing from these figures.</span></div>
@@ -74,14 +31,14 @@
 
     <section aria-label="Totals" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         {% for kpi in kpis %}
-            <div class="card bg-base-200">
+            {% if kpi.href %}<a class="card bg-base-200 hover-row" href="{{ kpi.href }}">{% else %}<div class="card bg-base-200">{% endif %}
                 <div class="card-body gap-1 p-4">
                     <span class="muted text-sm">{{ kpi.label }}</span>
                     <span class="text-2xl font-semibold">{{ kpi.value }}</span>
                     <span class="muted min-h-4 font-mono text-xs">{% if kpi.change %}{{ kpi.change }}{% endif %}</span>
                     {% include "management/_spark.html" with bars=kpi.spark %}
                 </div>
-            </div>
+            {% if kpi.href %}</a>{% else %}</div>{% endif %}
         {% endfor %}
     </section>
 
@@ -119,18 +76,20 @@
             <div class="card-body gap-4 p-5">
                 <div class="flex items-center justify-between gap-3">
                     <h2 class="text-xl font-semibold">Requests</h2>
-                    <a class="link-plain text-sm" href="{{ requests_url }}">Open the log</a>
+                    <a class="link-plain text-sm" href="{{ filters.log_url }}">Open the log</a>
                 </div>
                 <div class="flex h-3 gap-0.5 overflow-hidden rounded-full bg-base-300">
                     {% for row in statuses %}{% if row.count %}<div class="{{ row.tone }} min-w-1 bg-current" style="flex: {{ row.count }} 1 0%"></div>{% endif %}{% endfor %}
                 </div>
                 <ul class="-mx-2 flex flex-col">
                     {% for row in statuses %}
-                        <li class="hover-row flex items-center gap-3 rounded-lg border-t border-base-300 px-2 py-2.5 text-sm">
-                            <span class="{{ row.tone }}">{% icon row.icon %}</span>
-                            <span class="flex flex-col leading-tight"><span class="font-medium">{{ row.label }}</span><span class="muted font-mono text-xs">{{ row.codes }}</span></span>
-                            <span class="ml-auto font-mono">{{ row.count|intcomma }}</span>
-                            <span class="muted w-12 text-right font-mono text-xs">{{ row.share }}</span>
+                        <li class="border-t border-base-300">
+                            <a class="hover-row flex items-center gap-3 rounded-lg px-2 py-2.5 text-sm" href="{{ row.href }}">
+                                <span class="{{ row.tone }}">{% icon row.icon %}</span>
+                                <span class="flex flex-col leading-tight"><span class="font-medium">{{ row.label }}</span><span class="muted font-mono text-xs">{{ row.codes }}</span></span>
+                                <span class="ml-auto font-mono">{{ row.count|intcomma }}</span>
+                                <span class="muted w-12 text-right font-mono text-xs">{{ row.share }}</span>
+                            </a>
                         </li>
                     {% endfor %}
                 </ul>
@@ -201,7 +160,7 @@
                                 <td class="text-right font-mono">{{ row.input }}</td>
                                 <td class="text-right font-mono">{{ row.output }}</td>
                                 <td class="text-right font-mono">{{ row.activity.cache_hits }}</td>
-                                <td class="text-right font-mono">{{ row.activity.requests|intcomma }}</td>
+                                <td class="text-right font-mono"><a class="link-plain" href="{{ row.log_url }}">{{ row.activity.requests|intcomma }}</a></td>
                                 <td class="text-right font-mono">{{ row.median }}</td>
                                 <td class="muted text-right font-mono">{{ row.share }}</td>
                             </tr>
@@ -233,7 +192,7 @@
         {% endif %}
         <div class="card bg-base-200{% if not orgs_usage %} lg:col-span-2{% endif %}">
             <div class="card-body gap-3 p-5">
-                <h2 class="text-xl font-semibold">{% if selected_token %}By user ID{% else %}Largest keys{% endif %}</h2>
+                <h2 class="text-xl font-semibold">{% if filters.key %}By user ID{% else %}Largest keys{% endif %}</h2>
                 <div class="-mx-2 flex max-h-60 flex-col overflow-y-auto">
                     {% for key in keys %}
                         <div class="hover-row grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_4rem] items-center gap-4 rounded-lg border-t border-base-300 px-2 py-2 text-sm">

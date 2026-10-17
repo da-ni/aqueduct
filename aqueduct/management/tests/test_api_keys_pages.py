@@ -96,7 +96,7 @@ class KeyListTest(ApiKeysPagesTestBase):
     def test_page_never_names_another_users_key_id(self):
         response = self.get(self.owner, "tokens")
         self.assertNotContains(response, f"/tokens/{self.others_key.id}/")
-        self.assertNotContains(response, f"token={self.others_key.id}")
+        self.assertNotContains(response, f"key={self.others_key.id}")
 
     def test_team_member_sees_team_service_account_managed_from_the_team_page(self):
         response = self.get(self.member, "tokens")
@@ -186,7 +186,7 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         self.assertIn("50%", page)  # one of two requests failed
         self.assertIn("curl/8.5.0 100%", page)
         self.assertIn("/responses", page)
-        self.assertIn(f"{reverse('usage')}?token={self.key.id}", page)
+        self.assertIn(f"{reverse('usage')}?key={self.key.id}", page)
 
     def test_requests_metric_charts_failed_requests(self):
         self.request_log(self.key, timedelta(minutes=5), status_code=500)
@@ -286,7 +286,7 @@ class ServiceAccountKeyDetailTest(ApiKeysPagesTestBase):
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Service account · ")
                 self.assertContains(response, "4.2K")
-                self.assertContains(response, f"?token={self.pipeline_key.id}")
+                self.assertContains(response, f"?key={self.pipeline_key.id}")
                 self.assertContains(response, f'href="{edit}"')
                 self.assertContains(
                     response, reverse("token_regenerate", args=[self.pipeline_key.id])

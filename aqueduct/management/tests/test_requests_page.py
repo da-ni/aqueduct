@@ -153,10 +153,53 @@ class RequestsScopeTest(RequestsPageTestBase):
 
     def test_overview_links_to_the_log_with_its_filters(self):
         self.client.force_login(self.admin)
-        params = {"org": self.other_org.id, "token": self.foreign_key.id, "model": MODEL}
-        response = self.client.get(reverse("usage"), params)
-        query = f"org={self.other_org.id}&amp;key={self.foreign_key.id}&amp;model={MODEL}"
+        params = {"org": self.other_org.id, "key": self.foreign_key.id, "model": MODEL}
+        response = self.client.get(reverse("usage"), {**params, "span": "1d"})
+        query = (
+            f"org={self.other_org.id}&amp;key={self.foreign_key.id}&amp;model={MODEL}&amp;span=1d"
+        )
         self.assertContains(response, f'href="{reverse("requests")}?{query}"')
+
+    def test_overview_figures_open_the_log_on_the_same_requests(self):
+        self.log(self.key, "/limited", status_code=429)
+        self.log(self.team_key, "/invalid", status_code=400, model=OTHER_MODEL)
+        self.log(self.side_key, "/broken", status_code=502)
+        self.log(self.key, "/last-week", ago=timedelta(days=3))
+        start = (timezone.now() - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M")
+        end = timezone.now().strftime("%Y-%m-%dT%H:%M")
+        viewers = (
+            (self.owner, {}),
+            (self.member, {"span": "1d"}),
+            (self.org_admin, {"span": "1h"}),
+            (self.org_admin, {"scope": "mine"}),
+            (self.org_admin, {"key": self.team_key.id, "span": "1m"}),
+            (self.admin, {"org": "all", "model": MODEL}),
+            (self.admin, {"start": start, "end": end}),
+        )
+        for user, params in viewers:
+            with self.subTest(user=user.username, **params):
+                self.client.force_login(user)
+                usage = self.client.get(reverse("usage"), params).context
+                figures = [(row.href, row.count) for row in usage["statuses"]]
+                figures += [(row.log_url, row.activity.requests) for row in usage["models"]]
+                requests = next(kpi for kpi in usage["kpis"] if kpi.label == "Requests")
+                figures.append((requests.href, int(requests.value)))
+                for href, count in figures:
+                    log = self.client.get(href).context["log"]
+                    self.assertEqual(log.page.paginator.count, count, href)
+
+    def test_time_frame_limits_the_log(self):
+        self.log(self.key, "/last-week", ago=timedelta(days=3))
+        self.assertContains(self.get(self.owner), ">/last-week</div>")
+        recent = self.get(self.owner, span="1d")
+        self.assertNotContains(recent, ">/last-week</div>")
+        self.assertEqual(self.paths_on(recent), {"/own", "/sent-as-owner"})
+
+    def test_my_keys_narrows_the_log_for_an_org_admin(self):
+        self.log(make_token(self.org_admin, "admin-laptop"), "/admin-own")
+        response = self.get(self.org_admin, scope="mine")
+        self.assertEqual(self.paths_on(response), set())
+        self.assertIn(">/admin-own</div>", response.content.decode())
 
     def test_page_shows_no_ip_address(self):
         self.log(self.key, "/with-ip", ip_address="203.0.113.7", user_agent="probe/1")
@@ -201,12 +244,13 @@ class RequestsFilterTest(RequestsPageTestBase):
         )
 
     def key_options(self, response) -> list[str]:
-        return [key.name + " · " + key.note for key in response.context["log"].keys]
+        return [key.name + " · " + key.note for key in response.context["filters"].keys]
 
-    def test_key_filter_ignores_a_key_outside_the_scope(self):
+    def test_key_outside_the_scope_is_not_found(self):
         response = self.get(self.owner, key=self.foreign_key.id)
-        self.assertEqual(self.paths_on(response), {"/own", "/sent-as-owner"})
-        self.assertNotContains(response, "foreign-laptop")
+        self.assertEqual(response.status_code, 404)
+        self.assertNotContains(response, "foreign-laptop", status_code=404)
+        self.assertEqual(self.get(self.owner, key="abc").status_code, 404)
 
     def test_model_filter(self):
         self.log(self.key, "/embed", model=OTHER_MODEL)

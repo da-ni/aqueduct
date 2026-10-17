@@ -33,7 +33,7 @@ The log lists only requests to models that the gateway still serves.
 
 Each row shows the time, the key, the model and the API path, the status code, the input tokens, the input tokens from cache, the output tokens, and the response time.
 
-Choose the arrow at the start of a row to show its details:
+Choose a row, or the arrow at its start, to show its details. Choose it again to hide them.
 
 - **User agent**: the client that sent the request.
 - **User ID sent by the client**: the `user_id` value, if the client sent one.
@@ -44,7 +44,8 @@ Choose the arrow at the start of a row to show its details:
 ## Filter the log
 
 - To show one kind of status, choose a tab: **All**, **2xx**, **429**, **Other 4xx**, or **5xx**. Each tab shows its count.
-- To show one key or one model, choose it in **All keys** or **All models**, then choose **Apply**.
+- The log has the same filters as the [Overview](usage.md) page: the organization, **Everyone** or **My keys**, **All keys**, **All models**, and the time frame. The log opens on **30 days**.
+- On the Overview page, a status group, the **Requests** total, and the request count of a model open the log with the same filters.
 
 The log shows 50 requests per page. Choose **Older** and **Newer** to move between pages.
 
