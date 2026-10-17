@@ -20,7 +20,7 @@ from management.models.usage_rollup import (
     OrgUsageHour,
     UsageRollupState,
 )
-from management.models.user_profile import UserGroup, UserProfile
+from management.models.user_profile import Role, UserGroup, UserProfile
 from management.models.vector_store import VectorStore, VectorStoreStatus
 from management.models.vector_store_file import VectorStoreFile, VectorStoreFileStatus
 from management.models.vector_store_file_batch import (
@@ -42,6 +42,7 @@ __all__ = [
     "OrgUsageHour",
     "PrivacyNotice",
     "Request",
+    "Role",
     "ServiceAccount",
     "Snippet",
     "SnippetType",

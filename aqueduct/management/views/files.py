@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.views.generic import DeleteView, TemplateView
 
 from gateway.config import get_files_api_client
+from management.deletion import deletion
 from management.models import FileObject
 from management.resources import file_list, list_url, own
 from management.views.base import BaseAqueductView
@@ -45,19 +46,13 @@ class FileDeleteView(BaseAqueductView, DeleteView):
             messages.error(self.request, "The Files API is not configured.")
             return redirect(self.get_success_url())
         if not async_to_sync(file.adelete_upstream)(client, raise_on_error=False):
-            messages.error(self.request, f"Could not delete '{file.filename}'. Try again later.")
+            messages.error(self.request, f"Could not delete {file.filename}. Try again later.")
             return redirect(self.get_success_url())
         file.delete()
-        messages.success(self.request, f"File '{file.filename}' deleted.")
+        messages.success(self.request, f"File {file.filename} deleted.")
         return redirect(self.get_success_url())
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
-        context = super().get_context_data(**kwargs)
-        context.update(
-            object_type_name="file",
-            object_name=self.object.filename,
-            cancel_url=self.get_success_url(),
+        return super().get_context_data(
+            confirmation=deletion(self.object), cancel_url=self.get_success_url(), **kwargs
         )
-        if self.object.batches.exists():
-            context["warning"] = "Batches that use this file as input are removed with it."
-        return context

@@ -74,7 +74,7 @@ The buttons at the end of each row, and at the top of the key's page, change a p
 
 - **Rotate** replaces the key with a new one and shows it in the **Your key is ready** panel. The old key stops working immediately.
 - **Edit** changes the name or the expiry.
-- **Delete** opens a confirmation page. Choose **Confirm Delete** to delete the key.
+- **Delete** asks first, then deletes the key with its requests, files, batches, and vector stores. See [Confirm a delete](index.md#confirm-a-delete).
 
 An expired key no longer authenticates requests.
 

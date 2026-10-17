@@ -1,6 +1,6 @@
 # Organization switch
 
-Admins choose the org they look at, one org or all orgs, in the `Organization` select at the top of the sidebar. The session keeps the choice, and the Overview, All keys, Requests, Teams, and Organization pages show that org. Teams and Organization show one org at a time, so on `All organizations` they show the admin's own org with the note `This page shows one organization at a time, so it shows your own.` A `?org=<id>` or `?org=all` link applies that org and keeps it in the session. Org admins and users get no select, and `?org=` changes nothing for them.
+Admins choose the org they look at, one org or all orgs, in the `Viewing` select at the top of the sidebar. The session keeps the choice, and the Overview, All keys, Requests, Teams, and Organization pages show that org. Teams and Organization show one org at a time, so on `All organizations` they show the admin's own org with the note `This page shows one organization at a time, so it shows your own.` A `?org=<id>` or `?org=all` link applies that org and keeps it in the session. Org admins and users get no select, and `?org=` changes nothing for them.
 
 ## Sub-features
 
@@ -20,7 +20,7 @@ Preconditions:
 
 - A fresh launch. `admin` is in `Verify Org`. The seed's requests are all in `Verify Org`, so `Other Org` shows none.
 
-- **Switch once.** Run `aqv login admin --next /aqueduct/management/usage/` and `aqv select --label Organization --value 2`. The page reloads with `Switched to Other Org.` Then `aqv open` each of `/aqueduct/management/usage/keys/`, `/aqueduct/management/requests/`, `/aqueduct/management/org/`, and `/aqueduct/management/organization/`. Each shows `Other Org` and no `Verify Org` data. Run `aqv shot org-switch/<page>-admin` on each.
+- **Switch once.** Run `aqv login admin --next /aqueduct/management/usage/` and `aqv select --label Viewing --value 2`. The page reloads with `Viewing Other Org.` Then `aqv open` each of `/aqueduct/management/usage/keys/`, `/aqueduct/management/requests/`, `/aqueduct/management/org/`, and `/aqueduct/management/organization/`. Each shows `Other Org` and no `Verify Org` data. Run `aqv shot org-switch/<page>-admin` on each.
 - **All organizations.** Choose `All organizations` in the select. The Overview shows `By organization`. The Teams page shows `Verify Org` with the fallback note.
 - **Link.** Run `aqv open "/aqueduct/management/usage/?org=2"`, then `aqv open /aqueduct/management/requests/`. The select shows `Other Org`.
 - **Reset.** On `/aqueduct/management/requests/?key=1&span=1d`, switch the org. The address keeps `span=1d` and has no `key`.

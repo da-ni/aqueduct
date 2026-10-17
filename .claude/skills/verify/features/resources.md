@@ -7,7 +7,7 @@ The Files, Batches, and Vector stores pages each list what the viewer's own keys
 - `resources-paging` shows 50 rows per page on Files, Batches, Vector stores, and a store's file list, through the shared `_pager.html` (`<first>–<last> of <n>`, `Previous`, `Next`) when there is more than one page. The summaries count every page. Delete and Cancel return to the page they were chosen on (`?page=`).
 - `files-list` shows one row per file, newest first. A team's file shows the team name after its ID. The summary reads `<n> files · <size> · up to <limit> MB per file`.
 - `files-preview` opens the first lines of a file in a popover. Only files with a stored preview, such as batch input, have the button.
-- `files-delete` deletes a file after a confirmation page. It deletes the file upstream first and keeps it when that fails.
+- `files-delete` deletes a file after the confirm dialog, or the confirm page without JavaScript. It deletes the file upstream first and keeps it when that fails.
 - `batches-list` shows one row per batch, with `<processed> of <total> · <n> failed` under the bar. The summary counts running batches against the per-user limit and the limit of each team the viewer belongs to.
 - `batches-cancel` cancels a validating, in-progress, or finalizing batch.
 - `vector-stores-list` shows one row per store, with `Yours` or the team name under Belongs to. The summary counts stores against the per-user limit and the limit of each team the viewer belongs to.
@@ -29,10 +29,10 @@ Preconditions:
 - The seed gives `user` the files `eval-prompts.jsonl`, `eval-results.jsonl`, and `thesis-corpus.pdf`, the batches `batch-user-running` and `batch-user-done`, and the store `thesis-corpus`. The `verify-pipeline` service account of `Verify Team`, owned by `team-admin`, has the file `nightly.jsonl`, the batch `batch-team-running`, and the store `group-papers`.
 
 - **Files.** Run `aqv login user --next /aqueduct/management/files/`. The summary reads `3 files · 17.6 MB · up to 8 MB per file`. Run `aqv click --role button --name "Preview eval-prompts.jsonl"` and `aqv shot files/preview-user --viewport`.
-- **Delete a file.** Run `aqv click --role link --name "Delete eval-results.jsonl"`. The page shows `Confirm Deletion`. Run `aqv click --role button --name "Delete file"`. The page reads `File 'eval-results.jsonl' deleted.` and `2 files`. Read the stored state with `aqv shell -c "from management.models import FileObject; print(sorted(FileObject.objects.values_list('id', flat=True)))"`.
+- **Delete a file.** Run `aqv click --role link --name "Delete eval-results.jsonl"`. The dialog asks `Delete eval-results.jsonl?`. Run `aqv click --role button --name Delete --exact`. The page reads `File eval-results.jsonl deleted.` and `2 files`. Read the stored state with `aqv shell -c "from management.models import FileObject; print(sorted(FileObject.objects.values_list('id', flat=True)))"`.
 - **Batches.** Open `/aqueduct/management/batches/`. `batch-user-running` reads `In progress` and `1,240 of 4,000 · 12 failed`. Run `aqv click --role button --name "Cancel batch-user-running"`. The page reads `Batch batch-user-running is being cancelled.` and the row reads `Cancelled`.
 - **Team batch.** Run `aqv login team-admin --next /aqueduct/management/batches/`. `batch-team-running` has no Cancel button, though `team-admin` created the service account key. Service account batches are cancelled with that key over the API.
-- **Vector stores.** Open `/aqueduct/management/vector-stores/` as `user`, and run `aqv click --role link --name thesis-corpus`. The detail page lists `thesis-corpus.pdf` as `Ready`. Run `aqv click --role button --name Refresh`. The page reads `Synced "thesis-corpus" from upstream.`
+- **Vector stores.** Open `/aqueduct/management/vector-stores/` as `user`, and run `aqv click --role link --name thesis-corpus`. The detail page lists `thesis-corpus.pdf` as `Ready`. Run `aqv click --role button --name Refresh`. The page reads `Vector store thesis-corpus synced.`
 - **Scope.** As `team-member`, open `/aqueduct/management/files/file-user-prompts/delete/`. It returns 404. `/aqueduct/management/vector-stores/vs_user_thesis/` reads `Vector store not found` with a `Back to vector stores` link. Signed out, every path redirects to `/login/`.
 
 ## Gotchas

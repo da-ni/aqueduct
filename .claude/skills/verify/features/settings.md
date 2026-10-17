@@ -19,10 +19,10 @@ Preconditions:
 
 - A fresh launch.
 
-- **Account as a member.** Run `aqv login team-member --next /aqueduct/management/settings/`. The page shows `team-member@verify.invalid`, `Verify Org`, the role `User`, and `Verify Team` followed by `Member`. Run `aqv shot settings/team-member`.
+- **Account as a member.** Run `aqv login team-member --next /aqueduct/management/settings/`. The page shows `team-member@verify.invalid`, `Verify Org`, the role `Member`, and `Verify Team` followed by `Member`. Run `aqv shot settings/team-member`.
 - **Team role.** Run `aqv login team-admin --next /aqueduct/management/settings/`. `Verify Team` is followed by `Team admin`. Run `aqv click --role link --name "Verify Team" --exact`. The browser lands on `/aqueduct/management/team/1`.
 - **No team.** Run `aqv login user --next /aqueduct/management/settings/`. The page shows `You are in no team.` and `Personal keys` `1 of 3`.
-- **Roles.** `org-admin` shows `Org Admin`. `admin` shows `Admin` and `0 of 3` personal keys.
+- **Roles.** `org-admin` shows `Org admin`. `admin` shows `Platform admin` and `0 of 3` personal keys.
 - **Appearance.** Run `aqv click --role button --name Dark --exact`, then `aqv open /aqueduct/management/settings/` and `aqv aria --selector 'section[aria-labelledby=appearance-title]'`. The snapshot shows `button "Dark" [pressed]`. Choose `Light` the same way to switch back.
 - **Limits from the account.** Run `aqv shell -c "from management.models import UserProfile; p = UserProfile.objects.get(user__username='user'); p.requests_per_minute = 30; p.save()"`, then `aqv login user --next /aqueduct/management/settings/`. `Requests per minute` shows `30` and the note says an admin set limits for the account.
 - **Sign out.** Run `aqv click --selector 'main button[type=submit]'`. The browser lands on `/login/`.

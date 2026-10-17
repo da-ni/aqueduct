@@ -31,14 +31,14 @@
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{% url 'token_detail' token.id %}">
                     <button type="submit" class="btn btn-outline btn-primary"
-                            onclick="return confirm('Rotate the API key {{ token.name|escapejs }}? The current key stops working immediately.');">{% icon "rotate" small=True %}Rotate</button>
+                            {% confirm "Rotate "|add:token.name|add:"?" "The current key stops working immediately." "Rotate" %}>{% icon "rotate" small=True %}Rotate</button>
                 </form>
                 {% if team %}
                     <a class="btn btn-outline btn-primary" href="{% url 'service_account_edit' token.service_account.id %}">{% icon "admin" small=True %}Edit</a>
-                    <a class="btn btn-ghost st-err" href="{% url 'service_account_delete' token.service_account.id %}">{% icon "delete" small=True %}Delete</a>
+                    <a class="btn btn-ghost st-err" href="{% url 'service_account_delete' token.service_account.id %}" {% confirm_delete token.service_account %}>{% icon "delete" small=True %}Delete</a>
                 {% else %}
                     <a class="btn btn-outline btn-primary" href="{% url 'token_edit' token.id %}">{% icon "admin" small=True %}Edit</a>
-                    <a class="btn btn-ghost st-err" href="{% url 'token_delete' token.id %}">{% icon "delete" small=True %}Delete</a>
+                    <a class="btn btn-ghost st-err" href="{% url 'token_delete' token.id %}" {% confirm_delete token %}>{% icon "delete" small=True %}Delete</a>
                 {% endif %}
             </div>
         {% endif %}

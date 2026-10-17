@@ -1,0 +1,23 @@
+{% comment %}
+The one confirm dialog of every page. A link or submit button asks in it first when it carries
+the attributes of {% confirm title detail action %} or {% confirm_delete obj %} from `ui`:
+
+    <a href="{% url 'token_delete' token.id %}" {% confirm_delete token %}>Delete</a>
+    <button type="submit" name="remove" value="7" {% confirm "Remove ana@example.com?" "She loses access." "Remove" %}>Remove</button>
+
+Only an `<a href>` or a `<button type="submit">` asks. A confirmed link posts to its own address, so it must point at a page whose POST does the
+action, such as a DeleteView. Without JavaScript the link opens that page, which asks the same
+question. A confirmed button submits its own form.
+{% endcomment %}
+<dialog id="confirm-dialog" class="modal" aria-labelledby="confirm-title" aria-describedby="confirm-detail">
+    <form method="post" class="modal-box flex max-w-md flex-col gap-3">
+        {% csrf_token %}
+        <h2 id="confirm-title" class="break-words text-xl font-semibold"></h2>
+        <p id="confirm-detail"></p>
+        <div class="modal-action mt-2">
+            <button type="submit" class="btn btn-error" data-confirm-submit>Delete</button>
+            <button type="submit" class="btn btn-outline btn-primary" formmethod="dialog" formnovalidate autofocus>Cancel</button>
+        </div>
+    </form>
+    <form method="dialog" class="modal-backdrop"><button tabindex="-1" aria-hidden="true">Cancel</button></form>
+</dialog>

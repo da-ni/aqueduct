@@ -1,7 +1,7 @@
 from django.db import models
 
 from management.models.team import Team
-from management.models.user_profile import UserProfile
+from management.models.user_profile import Role, UserProfile
 
 
 class TeamMembership(models.Model):
@@ -18,3 +18,8 @@ class TeamMembership(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user_profile} in {self.team}{' (Admin)' if self.is_admin else ''}"
+
+    @property
+    def role(self) -> Role:
+        """The role the membership itself gives, whatever the member's org role."""
+        return Role.TEAM_ADMIN if self.is_admin else Role.MEMBER

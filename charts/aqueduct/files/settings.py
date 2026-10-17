@@ -142,11 +142,12 @@ ADMIN_SUPERUSER_EMAILS = [
 ]
 
 EXTRA_NAV_LINKS = {
-    "Bug Report": "https://github.com/TU-Wien-dataLAB/aqueduct/issues/new?template=bug_report.md",
+    "Report a bug": "https://github.com/TU-Wien-dataLAB/aqueduct/issues/new?template=bug_report.md",
     "Documentation": "https://tu-wien-datalab.github.io/aqueduct/",
-    # 'API Status': '/status/',  # Example internal path
-    # 'About Us': 'about_page',  # Example named URL (assuming you have url(..., name='about_page'))
 }
+# Icon links at the bottom of every page, each hidden while its URL is empty.
+MATRIX_SUPPORT_URL = os.getenv("MATRIX_SUPPORT_URL", "")
+GITHUB_REPOSITORY_URL = os.getenv("GITHUB_REPOSITORY_URL", "")
 
 RELAY_REQUEST_TIMEOUT = 60
 

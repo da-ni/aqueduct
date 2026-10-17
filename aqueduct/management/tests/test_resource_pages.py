@@ -197,14 +197,12 @@ class FileDeleteTest(ResourcePagesTestBase):
     def test_owner_confirms_and_deletes_their_file(self):
         client = self.as_user(self.owner)
         confirm = client.get(self.url(self.own_file))
-        self.assertContains(
-            confirm, '<h1 class="text-3xl font-semibold">Delete file</h1>', html=True
-        )
-        self.assertContains(confirm, "prompts.jsonl")
+        self.assertContains(confirm, "Delete prompts.jsonl?</h1>")
+        self.assertContains(confirm, "Batches that use it as input are deleted with it")
         self.assertEqual(confirm.context["shell"].current.label, "Files")
         response = client.post(self.url(self.own_file), follow=True)
         self.assertRedirects(response, reverse("files"))
-        self.assertContains(response, "File &#x27;prompts.jsonl&#x27; deleted.")
+        self.assertContains(response, "File prompts.jsonl deleted.")
         self.assertFalse(FileObject.objects.filter(id=self.own_file.id).exists())
 
     def test_deleting_returns_to_the_page_the_owner_was_on(self):
@@ -241,20 +239,13 @@ class FileDeleteTest(ResourcePagesTestBase):
         )
         self.assertTrue(FileObject.objects.filter(id=self.team_file.id).exists())
 
-    def test_confirmation_warns_that_the_batch_goes_with_its_input_file(self):
-        batch = self.batch(self.owner_key, "batch-done", "completed")
-        page = self.as_user(self.owner).get(self.url(batch.input_file))
-        self.assertContains(page, "Batches that use this file as input are removed with it.")
-        plain = self.as_user(self.owner).get(self.url(self.own_file))
-        self.assertNotContains(plain, "removed with it")
-
     def test_upstream_failure_keeps_the_file(self):
         with self.mock_server.patch_external_api(
             f"files/{self.own_file.id}",
             MockConfig(status_code=400, response_data={"error": {"message": "boom"}}),
         ):
             response = self.as_user(self.owner).post(self.url(self.own_file), follow=True)
-        self.assertContains(response, "Could not delete &#x27;prompts.jsonl&#x27;")
+        self.assertContains(response, "Could not delete prompts.jsonl.")
         self.assertTrue(FileObject.objects.filter(id=self.own_file.id).exists())
 
     def test_unconfigured_files_api_keeps_the_file(self):

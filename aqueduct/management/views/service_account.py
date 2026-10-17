@@ -11,6 +11,7 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import CreateView, DeleteView, UpdateView
 
+from management.deletion import deletion
 from management.forms import MemberEmailForm, ServiceAccountForm
 from management.models import ServiceAccount, Token  # Added UserProfile
 
@@ -75,18 +76,13 @@ class ServiceAccountCreateView(BaseTeamView, TeamAdminRequiredMixin, CreateView)
             # Save the token (hash and preview are now set)
             new_token.save()
 
-            messages.success(
-                self.request,
-                f"Service Account '{self.object.name}' created for team '{self.team.name}'.",
-            )
+            messages.success(self.request, f"Service account {self.object.name} created.")
             # Display the original secret key
             messages.info(self.request, f"{secret_key}", extra_tags="token-regenerated-key")
 
         except Exception as e:
             # Log error e
-            messages.error(
-                self.request, f"Service Account saved, but failed to create associated token: {e}"
-            )
+            messages.error(self.request, f"Could not create the service account's key: {e}")
             # Consider if the SA should be rolled back if token creation fails
             # Since it's atomic, the SA save won't commit if token creation fails here.
 
@@ -118,29 +114,14 @@ class ServiceAccountDeleteView(BaseServiceAccountView, DeleteView):
         return reverse("team", kwargs={"id": self.team_object.id})
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
-        """Provide context for the confirmation template."""
-        context = super().get_context_data(**kwargs)
-        # self.object is set by DeleteView using BaseServiceAccountView's get_object
-        context["object_type_name"] = "service account"
-        context["object_name"] = self.object.name
-        context["cancel_url"] = self.get_success_url()
-        return context
-
-    def delete(self, request, *args, **kwargs) -> HttpResponse:
-        """Handles the actual deletion on POST and adds a success message."""
-        # self.object is populated by DeleteView calling get_object
-        object_to_delete = self.get_object()
-        object_name = str(object_to_delete)
-        # self.team_object is populated during dispatch by the mixin
-        team_name = self.team_object.name
-
-        # Deleting ServiceAccount cascades to Token via on_delete=models.CASCADE
-        response = super().delete(request, *args, **kwargs)  # Let DeleteView handle deletion
-
-        messages.success(
-            self.request,
-            f"Service Account '{object_name}' (from team '{team_name}') and its token deleted.",
+        return super().get_context_data(
+            confirmation=deletion(self.object), cancel_url=self.get_success_url(), **kwargs
         )
+
+    def form_valid(self, form) -> HttpResponse:
+        name = self.object.name
+        response = super().form_valid(form)
+        messages.success(self.request, f"Service account {name} deleted.")
         return response
 
 
@@ -192,9 +173,7 @@ class ServiceAccountUpdateView(BaseServiceAccountView, UpdateView):
             token.save(update_fields=["expires_at"])
         except Token.DoesNotExist:
             pass  # Optionally handle this case
-        messages.success(
-            self.request, f"Service Account '{self.object.name}' updated successfully."
-        )
+        messages.success(self.request, f"Service account {self.object.name} saved.")
         return response
 
     def get_success_url(self) -> str:
@@ -252,19 +231,14 @@ class ServiceAccountTransferOwnershipView(BaseServiceAccountView, View):
         sa = self.get_object()
         token = Token.objects.select_for_update().filter(service_account=sa).first()
         if token is None:
-            messages.error(request, f"Service account '{sa.name}' has no key to transfer.")
+            messages.error(request, f"Service account {sa.name} has no key to transfer.")
             return redirect(self.get_success_url())
         form = self.owner_form(request.POST)
         if form.is_valid() and form.profile.user_id == token.user_id:
             form.add_error("email", f"{form.profile.user.email} already owns this key.")
         if not form.is_valid():
             return self.render_form(form, token)
-        previous = token.user.email if token.user else "(No Owner)"
         token.user = form.profile.user
         token.save(update_fields=["user"])
-        messages.success(
-            request,
-            f"API key ownership for '{sa.name}' transferred from {previous} to "
-            f"{form.profile.user.email}.",
-        )
+        messages.success(request, f"{form.profile.user.email} now owns the key of {sa.name}.")
         return redirect(self.get_success_url())

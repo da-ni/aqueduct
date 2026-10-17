@@ -161,6 +161,7 @@ class Shell:
     sections: tuple[Section, ...]
     bottom: tuple[Link, ...]
     help_links: tuple[Link, ...]
+    contact_links: tuple[Link, ...]
     viewer: Viewer | None
     gateway_url: str
     org_switch: OrgSwitch | None
@@ -198,8 +199,16 @@ def build_shell(request: HttpRequest) -> Shell:
         sections=tuple(
             Section(group.title, links) for group in NAV if (links := visible(group.pages))
         ),
-        bottom=extra + visible(NAV_BOTTOM),
+        bottom=visible(NAV_BOTTOM),
         help_links=extra + visible(HELP),
+        contact_links=tuple(
+            Link(label, url, icon, external=True)
+            for label, url, icon in (
+                ("Matrix support channel", settings.MATRIX_SUPPORT_URL, Icon.MATRIX),
+                ("GitHub repository", settings.GITHUB_REPOSITORY_URL, Icon.GITHUB),
+            )
+            if url
+        ),
         viewer=_viewer(request),
         gateway_url=gateway_url(request),
         org_switch=_org_switch(request),

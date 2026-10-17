@@ -130,7 +130,7 @@ class KeyListTest(ApiKeysPagesTestBase):
         self.request_log(self.key, timedelta(days=9), input_tokens=999_000, output_tokens=0)
         response = self.get(self.owner, "tokens")
         row = response.content.decode().split(self.key.key_preview, 1)[1]
-        self.assertIn("an hour ago", row)
+        self.assertIn("1\xa0hour ago", row)
         self.assertIn("2.5K", row)  # 2,000 input + 500 output, the old request left out
         self.assertIn("12%", row)  # 250 of 2,000 input tokens from the cache
         self.assertIn('<td class="text-right font-mono">2</td>', row)
@@ -373,6 +373,7 @@ class SecretShownOnceTest(ApiKeysPagesTestBase):
         self.key.refresh_from_db()
         self.assertNotEqual(self.key.key_hash, old_hash)
         self.assertEqual(Token.find_by_key(secret), self.key)
+        self.assertContains(response, "Key laptop rotated. Update your clients.")
 
     def test_create_at_the_limit_rerenders_the_form_with_an_error(self):
         make_token(self.owner, "two")
@@ -396,7 +397,7 @@ class KeyEditAndDeleteReturnTest(ApiKeysPagesTestBase):
         self.client.force_login(self.owner)
         response = self.client.post(reverse("token_delete", args=[self.key.id]), follow=True)
         self.assertRedirects(response, reverse("tokens"))
-        self.assertContains(response, "API key &quot;laptop&quot; deleted successfully.")
+        self.assertContains(response, "API key laptop deleted.")
         self.assertFalse(Token.objects.filter(id=self.key.id).exists())
 
 

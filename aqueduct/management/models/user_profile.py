@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Any
 
 from django.conf import settings
@@ -11,10 +12,19 @@ from management.models.org import Org
 from management.models.team import Team
 
 
+class Role(StrEnum):
+    """What someone may manage, in the words every page uses for it."""
+
+    ADMIN = "Platform admin"
+    ORG_ADMIN = "Org admin"
+    TEAM_ADMIN = "Team admin"
+    MEMBER = "Member"
+
+
 class UserGroup(models.TextChoices):
-    ADMIN = "admin", "Admin"
-    ORG_ADMIN = "org-admin", "Org Admin"
-    USER = "user", "User"
+    ADMIN = "admin", Role.ADMIN
+    ORG_ADMIN = "org-admin", Role.ORG_ADMIN
+    USER = "user", Role.MEMBER
 
 
 class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, models.Model):
@@ -117,6 +127,15 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
         except ValidationError:
             return False
         return False
+
+    def openable_teams(self) -> "models.QuerySet[Team]":
+        """The teams whose pages this user may open: every team for an admin, every team of
+        their org for an org admin, otherwise the teams they belong to."""
+        if self.is_admin():
+            return Team.objects.all()
+        if self.is_org_admin(self.org):
+            return self.org.teams.all()
+        return self.teams.all()
 
     def is_team_admin(self, team_to_check: Team) -> bool:
         """

@@ -4,8 +4,6 @@ from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import TemplateView
 
-from management.nav import privacy_notice
-
 
 def safe_next(request: HttpRequest) -> str | None:
     """The `next` parameter when it points into this site, else `None`."""
@@ -29,5 +27,4 @@ class SSOTemplateView(TemplateView):
         context = super().get_context_data(**kwargs)
         context["OIDC_PROVIDER"] = getattr(settings, "OIDC_PROVIDER", "SSO")
         context["next"] = safe_next(self.request)
-        context["show_privacy"] = privacy_notice(self.request)
         return context

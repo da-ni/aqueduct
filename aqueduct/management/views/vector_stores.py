@@ -88,13 +88,13 @@ class VectorStoreCardRefreshView(BaseAqueductView, View):
                 & (Q(token__user=user) | Q(token__service_account__team__in=teams))
             )
         except VectorStore.DoesNotExist:
-            messages.error(request, "Vector store not found or you do not have access.")
+            messages.error(request, "Vector store not found.")
             return redirect(reverse("vector_stores"))
 
         if _refresh_vector_store(vs):
-            messages.success(request, f'Synced "{vs.name}" from upstream.')
+            messages.success(request, f"Vector store {vs.name} synced.")
         else:
-            messages.warning(request, f'Failed to sync "{vs.name}" from upstream.')
+            messages.warning(request, f"Could not sync vector store {vs.name}. Try again later.")
 
         return redirect(reverse("vector_stores"))
 
@@ -116,12 +116,12 @@ class VectorStoreDetailRefreshView(BaseAqueductView):
                 & (Q(token__user=user) | Q(token__service_account__team__in=teams))
             )
         except VectorStore.DoesNotExist:
-            messages.error(request, "Vector store not found or you do not have access.")
+            messages.error(request, "Vector store not found.")
             return redirect(reverse("vector_stores"))
 
         if _refresh_vector_store(vs):
-            messages.success(request, f'Synced "{vs.name}" from upstream.')
+            messages.success(request, f"Vector store {vs.name} synced.")
         else:
-            messages.warning(request, f'Failed to sync "{vs.name}" from upstream.')
+            messages.warning(request, f"Could not sync vector store {vs.name}. Try again later.")
 
         return redirect(reverse("vector_store_detail", kwargs={"id": vector_store_id}))

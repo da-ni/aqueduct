@@ -1,7 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
-from enum import StrEnum
 
 from django.contrib.auth import get_user_model
 from django.core.paginator import Page, Paginator
@@ -20,6 +19,7 @@ from management.key_activity import (
 from management.models import (
     LimitSet,
     Request,
+    Role,
     ServiceAccount,
     Team,
     TeamMembership,
@@ -31,24 +31,14 @@ from management.models import (
 PAGE_SIZE = 50
 
 
-class Role(StrEnum):
-    ADMIN = "Admin"
-    ORG_ADMIN = "Organization admin"
-    TEAM_ADMIN = "Team admin"
-    MEMBER = "Member"
-
-    @classmethod
-    def of(cls, groups: set[str], membership: TeamMembership) -> "Role":
-        """The role `UserProfile.is_admin()` and `is_org_admin()` give a member with these
-        auth groups, without a query per member."""
-        if UserGroup.ADMIN in groups:
-            return cls.ADMIN
-        if (
-            UserGroup.ORG_ADMIN in groups
-            and membership.user_profile.org_id == membership.team.org_id
-        ):
-            return cls.ORG_ADMIN
-        return cls.TEAM_ADMIN if membership.is_admin else cls.MEMBER
+def role_of(groups: set[str], membership: TeamMembership) -> Role:
+    """The role `UserProfile.is_admin()` and `is_org_admin()` give a member with these auth
+    groups, without a query per member."""
+    if UserGroup.ADMIN in groups:
+        return Role.ADMIN
+    if UserGroup.ORG_ADMIN in groups and membership.user_profile.org_id == membership.team.org_id:
+        return Role.ORG_ADMIN
+    return membership.role
 
 
 def _bar_widths(activity: dict[int, Activity]) -> dict[int, int]:
@@ -197,7 +187,7 @@ def team_page(
     members = []
     for membership in member_pages:
         profile = membership.user_profile
-        role = Role.of(groups[profile.user_id], membership)
+        role = role_of(groups[profile.user_id], membership)
         is_viewer = profile.id == viewer.id
         members.append(
             MemberRow(

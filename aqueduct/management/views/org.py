@@ -95,13 +95,13 @@ class OrgSwitchView(BaseAqueductView, View):
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
         if not self.is_admin():
-            messages.error(request, "Only admin users can switch organizations.")
+            messages.error(request, "Only platform admins can do that.")
             return redirect(reverse("org"))
 
         raw = request.POST.get("org_id", "")
         org = None if raw == "all" else get_object_or_404(Org, pk=parse_id(raw))
         remember_org(request.session, org)
-        messages.success(request, f"Switched to {org.name if org else 'all organizations'}.")
+        messages.success(request, f"Viewing {org.name if org else 'all organizations'}.")
         back = request.POST.get("next", "")
         if url_has_allowed_host_and_scheme(back, {request.get_host()}, request.is_secure()):
             return redirect(_without_org_params(back))

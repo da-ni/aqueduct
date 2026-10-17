@@ -10,7 +10,7 @@ A signed-in user sees their personal API keys and the service account keys of th
 - `keys-limit` stops a user at three personal keys.
 - `keys-edit` renames a key or changes its expiry.
 - `keys-rotate` replaces a key's secret and shows the new one once.
-- `keys-delete` deletes a key after a confirmation page.
+- `keys-delete` deletes a key after the confirm dialog. Without JavaScript the link opens a confirm page that asks the same question.
 - `keys-scope` refuses every action and the detail page on another user's key and on service account keys.
 
 ## How to get to it (user POV)
@@ -32,7 +32,7 @@ Preconditions:
 - **Call the gateway.** With the secret from the create step, call `/v1/models` and `/v1/chat/completions` as `../SKILL.md` describes under `Call the gateway`. Both return 200.
 - **Edit.** Run `aqv click --role link --name "Edit proof-key"`, fill `Name`, and choose `Save changes`. The table shows the new name.
 - **Rotate.** On the key's detail page, run `aqv click --role button --name Rotate`. The list shows `Your key is ready` with a new secret, and the preview in the table changes. On the list, the row button is `Rotate <key name>`.
-- **Delete.** Run `aqv click --role link --name "Delete <key name>"`. The page shows the heading `Confirm Deletion`. Run `aqv click --role button --name "Confirm Delete"`. The row is gone and the count drops by one.
+- **Delete.** Run `aqv click --role link --name "Delete <key name>"`. The dialog asks `Delete <key name>?` with `Apps using it stop working, and its requests, files, batches, and vector stores are deleted.` Run `aqv click --role button --name Delete --exact`. The page reads `API key <key name> deleted.`, the row is gone, and the count drops by one. `aqv open /aqueduct/management/tokens/<id>/delete/` shows the same question as a page.
 - **Limit.** Create keys until the page reads `3 of 3 personal keys`. `Create API key` then is a disabled button instead of a link.
 - **Scope.** Sign in as `team-member` and open `/aqueduct/management/tokens/1/` and `/aqueduct/management/tokens/1/edit/`. Both return 404. Sign in as `team-admin` and open `/aqueduct/management/tokens/5/`. It returns 404 too. Read the key's name with `aqv shell` to show it did not change.
 

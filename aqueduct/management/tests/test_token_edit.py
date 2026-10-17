@@ -63,6 +63,6 @@ class TokenEditViewOwnershipTests(TestCase):
             self._url(token.id), {"name": "renamed", "expires_at": ""}, follow=True
         )
         self.assertRedirects(resp, reverse("token_detail", kwargs={"id": token.id}))
-        self.assertContains(resp, "API key &quot;renamed&quot; updated successfully.")
+        self.assertContains(resp, "API key renamed saved.")
         token.refresh_from_db()
         self.assertEqual(token.name, "renamed")
