@@ -41,7 +41,8 @@ def server_cards(
             url=f"{base_url}{path}",
         )
 
-    return tuple(card(name, server) for name, server in config.items())
+    cards = (card(name, server) for name, server in config.items())
+    return tuple(server for server in cards if server.usable)
 
 
 def client_config(card: MCPServerCard) -> str:

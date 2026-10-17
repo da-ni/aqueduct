@@ -486,14 +486,15 @@ class MCPServersPageTest(ResourcePagesTestBase):
         self.assertContains(response, "&quot;mcpServers&quot;")
         self.assertNotContains(response, "Off for")
 
-    def test_server_switched_off_for_the_org_is_marked(self):
+    def test_server_unavailable_to_every_key_is_not_listed(self):
         self.org.excluded_mcp_servers = ["aqueduct"]
         self.org.save()
         profile = self.owner.profile
         profile.merge_mcp_server_exclusion_lists = True
         profile.save()
         response = self.as_user(self.owner).get(reverse("mcp_servers"))
-        self.assertContains(response, "Off for you")
+        self.assertNotIn("aqueduct", [server.name for server in response.context["servers"]])
+        self.assertNotContains(response, "Available with")
 
     @override_settings(MCP_CONFIG_FILE_PATH="/nonexistent/mcp.json")
     def test_missing_config_shows_the_error(self):

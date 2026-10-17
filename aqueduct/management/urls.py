@@ -21,9 +21,9 @@ urlpatterns = [
         name="organization_limits",
     ),
     path(
-        "organization/<int:id>/switch-offs/",
-        views.OrgSwitchOffsEditView.as_view(),
-        name="organization_switch_offs",
+        "organization/<int:id>/availability/",
+        views.OrgAvailabilityEditView.as_view(),
+        name="organization_availability",
     ),
     path("team/create/", views.TeamCreateView.as_view(), name="team_create"),
     path("team/<int:id>/delete/", views.TeamDeleteView.as_view(), name="team_delete"),

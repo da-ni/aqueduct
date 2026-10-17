@@ -15,6 +15,7 @@ from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DeleteView, DetailView, TemplateView, UpdateView
 
 from gateway.rate_limiting import get_per_token_usage
+from management.availability import Reach, configured_mcp_servers, configured_models
 from management.forms import TokenCreateForm
 from management.key_activity import Expiry, KeyKind, key_list, key_report, personal_tokens
 from management.models import Token
@@ -69,8 +70,8 @@ class TokenDetailView(BaseAqueductView, DetailView):
             expiry=Expiry.of(token.expires_at, now),
             limits=token.get_limit(),
             usage=get_per_token_usage([token.id])[token.id],
-            excluded_models=token.model_exclusion_list(),
-            excluded_mcp_servers=token.mcp_server_exclusion_list(),
+            models=Reach.of(configured_models(), token.model_exclusion_list()),
+            mcp_servers=Reach.of(configured_mcp_servers(), token.mcp_server_exclusion_list()),
             team=team,
             can_manage=team is None or self.profile.is_team_admin(team),
         )

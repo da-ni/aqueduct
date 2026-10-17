@@ -9,6 +9,7 @@ from django.test import override_settings
 from django.urls import reverse
 
 from gateway.config import get_mcp_config
+from management.availability import configured_mcp_servers, configured_models
 from management.models import Org, ServiceAccount, Token, UserGroup
 from management.models.token import HIERARCHY
 from management.tests.test_api_keys_pages import make_token
@@ -29,7 +30,14 @@ LIMITS = {
     "hourly_limit_multiplier": "30",
     "daily_limit_multiplier": "",
 }
-SWITCH_OFFS = {"excluded_models": ["gpt-4.1-nano"], "merge_exclusion_lists": "on"}
+
+
+def available(*unavailable: str, mcp: tuple[str, ...] | None = None) -> dict:
+    """The availability form as posted with every box checked except `unavailable`."""
+    data: dict = {"available_models": [m for m in configured_models() if m not in unavailable]}
+    if mcp is not None:
+        data["available_mcp_servers"] = [s for s in configured_mcp_servers() if s not in mcp]
+    return data
 
 
 @contextmanager
@@ -42,7 +50,11 @@ def mcp_config(path: Path | str) -> Iterator[None]:
         get_mcp_config.cache_clear()
 
 
-EDITS = (("organization_limits", LIMITS), ("organization_switch_offs", SWITCH_OFFS))
+def edits() -> tuple[tuple[str, dict], ...]:
+    return (
+        ("organization_limits", LIMITS),
+        ("organization_availability", available("gpt-4.1-nano")),
+    )
 
 
 class OrganizationTestBase(TeamsPagesTestBase):
@@ -77,7 +89,7 @@ class OrganizationPageTest(OrganizationTestBase):
         self.assertContains(response, "1 service account")
         self.assertContains(response, "600")
         self.assertContains(response, reverse("organization_limits", args=[self.org.id]))
-        self.assertContains(response, reverse("organization_switch_offs", args=[self.org.id]))
+        self.assertContains(response, reverse("organization_availability", args=[self.org.id]))
         self.assertNotContains(response, reverse("org_switch"))
 
     def test_org_admin_of_another_org_sees_only_their_own(self):
@@ -120,7 +132,7 @@ class OrganizationEditPermissionTest(OrganizationTestBase):
 
     def test_signed_out_goes_to_sign_in_and_changes_nothing(self):
         before = self.stored(self.org)
-        for name, data in EDITS:
+        for name, data in edits():
             with self.subTest(name):
                 url = self.url(name)
                 self.assert_sent_to_sign_in(self.client.get(url), url)
@@ -130,7 +142,7 @@ class OrganizationEditPermissionTest(OrganizationTestBase):
     def test_refused_roles_get_404_and_change_nothing(self):
         before = self.stored(self.org)
         for user in (self.member, self.team_admin, self.outsider, self.other_org_admin):
-            for name, data in EDITS:
+            for name, data in edits():
                 with self.subTest(user=user.username, form=name):
                     client = self.as_user(user)
                     self.assertEqual(client.get(self.url(name)).status_code, HTTPStatus.NOT_FOUND)
@@ -140,7 +152,7 @@ class OrganizationEditPermissionTest(OrganizationTestBase):
 
     def test_org_admin_and_admin_may_edit(self):
         for user in (self.org_admin, self.admin):
-            for name, data in EDITS:
+            for name, data in edits():
                 with self.subTest(user=user.username, form=name):
                     response = self.as_user(user).post(self.url(name), data)
                     self.assertRedirects(
@@ -180,41 +192,65 @@ class OrganizationEditFormTest(OrganizationTestBase):
 
     def test_unknown_model_is_a_form_error_and_changes_nothing(self):
         before = self.stored(self.org)
-        response = self.post("organization_switch_offs", {"excluded_models": ["no-such-model"]})
+        response = self.post("organization_availability", {"available_models": ["no-such-model"]})
         self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertTrue(response.context["form"].has_error("excluded_models"))
+        self.assertTrue(response.context["form"].has_error("available_models"))
         self.assertEqual(self.stored(self.org), before)
 
-    def test_switch_offs_missing_from_the_config_are_shown_and_kept(self):
+    def form(self):
+        url = reverse("organization_availability", args=[self.org.id])
+        return self.as_user(self.org_admin).get(url).context["form"]
+
+    def test_every_box_starts_checked(self):
+        self.assertEqual(self.form()["available_models"].value(), configured_models())
+
+    def test_saving_unchanged_keeps_what_is_stored(self):
+        self.org.excluded_models = ["retired-model", "whisper-1", "gpt-4.1-nano"]
+        self.org.save()
+        with mcp_config(TEST_MCP_CONFIG):
+            self.org.excluded_mcp_servers = ["retired-server", "aqueduct"]
+            self.org.save()
+            form = self.form()
+            data = {name: form[name].value() for name in form.fields}
+            self.assertEqual(self.post("organization_availability", data).status_code, 302)
+        org = Org.objects.get(pk=self.org.pk)
+        self.assertEqual(org.excluded_models, ["retired-model", "whisper-1", "gpt-4.1-nano"])
+        self.assertEqual(org.excluded_mcp_servers, ["retired-server", "aqueduct"])
+
+    def test_clearing_a_box_makes_the_model_unavailable(self):
+        self.post("organization_availability", available("dall-e-2", "whisper-1"))
+        self.assertCountEqual(
+            Org.objects.get(pk=self.org.pk).excluded_models, ["dall-e-2", "whisper-1"]
+        )
+
+    def test_names_missing_from_the_config_are_shown_unchecked_and_kept(self):
         self.org.excluded_models = ["retired-model", "gpt-4.1-nano"]
         self.org.save()
         form = self.as_user(self.org_admin).get(
-            reverse("organization_switch_offs", args=[self.org.id])
+            reverse("organization_availability", args=[self.org.id])
         )
-        self.assertContains(form, "retired-model (not in the current config, kept)")
-        response = self.post(
-            "organization_switch_offs",
-            {"excluded_models": ["retired-model", "gpt-4.1-nano", "dall-e-2"]},
-        )
+        self.assertContains(form, "retired-model (not in the current config)")
+        self.assertNotIn("retired-model", form.context["form"]["available_models"].value())
+        response = self.post("organization_availability", available("gpt-4.1-nano", "dall-e-2"))
         self.assertEqual(response.status_code, HTTPStatus.FOUND)
-        self.assertCountEqual(
+        self.assertEqual(
             Org.objects.get(pk=self.org.pk).excluded_models,
             ["retired-model", "gpt-4.1-nano", "dall-e-2"],
         )
 
-    def test_a_switch_off_missing_from_the_config_can_be_removed(self):
+    def test_checking_a_name_missing_from_the_config_removes_it(self):
         self.org.excluded_models = ["retired-model"]
         self.org.save()
-        self.post("organization_switch_offs", {"excluded_models": []})
+        data = available()
+        data["available_models"].append("retired-model")
+        self.post("organization_availability", data)
         self.assertEqual(Org.objects.get(pk=self.org.pk).excluded_models, [])
 
-    def test_mcp_switch_offs_missing_from_the_config_are_kept(self):
+    def test_mcp_names_missing_from_the_config_are_kept(self):
         self.org.excluded_mcp_servers = ["retired-server"]
         self.org.save()
         with mcp_config(TEST_MCP_CONFIG):
-            response = self.post(
-                "organization_switch_offs", {"excluded_mcp_servers": ["retired-server"]}
-            )
+            response = self.post("organization_availability", available(mcp=()))
         self.assertEqual(response.status_code, HTTPStatus.FOUND)
         self.assertEqual(Org.objects.get(pk=self.org.pk).excluded_mcp_servers, ["retired-server"])
 
@@ -228,15 +264,13 @@ class OrganizationEditFormTest(OrganizationTestBase):
         self.org.excluded_mcp_servers = ["kept"]
         self.org.save()
         with mcp_config("/nonexistent/mcp.json"):
-            response = self.post("organization_switch_offs", SWITCH_OFFS)
+            response = self.post("organization_availability", available("gpt-4.1-nano"))
         self.assertEqual(response.status_code, HTTPStatus.FOUND)
         self.assertEqual(Org.objects.get(pk=self.org.pk).excluded_mcp_servers, ["kept"])
 
     def test_mcp_servers_switch_off_for_the_org(self):
         with mcp_config(TEST_MCP_CONFIG):
-            self.post(
-                "organization_switch_offs", {**SWITCH_OFFS, "excluded_mcp_servers": ["aqueduct"]}
-            )
+            self.post("organization_availability", available("gpt-4.1-nano", mcp=("aqueduct",)))
         key = make_token(self.member, "laptop")
         self.assertTrue(enforced(key).mcp_server_excluded("aqueduct"))
         self.assertFalse(enforced(key).mcp_server_excluded("test-server"))
@@ -245,8 +279,8 @@ class OrganizationEditFormTest(OrganizationTestBase):
 class OrganizationEditGatewayTest(OrganizationTestBase):
     """An edit here changes what the gateway enforces for keys in the org."""
 
-    def switch_off(self, user, org: Org, data: dict):
-        url = reverse("organization_switch_offs", args=[org.id])
+    def save(self, user, org: Org, data: dict):
+        url = reverse("organization_availability", args=[org.id])
         return self.as_user(user).post(url, data)
 
     def test_switch_off_reaches_personal_and_service_account_keys_of_the_org(self):
@@ -254,19 +288,19 @@ class OrganizationEditGatewayTest(OrganizationTestBase):
         foreign = make_token(self.other_org_admin, "elsewhere")
         self.assertFalse(enforced(personal).model_excluded("gpt-4.1-nano"))
 
-        self.switch_off(self.org_admin, self.org, SWITCH_OFFS)
+        self.save(self.org_admin, self.org, available("gpt-4.1-nano"))
 
         self.assertTrue(enforced(personal).model_excluded("gpt-4.1-nano"))
         self.assertTrue(enforced(self.pipeline_key).model_excluded("gpt-4.1-nano"))
         self.assertFalse(enforced(personal).model_excluded("whisper-1"))
         self.assertFalse(enforced(foreign).model_excluded("gpt-4.1-nano"))
 
-        self.switch_off(self.org_admin, self.org, {"merge_exclusion_lists": "on"})
+        self.save(self.org_admin, self.org, available())
         self.assertFalse(enforced(personal).model_excluded("gpt-4.1-nano"))
 
     def test_foreign_org_admin_cannot_switch_off_a_model_for_this_org(self):
         personal = make_token(self.member, "laptop")
-        response = self.switch_off(self.other_org_admin, self.org, SWITCH_OFFS)
+        response = self.save(self.other_org_admin, self.org, available("gpt-4.1-nano"))
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
         self.assertFalse(enforced(personal).model_excluded("gpt-4.1-nano"))
 
@@ -274,10 +308,18 @@ class OrganizationEditGatewayTest(OrganizationTestBase):
     def test_clearing_merge_makes_the_server_defaults_available(self):
         personal = make_token(self.member, "laptop")
         self.assertTrue(enforced(personal).model_excluded("whisper-1"))
-        self.switch_off(self.org_admin, self.org, {})
+        self.save(self.org_admin, self.org, available())
         self.assertFalse(enforced(personal).model_excluded("whisper-1"))
 
-    def test_models_page_shows_the_org_switch_off(self):
-        self.switch_off(self.org_admin, self.org, SWITCH_OFFS)
+    def test_merge_box_appears_only_with_server_defaults(self):
+        url = reverse("organization_availability", args=[self.org.id])
+        form = self.as_user(self.org_admin).get(url).context["form"]
+        self.assertNotIn("merge_exclusion_lists", form.fields)
+        with override_settings(AQUEDUCT_DEFAULT_MODEL_EXCLUSION_LIST=["whisper-1"]):
+            response = self.as_user(self.org_admin).get(url)
+        self.assertContains(response, "The server configuration makes whisper-1 unavailable")
+
+    def test_models_page_hides_a_model_unavailable_in_the_org(self):
+        self.save(self.org_admin, self.org, available("gpt-4.1-nano"))
         response = self.as_user(self.member).get(reverse("models"), {"model": "gpt-4.1-nano"})
-        self.assertContains(response, "Off for you")
+        self.assertNotIn("gpt-4.1-nano", [card.name for card in response.context["catalog"].cards])

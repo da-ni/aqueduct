@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from .admin import get_mcp_server_choices, get_model_choices
+from .availability import AvailabilityForm, configured_mcp_servers
 from .models import Org, ServiceAccount, Team, Token, UserProfile
 
 NAME_INPUT = "input w-full max-w-md"
@@ -208,68 +208,53 @@ class OrgLimitsForm(forms.ModelForm):
         }
 
 
-def switch_off_choices(known: list[str], stored: list[str]) -> list[tuple[str, str]]:
-    """The configured names, then stored names the config no longer has, so a save keeps them."""
-    missing = [name for name in stored if name not in known]
-    return [(name, name) for name in known] + [
-        (name, f"{name} (not in the current config, kept)") for name in missing
-    ]
-
-
 class CheckboxList(forms.CheckboxSelectMultiple):
     template_name = "management/widgets/checkboxes.html"
 
 
-class OrgSwitchOffsForm(forms.ModelForm):
-    """Org switch-offs, limited to the models and MCP servers the gateway knows."""
-
-    excluded_models = forms.MultipleChoiceField(
-        required=False, widget=CheckboxList(attrs={"class": CHECKBOX}), label="Switched off models"
-    )
-    excluded_mcp_servers = forms.MultipleChoiceField(
-        required=False,
-        widget=CheckboxList(attrs={"class": CHECKBOX}),
-        label="Switched off MCP servers",
-    )
+class OrgAvailabilityForm(AvailabilityForm):
+    """What keys in the org may use, limited to the models and MCP servers the gateway knows."""
 
     class Meta:
         model = Org
-        fields: ClassVar[list] = [
-            "excluded_models",
-            "merge_exclusion_lists",
-            "excluded_mcp_servers",
-            "merge_mcp_server_exclusion_lists",
-        ]
+        fields: ClassVar[list] = ["merge_exclusion_lists", "merge_mcp_server_exclusion_lists"]
         widgets: ClassVar[dict] = {
             "merge_exclusion_lists": forms.CheckboxInput(attrs={"class": CHECKBOX}),
             "merge_mcp_server_exclusion_lists": forms.CheckboxInput(attrs={"class": CHECKBOX}),
         }
         labels: ClassVar[dict] = {
-            "merge_exclusion_lists": "Also switch off the server's default models",
-            "merge_mcp_server_exclusion_lists": "Also switch off the server's default MCP servers",
-        }
-        help_texts: ClassVar[dict] = {
-            "merge_exclusion_lists": "The server configuration can name models to switch off "
-            "everywhere. Clear this to make them available in this organization.",
-            "merge_mcp_server_exclusion_lists": "The server configuration can name MCP servers "
-            "to switch off everywhere. Clear this to make them available in this organization.",
+            "merge_exclusion_lists": "Apply the server's default unavailable models",
+            "merge_mcp_server_exclusion_lists": "Apply the server's default unavailable MCP "
+            "servers",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        org = self.instance
-        self.fields["excluded_models"].choices = switch_off_choices(
-            get_model_choices(), org.excluded_models
-        )
-        servers = get_mcp_server_choices()
-        if servers:
-            self.fields["excluded_mcp_servers"].choices = switch_off_choices(
-                servers, org.excluded_mcp_servers
+        for name in ("available_models", "available_mcp_servers"):
+            self.fields[name].widget = CheckboxList(
+                attrs={"class": CHECKBOX}, choices=self.fields[name].choices
             )
-        else:
+        self.fields["available_models"].help_text = (
+            "Clear a box to make the model unavailable to keys in this organization. "
+            "A model added to the configuration later starts out available."
+        )
+        defaults = {
+            "merge_exclusion_lists": settings.AQUEDUCT_DEFAULT_MODEL_EXCLUSION_LIST,
+            "merge_mcp_server_exclusion_lists": settings.AQUEDUCT_DEFAULT_MCP_SERVER_EXCLUSION_LIST,
+        }
+        for name, names in defaults.items():
+            # Without server defaults the box changes nothing, and leaving it out keeps it.
+            if names:
+                self.fields[name].help_text = (
+                    f"The server configuration makes {', '.join(names)} unavailable everywhere. "
+                    "Clear this to make them available in this organization."
+                )
+            else:
+                del self.fields[name]
+        if not configured_mcp_servers():
             # Without the field the form leaves the stored list as it is.
-            del self.fields["excluded_mcp_servers"]
-            del self.fields["merge_mcp_server_exclusion_lists"]
+            del self.fields["available_mcp_servers"]
+            self.fields.pop("merge_mcp_server_exclusion_lists", None)
 
 
 class MemberEmailForm(forms.Form):

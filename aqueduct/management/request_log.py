@@ -15,6 +15,7 @@ from django.urls import reverse
 from django.utils.http import urlencode
 
 from management.key_activity import FAILED, of_keys, router_models, served
+from management.model_catalog import scopes_for, usable_models
 from management.models import Org, Request, Team, Token, UserProfile
 from management.models.token import of_org
 from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
@@ -291,7 +292,13 @@ def read_filters(
         found = tokens.filter(key_search(key_q, by_owner=sees_others))
         matches = tuple(describe(token) for token in found[:KEY_MATCHES])
 
-    models = tuple(sorted(router_models()))
+    if sees_others:
+        models = tuple(sorted(router_models()))
+    else:
+        # A user's list: what their keys may use, and what their requests used.
+        visible = visible_requests(profile, org, teams).order_by()
+        used = visible.values_list("model", flat=True).distinct()
+        models = tuple(sorted({*usable_models(scopes_for(profile)), *used}))
     model = params.get("model") if params.get("model") in models else None
     if model is not None:
         requests = requests.filter(model=model)

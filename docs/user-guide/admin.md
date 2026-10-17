@@ -247,21 +247,26 @@ The token limits must match the serving engine, for example the
 `--max-model-len` of vLLM. A quantized deployment can serve less than the model
 card states.
 
-## Excluding Models
+## Model availability
 
-To exclude models for Orgs, Teams or specific UserProfiles, select the models to
-be excluded in the detail view admin interface of the specific entity. Excluded
-models are not available in any endpoints (returns 404) and are filtered from
-the `/v1/models` list. The [Models](models.md#check-where-a-model-is-available)
-page marks them as switched off.
+The detail view of an Org, Team, or UserProfile has an **Availability** section.
+Every model under **Available models** starts checked. Clear a box to make the
+model unavailable. Aqueduct stores the cleared names as the `excluded_models`
+list. An unavailable model returns 404 on every endpoint, is left out of the
+`/v1/models` list, and does not show on the [Models](models.md) page for people
+who cannot use it. A stored name that the router config no longer has shows as a
+cleared box labelled `(not in the current config)`. Saving keeps it.
 
-Org admins and admins can also set an org's limits, its excluded models and MCP
-servers, and both merge flags on the [Organization](organization.md) page of the
-management UI.
+**Also apply the organization's unavailable models** on a Team or UserProfile is
+the `merge_exclusion_lists` field. On an Org, the same field is **Also apply the
+server's default unavailable models**.
+
+Org admins and admins can also set an org's limits and its available models and
+MCP servers on the [Organization](organization.md) page of the management UI.
 
 ![Exclude Models](../assets/user_guide/exclude_models.png)
 
-### Merge Exclusion Lists
+### Merge exclusion lists
 
 The `merge_exclusion_lists` field determines how exclusion lists are built
 across the User, Team, Org, and global settings levels. When
@@ -289,7 +294,7 @@ users from accessing certain MCP servers while allowing access to others.
 
 To exclude MCP servers:
 1. Navigate to the Org, Team, or UserProfile detail view in the Django Admin
-2. In the "Excluded MCP Servers" section, select the servers you want to exclude
+2. In the **Availability** section, clear the boxes of the servers under **Available MCP servers**
 3. Save the changes
 
 When an MCP server is excluded:

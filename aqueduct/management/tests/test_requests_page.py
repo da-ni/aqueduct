@@ -260,6 +260,21 @@ class RequestsFilterTest(RequestsPageTestBase):
         self.assertNotIn(">/own</div>", content)
         self.assertNotIn(">/invalid</div>", content)
 
+    def test_model_list_of_a_user_is_what_their_keys_may_use_or_used(self):
+        self.org.excluded_models = [MODEL, OTHER_MODEL, "dall-e-2"]
+        self.org.save()
+        self.team.excluded_models = ["dall-e-2"]
+        self.team.merge_exclusion_lists = False
+        self.team.save()
+        owner = self.get(self.owner).context["filters"].models
+        self.assertIn(MODEL, owner)  # unavailable now, but in the owner's requests
+        self.assertNotIn(OTHER_MODEL, owner)
+        self.assertNotIn("dall-e-2", owner)
+        member = self.get(self.member).context["filters"].models
+        self.assertIn(OTHER_MODEL, member)  # the team's service account may use it
+        self.assertNotIn("dall-e-2", member)
+        self.assertIn("dall-e-2", self.get(self.org_admin).context["filters"].models)
+
     def test_key_filter(self):
         response = self.get(self.owner, key=self.key.id)
         self.assertEqual(self.paths_on(response), {"/own"})

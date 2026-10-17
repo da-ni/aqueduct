@@ -280,30 +280,34 @@ class ModeTest(SimpleTestCase):
 
 
 class AvailabilityTest(SimpleTestCase):
-    def test_no_scopes_means_no_badge(self):
-        card = parse_card(entry("m"))
-        self.assertEqual((card.off_for, card.off_badge), ((), ""))
-
-    def test_badge_names_the_first_switched_off_scope(self):
+    def test_usable_while_one_scope_allows_it(self):
         cases = [
-            ((personal("m"),), "Off for you"),
-            ((personal("m"), team("Whale", "m")), "Off for you"),
-            ((personal(), team("Whale", "m")), "Off for Whale"),
-            ((personal(), team("Orca", "m"), team("Whale", "m")), "Off for Orca +1"),
-            ((personal("m"), team("Orca", "m"), team("Whale")), "Off for you +1"),
+            ((), True),
+            ((personal(),), True),
+            ((personal("m"),), False),
+            ((personal("m"), team("Whale")), True),
+            ((personal("m"), team("Whale", "m")), False),
         ]
-        for scopes, badge in cases:
-            with self.subTest(badge=badge):
-                self.assertEqual(parse_card(entry("m"), scopes).off_badge, badge)
+        for scopes, usable in cases:
+            with self.subTest(scopes=scopes):
+                self.assertEqual(parse_card(entry("m"), scopes).usable, usable)
 
-    def test_notice_lists_where_it_is_off_and_on(self):
-        card = parse_card(entry("m"), (personal(), team("Orca", "m"), team("Whale", "m")))
-        self.assertEqual(card.off_names, "Orca service accounts and Whale service accounts")
-        self.assertEqual(card.on_names, "your personal keys")
+    def test_names_the_keys_only_when_some_cannot_use_it(self):
+        cases = [
+            ((personal(), team("Whale")), ""),
+            ((personal(), team("Orca", "m"), team("Whale", "m")), "your personal keys"),
+            (
+                (personal("m"), team("Orca"), team("Whale")),
+                "Orca service accounts and Whale service accounts",
+            ),
+        ]
+        for scopes, keys in cases:
+            with self.subTest(keys=keys):
+                self.assertEqual(parse_card(entry("m"), scopes).available_with, keys)
 
-    def test_an_excluded_alias_switches_nothing_off(self):
+    def test_an_excluded_alias_hides_nothing(self):
         card = parse_card(entry("m", aliases=["a"]), (personal("a"),))
-        self.assertEqual(card.off_for, ())
+        self.assertTrue(card.usable)
 
 
 class CatalogTest(SimpleTestCase):
@@ -383,50 +387,50 @@ class ModelsPageTest(TestCase):
             response, f"{reverse('sso')}?next={reverse('models')}", fetch_redirect_response=False
         )
 
-    def test_user_sees_every_model_and_no_switch_off(self):
+    def test_user_sees_every_model_when_nothing_is_unavailable(self):
         response = self.page()
         self.assertEqual(rows(response), [raw["model_name"] for raw in EXAMPLE_ENTRIES])
         self.assertEqual(selected(response), "gpt-4.1-nano")
-        self.assertNotContains(response, "Off for")
-        self.assertNotContains(response, "Switched off")
+        self.assertNotContains(response, "Available with")
         self.assertContains(response, "curl http://testserver/v1/chat/completions")
 
-    def test_team_member_sees_the_team_switch_off(self):
+    def test_a_model_one_of_the_keys_may_use_names_those_keys(self):
         self.switch_off(self.whale, "whisper-1")
         response = self.page(model="whisper-1")
-        self.assertContains(response, "Off for Whale", count=1)
-        self.assertContains(response, "Switched off for Whale service accounts.")
-        self.assertContains(response, "Still available for your personal keys.")
-        self.assertNotContains(response, "in admin</a>")
+        self.assertIn("whisper-1", rows(response))
+        self.assertContains(response, "Available with your personal keys.")
 
-    def test_non_member_does_not_see_the_team_switch_off(self):
+    def test_a_model_none_of_the_keys_may_use_is_not_listed(self):
+        self.switch_off(self.whale, "whisper-1")
+        self.switch_off(UserProfile.objects.get(user_id=3), "whisper-1")
+        response = self.page(model="whisper-1")
+        self.assertNotIn("whisper-1", rows(response))
+        self.assertNotEqual(selected(response), "whisper-1")
+        self.assertNotContains(response, "whisper-1")
+        self.assertEqual(self.page(q="stt").context["cards"], ())
+
+    def test_another_teams_exclusion_hides_nothing(self):
         self.switch_off(self.whale, "whisper-1")
         outsider = User.objects.create_user("outsider", "outsider@example.com")
         UserProfile.objects.create(user=outsider, org=self.org)
         response = self.page(user_pk=outsider.pk, model="whisper-1")
-        self.assertNotContains(response, "Off for")
-        self.assertNotContains(response, "Switched off")
+        self.assertEqual(selected(response), "whisper-1")
+        self.assertNotContains(response, "Available with")
 
-    def test_org_switch_off_reaches_only_scopes_that_merge(self):
+    def test_org_exclusion_reaches_only_scopes_that_merge(self):
         self.switch_off(self.org, "dall-e-2")
-        self.assertContains(self.page(), "Off for you")
+        self.assertNotIn("dall-e-2", rows(self.page()))
         self.switch_off(UserProfile.objects.get(user_id=3), merge=False)
-        self.assertContains(self.page(), "Off for Whale")
+        self.assertContains(self.page(model="dall-e-2"), "Available with your personal keys.")
         self.switch_off(self.whale, merge=False)
-        self.assertNotContains(self.page(), "Off for")
+        self.assertNotContains(self.page(model="dall-e-2"), "Available with")
 
-    def test_staff_get_an_admin_link_per_switched_off_scope(self):
+    def test_admins_see_only_what_their_keys_may_use(self):
         self.switch_off(self.whale, "whisper-1")
         self.switch_off(UserProfile.objects.get(user_id=1), "whisper-1")
-        response = self.page(user_pk=1, model="whisper-1")
-        self.assertContains(
-            response, "Switched off for your personal keys and Whale service accounts."
-        )
-        for url in (
-            reverse("admin:management_team_change", args=[self.whale.pk]),
-            reverse("admin:auth_user_change", args=[1]),
-        ):
-            self.assertContains(response, f'href="{url}"')
+        response = self.page(user_pk=1)
+        self.assertNotIn("whisper-1", rows(response))
+        self.assertNotContains(response, "in admin</a>")
 
     def test_type_tab_lists_only_that_type(self):
         response = self.page(type="images")
@@ -508,17 +512,16 @@ class ModelsPageTest(TestCase):
         self.assertNotContains(response, "Model card")
         self.assertNotContains(response, '<th class="hidden w-36 md:table-cell">Aliases</th>')
 
-    def test_switch_offs_match_what_the_gateway_enforces(self):
+    def test_listed_models_are_those_one_of_the_keys_may_call(self):
         self.switch_off(self.org, "dall-e-2")
-        self.switch_off(UserProfile.objects.get(user_id=1), "gpt-4.1-nano", "tts")
-        self.switch_off(self.whale, "whisper-1")
-        catalog = self.page(user_pk=1).context["catalog"]
-        for team, token in ((None, Token.objects.get(pk=1)), ("Whale", Token.objects.get(pk=2))):
-            outcomes = set()
-            for card in catalog.cards:
-                page_off = any(scope.team == team for scope in card.off_for)
-                outcomes.add(page_off)
-                for key in (card.name, *card.aliases):
-                    with self.subTest(token=token.name, key=key):
-                        self.assertEqual(page_off, token.model_excluded(key))
-            self.assertEqual(outcomes, {True, False})
+        self.switch_off(UserProfile.objects.get(user_id=1), "gpt-4.1-nano", "tts", "whisper-1")
+        self.switch_off(self.whale, "whisper-1", "gpt-4.1-nano")
+        listed = {card.name for card in self.page(user_pk=1).context["catalog"].cards}
+        keys = (Token.objects.get(pk=1), Token.objects.get(pk=2))
+        for raw in EXAMPLE_ENTRIES:
+            name = raw["model_name"]
+            with self.subTest(model=name):
+                callable_by = [key.name for key in keys if not key.model_excluded(name)]
+                self.assertEqual(name in listed, bool(callable_by))
+        self.assertNotIn("whisper-1", listed)
+        self.assertIn("gpt-4o-mini-tts", listed)

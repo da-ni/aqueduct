@@ -36,6 +36,11 @@
     if (dismissButton) dismissButton.parentElement.remove();
     const metricLink = event.target.closest('[data-metric-show]');
     if (metricLink) showMetric(event, metricLink);
+    const checkAll = event.target.closest('[data-check-all]');
+    if (checkAll) {
+      const boxes = checkAll.closest('[data-checklist]').querySelectorAll('input[type=checkbox]');
+      boxes.forEach((box) => { box.checked = checkAll.dataset.checkAll === 'true'; });
+    }
     toggleRow(event);
   });
   document.addEventListener('auxclick', (event) => {

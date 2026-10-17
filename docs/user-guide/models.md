@@ -52,11 +52,10 @@ A model with a retirement date carries a **Deprecated** badge, and its panel sho
 
 You can send an alias instead of the model name in the `model` parameter. The model behind an alias can change, for example when a newer version replaces it. Your requests keep working without a change.
 
-## Check where a model is available
+## Check which keys can use a model
 
-Admins can switch a model off for an organization, a team, or a single user. The page checks this for each place your keys live: your personal keys, and the service accounts of each team you are in.
+The page lists only the models that at least one of your keys can use: your personal keys, or the service accounts of a team you are in. Admins can make a model unavailable for an organization, a team, or a single user. The page then leaves it out, as `/v1/models` does for a key.
 
-- A model switched off for some of your keys shows a badge such as `Off for Verify Team`. The panel says where the model is switched off and where you can still use it.
-- A model switched off for all of your keys shows `Off for you`.
+When only some of your keys can use a model, the panel names them, for example `Available with your personal keys.` A request with another key returns `404`.
 
-A request to a switched-off model returns `404`. To change where a model is switched off, ask an admin. Admins get an **Edit … in admin** link in the panel. See [Excluding Models](admin.md#excluding-models).
+To get a model you do not see, ask an admin. See [Model availability](admin.md#model-availability).

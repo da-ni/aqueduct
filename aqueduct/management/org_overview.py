@@ -6,7 +6,7 @@ from management.models import LimitSet, Org, ServiceAccount, Team, Token
 
 
 @dataclass(frozen=True)
-class SwitchOffRow:
+class UnavailableRow:
     team: Team | None
     models: tuple[str, ...]
     mcp_servers: tuple[str, ...]
@@ -20,7 +20,7 @@ class OrgPage:
     limits: LimitSet
     multipliers: tuple[tuple[str, str], ...]
     max_personal_keys: int
-    switch_offs: tuple[SwitchOffRow, ...]
+    unavailable: tuple[UnavailableRow, ...]
 
 
 def _multiplier(value: int | None, default: int) -> str:
@@ -31,13 +31,13 @@ def org_page(org: Org) -> OrgPage:
     """Everything the organization page shows. The view decides who may see it."""
     teams = list(org.teams.order_by("name"))
     # A blank parent makes Token's rule add the server defaults exactly when the org merges them.
-    everyone = SwitchOffRow(
+    everyone = UnavailableRow(
         team=None,
         models=tuple(sorted(Token.exclusion_list_from_objects(org, Org()))),
         mcp_servers=tuple(sorted(Token._mcp_server_exclusion_list_from_objects(org, Org()))),
     )
     team_rows = tuple(
-        SwitchOffRow(
+        UnavailableRow(
             team=team,
             models=tuple(sorted(team.excluded_models)),
             mcp_servers=tuple(sorted(team.excluded_mcp_servers)),
@@ -61,5 +61,5 @@ def org_page(org: Org) -> OrgPage:
             ),
         ),
         max_personal_keys=settings.MAX_USER_TOKENS,
-        switch_offs=(everyone, *team_rows),
+        unavailable=(everyone, *team_rows),
     )

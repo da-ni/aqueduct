@@ -15,7 +15,7 @@ nav_order: 10
 
 ---
 
-The Organization page shows the default limits of your organization and what is switched off in it. Org admins and admins edit both here. Choose **Organization** under **Admin** in the sidebar.
+The Organization page shows the default limits of your organization and what is unavailable in it. Org admins and admins edit both here. Choose **Organization** under **Admin** in the sidebar.
 
 Only org admins of the organization and admins see this page. Other users who open it are sent to the [Teams](teams.md) page.
 
@@ -26,7 +26,7 @@ Only org admins of the organization and admins see this page. Other users who op
 The top of the page shows the number of people, teams, and service accounts in the organization. The team count opens the Teams page.
 
 - **Limits** shows the default limits for each key in the organization. Teams and people use these limits unless they have limits of their own. **Personal keys per person** comes from the server configuration and cannot be changed here.
-- **Switched off** shows the models and MCP servers that are switched off for everyone in the organization, and for each team that switches off something of its own. A team name opens its team page.
+- **Unavailable** shows the models and MCP servers that are unavailable to everyone in the organization, and to each team that has its own list. A team name opens its team page.
 
 Admins see the organization they chose in the sidebar. See [Choose an organization](index.md#choose-an-organization).
 
@@ -42,15 +42,16 @@ The **Edit** link next to the default limit on the Teams page opens the same for
 
 If a request goes over a limit, the API answers with HTTP status `429 Too Many Requests`.
 
-## Switch off models and MCP servers
+## Choose the available models and MCP servers
 
-1. Choose **Edit** on the **Switched off** card.
-2. Select the models under **Switched off models** and the servers under **Switched off MCP servers**.
-3. Optional: clear **Also switch off the server's default models** or **Also switch off the server's default MCP servers**. The server configuration can switch off models and MCP servers everywhere. Clear the box to make them available in this organization.
-4. Choose **Save changes**.
+1. Choose **Edit** on the **Unavailable** card.
+2. Under **Available models** and **Available MCP servers**, clear the box of each one that keys in the organization must not use. Every box starts checked. **Select all** and **Select none** set a long list at once.
+3. Choose **Save changes**.
 
-A request to a switched-off model or MCP server returns `404`. The [Models](models.md) and [MCP servers](mcp-servers.md) pages show where each one is switched off.
+A request to an unavailable model or MCP server returns `404`. The [Models](models.md) and [MCP servers](mcp-servers.md) pages do not show it to people who cannot use it. A model added to the configuration later is available until you clear its box.
 
-The form lists only the models and MCP servers of the current configuration. A stored switch-off that the configuration no longer has shows as a selected box labelled `(not in the current config, kept)`. Saving keeps it. Clear the box to remove it.
+The server configuration can also make models or MCP servers unavailable everywhere. The form then shows **Apply the server's default unavailable models** or **Apply the server's default unavailable MCP servers**. Clear the box to make them available in this organization.
 
-Team and user switch-offs are still edited in the Admin panel. See [Excluding Models](admin.md#excluding-models).
+The form lists the models and MCP servers of the current configuration. An unavailable name that the configuration no longer has shows as a cleared box labelled `(not in the current config)`. Saving keeps it unavailable. Check the box to remove it.
+
+Team and user availability is edited in the Admin panel. See [Model availability](admin.md#model-availability).

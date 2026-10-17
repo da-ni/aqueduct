@@ -37,17 +37,17 @@
             </div>
         </section>
 
-        <section class="card bg-base-200 lg:col-span-3" aria-labelledby="switch-offs-title">
+        <section class="card bg-base-200 lg:col-span-3" aria-labelledby="unavailable-title">
             <div class="card-body gap-4 p-5">
                 <div class="flex items-center justify-between gap-3">
-                    <h2 id="switch-offs-title" class="text-xl font-semibold">Switched off</h2>
-                    <a class="link-plain text-sm" href="{% url 'organization_switch_offs' org_object.id %}" aria-label="Edit switch-offs">Edit</a>
+                    <h2 id="unavailable-title" class="text-xl font-semibold">Unavailable</h2>
+                    <a class="link-plain text-sm" href="{% url 'organization_availability' org_object.id %}" aria-label="Edit availability">Edit</a>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="table">
                         <thead><tr><th>For</th><th>Models</th><th>MCP servers</th></tr></thead>
                         <tbody>
-                            {% for row in page.switch_offs %}
+                            {% for row in page.unavailable %}
                                 <tr>
                                     <td>{% if row.team %}<a class="link-plain" href="{% url 'team' row.team.id %}">{{ row.team.name }}</a>{% else %}Everyone in {{ org_object.name }}{% endif %}</td>
                                     <td>{% if row.models %}<div class="flex flex-wrap gap-1.5">{% for model in row.models %}<span class="badge badge-sm bg-base-100 font-mono">{{ model }}</span>{% endfor %}</div>{% else %}<span class="muted">None</span>{% endif %}</td>
@@ -57,7 +57,7 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="muted border-t border-base-300 pt-4 text-sm">Teams and people that use only their own switch-offs do not get the first row.</p>
+                <p class="muted border-t border-base-300 pt-4 text-sm">Teams and people that do not apply the organization's unavailable models and MCP servers skip the first row.</p>
             </div>
         </section>
     </div>

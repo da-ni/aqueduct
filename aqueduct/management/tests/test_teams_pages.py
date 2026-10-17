@@ -231,12 +231,16 @@ class TeamDetailTest(TeamsPagesTestBase):
         self.assertContains(response, '<span class="text-2xl font-semibold">50%</span>', html=True)
         self.assertContains(response, ">4K<")
 
-    def test_switched_off_models_and_limits_are_listed(self):
+    def test_unavailable_models_show_only_to_org_admins(self):
         self.team.excluded_models = ["gpt-image-1"]
+        self.team.save()
+        self.assertNotContains(self.as_user(self.member).get(self.url()), "gpt-image-1")
+        self.assertContains(self.as_user(self.org_admin).get(self.url()), "gpt-image-1")
+
+    def test_limits_are_listed(self):
         self.team.input_tokens_per_minute = 5000
         self.team.save()
         response = self.as_user(self.member).get(self.url())
-        self.assertContains(response, "gpt-image-1")
         self.assertContains(
             response,
             '<div class="flex items-baseline gap-2"><dt class="muted">Input tokens per minute</dt>'

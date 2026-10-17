@@ -30,12 +30,12 @@
                             <div class="flex min-w-0 flex-1 flex-col gap-1">
                                 <h2 class="break-all text-xl font-semibold">{{ server.name }}</h2>
                                 {% if server.description %}<p class="muted text-sm">{{ server.description }}</p>{% endif %}
+                                {% if server.available_with %}<p class="muted text-sm">Available with {{ server.available_with }}.</p>{% endif %}
                             </div>
                         </div>
-                        {% if server.tags or server.off_badge %}
+                        {% if server.tags %}
                             <div class="flex flex-wrap gap-1.5">
                                 {% for tag in server.tags %}<span class="badge badge-sm bg-base-100 font-mono">{{ tag }}</span>{% endfor %}
-                                {% if server.off_badge %}<span class="badge badge-outline badge-sm font-mono uppercase" title="Switched off for {{ server.off_names }}">{{ server.off_badge }}</span>{% endif %}
                             </div>
                         {% endif %}
                         <div class="copy-field mt-auto">

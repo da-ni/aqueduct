@@ -235,6 +235,7 @@ class TeamDetailView(BaseTeamView, TeamViewerRequiredMixin, DetailView):
             member_query=member_query,
             is_team_admin=self.profile.is_team_admin(team),
             can_manage_admins=can_manage_admins,
+            is_org_admin=can_manage_admins,
             can_delete=self.is_org_admin(),
             can_edit_in_admin=self.request.user.is_staff,
             max_service_accounts=max_service_accounts,

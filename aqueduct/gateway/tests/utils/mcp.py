@@ -17,6 +17,7 @@ from django.test import override_settings
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
+from gateway.config import get_mcp_config
 from gateway.tests.utils.test_runner import (
     get_mcp_server_port,
     get_shared_mcp_server_process,
@@ -84,6 +85,8 @@ class MCPDaphneProcess(DaphneProcess):
         from django.conf import settings
 
         settings.MCP_CONFIG_FILE_PATH = str(MCP_CONFIG_PATH)
+        # A forked server inherits the config an earlier test cached in the parent process.
+        get_mcp_config.cache_clear()
         logger.info("Updating MCP_CONFIG_FILE_PATH: %s", settings.MCP_CONFIG_FILE_PATH)
 
         # Configure MCP security settings for testing
