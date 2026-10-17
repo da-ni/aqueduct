@@ -171,7 +171,7 @@ class TeamViewerRequiredMixin:
         except Http404:
             messages.error(request, "The requested team was not found.")
             return redirect(reverse_lazy("org"))
-        if team not in self.get_teams_for_user():
+        if not self.get_teams_for_user().filter(pk=team.pk).exists():
             messages.error(request, f"You do not have permission to view the team '{team.name}'.")
             return redirect(reverse_lazy("org"))
         return super().dispatch(request, *args, **kwargs)

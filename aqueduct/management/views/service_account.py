@@ -4,14 +4,15 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
+from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import CreateView, DeleteView, UpdateView
 
-from management.forms import ServiceAccountForm
-from management.models import ServiceAccount, Token, UserProfile  # Added UserProfile
+from management.forms import MemberEmailForm, ServiceAccountForm
+from management.models import ServiceAccount, Token  # Added UserProfile
 
 # Import base views/mixins and models/forms
 # Assuming base.py is in the same directory level
@@ -210,148 +211,60 @@ class ServiceAccountUpdateView(BaseServiceAccountView, UpdateView):
         return context
 
 
-# --- Transfer Ownership View ---
-# Uses BaseServiceAccountView to fetch SA and handle permissions via TeamAdminRequiredMixin
 class ServiceAccountTransferOwnershipView(BaseServiceAccountView, View):
-    """
-    Handles the transfer of a Service Account's API key ownership to another user within the team.
-    Requires the requesting user to be an admin of the Service Account's team.
-    GET displays the transfer form, POST processes the transfer.
-    """
+    """Hands a service account's key to another member of its team, named by email.
+    Requires the requesting user to be an admin of the service account's team."""
 
     template_name = "management/transfer_service_account.html"
-    pk_url_kwarg = "service_account_id"  # Tell base view how to find the SA ID
-
-    # get_object is inherited from BaseServiceAccountView, returns the SA
-    # get_team_object is inherited from BaseServiceAccountView for the mixin
+    pk_url_kwarg = "service_account_id"
 
     def get_success_url(self) -> str:
-        """Redirect back to the team detail page."""
-        # self.team_object is set by the mixin via BaseServiceAccountView's get_team_object
         return reverse("team", kwargs={"id": self.team_object.id})
 
-    def get_context_data(self, **kwargs) -> dict[str, object]:
-        """Prepare context for the GET request (displaying the form)."""
-        context = {}
-        # self.service_account_object is set by BaseServiceAccountView's dispatch->get_object
-        # self.team_object is set by BaseServiceAccountView's dispatch->get_team_object
-        sa = self.service_account_object
+    def owner_form(self, data=None) -> MemberEmailForm:
         team = self.team_object
+        return MemberEmailForm(
+            data,
+            candidates=team.member_profiles.all(),
+            not_found=f"{{email}} is not a member of {team.name}.",
+        )
 
-        context["service_account"] = sa
-        context["team"] = team
-        context["cancel_url"] = self.get_success_url()
-        context["view_title"] = "Transfer ownership"
-
-        try:
-            current_token = Token.objects.get(service_account=sa)
-            current_owner = current_token.user
-            context["current_owner_email"] = current_owner.email if current_owner else None
-            # Eligible users are members of the team, excluding the current token owner
-            eligible_profiles = team.member_profiles.exclude(user=current_owner).select_related(
-                "user"
-            )
-        except Token.DoesNotExist:
-            # This case should ideally not happen if SA exists, but handle gracefully
-            context["current_owner_email"] = None
-            eligible_profiles = team.member_profiles.all().select_related(
-                "user"
-            )  # Show all members if no owner known
-            messages.warning(self.request, f"Could not find the current token owner for {sa.name}.")
-        except Exception:
-            # Log error e
-            messages.error(self.request, "An error occurred while determining eligible users.")
-            eligible_profiles = UserProfile.objects.none()  # Return empty queryset on error
-
-        context["eligible_users"] = eligible_profiles
-        return context
+    def render_form(self, form: MemberEmailForm, token: Token | None) -> HttpResponse:
+        team = self.team_object
+        owner = token.user if token else None
+        context = {
+            "service_account": self.get_object(),
+            "team": team,
+            "form": form,
+            "current_owner_email": owner.email if owner else None,
+            "has_other_members": team.member_profiles.exclude(user=owner).exists(),
+            "cancel_url": self.get_success_url(),
+            "view_title": "Transfer ownership",
+        }
+        return TemplateResponse(request=self.request, template=self.template_name, context=context)
 
     def get(self, request, *args, **kwargs) -> HttpResponse:
-        """Handles GET requests: displays the transfer form."""
-        # Fetch SA and Team objects using base view methods (called by dispatch)
-        self.object = self.get_object()  # Fetches SA via pk_url_kwarg
-        # Permission check is implicitly done by TeamAdminRequiredMixin
-        # in dispatch via get_team_object
-
-        context = self.get_context_data()
-        return self.render_to_response(context)
+        token = Token.objects.filter(service_account=self.get_object()).select_related("user")
+        return self.render_form(self.owner_form(), token.first())
 
     @method_decorator(transaction.atomic)
     def post(self, request, *args, **kwargs) -> HttpResponse:
-        """Handles POST requests: processes the token transfer."""
-        # Fetch SA and Team objects using base view methods (called by dispatch)
         sa = self.get_object()
-        team = self.get_team_object()  # Team context needed for validation/redirect
-        redirect_url = self.get_success_url()
-
-        # Permission check (is_team_admin) is handled by TeamAdminRequiredMixin
-        # (via BaseServiceAccountView)
-
-        target_profile_id = request.POST.get("target_profile_id")
-
-        if not target_profile_id:
-            messages.error(request, "No target user selected for transfer.")
-            # Rerender the form if possible, or redirect back
-            # For simplicity, redirecting back to the form page (GET) might be easiest
-            # Or consider redirecting back to the team page
-            return redirect(request.path)  # Redirect back to the GET view of this transfer page
-
-        try:
-            # Validate the target profile
-            target_profile = get_object_or_404(
-                UserProfile.objects.select_related("user"),  # Select related user
-                id=target_profile_id,
-                org=team.org,  # Ensure target user is in the same org as the team
-            )
-
-            # Ensure the target profile is actually a member of the team
-            if not team.member_profiles.filter(id=target_profile.id).exists():
-                messages.error(
-                    request,
-                    f"Selected user {target_profile.user.email} is not a member "
-                    f"of team {team.name}.",
-                )
-                return redirect(request.path)  # Redirect back to the form
-
-            # Get the token to transfer
-            token = Token.objects.select_for_update().get(service_account=sa)
-            original_owner_email = token.user.email if token.user else "(No Owner)"
-
-            if token.user == target_profile.user:
-                messages.info(
-                    request,
-                    f"{target_profile.user.email} already owns the token "
-                    f"for Service Account '{sa.name}'.",
-                )
-            else:
-                token.user = target_profile.user  # Assign the target user
-                token.save(update_fields=["user"])
-                messages.success(
-                    request,
-                    f"API key ownership for '{sa.name}' transferred from {original_owner_email} to "
-                    f"{target_profile.user.email}.",
-                )
-
-        except UserProfile.DoesNotExist:
-            messages.error(
-                request,
-                "Selected target user profile not found or not in this team's organization.",
-            )
-            return redirect(request.path)  # Redirect back to the form
-        except Token.DoesNotExist:
-            messages.error(
-                request, f"No token found for Service Account '{sa.name}'. Cannot transfer."
-            )
-        except Exception as e:
-            messages.error(request, f"An unexpected error occurred during token transfer: {e}")
-            # Consider redirecting back to form or team page depending on error
-            return redirect(request.path)  # Redirect back to form on generic error
-
-        return redirect(redirect_url)  # Redirect to team page on success
-
-    # --- Helper for GET request ---
-    def render_to_response(self, context) -> HttpResponse:
-        # A helper method like Django's TemplateResponseMixin would provide
-        from django.template.response import TemplateResponse
-
-        return TemplateResponse(request=self.request, template=self.template_name, context=context)
+        token = Token.objects.select_for_update().filter(service_account=sa).first()
+        if token is None:
+            messages.error(request, f"Service account '{sa.name}' has no key to transfer.")
+            return redirect(self.get_success_url())
+        form = self.owner_form(request.POST)
+        if form.is_valid() and form.profile.user_id == token.user_id:
+            form.add_error("email", f"{form.profile.user.email} already owns this key.")
+        if not form.is_valid():
+            return self.render_form(form, token)
+        previous = token.user.email if token.user else "(No Owner)"
+        token.user = form.profile.user
+        token.save(update_fields=["user"])
+        messages.success(
+            request,
+            f"API key ownership for '{sa.name}' transferred from {previous} to "
+            f"{form.profile.user.email}.",
+        )
+        return redirect(self.get_success_url())

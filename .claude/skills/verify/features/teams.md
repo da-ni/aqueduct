@@ -4,8 +4,8 @@ Users see the teams they may open on the Teams page, with members, service accou
 
 ## Sub-features
 
-- `teams-list` lists the teams a user may see: their own with their role, or every team in the org for an org admin. A search box filters by team name. Admins switch the org there.
-- `team-detail` shows a team's totals, service accounts with owner, tokens, last use, and expiry, its members with their role, and its limits and switched-off models.
+- `teams-list` lists the teams a user may see: their own with their role, or every team in the org for an org admin. A search box filters by team name. The list shows 50 teams per page. Admins switch the org there.
+- `team-detail` shows a team's totals, service accounts with owner, tokens, last use, and expiry, its members with their role (team admins first, 50 per page, `?q=` searches emails), and its limits and switched-off models.
 - `team-members` adds and removes members.
 - `team-admins` makes a member a team admin or removes the role.
 - `team-service-accounts` creates, rotates, edits, transfers, and deletes service accounts.
@@ -28,13 +28,15 @@ Preconditions:
 - **List as org admin.** Run `aqv login org-admin --next /aqueduct/management/org/`. The page shows a `Create team` link and no `Your role` column.
 - **Create a team.** As `org-admin`, run `aqv click --role link --name "Create team"`, `aqv fill --label Name --value "Proof Team"`, then `aqv click --role button --name "Create team"`. The page returns to the Teams page with `Proof Team` in the table.
 - **Detail as team admin.** Run `aqv login team-admin --next /aqueduct/management/team/1`. The page shows `Edit`, `Add service account`, the `Service accounts` table with `verify-pipeline`, and `Members`. The remove button `Remove team-admin@verify.invalid from the team` is disabled because that user owns a service account here.
-- **Add a member.** On the same page, read the profile ID with `aqv shell -c "from management.models import UserProfile; print(UserProfile.objects.get(user__username='user').id)"`, then run `aqv select --label "Add someone from Verify Org" --value <id>` and `aqv click --role button --name "Add member"`. `user@verify.invalid` appears under `Members`.
+- **Add a member.** On the same page, run `aqv fill --label "Email of someone in Verify Org to add" --value user@verify.invalid` and `aqv click --role button --name "Add member"`. `user@verify.invalid` appears under `Members`. An email outside `Verify Org`, such as `other-org-admin@verify.invalid`, re-renders the page with `No one in Verify Org uses <email>.` under the field. An existing member gives `<email> is already in this team.`
 - **Remove a member.** Run `aqv click --role button --name "Remove user@verify.invalid from the team"`.
-- **Service account.** Choose `Add service account`, fill `Name`, and choose `Create service account`. The team page shows `Your key is ready` with the secret. The row buttons are `Rotate <name>`, `Edit <name>`, `Transfer <name>`, and `Delete <name>`. Rotate shows `Your key is ready` again. Transfer opens a form with the select `New owner` and the button `Transfer ownership`. Delete opens `Confirm Deletion`, then `Confirm Delete`.
+- **Service account.** Choose `Add service account`, fill `Name`, and choose `Create service account`. The team page shows `Your key is ready` with the secret. The row buttons are `Rotate <name>`, `Edit <name>`, `Transfer <name>`, and `Delete <name>`. Rotate shows `Your key is ready` again. Transfer opens a form with the email field `New owner` and the button `Transfer ownership`. An email of someone outside the team gives `<email> is not a member of Verify Team.` Delete opens `Confirm Deletion`, then `Confirm Delete`.
 - **Appoint a team admin.** Run `aqv login org-admin --next /aqueduct/management/team/1`, then `aqv click --role button --name "Make team admin"`. The page shows `team-member@verify.invalid is now a team admin for Verify Team.`
 - **Refused for a plain user.** Run `aqv login user --next /aqueduct/management/team/1`. The browser lands on `/aqueduct/management/org/` with the message that the user may not view the team.
 
 ## Gotchas
+
+- The seed has too few members and teams to show the pagers. They appear only past 50 rows. Add rows with `aqv shell` to see them, and say in the evidence that you did.
 
 - A refused team action redirects with a message. It does not return 403. Prove a refusal by the message and by reading the database with `aqv shell`.
 - On `main` at the time of writing, an org admin of another org can delete a team and appoint team admins by ID. Use `other-org-admin` against team 1 to check a fix for that.

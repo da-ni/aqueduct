@@ -15,7 +15,7 @@
             <h1 class="text-3xl font-semibold">{{ team.name }}</h1>
             {% if team.description %}<p class="text-sm">{{ team.description }}</p>{% endif %}
             <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-                <span>{{ page.members|length }} member{{ page.members|length|pluralize }}</span>
+                <span>{{ page.member_count }} member{{ page.member_count|pluralize }}</span>
                 <span>{{ page.service_accounts|length }} of {{ max_service_accounts }} service accounts</span>
             </div>
         </div>
@@ -120,18 +120,27 @@
 
     <section class="card bg-base-200" aria-labelledby="members-title">
         <div class="card-body gap-2 p-5">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 id="members-title" class="text-xl font-semibold">Members</h2>
-                {% if is_team_admin and page.addable %}
-                    <form method="post" class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-3">
+                    <h2 id="members-title" class="text-xl font-semibold">Members</h2>
+                    <form method="get" role="search">
+                        <label class="input input-sm w-56">
+                            {% icon "search" small=True %}
+                            <input type="search" name="q" value="{{ member_query }}" placeholder="Search members" aria-label="Search members by email">
+                        </label>
+                    </form>
+                </div>
+                {% if is_team_admin %}
+                    <form method="post" class="flex w-full flex-col gap-1 sm:w-auto">
                         {% csrf_token %}
-                        <select name="user_profile_to_add_id" class="select select-sm w-full sm:w-72" aria-label="Add someone from {{ team.org.name }}" required>
-                            <option value="" disabled selected>Add someone from {{ team.org.name }}</option>
-                            {% for profile in page.addable %}
-                                <option value="{{ profile.id }}">{{ profile.user.email }}</option>
-                            {% endfor %}
-                        </select>
-                        <button type="submit" class="btn btn-sm btn-primary">{% icon "plus" small=True %}Add member</button>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <input type="email" name="email" value="{{ add_form.email.value|default:'' }}" required
+                                   class="input input-sm w-full sm:w-72{% if add_form.email.errors %} input-error{% endif %}"
+                                   placeholder="Email of someone in {{ team.org.name }}" aria-label="Email of someone in {{ team.org.name }} to add"
+                                   {% if add_form.email.errors %}aria-invalid="true" aria-describedby="add-member-error"{% endif %}>
+                            <button type="submit" class="btn btn-sm btn-primary">{% icon "plus" small=True %}Add member</button>
+                        </div>
+                        {% if add_form.email.errors %}<span id="add-member-error" class="text-sm text-error">{{ add_form.email.errors|striptags }}</span>{% endif %}
                     </form>
                 {% endif %}
             </div>
@@ -185,11 +194,12 @@
                                 {% endif %}
                             </tr>
                         {% empty %}
-                            <tr><td colspan="{% if is_team_admin %}3{% else %}2{% endif %}" class="muted">This team has no members.</td></tr>
+                            <tr><td colspan="{% if is_team_admin %}3{% else %}2{% endif %}" class="muted">{% if member_query %}No member matches.{% else %}This team has no members.{% endif %}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+            {% include "management/_pager.html" with pages=page.member_pages %}
         </div>
     </section>
 

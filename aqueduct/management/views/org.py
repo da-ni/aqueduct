@@ -26,7 +26,13 @@ class OrgView(BaseAqueductView, TemplateView):
         context.update(
             is_org_admin=self.is_org_admin(),
             query=query,
-            rows=team_rows(self.get_teams_for_user(), self.profile, query, timezone.now()),
+            teams=team_rows(
+                self.get_teams_for_user(),
+                self.profile,
+                query,
+                self.request.GET.get("page", 1),
+                timezone.now(),
+            ),
             org_object=self.org,
             org_limits=LimitSet.from_objects(self.org, None),
             can_edit_in_admin=self.request.user.is_staff,
