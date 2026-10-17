@@ -707,6 +707,48 @@ class RequestsSearchTest(RequestsPageTestBase):
         self.assertNotIn('name="before"', form)
         self.assertIn('name="q" value="x"', form)
 
+    def test_text_search_needs_a_bounded_scan_and_an_id_search_does_not(self):
+        own = Request.objects.get(path="/own")
+        team_admin = self.user("team-admin")
+        TeamMembership.objects.create(
+            user_profile=team_admin.profile, team=self.team, is_admin=True
+        )
+        for user, params, searches_text in (
+            (self.org_admin, {"span": "1m"}, False),
+            (self.admin, {"span": "1m", "org": "all"}, False),
+            (self.org_admin, {"span": "1w"}, True),
+            (self.org_admin, {"span": "1m", "key": self.key.id}, True),
+            (self.org_admin, {"span": "1m", "model": MODEL}, True),
+            (self.org_admin, {"span": "1m", "scope": "mine"}, True),
+            (self.owner, {"span": "1m"}, True),
+            (team_admin, {"span": "1m"}, True),
+        ):
+            with self.subTest(user=user.username, **params):
+                response = self.get(user, **params, q="/own")
+                content = response.content.decode()
+                self.assertEqual(response.context["log"].searches_text, searches_text)
+                if searches_text:
+                    self.assertIn('aria-label="Search requests"', content)
+                    self.assertNotIn("to search text", content)
+                    continue
+                self.assertEqual(listed(response), [])
+                self.assertIn('placeholder="Request ID" aria-label="Request ID"', content)
+                self.assertIn("Narrow to 7 days or pick a key or model to search text.", content)
+                self.assertNotIn("to search text", self.get(user, **params).content.decode())
+                by_id = self.get(user, **params, q=str(own.id))
+                self.assertEqual(listed(by_id), ["/own"])
+                self.assertEqual(by_id.context["log"].tabs[0].count, 1)
+                self.assertNotIn("to search text", by_id.content.decode())
+
+    def test_a_blocked_text_search_leaves_the_org_wide_counts_alone(self):
+        wide = {"span": "1m"}
+        total = self.get(self.org_admin, **wide).context["log"].tabs[0].count
+        self.assertEqual(self.get(self.org_admin, **wide, q="/own").context["log"].tabs[0].count, 0)
+        self.assertEqual(self.get(self.org_admin, **wide).context["log"].tabs[0].count, total)
+        self.assertEqual(
+            self.get(self.org_admin, span="1w", q="/own").context["log"].tabs[0].count, 1
+        )
+
 
 class RequestsSortTest(RequestsPageTestBase):
     def setUp(self):

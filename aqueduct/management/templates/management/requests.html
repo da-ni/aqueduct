@@ -25,11 +25,12 @@
             {% for name, value in search_params %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
             <label class="input input-sm w-full sm:w-96">
                 {% icon "search" small=True %}
-                <input type="search" name="q" value="{{ log.search }}" maxlength="256" placeholder="Request ID, path, user ID or user agent" aria-label="Search requests">
+                <input type="search" name="q" value="{{ log.search }}" maxlength="256" {% if log.searches_text %}placeholder="Request ID, path, user ID or user agent" aria-label="Search requests"{% else %}placeholder="Request ID" aria-label="Request ID"{% endif %}>
                 <button type="submit" class="btn btn-ghost btn-xs -me-2">Search</button>
             </label>
             {% if log.search %}<a class="btn btn-ghost btn-sm" href="{% querystring q=None key_q=None before=None after=None page=None request=None %}">Clear</a>{% endif %}
         </form>
+        {% if log.text_blocked %}<p class="w-full text-sm opacity-70 sm:text-right">Narrow to 7 days or pick a key or model to search text.</p>{% endif %}
     </div>
 
     <section class="card bg-base-200">
