@@ -67,7 +67,7 @@
                             <tr>
                                 <td>
                                     {% if row.token %}<a class="link-plain row-link break-words font-mono" href="{% url 'token_detail' row.token.id %}">{{ sa.name }}</a>{% else %}<span class="break-words font-mono">{{ sa.name }}</span>{% endif %}
-                                    <div class="muted truncate text-xs" title="{{ row.token.user.email }}">{{ row.token.user.email|default:"No owner" }} · <span class="font-mono">{{ row.token.key_preview|default:"No key" }}</span></div>
+                                    <div class="muted truncate text-xs"><span class="relative z-10" title="{{ row.token.user.email }}">{{ row.token.user.email|default:"No owner" }}</span> · <span class="font-mono">{{ row.token.key_preview|default:"No key" }}</span></div>
                                 </td>
                                 <td>
                                     <div class="flex items-center gap-3">
@@ -102,7 +102,7 @@
                             </tr>
                             {% endwith %}
                         {% empty %}
-                            <tr><td colspan="5" class="muted">This team has no service accounts.</td></tr>
+                            <tr><td colspan="{% if is_team_admin %}5{% else %}4{% endif %}" class="muted">This team has no service accounts.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -184,7 +184,7 @@
                                 {% endif %}
                             </tr>
                         {% empty %}
-                            <tr><td colspan="3" class="muted">This team has no members.</td></tr>
+                            <tr><td colspan="{% if is_team_admin %}3{% else %}2{% endif %}" class="muted">This team has no members.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
