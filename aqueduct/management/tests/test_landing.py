@@ -65,3 +65,15 @@ class LandingTest(UsagePageTestBase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, reverse("usage"))
+
+    def test_django_admin_turns_away_a_signed_in_user_who_is_not_staff(self):
+        self.client.force_login(self.solo)
+        response = self.client.get(reverse("admin:index"), follow=True)
+        self.assertEqual(response.status_code, 403)
+
+    def test_django_admin_login_sends_signed_in_staff_on_to_the_admin(self):
+        self.admin.is_staff = True
+        self.admin.save()
+        self.client.force_login(self.admin)
+        login = self.client.get(reverse("admin_sso"), {"next": reverse("admin:index")})
+        self.assertRedirects(login, reverse("admin:index"), fetch_redirect_response=False)

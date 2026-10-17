@@ -31,7 +31,7 @@ terms_of_service = path(
 urlpatterns = [
     # SSO view from management app
     path(r"login/", views.SSOTemplateView.as_view(), name="sso"),
-    path(r"aqueduct/admin/login/", views.SSOTemplateView.as_view(), name="admin_sso"),
+    path(r"aqueduct/admin/login/", views.AdminSSOView.as_view(), name="admin_sso"),
     path("oidc/", include("mozilla_django_oidc.urls")),
     path("aqueduct/management/", include("management.urls")),
     path("aqueduct/admin/", admin.site.urls),

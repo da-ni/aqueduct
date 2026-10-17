@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.auth import REDIRECT_FIELD_NAME
+from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponseBase, HttpResponseRedirect
 from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -44,3 +45,13 @@ class SSOTemplateView(TemplateView):
         context["OIDC_PROVIDER"] = getattr(settings, "OIDC_PROVIDER", "SSO")
         context["next"] = safe_next(self.request)
         return context
+
+
+class AdminSSOView(SSOTemplateView):
+    """The Django admin's login page. A signed-in user who is not staff gets a 403, since
+    sending them back to the admin would bounce them here again."""
+
+    def dispatch(self, request, *args, **kwargs) -> HttpResponseBase:
+        if request.user.is_authenticated and not request.user.is_staff:
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
