@@ -59,7 +59,7 @@ Type in the search field above the table and choose **Search**. The log then sho
 
 The search applies inside the filters, the status tab, and the time frame that you chose. The tab counts and the line under the table count the matching requests. Choose **Clear** to remove the search.
 
-A search reads every request that the filters allow. Over 30 days of a large organization, it can take some seconds. To make it faster, choose a shorter time frame, a key, or a model.
+A search by request ID works on any selection. A search for text reads every request that the filters allow, so it works on the same selections as sorting: 7 days or less, one key, or one model. Users and team admins can search their requests over all 30 days. Over all of an organization for 30 days, the field searches by request ID only, and its placeholder reads **Request ID**.
 
 ## Sort the log
 

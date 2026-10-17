@@ -406,7 +406,7 @@ class Tab:
 
 class Column(StrEnum):
     """A column the log sorts by. `TIME` pages by cursor. The others page by offset, which
-    sorts every matching request, so the log offers them only where `sorts_freely`."""
+    sorts every matching request, so the log offers them only on a `bounded_scan`."""
 
     TIME = "time"
     MODEL = "model"
@@ -465,17 +465,18 @@ class Sort:
 
 
 NEWEST = Sort(Column.TIME, descending=True)
-FREE_SORT_SPAN = timedelta(days=7)
+BOUNDED_SPAN = timedelta(days=7)
 
 
-def sorts_freely(filters: Filters) -> bool:
-    """Whether the log may sort by any column: the selection spans at most `FREE_SORT_SPAN`,
-    is one key or one model, or is no wider than the viewer's own keys and teams. Sorting by
-    time stays cheap on any selection, because it reads the timestamp index."""
+def bounded_scan(filters: Filters) -> bool:
+    """Whether the log may read every request of the selection, to sort by any column or search
+    their text: the selection spans at most `BOUNDED_SPAN`, is one key or one model, or is no
+    wider than the viewer's own keys and teams. Sorting by time and finding a request by id
+    stay cheap on any selection, because they read an index."""
     return (
         not counts_whole_org(filters)
         or filters.model is not None
-        or filters.period.end - filters.period.start <= FREE_SORT_SPAN
+        or filters.period.end - filters.period.start <= BOUNDED_SPAN
     )
 
 
@@ -593,20 +594,26 @@ class Pager:
 
 @dataclass(frozen=True)
 class RequestLog:
-    """One page of the log, of the requests in the chosen tab that match `search`. `count` is
-    the number of them. `shows_key` is false when every row is of the same key, and
-    `shows_overhead` is true for a viewer who sees the whole org."""
+    """One page of the log, of the requests in the chosen tab that match `search`, by id alone
+    unless `searches_text`. `count` is the number of them. `shows_key` is false when every row
+    is of the same key, and `shows_overhead` is true for a viewer who sees the whole org."""
 
     rows: tuple[Row, ...]
     tabs: tuple[Tab, ...]
     count: int
     outcome: Outcome | None
     search: str
+    searches_text: bool
     sort: Sort
     headers: Mapping[str, Header]
     pager: Pager
     shows_key: bool
     shows_overhead: bool
+
+    @property
+    def text_blocked(self) -> bool:
+        """Whether the search is text the selection is too wide to search."""
+        return bool(self.search) and not self.searches_text and parse_id(self.search) is None
 
     @property
     def end(self) -> int | None:
@@ -623,12 +630,14 @@ def counts_whole_org(filters: Filters) -> bool:
 SEARCH_MAX = 256
 
 
-def request_search(text: str) -> Q:
-    """Requests whose id is `text`, or whose path, user ID sent by the client, or user agent
-    holds it. No index serves this: the filters and the time frame bound the scan."""
-    found = Q(path__icontains=text) | Q(user_id__icontains=text) | Q(user_agent__icontains=text)
-    if (pk := parse_id(text)) is not None:
-        found |= Q(pk=pk)
+def request_search(text: str, *, by_text: bool) -> Q:
+    """Requests whose id is `text`, or, with `by_text`, whose path, user ID sent by the client,
+    or user agent holds it. No index serves the text: only a `bounded_scan` may search it."""
+    pk = parse_id(text)
+    found = Q(pk__in=[]) if pk is None else Q(pk=pk)
+    if by_text:
+        found |= Q(path__icontains=text) | Q(user_id__icontains=text)
+        found |= Q(user_agent__icontains=text)
     return found
 
 
@@ -774,7 +783,7 @@ def request_log(filters: Filters, params: Mapping[str, str]) -> RequestLog:
     An order the selection is too wide for falls back to newest first."""
     outcome = Outcome.parse(params.get("status", ""))
     search = params.get("q", "").strip()[:SEARCH_MAX]
-    free = sorts_freely(filters)
+    free = bounded_scan(filters)
     sort = Sort.parse(params.get("sort", "")) or NEWEST
     if not (free or sort.column is Column.TIME):
         sort = NEWEST
@@ -782,7 +791,7 @@ def request_log(filters: Filters, params: Mapping[str, str]) -> RequestLog:
 
     filtered = filters.period.of(filters.requests)
     if search:
-        filtered = filtered.filter(request_search(search))
+        filtered = filtered.filter(request_search(search, by_text=free))
     counts = _tab_counts(filters, filtered, search)
     tabs = (Tab(None, "All", counts[None]), *(Tab(o, o.label, counts[o]) for o in Outcome))
 
@@ -804,6 +813,7 @@ def request_log(filters: Filters, params: Mapping[str, str]) -> RequestLog:
         count=counts[outcome],
         outcome=outcome,
         search=search,
+        searches_text=free,
         sort=sort,
         headers=_headers(sort, free),
         pager=pager,
