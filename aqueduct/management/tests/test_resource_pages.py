@@ -11,7 +11,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from gateway.config import get_files_api_client, get_mcp_config
+from gateway.config import get_mcp_config
 from gateway.tests.utils.test_runner import get_shared_mock_server
 from management.models import (
     Batch,
@@ -248,8 +248,6 @@ class FileDeleteTest(ResourcePagesTestBase):
         self.assertTrue(FileObject.objects.filter(id=self.own_file.id).exists())
 
     def test_unconfigured_files_api_keeps_the_file(self):
-        get_files_api_client.cache_clear()
-        self.addCleanup(get_files_api_client.cache_clear)
         with self.settings(AQUEDUCT_FILES_API_URL=None):
             response = self.as_user(self.owner).post(self.url(self.own_file), follow=True)
         self.assertContains(response, "The Files API is not configured.")
@@ -613,11 +611,6 @@ class VectorStoreSyncTest(ResourcePagesTestBase):
 
 
 class MCPServersPageTest(ResourcePagesTestBase):
-    def setUp(self):
-        super().setUp()
-        get_mcp_config.cache_clear()
-        self.addCleanup(get_mcp_config.cache_clear)
-
     def test_signed_out_goes_to_sign_in(self):
         url = reverse("mcp_servers")
         self.assert_goes_to_sign_in(self.client.get(url), url)

@@ -1,6 +1,5 @@
 import tempfile
 from collections import Counter
-from contextlib import contextmanager
 from datetime import UTC, datetime
 from http import HTTPStatus
 from io import StringIO
@@ -14,7 +13,6 @@ from django.db import connection
 from django.db.models import Count
 from django.test import TestCase, override_settings
 
-from gateway.config import get_router_config
 from management.key_activity import router_models
 from management.management.commands.seed_demo import Builder, capped
 from management.models import Org, Request, ServiceAccount, Team, Token, UserGroup, UserProfile
@@ -38,14 +36,8 @@ def delete() -> None:
     call_command("seed_demo", delete=True, force=True, stdout=StringIO(), stderr=StringIO())
 
 
-@contextmanager
-def router_config(path):
-    get_router_config.cache_clear()
-    try:
-        with override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=path):
-            yield
-    finally:
-        get_router_config.cache_clear()
+def router_config(path) -> override_settings:
+    return override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=path)
 
 
 class CappedTest(TestCase):

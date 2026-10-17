@@ -9,8 +9,11 @@ from typing import override
 
 from django.conf import settings
 from django.core.cache import caches
+from django.core.signals import setting_changed
+from django.dispatch import receiver
 from django.test.runner import DiscoverRunner
 
+from gateway import config
 from mock_api.mock_server import MockAPIServer
 
 logger = logging.getLogger("aqueduct")
@@ -88,6 +91,28 @@ def get_mcp_server_port() -> int | None:
 
 def set_shared_mcp_server(process: subprocess.Popen, port: int) -> None:
     MockServerState.set_mcp_server(process, port)
+
+
+ROUTER_CACHES = (
+    config.get_router_config,
+    config.get_router,
+    config.get_openai_client,
+    config.get_all_model_request_limit_multipliers,
+)
+# The gateway caches what it builds from these settings for the life of the process.
+CACHES_BUILT_FROM_SETTING = {
+    "LITELLM_ROUTER_CONFIG_FILE_PATH": ROUTER_CACHES,
+    "MCP_CONFIG_FILE_PATH": (config.get_mcp_config,),
+    "AQUEDUCT_FILES_API_URL": (config.get_files_api_client,),
+    "AQUEDUCT_FILES_API_KEY": (config.get_files_api_client,),
+}
+
+
+@receiver(setting_changed)
+def clear_caches_built_from_the_setting(*, setting: str, **kwargs) -> None:
+    """Make override_settings reach the gateway's config, entering and leaving."""
+    for cached in CACHES_BUILT_FROM_SETTING.get(setting, ()):
+        cached.cache_clear()
 
 
 class _ClearCachesBeforeEachTest(unittest.TestResult):

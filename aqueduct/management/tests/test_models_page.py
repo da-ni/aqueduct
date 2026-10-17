@@ -13,7 +13,6 @@ from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import resolve, reverse
 
-from gateway.config import get_router_config
 from management.model_catalog import (
     MODES,
     OTHER_MODE,
@@ -466,8 +465,6 @@ class ModelsPageTest(TestCase):
     def page_with(self, entries, **params):
         with tempfile.NamedTemporaryFile("w", suffix=".yaml") as config:
             yaml.safe_dump({"model_list": entries}, config)
-            self.addCleanup(get_router_config.cache_clear)
-            get_router_config.cache_clear()
             with override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=config.name):
                 return self.page(**params)
 

@@ -43,6 +43,7 @@ from gateway.tests.utils.base import (
     ROUTER_CONFIG,
     GatewayIntegrationTestCase,
 )
+from gateway.tests.utils.test_runner import ROUTER_CACHES
 from management.models import Org, Request, ServiceAccount, Team, Token, UserProfile
 from management.models import Usage as AqueductUsage
 from mock_api.mock_configs import (
@@ -1970,6 +1971,11 @@ class ModelAliasConfigValidationTest(TransactionTestCase):
     These tests validate that the router config correctly validates aliases when loaded.
     """
 
+    def setUp(self):
+        # Each test caches a mocked router config. Later tests need the real one.
+        for cached in ROUTER_CACHES:
+            self.addCleanup(cached.cache_clear)
+
     def test_config_load_with_valid_aliases(self):
         """
         Test that config loads successfully when aliases are unique and valid.
@@ -2408,10 +2414,6 @@ class ModelAliasRoutingTest(GatewayIntegrationTestCase):
     tts_model = "gpt-4o-mini-tts"
     stt_model = "whisper-1"
     image_gen_model = "dall-e-2"
-
-    def setUp(self):
-        super().setUp()
-        get_router_config.cache_clear()
 
     def test_chat_completion_with_alias(self):
         """
