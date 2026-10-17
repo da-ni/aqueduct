@@ -75,6 +75,7 @@ class Span(StrEnum):
     DAY = "1d"
     WEEK = "1w"
     MONTH = "1m"
+    ALL = "all"
 
     @property
     def label(self) -> str:
@@ -89,11 +90,12 @@ class Span(StrEnum):
 
 
 DEFAULT_SPAN = Span.WEEK
-SPANS: Mapping[Span, tuple[str, Step, int]] = {
+SPANS: Mapping[Span, tuple[str, Step, int | None]] = {
     Span.HOUR: ("1 hour", MINUTE, 60),
     Span.DAY: ("24 hours", HOUR, 24),
     Span.WEEK: ("7 days", DAY, 7),
     Span.MONTH: ("30 days", DAY, 30),
+    Span.ALL: ("All retained", DAY, None),
 }
 
 
@@ -107,10 +109,12 @@ class Period:
     label: str
 
     @classmethod
-    def last(cls, span: Span, now: datetime) -> "Period":
+    def last(cls, span: Span, now: datetime, oldest: datetime) -> "Period":
+        """The last `span` before `now`. `Span.ALL` reaches back to `oldest`."""
         label, step, count = SPANS[span]
         end = step.floor(now) + step.size
-        return cls(end - count * step.size, end, step, label)
+        start = step.floor(oldest) if count is None else end - count * step.size
+        return cls(start, end, step, label)
 
     @classmethod
     def between(cls, start: datetime, end: datetime) -> "Period":
@@ -246,7 +250,8 @@ def kpis(
     medians: Sequence[int | None],
     before: Activity | None,
     before_median: int | None,
-    log_url: str,
+    requests_url: str,
+    failed_url: str,
 ) -> tuple[Kpi, ...]:
     """The headline figures, each with its change against the previous period when known.
 
@@ -300,13 +305,14 @@ def kpis(
             f"{now.requests:,}",
             relative("requests"),
             bars_of(lambda a: a.requests, as_requests),
-            log_url,
+            requests_url,
         ),
         Kpi(
             "Failed",
             now.failed_share,
             points("failed", "requests"),
             bars_of(lambda a: _ratio(a.failed, a.requests), _share),
+            failed_url,
         ),
         Kpi(
             "Median response",

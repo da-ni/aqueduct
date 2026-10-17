@@ -7,7 +7,7 @@ from django.views.generic import TemplateView
 from gateway.config import get_router_config, model_info_with_context
 from management import usage_report as report
 from management.model_catalog import mode_for
-from management.request_log import read_filters
+from management.request_log import Outcome, read_filters
 from management.views.base import BaseAqueductView
 
 
@@ -62,6 +62,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                     report.totals(previous.of(reqs)) if knows_previous else None,
                     report.median_ms(previous.of(reqs)) if knows_previous else None,
                     filters.log_url(),
+                    filters.log_url(status=Outcome.ERRORS.value),
                 ),
                 "compares_previous": knows_previous,
                 "metric": metric,
@@ -76,7 +77,8 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 "models": report.model_rows(in_period, model_kinds, filters.log_url),
                 "keys": keys,
                 "orgs_usage": report.org_shares(in_period) if selected_org is None else (),
-                "retention_warning": period.start < retention_start,
+                "retention_warning": filters.span is not report.Span.ALL
+                and period.start < retention_start,
                 "retention_days": int(retention_days),
             }
         )

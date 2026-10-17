@@ -148,7 +148,8 @@ class RequestsScopeTest(RequestsPageTestBase):
                 usage = self.client.get(reverse("usage"), {"span": "1m", **params})
                 overview = {row.codes: row.count for row in usage.context["statuses"]}
                 log = self.get(user, **params).context["log"]
-                self.assertEqual({tab.value: tab.count for tab in log.tabs[1:]}, overview)
+                groups = {tab.value: tab.count for tab in log.tabs if tab.value in overview}
+                self.assertEqual(groups, overview)
                 self.assertEqual(log.page.paginator.count, sum(overview.values()))
 
     def test_overview_links_to_the_log_with_its_filters(self):
@@ -182,11 +183,26 @@ class RequestsScopeTest(RequestsPageTestBase):
                 usage = self.client.get(reverse("usage"), params).context
                 figures = [(row.href, row.count) for row in usage["statuses"]]
                 figures += [(row.log_url, row.activity.requests) for row in usage["models"]]
-                requests = next(kpi for kpi in usage["kpis"] if kpi.label == "Requests")
-                figures.append((requests.href, int(requests.value)))
+                kpis = {kpi.label: kpi for kpi in usage["kpis"]}
+                total = int(kpis["Requests"].value)
+                failed = sum(row.count for row in usage["statuses"] if row.codes != "2xx")
+                if total:
+                    self.assertEqual(kpis["Failed"].value, f"{round(100 * failed / total)}%")
+                figures += [(kpis["Requests"].href, total), (kpis["Failed"].href, failed)]
                 for href, count in figures:
                     log = self.client.get(href).context["log"]
                     self.assertEqual(log.page.paginator.count, count, href)
+
+    def test_log_opens_on_every_retained_request(self):
+        self.log(self.key, "/overdue", ago=timedelta(days=31))
+        response = self.get(self.owner)
+        self.assertContains(response, ">/overdue</div>")
+        self.assertContains(response, 'aria-current="page">All retained</a>')
+        self.assertNotContains(self.get(self.owner, span="1m"), ">/overdue</div>")
+
+    def test_invalid_custom_range_shows_an_error(self):
+        response = self.get(self.owner, start="2020-01-02T00:00", end="2020-01-01T00:00")
+        self.assertContains(response, "Start must be before end.")
 
     def test_time_frame_limits_the_log(self):
         self.log(self.key, "/last-week", ago=timedelta(days=3))
@@ -215,7 +231,9 @@ class RequestsFilterTest(RequestsPageTestBase):
         self.log(self.key, "/broken", status_code=502)
         response = self.get(self.owner, status="429")
         tabs = {tab.label: tab.count for tab in response.context["log"].tabs}
-        self.assertEqual(tabs, {"All": 5, "2xx": 2, "429": 1, "Other 4xx": 1, "5xx": 1})
+        self.assertEqual(
+            tabs, {"All": 5, "Failed": 3, "2xx": 2, "429": 1, "Other 4xx": 1, "5xx": 1}
+        )
         content = response.content.decode()
         self.assertIn(">/limited</div>", content)
         self.assertNotIn(">/own</div>", content)

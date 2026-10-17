@@ -5,8 +5,9 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from http import HTTPStatus
 
+from django.conf import settings
 from django.core.paginator import Page, Paginator
-from django.db.models import Count, Q, QuerySet
+from django.db.models import Count, Min, Q, QuerySet
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -14,6 +15,7 @@ from django.utils import timezone
 from django.utils.http import urlencode
 
 from gateway.config import get_router_config
+from management.key_activity import FAILED
 from management.models import Org, Request, Team, Token, UserProfile
 from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
 
@@ -70,8 +72,10 @@ _OVERVIEW_STATUS = {
 
 
 class Outcome(StrEnum):
-    """The Overview page's status groups, as filters of the request log."""
+    """The Overview page's status groups, as filters of the request log. `ERRORS` is every
+    failed request, as the Overview page's Failed total counts them."""
 
+    ERRORS = "failed"
     OK = "2xx"
     RATE_LIMITED = "429"
     REFUSED = "4xx"
@@ -79,11 +83,11 @@ class Outcome(StrEnum):
 
     @property
     def label(self) -> str:
-        return "Other 4xx" if self is Outcome.REFUSED else self.value
+        return {Outcome.ERRORS: "Failed", Outcome.REFUSED: "Other 4xx"}.get(self, self.value)
 
     @property
     def matches(self) -> Q:
-        return _OVERVIEW_STATUS[self.value][3]
+        return FAILED if self is Outcome.ERRORS else _OVERVIEW_STATUS[self.value][3]
 
     @property
     def meaning(self) -> str:
@@ -266,7 +270,12 @@ def read_filters(
     if start and end and not custom_error:
         period, span = Period.between(start, end), None
     else:
-        period = Period.last(span, now)
+        oldest = now
+        if span is Span.ALL:
+            retained = now - timedelta(days=getattr(settings, "REQUEST_RETENTION_DAYS", 30))
+            first = requests.aggregate(first=Min("timestamp"))["first"]
+            oldest = min(first or retained, retained)
+        period = Period.last(span, now, oldest)
 
     return Filters(
         orgs=tuple(Org.objects.order_by("name")) if profile.is_admin() else (),

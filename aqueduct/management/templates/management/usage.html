@@ -31,7 +31,7 @@
 
     <section aria-label="Totals" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         {% for kpi in kpis %}
-            {% if kpi.href %}<a class="card bg-base-200 hover-row" href="{{ kpi.href }}">{% else %}<div class="card bg-base-200">{% endif %}
+            {% if kpi.href %}<a class="card bg-base-200 hover:outline-2 hover:outline-[var(--color-primary)]" href="{{ kpi.href }}" aria-label="{{ kpi.label }} {{ kpi.value }}, open in the request log">{% else %}<div class="card bg-base-200">{% endif %}
                 <div class="card-body gap-1 p-4">
                     <span class="muted text-sm">{{ kpi.label }}</span>
                     <span class="text-2xl font-semibold">{{ kpi.value }}</span>
