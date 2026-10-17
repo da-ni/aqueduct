@@ -11,8 +11,10 @@ from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import cache
 from itertools import accumulate
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.db import connection, models, transaction
@@ -108,9 +110,23 @@ def _ceil_hour(moment: datetime) -> datetime:
     return floor if floor == moment else floor + HOUR.size
 
 
+@cache
+def steady_hours(zone: str) -> bool:
+    """Whether local hours in `zone` start the same minutes past UTC hours all year, as
+    `_local_hour` needs. Not so in Lord Howe, whose clocks move by 30 minutes: there the org
+    rollups stay empty and the read helpers count raw requests."""
+    tz = ZoneInfo(zone)
+    year = timezone.now().year
+    shifts = {
+        (datetime(year, month, 1, tzinfo=tz).utcoffset() or timedelta()) % HOUR.size
+        for month in range(1, 13)
+    }
+    return len(shifts) == 1
+
+
 def _local_hour() -> Expression:
     """`Trunc("timestamp", "hour")` in the local time zone, as an instant the database can insert
-    as it is. Local hours start a fixed `shift` past UTC hours in every zone but Lord Howe."""
+    as it is. Local hours start a fixed `shift` past UTC hours where `steady_hours` holds."""
     shift = (timezone.localtime().utcoffset() or timedelta()) % HOUR.size
     if not shift:
         return Trunc("timestamp", "hour", tzinfo=UTC)
@@ -128,6 +144,8 @@ def refresh(now: datetime | None = None, *, full: bool = False) -> None:
     """Recount the hours since 24 hours before the last sealed hour, or every hour when `full`,
     when the rollups are missing or marked dirty, or when they were bucketed in another time
     zone. Seals the hours that ended 15 minutes before `now`."""
+    if not steady_hours(settings.TIME_ZONE):
+        return
     sealed = floor_hour((now or timezone.now()) - SETTLE)
     with transaction.atomic():
         state = _locked(HOURLY)
@@ -297,32 +315,38 @@ def key_window_totals(
     """Activity per key id in `period`, for the keys of `tokens`, every key when `None`, with
     requests in the period. Reads a key window when one starts where `period` does."""
     requests = served(Request.objects.all())
+    kept = KeyUsageWindow.objects.filter(model__in=router_models())
     if tokens is not None:
-        requests = requests.filter(token__in=tokens)
+        requests, kept = requests.filter(token__in=tokens), kept.filter(token__in=tokens)
     if model is not None:
-        requests = requests.filter(model=model)
-    window = UsageRollupState.objects.filter(
+        requests, kept = requests.filter(model=model), kept.filter(model=model)
+    windows = UsageRollupState.objects.filter(
         name__in=[key_window_name(days) for days in KEY_WINDOWS],
         window_start=period.start,
         sealed_until__lte=period.end,
-    ).first()
+    )
     rows: list[Row] = []
     raw_start = period.start
-    if window is not None and window.sealed_until is not None:
-        raw_start = window.sealed_until
+    for _ in range(2):  # Use the rows only if no refresh replaced them while they were read.
+        window = windows.first()
+        if window is None or window.sealed_until is None:
+            break
         days = next(d for d in KEY_WINDOWS if key_window_name(d) == window.name)
-        kept = KeyUsageWindow.objects.filter(days=days, model__in=router_models())
-        if tokens is not None:
-            kept = kept.filter(token__in=tokens)
-        if model is not None:
-            kept = kept.filter(model=model)
-        rows += kept.values("token_id").annotate(
-            requests=Sum("requests"),
-            failed=Sum("failed"),
-            input=Sum("input_tokens"),
-            cached=Sum("cached_input_tokens"),
-            output=Sum("output_tokens"),
+        found = list(
+            kept.filter(days=days)
+            .values("token_id")
+            .annotate(
+                requests=Sum("requests"),
+                failed=Sum("failed"),
+                input=Sum("input_tokens"),
+                cached=Sum("cached_input_tokens"),
+                output=Sum("output_tokens"),
+            )
+            .order_by()
         )
+        if windows.filter(name=window.name, sealed_until=window.sealed_until).exists():
+            rows, raw_start = found, window.sealed_until
+            break
     rows += (
         requests.filter(timestamp__gte=raw_start, timestamp__lt=period.end)
         .values("token_id")
@@ -351,6 +375,8 @@ def approximate_median(counts: Mapping[int, int]) -> int | None:
 
 
 def _sealed_until() -> datetime | None:
+    if not steady_hours(settings.TIME_ZONE):
+        return None
     return (
         UsageRollupState.objects.filter(name=HOURLY, time_zone=settings.TIME_ZONE)
         .values_list("sealed_until", flat=True)

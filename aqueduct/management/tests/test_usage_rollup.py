@@ -1,7 +1,9 @@
 import random
 from datetime import timedelta
+from unittest import mock
 
 from django.contrib.auth import get_user_model
+from django.db.models import QuerySet
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
@@ -18,8 +20,11 @@ from management.models import (
     Team,
     Token,
     UsageRollupState,
+    UserGroup,
     UserProfile,
 )
+from management.models.token import of_org
+from management.request_log import visible_tokens
 from management.tests.test_api_keys_pages import PAGES, make_token
 from management.usage_report import DAY, MEDIAN, TOKENS, TOTALS, Period, Span, org_requests, series
 
@@ -165,22 +170,45 @@ class UsageRollupTest(TestCase):
         rollup.refresh(self.now + timedelta(minutes=10))
         self.assert_matches_raw()
 
+    def dirty(self) -> bool:
+        return UsageRollupState.objects.get(name=rollup.HOURLY).dirty
+
     def test_deleting_a_key_marks_the_rollups_dirty_and_the_refresh_rebuilds(self):
         rollup.refresh(self.now)
-        self.foreign_key.delete()
-        self.assertTrue(UsageRollupState.objects.get(name=rollup.HOURLY).dirty)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.foreign_key.delete()
+        self.assertTrue(self.dirty())
         rollup.refresh(self.now)
-        self.assertFalse(UsageRollupState.objects.get(name=rollup.HOURLY).dirty)
+        self.assertFalse(self.dirty())
         self.assert_matches_raw()
+
+    def test_the_rollups_turn_dirty_only_once_the_change_commits(self):
+        rollup.refresh(self.now)
+        with self.captureOnCommitCallbacks() as pending:
+            self.foreign_key.delete()
+        self.assertFalse(self.dirty())
+        for callback in pending:
+            callback()
+        self.assertTrue(self.dirty())
 
     def test_moving_an_owner_to_another_org_marks_the_rollups_dirty(self):
         rollup.refresh(self.now)
         profile = self.foreigner.profile
-        profile.save()
-        self.assertFalse(UsageRollupState.objects.get(name=rollup.HOURLY).dirty)
+        with self.captureOnCommitCallbacks(execute=True):
+            profile.save()
+        self.assertFalse(self.dirty())
         profile.org = self.org
-        profile.save()
-        self.assertTrue(UsageRollupState.objects.get(name=rollup.HOURLY).dirty)
+        with self.captureOnCommitCallbacks(execute=True):
+            profile.save()
+        self.assertTrue(self.dirty())
+        rollup.refresh(self.now)
+        self.assert_matches_raw()
+
+    def test_giving_a_key_owner_a_profile_marks_the_rollups_dirty(self):
+        rollup.refresh(self.now)
+        with self.captureOnCommitCallbacks(execute=True):
+            UserProfile.objects.create(user=self.orphan_key.user, org=self.org)
+        self.assertTrue(self.dirty())
         rollup.refresh(self.now)
         self.assert_matches_raw()
 
@@ -192,11 +220,40 @@ class UsageRollupTest(TestCase):
             with self.subTest(field=field):
                 rollup.refresh(self.now)
                 setattr(instance, field, unchanged)
-                instance.save()
-                self.assertFalse(UsageRollupState.objects.get(name=rollup.HOURLY).dirty)
+                with self.captureOnCommitCallbacks(execute=True):
+                    instance.save()
+                self.assertFalse(self.dirty())
                 setattr(instance, field, moved)
-                instance.save()
-                self.assertTrue(UsageRollupState.objects.get(name=rollup.HOURLY).dirty)
+                with self.captureOnCommitCallbacks(execute=True):
+                    instance.save()
+                self.assertTrue(self.dirty())
+                rollup.refresh(self.now)
+                self.assert_matches_raw()
+
+    def test_a_service_account_key_counts_for_its_teams_org_only(self):
+        owner_in_a = self.member
+        sa = ServiceAccount.objects.create(name="vision-bot", team=self.other_team)
+        key = make_token(owner_in_a, "vision-bot", service_account=sa)
+        self.log(key, timedelta(days=2), input_tokens=777, response_time_ms=50)
+        rollup.refresh(self.now)
+
+        org_admin = self.user("org-admin", self.org)
+        org_admin.profile.group = UserGroup.ORG_ADMIN
+        org_admin.profile.save()
+        self.assertNotIn(key, visible_tokens(org_admin.profile, self.org, Team.objects.none()))
+        self.assertFalse(org_requests(self.org).filter(token=key).exists())
+        self.assertTrue(org_requests(self.other_org).filter(token=key).exists())
+        week = Period.last(Span.WEEK, self.now)
+        rollup.refresh_key_windows(self.now)
+        totals = rollup.key_window_totals(Token.objects.filter(of_org(self.other_org)), None, week)
+        self.assertEqual(totals[key.pk].input, 777)
+        self.assert_matches_raw()
+
+    @override_settings(TIME_ZONE="Australia/Lord_Howe")
+    def test_zones_whose_hours_shift_in_the_year_read_the_requests(self):
+        rollup.refresh(self.now)
+        self.assertFalse(OrgUsageHour.objects.exists())
+        self.assert_matches_raw()
 
     def test_hours_follow_the_local_time_zone(self):
         rollup.refresh(self.now)
@@ -245,6 +302,32 @@ class UsageRollupTest(TestCase):
         before = rollup.key_window_totals(None, None, period)
         Request.objects.filter(timestamp__lt=self.now - timedelta(hours=2)).update(output_tokens=0)
         self.assertEqual(rollup.key_window_totals(None, None, period), before)
+
+    def test_a_refresh_between_the_reads_counts_nothing_twice(self):
+        just_sealed = rollup.floor_hour(self.now - rollup.SETTLE) + timedelta(seconds=1)
+        self.log(self.member_key, self.now - just_sealed, input_tokens=99)
+        rollup.refresh_key_windows(self.now)
+        period = Period.last(Span.WEEK, self.now)
+        first, raced = QuerySet.first, []
+
+        def first_then_refresh(rows):
+            found = first(rows)
+            if rows.model is UsageRollupState and not raced:
+                raced.append(True)
+                rollup.refresh_key_windows(self.now + timedelta(hours=1))
+            return found
+
+        with mock.patch.object(QuerySet, "first", first_then_refresh):
+            totals = rollup.key_window_totals(None, None, period)
+        self.assertTrue(raced)
+        raw = {
+            row.pop("token_id"): Activity(**row)
+            for row in period.of(org_requests(None))
+            .values("token_id")
+            .annotate(**TOTALS)
+            .order_by()
+        }
+        self.assertEqual(totals, raw)
 
     def test_deleting_a_key_drops_its_windows(self):
         rollup.refresh_key_windows(self.now)

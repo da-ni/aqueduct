@@ -20,7 +20,7 @@ from django.db.models import (
     Subquery,
     Sum,
 )
-from django.db.models.functions import ExtractHour, ExtractIsoWeekDay, Trunc
+from django.db.models.functions import Coalesce, ExtractHour, ExtractIsoWeekDay, Trunc
 from django.utils import timezone
 
 from management.key_activity import (
@@ -40,6 +40,7 @@ from management.key_activity import (
     spark,
 )
 from management.models import Org, Request, Token
+from management.models.token import of_org
 
 if TYPE_CHECKING:
     from management.request_log import Key
@@ -348,7 +349,7 @@ def org_requests(org: Org | None) -> QuerySet[Request]:
     serves. `None` means every org."""
     if org is None:
         return served(Request.objects.all())
-    tokens = Token.objects.filter(Q(user__profile__org=org) | Q(service_account__team__org=org))
+    tokens = Token.objects.filter(of_org(org))
     return served(Request.objects.filter(token__in=tokens))
 
 
@@ -591,7 +592,11 @@ def user_id_shares(requests: QuerySet[Request], total: int) -> tuple[KeyShare, .
 
 def org_shares(requests: QuerySet[Request]) -> tuple[Share, ...]:
     rows = list(
-        requests.values(name=F("token__user__profile__org__name"))
+        requests.values(
+            name=Coalesce(
+                "token__service_account__team__org__name", "token__user__profile__org__name"
+            )
+        )
         .annotate(tokens=Sum(TOKENS, default=0))
         .order_by("-tokens", "name")
     )
