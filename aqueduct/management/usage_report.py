@@ -20,7 +20,11 @@ from django.db.models import (
     Sum,
 )
 from django.db.models.functions import Coalesce, Lower, Trunc
-from django.utils import timezone
+from django.utils import dateformat, timezone
+from django.utils.dates import WEEKDAYS_ABBR
+from django.utils.functional import Promise
+from django.utils.translation import gettext, ngettext
+from django.utils.translation import gettext_lazy as _
 
 from management.key_activity import (
     FAILED,
@@ -52,11 +56,10 @@ AXIS_LABELS = 8
 TOP_KEYS = 10
 TOP_USER_IDS = 25
 HEAT_CLASSES = tuple(f"heat-{level}" for level in range(6))
-WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 HEAT_HOURS = tuple(f"{hour:02d}" if hour % 3 == 0 else "" for hour in range(24))
 TOKENS = F("input_tokens") + F("output_tokens")
-NO_ORG = "No organization"
-APPROXIMATE_MEDIAN = "Approximate"
+NO_ORG = _("No organization")
+APPROXIMATE_MEDIAN = _("Approximate")
 ORG = Coalesce("token__service_account__team__org", "token__user__profile__org")
 """A service account's key counts for its team's org, a personal key for its owner's org."""
 TOTALS = {
@@ -73,19 +76,49 @@ class Step:
     kind: str
     size: timedelta
     label_format: str
+    """A `django.utils.dateformat` format, so that month names follow the language."""
     zeroed: tuple[str, ...]
     short_format: str
     """The axis label below the `sm` breakpoint."""
+    tokens_title: str | Promise
+    requests_title: str | Promise
 
     def floor(self, moment: datetime) -> datetime:
         local = timezone.localtime(moment)
         zeroed: dict[str, Any] = dict.fromkeys(self.zeroed, 0)
         return local.replace(microsecond=0, **zeroed)
 
+    def format(self, moment: datetime, short: bool = False) -> str:
+        return dateformat.format(moment, self.short_format if short else self.label_format)
 
-MINUTE = Step("minute", timedelta(minutes=1), "%H:%M", ("second",), "%H:%M")
-HOUR = Step("hour", timedelta(hours=1), "%H:00", ("second", "minute"), "%H")
-DAY = Step("day", timedelta(days=1), "%-d %b", ("second", "minute", "hour"), "%-d")
+
+MINUTE = Step(
+    "minute",
+    timedelta(minutes=1),
+    "H:i",
+    ("second",),
+    "H:i",
+    _("Tokens per minute"),
+    _("Requests per minute"),
+)
+HOUR = Step(
+    "hour",
+    timedelta(hours=1),
+    "H:00",
+    ("second", "minute"),
+    "H",
+    _("Tokens per hour"),
+    _("Requests per hour"),
+)
+DAY = Step(
+    "day",
+    timedelta(days=1),
+    "j M",
+    ("second", "minute", "hour"),
+    "j",
+    _("Tokens per day"),
+    _("Requests per day"),
+)
 
 
 class Span(StrEnum):
@@ -96,7 +129,13 @@ class Span(StrEnum):
 
     @property
     def label(self) -> str:
-        return SPANS[self][0]
+        """The span on its own, as a button names it: "7 days"."""
+        return str(SPANS[self].label)
+
+    @property
+    def in_the_last(self) -> str:
+        """The span within a sentence: "in the last 7 days"."""
+        return str(SPANS[self].in_the_last)
 
     @classmethod
     def parse(cls, raw: str) -> "Span | None":
@@ -106,12 +145,23 @@ class Span(StrEnum):
             return None
 
 
+@dataclass(frozen=True)
+class SpanSpec:
+    """How a span reads and how it is charted: `count` buckets of `step`. German declines the
+    span in a sentence, so each one has its own phrase for both uses."""
+
+    label: Promise
+    in_the_last: Promise
+    step: Step
+    count: int
+
+
 DEFAULT_SPAN = Span.DAY
-SPANS: Mapping[Span, tuple[str, Step, int]] = {
-    Span.HOUR: ("1 hour", MINUTE, 60),
-    Span.DAY: ("24 hours", HOUR, 24),
-    Span.WEEK: ("7 days", DAY, 7),
-    Span.MONTH: ("30 days", DAY, 30),
+SPANS: Mapping[Span, SpanSpec] = {
+    Span.HOUR: SpanSpec(_("1 hour"), _("in the last hour"), MINUTE, 60),
+    Span.DAY: SpanSpec(_("24 hours"), _("in the last 24 hours"), HOUR, 24),
+    Span.WEEK: SpanSpec(_("7 days"), _("in the last 7 days"), DAY, 7),
+    Span.MONTH: SpanSpec(_("30 days"), _("in the last 30 days"), DAY, 30),
 }
 
 
@@ -122,14 +172,13 @@ class Period:
     start: datetime
     end: datetime
     step: Step
-    label: str
 
     @classmethod
     def last(cls, span: Span, now: datetime) -> "Period":
         """The last `span` before `now`."""
-        label, step, count = SPANS[span]
-        end = step.floor(now) + step.size
-        return cls(end - count * step.size, end, step, label)
+        spec = SPANS[span]
+        end = spec.step.floor(now) + spec.step.size
+        return cls(end - spec.count * spec.step.size, end, spec.step)
 
     @property
     def buckets(self) -> list[datetime]:
@@ -145,7 +194,7 @@ class Period:
 
 @dataclass(frozen=True)
 class StatusRow:
-    label: str
+    label: str | Promise
     codes: str
     icon: str
     tone: str
@@ -154,11 +203,17 @@ class StatusRow:
     href: str
 
 
-STATUSES = (
-    ("OK", "2xx", "ok", "st-ok", Q(status_code__lt=400)),
-    ("Rate-limited", "429", "warning", "st-warn", Q(status_code=429)),
-    ("Client error", "4xx", "off", "st-off", FAILED & Q(status_code__lt=500) & ~Q(status_code=429)),
-    ("Server error", "5xx", "failed", "st-err", Q(status_code__gte=500)),
+STATUSES: tuple[tuple[Promise, str, str, str, Q], ...] = (
+    (_("OK"), "2xx", "ok", "st-ok", Q(status_code__lt=400)),
+    (_("Rate-limited"), "429", "warning", "st-warn", Q(status_code=429)),
+    (
+        _("Client error"),
+        "4xx",
+        "off",
+        "st-off",
+        FAILED & Q(status_code__lt=500) & ~Q(status_code=429),
+    ),
+    (_("Server error"), "5xx", "failed", "st-err", Q(status_code__gte=500)),
 )
 """Label, status codes, icon, tone, and match of each status group, as the Overview and the
 request log name them. "Failed" is every group but the first."""
@@ -236,20 +291,17 @@ def columns(
     points: Sequence[tuple[datetime, Activity]], step: Step, metric: str
 ) -> tuple[Column, ...]:
     local = [timezone.localtime(moment) for moment, _ in points]
-    labelled = [
-        (moment.strftime(step.label_format), a)
-        for moment, (_, a) in zip(local, points, strict=True)
-    ]
+    labelled = [(step.format(moment), a) for moment, (_, a) in zip(local, points, strict=True)]
     found = chart(labelled, metric, every=math.ceil(len(points) / AXIS_LABELS) or 1)
     return tuple(
-        replace(column, short=moment.strftime(step.short_format) if column.label else "")
+        replace(column, short=step.format(moment, short=True) if column.label else "")
         for column, moment in zip(found, local, strict=True)
     )
 
 
 def duration(ms: int | None) -> str:
     if ms is None:
-        return "n/a"
+        return gettext("n/a")
     return f"{ms:,} ms" if ms < SECOND_MS else f"{ms / SECOND_MS:.1f} s"
 
 
@@ -285,12 +337,10 @@ def slots(points: Sequence[tuple[datetime, Activity]], step: Step) -> tuple[Slot
     size = math.ceil(len(points) / SPARK_BARS) or 1
 
     def slot(group: Sequence[tuple[datetime, Activity]]) -> Slot:
-        first, last = (
-            timezone.localtime(m).strftime(step.label_format) for m in (group[0][0], group[-1][0])
-        )
-        return Slot(
-            first if first == last else f"{first} to {last}", _summed([a for _, a in group])
-        )
+        first, last = (step.format(timezone.localtime(m)) for m in (group[0][0], group[-1][0]))
+        between = gettext("%(first)s to %(last)s") % {"first": first, "last": last}
+        label = first if first == last else between
+        return Slot(label, _summed([a for _, a in group]))
 
     return tuple(slot(points[i : i + size]) for i in range(0, len(points), size))
 
@@ -304,20 +354,26 @@ def kpis(spark_slots: Sequence[Slot]) -> tuple[Kpi, ...]:
     ) -> tuple[SparkBar, ...]:
         return spark([(s.label, value(s.activity)) for s in spark_slots], show)
 
+    def as_input(count: float) -> str:
+        return ngettext("%(count)s input token", "%(count)s input tokens", round(count)) % {
+            "count": compact(round(count))
+        }
+
+    def as_output(count: float) -> str:
+        return ngettext("%(count)s output token", "%(count)s output tokens", round(count)) % {
+            "count": compact(round(count))
+        }
+
     return (
+        Kpi(gettext("Input"), compact(now.input), bars_of(lambda a: a.input, as_input)),
+        Kpi(gettext("Output"), compact(now.output), bars_of(lambda a: a.output, as_output)),
+        Kpi(gettext("Cached"), compact(now.cached), bars_of(lambda a: a.cached, as_cached)),
+        Kpi(gettext("Requests"), f"{now.requests:,}", bars_of(lambda a: a.requests, as_requests)),
         Kpi(
-            "Input",
-            compact(now.input),
-            bars_of(lambda a: a.input, lambda n: f"{compact(round(n))} input tokens"),
+            gettext("Failed"),
+            now.failed_share,
+            bars_of(lambda a: _ratio(a.failed, a.requests), _share),
         ),
-        Kpi(
-            "Output",
-            compact(now.output),
-            bars_of(lambda a: a.output, lambda n: f"{compact(round(n))} output tokens"),
-        ),
-        Kpi("Cached", compact(now.cached), bars_of(lambda a: a.cached, as_cached)),
-        Kpi("Requests", f"{now.requests:,}", bars_of(lambda a: a.requests, as_requests)),
-        Kpi("Failed", now.failed_share, bars_of(lambda a: _ratio(a.failed, a.requests), _share)),
     )
 
 
@@ -362,12 +418,17 @@ def heat(tokens: Mapping[tuple[int, int], int], weeks: int) -> tuple[HeatRow, ..
     def cell(day: int, hour: int) -> HeatCell:
         value = average.get((day, hour), 0)
         level = math.ceil(levels * value / top) if value else 0
-        when = f"{WEEKDAYS[day - 1]} {hour:02d}:00 to {(hour + 1) % 24:02d}:00"
-        return HeatCell(Tip(when, f"{as_tokens(value)} per hour"), HEAT_CLASSES[level])
+        when = gettext("%(day)s %(start)s to %(end)s") % {
+            "day": WEEKDAYS_ABBR[day - 1],
+            "start": f"{hour:02d}:00",
+            "end": f"{(hour + 1) % 24:02d}:00",
+        }
+        per_hour = gettext("%(tokens)s per hour") % {"tokens": as_tokens(value)}
+        return HeatCell(Tip(when, per_hour), HEAT_CLASSES[level])
 
     return tuple(
-        HeatRow(name, tuple(cell(day, hour) for hour in range(24)))
-        for day, name in enumerate(WEEKDAYS, start=1)
+        HeatRow(str(WEEKDAYS_ABBR[day - 1]), tuple(cell(day, hour) for hour in range(24)))
+        for day in range(1, 8)
     )
 
 
@@ -627,7 +688,7 @@ def user_id_shares(requests: QuerySet[Request], total: int) -> tuple[KeyShare, .
     )
     figures = _figures([_activity(row) for row in rows], total)
     return tuple(
-        KeyShare(row["user_id"] or "Not sent", "", None, *figure)
+        KeyShare(row["user_id"] or gettext("Not sent"), "", None, *figure)
         for row, figure in zip(rows, figures, strict=True)
     )
 
@@ -643,12 +704,13 @@ def org_tokens(requests: QuerySet[Request]) -> dict[int | None, int]:
 def org_shares(tokens: Mapping[int | None, int]) -> tuple[Share, ...]:
     """The `tokens` of each org, busiest first."""
     orgs = Org.objects.in_bulk([org_id for org_id in tokens if org_id is not None])
+    no_org = str(NO_ORG)
     rows = sorted(
         (
-            (orgs[org_id].name if org_id in orgs else NO_ORG, count)
+            (orgs[org_id].name if org_id in orgs else no_org, count)
             for org_id, count in tokens.items()
         ),
-        key=lambda row: (-row[1], row[0] == NO_ORG, row[0]),
+        key=lambda row: (-row[1], row[0] == no_org, row[0]),
     )
     return tuple(
         Share(name, compact(count), width)

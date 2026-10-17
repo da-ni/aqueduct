@@ -8,7 +8,10 @@ from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
 from django.db.models import Count, F, OuterRef, Q, QuerySet, Subquery, Sum
 from django.db.models.functions import TruncDate
 from django.urls import reverse
-from django.utils import timezone
+from django.utils import dateformat, timezone
+from django.utils.functional import Promise
+from django.utils.translation import gettext, ngettext
+from django.utils.translation import gettext_lazy as _
 
 from gateway.config import get_router_config
 from management.models import Org, Request, ServiceAccount, Token, UserProfile
@@ -41,23 +44,32 @@ def percent(part: int, whole: int) -> str:
 
 
 def as_tokens(count: float) -> str:
-    return f"{compact(round(count))} tokens"
+    n = round(count)
+    return ngettext("%(count)s token", "%(count)s tokens", n) % {"count": compact(n)}
 
 
 def as_cached(count: float) -> str:
-    return f"{compact(round(count))} cached tokens"
+    n = round(count)
+    return ngettext("%(count)s cached token", "%(count)s cached tokens", n) % {"count": compact(n)}
 
 
 def as_requests(count: float) -> str:
-    return f"{round(count):,} request" + ("" if round(count) == 1 else "s")
+    n = round(count)
+    return ngettext("%(count)s request", "%(count)s requests", n) % {"count": f"{n:,}"}
 
 
 def as_failed(count: float) -> str:
-    return f"{round(count):,} failed"
+    n = round(count)
+    return ngettext("%(count)s failed", "%(count)s failed", n) % {"count": f"{n:,}"}
 
 
-TOKEN_SERIES = {"c": "Cached", "n": "New input", "o": "Output"}
-REQUEST_SERIES = {"i": "OK", "f": "Failed"}
+def day_label(day: date) -> str:
+    """A day as a chart names it, "18 Oct", with the month in the viewer's language."""
+    return dateformat.format(day, "j M")
+
+
+TOKEN_SERIES = {"c": _("Cached"), "n": _("New input"), "o": _("Output")}
+REQUEST_SERIES = {"i": _("OK"), "f": _("Failed")}
 
 
 class KeyKind(StrEnum):
@@ -130,7 +142,7 @@ class Activity:
 
 
 def week(now: datetime) -> "Period":
-    """The "7 days" every page shows: today and the six days before, as on the Overview."""
+    """The 7 days every page shows: today and the six days before, as on the Overview."""
     from management.usage_report import Period, Span  # usage_report imports this module
 
     return Period.last(Span.WEEK, now)
@@ -327,7 +339,7 @@ class Tip:
 
     heading: str
     value: str
-    parts: tuple[tuple[str, str, str], ...] = ()
+    parts: tuple[tuple[str, str | Promise, str], ...] = ()
     """Swatch CSS class, series name and value of each stacked segment."""
 
     def __str__(self) -> str:
@@ -395,14 +407,18 @@ class Window:
         totals = self.totals
 
         def daily(field: str) -> list[tuple[str, float]]:
-            return [(f"{d.day:%-d %b}", getattr(d.activity, field)) for d in self.days]
+            return [(day_label(d.day), getattr(d.activity, field)) for d in self.days]
 
         return (
-            Stat("Input tokens", compact(totals.input), spark(daily("input"), as_tokens)),
-            Stat("Output tokens", compact(totals.output), spark(daily("output"), as_tokens)),
-            Stat("Cache hits", totals.cache_hits, spark(daily("cached"), as_cached)),
-            Stat("Requests", f"{totals.requests:,}", spark(daily("requests"), as_requests)),
-            Stat("Failed", totals.failed_share, spark(daily("failed"), as_failed)),
+            Stat(gettext("Input tokens"), compact(totals.input), spark(daily("input"), as_tokens)),
+            Stat(
+                gettext("Output tokens"), compact(totals.output), spark(daily("output"), as_tokens)
+            ),
+            Stat(gettext("Cache hits"), totals.cache_hits, spark(daily("cached"), as_cached)),
+            Stat(
+                gettext("Requests"), f"{totals.requests:,}", spark(daily("requests"), as_requests)
+            ),
+            Stat(gettext("Failed"), totals.failed_share, spark(daily("failed"), as_failed)),
         )
 
 
@@ -413,7 +429,7 @@ class KeyReport(Window):
     latest: tuple[Request, ...]
 
     def chart(self, metric: str) -> tuple[Column, ...]:
-        return chart([(f"{d.day:%-d %b}", d.activity) for d in self.days], metric)
+        return chart([(day_label(d.day), d.activity) for d in self.days], metric)
 
 
 def chart(

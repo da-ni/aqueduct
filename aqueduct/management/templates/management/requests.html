@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load humanize ui %}
+{% load humanize i18n ui %}
 
 {% block page_background %}{% endblock %}
 
@@ -107,7 +107,7 @@
                                 {% endif %}
                             {% endwith %}
                         {% empty %}
-                            <tr class="max-md:block"><td colspan="{{ log.shows_key|yesno:'9,8' }}" class="muted max-md:block">{% if narrowed %}No request matches these filters.{% else %}No requests in the last {{ filters.period.label }}.{% endif %}</td></tr>
+                            <tr class="max-md:block"><td colspan="{{ log.shows_key|yesno:'9,8' }}" class="muted max-md:block">{% if narrowed %}No request matches these filters.{% else %}{% blocktranslate with span=filters.span.in_the_last %}No requests {{ span }}.{% endblocktranslate %}{% endif %}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

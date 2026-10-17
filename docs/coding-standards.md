@@ -49,6 +49,7 @@ The management pages come in English and German, in the formal "Sie". The langua
 - Translate whole sentences. Put values in through named placeholders, as in `{% blocktranslate with name=team.name %}Delete {{ name }}?{% endblocktranslate %}` or `gettext("Delete %(name)s?") % {"name": name}`. Never build a sentence by joining fragments, since German orders the words differently.
 - Use `{% blocktranslate count n=keys %}` or `ngettext` for every string with a number in it, never an `if` on the number.
 - Give each time span its own phrase, such as "in the last 7 days" and "today", instead of one sentence with the span put in.
+- Format dates a reader sees with `django.utils.dateformat` or the `date` filter, as in `dateformat.format(day, "j M")`, never with `strftime`, whose month and weekday names stay English.
 - Avoid nouns for people, such as user or owner, where the sentence works without one, since German has to give them a gender. "Created by ana@example.com" translates without one, "Owner: ana@example.com" does not.
 - Language names are written in their own language, "Deutsch" and "English", and never translated.
 - Render a number inside a `style` attribute through `|unlocalize` from `{% load l10n %}`. German writes 12.5 as 12,5, which is no CSS number.
@@ -85,6 +86,16 @@ The management pages come in English and German, in the formal "Sie". The langua
 | Vector stores | Vektorspeicher |
 | MCP server | MCP-Server |
 | Median response time | Median der Antwortzeit |
+| Input, New input, Output | Eingabe, Neue Eingabe, Ausgabe |
+| Cache hits | Cache-Treffer |
+| Client error, Server error | Clientfehler, Serverfehler |
+| Time frame | Zeitraum |
+| Share (of a total) | Anteil |
+| Top keys | Meistgenutzte Schlüssel |
+| User ID (the `user` value a client sends) | User-ID |
+| Approximate | Näherungswert |
+| Search | Suchen |
+| n/a | k. A. |
 | Settings | Einstellungen |
 | Sign in, Sign out | Anmelden, Abmelden |
 | Terms of service | Nutzungsbedingungen |

@@ -250,5 +250,5 @@ class UsageFromRollupsTest(TestCase):
                 self.assertTrue(rows)
                 self.assertEqual({row.approximate for row in rows}, {approximate})
                 html = response.content.decode()
-                self.assertEqual(report.APPROXIMATE_MEDIAN in html, approximate)
+                self.assertEqual(str(report.APPROXIMATE_MEDIAN) in html, approximate)
                 self.assertEqual("approximately </span>" in html, approximate)
