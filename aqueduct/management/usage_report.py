@@ -474,7 +474,8 @@ def key_shares(
     tokens = Token.objects.select_related(
         "user__profile__org", "service_account__team__org"
     ).in_bulk(ids)
-    keys = [describe(tokens[token_id]) for token_id in ids]
+    rows = [row for row in rows if row["token_id"] in tokens]  # deleted since the grouping
+    keys = [describe(tokens[row["token_id"]]) for row in rows]
     figures = _figures([row | {"median": medians.get(row["token_id"])} for row in rows], total)
     return tuple(
         KeyShare(key.name, key.note, key.href, *figure)
