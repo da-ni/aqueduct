@@ -100,7 +100,7 @@ class ModelCardTest(SimpleTestCase):
             [(spec.label, spec.value) for spec in card.specs],
             [
                 ("Quantization", None),
-                ("Max input tokens", "131,072"),
+                ("Context length", "131,072"),
                 ("Max output tokens", "16,384"),
                 ("Dimensions", "1,024"),
                 ("Input", "Text, image"),
@@ -144,7 +144,7 @@ class ModelCardTest(SimpleTestCase):
         )
         self.assertEqual(
             [(spec.label, spec.value) for spec in card.specs],
-            [("Quantization", None), ("Max input tokens", None), ("Max output tokens", None)],
+            [("Quantization", None), ("Context length", None), ("Max output tokens", None)],
         )
         self.assertEqual((card.capabilities, card.context), ((), None))
         self.assertEqual((card.description, card.model_card_url, card.quantization), (None,) * 3)
@@ -169,18 +169,33 @@ class ModelCardTest(SimpleTestCase):
 
 
 class ModelSourceTest(SimpleTestCase):
-    def test_hugging_face_repo_drops_the_provider_of_a_route(self):
+    def test_hugging_face_repo_comes_from_a_vllm_route_or_the_model_name(self):
         cases = {
-            ("openai/Qwen/Qwen3.8-27B",): "Qwen/Qwen3.8-27B",
-            ("hosted_vllm/openai/gpt-oss-120b",): "openai/gpt-oss-120b",
-            ("zai-org/GLM-5.3",): "zai-org/GLM-5.3",
-            ("openai/gpt-4.1-nano", "gpt-4.1-nano"): None,
+            ("openai/Qwen/Qwen3.8-27B", "local-qwen"): "Qwen/Qwen3.8-27B",
+            ("hosted_vllm/openai/gpt-oss-120b", "gpt-oss"): "openai/gpt-oss-120b",
+            ("hosted_vllm/local-glm", "zai-org/GLM-5.3"): "zai-org/GLM-5.3",
             ("openai/local-qwen", "Qwen/Qwen3.8-27B"): "Qwen/Qwen3.8-27B",
-            ("unknown-provider/org/name", "a/b/c/d", "has space/x"): None,
+            (None, "zai-org/GLM-5.3"): "zai-org/GLM-5.3",
         }
-        for routes, repo in cases.items():
-            with self.subTest(routes=routes):
-                self.assertEqual(hugging_face_repo(*routes), repo)
+        for (served, name), repo in cases.items():
+            with self.subTest(served=served, name=name):
+                self.assertEqual(hugging_face_repo(served, name), repo)
+
+    def test_routes_to_providers_with_their_own_catalog_link_nothing(self):
+        cases = (
+            ("openrouter/meta-llama/Llama-3.3-70B", "meta-llama/Llama-3.3-70B"),
+            ("bedrock/meta.llama3-70b-instruct-v1:0", "meta-llama/Llama-3-70B"),
+            ("together_ai/Qwen/Qwen3-8B", "Qwen/Qwen3-8B"),
+            ("openai/gpt-4.1-nano", "gpt-4.1-nano"),
+            ("openai/gpt-4.1", "openai/gpt-4.1"),
+            ("openai/a/b/c", "has space/x"),
+        )
+        for served, name in cases:
+            with self.subTest(served=served):
+                self.assertIsNone(hugging_face_repo(served, name))
+                self.assertIsNone(
+                    parse_card(entry(name) | {"litellm_params": {"model": served}}).model_card_url
+                )
 
     def test_quantization_comes_from_the_repo_name(self):
         cases = {
@@ -430,7 +445,7 @@ class ModelsPageTest(TestCase):
     def test_search_without_a_match_says_so(self):
         response = self.page(q="no-such-model")
         self.assertEqual(rows(response), [])
-        self.assertContains(response, "No model matches.")
+        self.assertContains(response, '<td colspan="2" class="muted">No model matches.</td>')
 
     def test_detail_links_to_the_models_usage_and_requests(self):
         response = self.page(model="tts")

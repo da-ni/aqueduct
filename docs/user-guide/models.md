@@ -25,7 +25,7 @@ The table lists each model with its type, such as **Chat**, **Embeddings**, **Te
 
 - **Aliases**, other names that you can send for the model. On a narrow screen, they are under the model name.
 - **Quant**, the quantization of the model weights, such as `FP8` or `AWQ`.
-- **Context**, the maximum input tokens, such as `262.1K`.
+- **Context**, the context length, such as `262.1K`. For a chat model, this is the input and output tokens of one request together. For an embedding model, it is the maximum input tokens.
 
 - To show one type, choose its tab above the table.
 - To find a model by name or alias, type in **Search models and aliases** and press Enter.
@@ -39,7 +39,7 @@ Choose a model to show its details in the panel on the right. The panel shows:
 - The model name with a copy button. Use this name in the `model` parameter of your requests.
 - The description of the model, when the admin wrote one.
 - **Model card**, a link to the model's page, usually on Hugging Face. It opens in a new tab.
-- **Quantization**, **Max input tokens**, and **Max output tokens**. A value that the admin did not configure shows as **Not configured**.
+- **Quantization**, **Context length**, and **Max output tokens**, with full numbers. An embedding model shows **Max input tokens** instead of the context length. A value that the admin did not configure shows as **Not configured**.
 - Other specs the gateway knows, such as the embedding dimensions and the input and output types.
 - **Served model**, the upstream model that answers the requests.
 - **Aliases**, other names for the same model, each with a copy button.

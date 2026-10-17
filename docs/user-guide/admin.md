@@ -195,9 +195,9 @@ token limit from another source.
 | Key | The page shows | When the key is absent |
 |:----|:---------------|:-----------------------|
 | `description` | One line under the model name, and the full text in the panel. | Nothing. |
-| `model_card_url` | A **Model card** link in the panel. Only `http` and `https` URLs. | A link to `https://huggingface.co/<org>/<name>` when `model_name`, or `litellm_params.model` without its provider prefix, is a Hugging Face repo ID. |
+| `model_card_url` | A **Model card** link in the panel. Only `http` and `https` URLs. It overrides the Hugging Face link. | A link to `https://huggingface.co/<org>/<name>` when `litellm_params.model` without its provider prefix, or else `model_name`, is a Hugging Face repo ID. Only routes to `openai/`, `hosted_vllm/`, `vllm/`, `huggingface/`, and `openai_like/` get this link. A route to a provider with its own catalog, such as `openrouter/` or `bedrock/`, gets none. |
 | `quantization` | A badge in the table, and **Quantization** in the panel. | The quantization in the repo name, such as `AWQ`, `GPTQ`, `GGUF`, `FP8`, `NVFP4`, `INT4`, or `W8A8`. |
-| `max_tokens` | The **Context** column, and **Max input tokens** in the panel. | **Not configured**. |
+| `max_tokens` | The **Context** column, and **Context length** in the panel: the input and output tokens of one request together. An embedding model shows **Max input tokens**. | **Not configured**. |
 | `max_output_tokens` | **Max output tokens** in the panel. | **Not configured**. |
 | `aliases` | An **Aliases** column, and the aliases with copy buttons in the panel. | Nothing. |
 

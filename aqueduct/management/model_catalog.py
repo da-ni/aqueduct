@@ -46,6 +46,8 @@ class Mode:
     fields: tuple[tuple[str, object], ...] = ()
     form: bool = False
     output: str | None = None
+    context_label: str = "Context length"
+    """The panel label of `max_input_tokens`. A chat model's `max_tokens` holds input and output."""
     expected: tuple[str, ...] = ()
     """The `_SPECS` keys the detail panel lists as "Not configured" when the config lacks them."""
 
@@ -84,6 +86,7 @@ MODES: tuple[Mode, ...] = (
         ("embedding", "embeddings"),
         "gateway:embeddings",
         (("input", "Hello"),),
+        context_label="Max input tokens",
         expected=("quantization", "max_input_tokens"),
     ),
     Mode(
@@ -160,7 +163,7 @@ def _date(value: object) -> date | None:
 
 _SPECS: tuple[tuple[str, str, Callable[[object], str]], ...] = (
     ("Quantization", "quantization", _text),
-    ("Max input tokens", "max_input_tokens", _number),
+    ("", "max_input_tokens", _number),
     ("Max output tokens", "max_output_tokens", _number),
     ("Dimensions", "output_vector_size", _number),
     ("Input", "supported_modalities", _modalities),
@@ -181,7 +184,9 @@ _CAPABILITIES: tuple[tuple[str, str], ...] = (
 
 
 _PROVIDERS = frozenset(provider.value for provider in LlmProviders)
-_ROUTE = re.compile(r"(?:(?P<provider>[\w-]+)/)?(?P<org>[A-Za-z0-9][\w.-]*)/[A-Za-z0-9][\w.-]*")
+# Providers that serve Hugging Face checkpoints under their repo ID, as vLLM and TGI do.
+_REPO_PROVIDERS = frozenset({"openai", "hosted_vllm", "vllm", "huggingface", "openai_like"})
+_REPO = re.compile(r"(?P<org>[A-Za-z0-9][\w.-]*)/[A-Za-z0-9][\w.-]*")
 # Name parts that mark a quantized checkpoint, as Hugging Face repos spell them.
 _QUANTIZATIONS = {
     spelling.casefold(): spelling
@@ -192,21 +197,23 @@ _QUANTIZATIONS = {
 }  # fmt: skip
 
 
-def hugging_face_repo(*routes: str) -> str | None:
-    """Return the first route that names a Hugging Face repo, as `org/name`.
+def hugging_face_repo(served: str | None, name: str) -> str | None:
+    """Return the Hugging Face repo, as `org/name`, that a model is served from.
 
-    A LiteLLM route such as `openai/Qwen/Qwen3-8B` loses its provider prefix. A two-part name
-    whose first part is a LiteLLM provider, such as `openai/gpt-4.1`, is a route, not a repo.
+    A route such as `hosted_vllm/Qwen/Qwen3-8B` names it after its provider prefix. Without a
+    repo in the route, a model name such as `Qwen/Qwen3-8B` names it, unless the route goes to a
+    provider with its own catalog, such as `openrouter/` or `bedrock/`.
     """
-    for route in routes:
-        match = _ROUTE.fullmatch(route)
-        if match is None:
-            continue
-        if match["provider"] is None and match["org"] not in _PROVIDERS:
-            return route
-        if match["provider"] in _PROVIDERS:
-            return route.split("/", 1)[1]
-    return None
+    provider, _, rest = (served or "").partition("/")
+    if provider in _PROVIDERS:
+        if provider not in _REPO_PROVIDERS:
+            return None
+        if _REPO.fullmatch(rest):
+            return rest
+    elif served and _REPO.fullmatch(served):
+        return served
+    match = _REPO.fullmatch(name)
+    return name if match and match["org"] not in _PROVIDERS else None
 
 
 def quantization_in(name: str) -> str:
@@ -337,6 +344,10 @@ class Catalog:
     def has_quantization(self) -> bool:
         return any(card.quantization for card in self.cards)
 
+    @property
+    def columns(self) -> int:
+        return 1 + self.has_aliases + self.has_quantization + self.has_context
+
     def search(self, category: Category | None, text: str) -> tuple[ModelCard, ...]:
         return tuple(
             card
@@ -354,11 +365,11 @@ def parse_card(entry: Mapping[str, Any], scopes: Sequence[Scope] = ()) -> ModelC
     mode = mode_for(info.get("mode"))
     raw_served = (entry.get("litellm_params") or {}).get("model")
     served = raw_served if isinstance(raw_served, str) and raw_served else None
-    repo = hugging_face_repo(*filter(None, (served, name)))
+    repo = hugging_face_repo(served, name)
     quantization = _text(info.get("quantization")) or quantization_in(repo or served or name)
     info["quantization"] = quantization
     specs = tuple(
-        Spec(label, value or None)
+        Spec(label or mode.context_label, value or None)
         for label, key, format_value in _SPECS
         if (value := format_value(info.get(key))) or key in mode.expected
     )

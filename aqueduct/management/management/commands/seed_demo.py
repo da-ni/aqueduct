@@ -348,10 +348,14 @@ def load_catalog(path: Path) -> list[ModelSpec]:
     return specs
 
 
+def route_for(model: ModelSpec) -> str:
+    return f"openai/{model.name}"
+
+
 def model_info_for(model: ModelSpec) -> dict[str, Any]:
     """Describe the model as far as its name tells. Context windows stay out: no name says them."""
     info: dict[str, Any] = {"mode": SHAPES[model.kind].mode}
-    if repo := hugging_face_repo(model.name):
+    if repo := hugging_face_repo(route_for(model), model.name):
         info["model_card_url"] = f"https://huggingface.co/{repo}"
     if quantization := quantization_in(model.name):
         info["quantization"] = quantization
@@ -363,10 +367,7 @@ def router_config_for(models: Sequence[ModelSpec]) -> dict[str, Any]:
         "model_list": [
             {
                 "model_name": m.name,
-                "litellm_params": {
-                    "model": f"openai/{m.name}",
-                    "api_key": "os.environ/OPENAI_API_KEY",
-                },
+                "litellm_params": {"model": route_for(m), "api_key": "os.environ/OPENAI_API_KEY"},
                 "model_info": model_info_for(m),
             }
             for m in models
