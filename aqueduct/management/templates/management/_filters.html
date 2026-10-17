@@ -18,6 +18,7 @@
             <label class="input input-sm w-full">
                 {% icon "search" small=True %}
                 <input type="search" name="key_q" value="{{ filters.key_q }}" placeholder="{% if filters.can_pick_scope %}Key name or owner email{% else %}Key name{% endif %}" aria-label="Search keys"{% if filters.key_q %} autofocus{% endif %}>
+                <button type="submit" class="btn btn-ghost btn-xs -me-2">Search</button>
             </label>
         </form>
         <ul class="menu max-h-80 w-full flex-nowrap overflow-y-auto p-0">
@@ -28,7 +29,7 @@
                 {% empty %}
                     <li class="menu-disabled"><span>No key matches “{{ filters.key_q }}”</span></li>
                 {% endfor %}
-                <li></li>
+                <li role="separator" class="pointer-events-none my-1 border-t border-base-300"></li>
             {% endif %}
             {% if filters.can_pick_scope %}
                 <li><a href="{% querystring key_q=None key=None scope=None before=None after=None request=None %}"{% if not filters.key and not filters.mine %} aria-current="true" class="menu-active"{% endif %}>All keys in {% if filters.org %}{{ filters.org.name }}{% else %}all organizations{% endif %}</a></li>

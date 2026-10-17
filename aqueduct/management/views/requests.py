@@ -4,13 +4,9 @@ from django.conf import settings
 from django.utils import timezone
 from django.views.generic import TemplateView
 
-from management.request_log import Cursor, Outcome, read_filters, request_log
+from management.request_log import Cursor, Outcome, parse_id, read_filters, request_log
 from management.usage_report import Span
 from management.views.base import BaseAqueductView
-
-
-def _id(raw: str) -> int | None:
-    return int(raw) if raw.isdigit() else None
 
 
 class RequestLogView(BaseAqueductView, TemplateView):
@@ -32,7 +28,7 @@ class RequestLogView(BaseAqueductView, TemplateView):
                 outcome=outcome,
                 before=Cursor.parse(params.get("before")),
                 after=Cursor.parse(params.get("after")),
-                open_id=_id(params.get("request", "")),
+                open_id=parse_id(params.get("request")),
             ),
             filters=filters,
             outcome=outcome,

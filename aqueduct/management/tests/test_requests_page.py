@@ -289,6 +289,12 @@ class RequestsFilterTest(RequestsPageTestBase):
             (self.other_org_admin, "laptop", ["foreign-laptop · foreigner@example.com"]),
             (self.other_org_admin, "owner", []),
             (self.org_admin, "OTHER@", ["other-laptop · other@example.com"]),
+            (
+                self.org_admin,
+                "sa-creator@",
+                ["side-sa · Service account · Robotics", "team-sa · Service account · NLP Lab"],
+            ),
+            (self.member, "sa-creator@", []),
         )
         for user, query, expected in cases:
             with self.subTest(user=user.username, query=query):
@@ -411,10 +417,29 @@ class RequestsPaginationTest(RequestsPageTestBase):
         self.assertEqual(log.here, None)
         self.assertFalse(any(row.is_open for row in log.rows))
 
-    def test_a_malformed_cursor_shows_the_newest_page(self):
-        for cursor in ("abc", "1,", ",1", "-5,3"):
-            response = self.get(self.owner, before=cursor, after=cursor)
-            self.assertEqual(self.paths_on(response), {"/own"})
+    def test_a_malformed_cursor_or_id_shows_the_newest_page(self):
+        huge = "9" * 30
+        cursors = ("abc", "1,", ",1", "-5,3", "\N{SUPERSCRIPT ONE},1", "1,\N{SUPERSCRIPT ONE}")
+        for cursor in (*cursors, f"{huge},1", f"1,{huge}", f"{10**17},1"):
+            for direction in ("before", "after"):
+                with self.subTest(cursor=cursor, direction=direction):
+                    response = self.get(self.owner, **{direction: cursor})
+                    self.assertEqual(self.paths_on(response), {"/own"})
+        for raw in ("\N{SUPERSCRIPT ONE}", huge):
+            with self.subTest(request=raw):
+                self.assertEqual(self.paths_on(self.get(self.owner, request=raw)), {"/own"})
+            with self.subTest(org=raw):
+                self.assertEqual(self.get(self.admin, org=raw).status_code, 200)
+            with self.subTest(key=raw):
+                self.assertEqual(self.get(self.owner, key=raw).status_code, 404)
+
+    def test_a_page_past_the_oldest_request_links_back_to_the_newest(self):
+        content = self.get(self.owner, before="1,1").content.decode()
+        self.assertEqual(self.paths_on(self.get(self.owner, before="1,1")), set())
+        self.assertIn(">Newer</a>", content)
+        self.assertEqual(
+            self.paths_on(self.client.get(self.pager_link(content, "Newer"))), {"/own"}
+        )
 
     def pager_link(self, content: str, label: str) -> str:
         if label.startswith("Hide"):

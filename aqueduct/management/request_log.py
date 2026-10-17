@@ -15,6 +15,14 @@ from management.models import Org, Request, Team, Token, UserProfile
 from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
 
 PAGE_SIZE = 50
+_MAX_ID = 2**63 - 2  # the largest bigint that `Cursor.just_before` can still add one to
+
+
+def parse_id(raw: str | None) -> int | None:
+    """A database id from a URL parameter, or `None` for anything else."""
+    if not (raw and raw.isascii() and raw.isdigit()) or int(raw) > _MAX_ID:
+        return None
+    return int(raw)
 
 
 def chosen_org(profile: UserProfile, raw: str | None) -> Org | None:
@@ -23,8 +31,8 @@ def chosen_org(profile: UserProfile, raw: str | None) -> Org | None:
         return profile.org
     if raw == "all":
         return None
-    if raw and raw.isdigit():
-        return Org.objects.filter(pk=int(raw)).first() or profile.org
+    if (org_id := parse_id(raw)) is not None:
+        return Org.objects.filter(pk=org_id).first() or profile.org
     return profile.org
 
 
@@ -48,7 +56,8 @@ def visible_requests(
         return served(Request.objects.all())
     tokens = visible_tokens(profile, org, teams)
     if not profile.is_org_admin(org):
-        # A user has a few keys. Naming them lets Postgres use the (token, timestamp) index.
+        # A user has a few keys. Naming them lets Postgres plan with the actual ids instead of a
+        # join, and find their requests through the token or the timestamp index.
         return served(
             Request.objects.filter(token_id__in=list(tokens.values_list("id", flat=True)))
         )
@@ -205,7 +214,7 @@ class Filters:
 
 KEY_MATCHES = 20
 _NOT_PAGE_PARAMS = frozenset(
-    {"org", "scope", "key", "model", "span", "key_q", "before", "after", "request"}
+    {"org", "scope", "key", "model", "span", "key_q", "before", "after", "request", "page"}
 )
 
 
@@ -241,15 +250,17 @@ def read_filters(
 
     key = None
     if raw_key := params.get("key", ""):
-        if not raw_key.isdigit():
+        if (key_id := parse_id(raw_key)) is None:
             raise Http404
-        key = describe(get_object_or_404(tokens, pk=int(raw_key)))
+        key = describe(get_object_or_404(tokens, pk=key_id))
         requests = requests.filter(token=key.token)
 
     key_q = params.get("key_q", "").strip()
     matches = ()
     if key_q:
-        found = tokens.filter(Q(name__icontains=key_q) | Q(user__email__icontains=key_q))
+        # Only a viewer who sees the whole org may learn who created a service account's key.
+        by_owner = Q(user__email__icontains=key_q) if sees_others else Q()
+        found = tokens.filter(Q(name__icontains=key_q) | by_owner)
         matches = tuple(describe(token) for token in found[:KEY_MATCHES])
 
     models = tuple(sorted(router_models()))
@@ -341,10 +352,14 @@ class Cursor:
 
     @classmethod
     def parse(cls, raw: str | None) -> "Cursor | None":
-        micros, _, pk = (raw or "").partition(",")
-        if not (micros.isdigit() and pk.isdigit()):
+        micros, _, raw_id = (raw or "").partition(",")
+        pk = parse_id(raw_id)
+        if pk is None or not (micros.isascii() and micros.isdigit()):
             return None
-        return cls(_EPOCH + timedelta(microseconds=int(micros)), int(pk))
+        try:
+            return cls(_EPOCH + timedelta(microseconds=int(micros)), pk)
+        except OverflowError:
+            return None
 
     @classmethod
     def at(cls, request: Request) -> "Cursor":

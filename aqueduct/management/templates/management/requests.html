@@ -97,6 +97,8 @@
                 <nav class="join" aria-label="Pages">
                     {% if log.newer %}
                         <a class="btn btn-sm join-item" href="{% querystring key_q=None after=log.newer before=None request=None %}">Newer</a>
+                    {% elif log.here %}
+                        <a class="btn btn-sm join-item" href="{% querystring key_q=None after=None before=None request=None %}">Newer</a>
                     {% else %}
                         <button type="button" class="btn btn-sm join-item" disabled>Newer</button>
                     {% endif %}
