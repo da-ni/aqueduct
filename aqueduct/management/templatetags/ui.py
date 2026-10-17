@@ -10,6 +10,7 @@ from django.utils.safestring import SafeString
 
 from management.icons import Icon
 from management.key_activity import Expiry
+from management.privacy import render_markdown
 
 register = template.Library()
 
@@ -72,6 +73,11 @@ def when(value: object, style: str = "datetime") -> SafeString | str:
             f"unknown when style {style!r}; use date, datetime, or relative"
         )
     return _time(value, short)
+
+
+@register.filter
+def markdown(text: str) -> SafeString:
+    return render_markdown(text)
 
 
 @register.filter

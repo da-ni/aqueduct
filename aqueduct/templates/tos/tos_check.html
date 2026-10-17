@@ -9,9 +9,9 @@
     <link rel="shortcut icon" type="image/png" href="{% static 'images/Aqueduct_Icon_80x80.png' %}">
     {% include "management/_cdn.html" %}
 </head>
-<body class="h-screen">
+<body class="flex min-h-screen flex-col">
 
-<div class="card bg-base-100 shadow-lg max-w-4xl mx-auto">
+<div class="card bg-base-100 shadow-lg max-w-4xl mx-auto my-8 w-full">
     <div class="card-body">
         <h2 class="card-title text-2xl font-bold mb-2">Terms of Service</h2>
         <p class="text-sm text-gray-500 mb-4">
@@ -44,6 +44,8 @@
         </div>
     </div>
 </div>
+
+<div class="mt-auto">{% include "management/_footer.html" %}</div>
 
 
 <div class="fixed bottom-4 right-4 w-auto max-w-xl z-50">

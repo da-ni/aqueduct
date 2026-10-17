@@ -26,6 +26,7 @@ from management.models import (
     FileObject,
     LimitSet,
     Org,
+    PrivacyNotice,
     Request,
     ServiceAccount,
     Snippet,
@@ -582,6 +583,14 @@ class OrgAdmin(admin.ModelAdmin):
         "output_tokens_per_minute",
     )
     form = OrgAdminForm
+
+
+@admin.register(PrivacyNotice)
+class PrivacyNoticeAdmin(admin.ModelAdmin):
+    list_display: ClassVar[tuple] = ("__str__", "updated_at")
+    list_select_related: ClassVar[tuple] = ("org",)
+    fields: ClassVar[tuple] = ("org", "content", "updated_at")
+    readonly_fields: ClassVar[tuple] = ("updated_at",)
 
 
 @admin.register(Request)

@@ -63,6 +63,7 @@ urlpatterns = [
     path("batches/<str:id>/cancel/", views.BatchCancelView.as_view(), name="batch_cancel"),
     path("mcp-servers/", views.MCPServersView.as_view(), name="mcp_servers"),
     path("settings/", views.SettingsView.as_view(), name="settings"),
+    path("privacy/", views.PrivacyView.as_view(), name="privacy"),
     path("vector-stores/", views.UserVectorStoresView.as_view(), name="vector_stores"),
     path(
         "vector-stores/<str:id>/", views.VectorStoreDetailView.as_view(), name="vector_store_detail"

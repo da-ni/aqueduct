@@ -15,6 +15,7 @@ dependencies = [
     "django-tos>=1.1.0, <1.2",  # 1.2 rewrote the middleware (new-style __call__)
     "httpx>=0.28.1, <1",
     "litellm==1.85.2",
+    "markdown-it-py>=3.0.0, <4",
     "mcp==1.25.0",
     "mozilla-django-oidc>=4.0.1",
     "openai==2.36.0",

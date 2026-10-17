@@ -179,6 +179,29 @@ profile.
 
 ![Admin Panel User Orgs](../assets/user_guide/admin_user_org.png)
 
+## Privacy Notice
+
+The **Privacy** page at `/aqueduct/management/privacy/` shows the privacy
+information you publish. Anyone can open it, signed in or not. Edit it under
+**Privacy notices** in the admin panel.
+
+1. Add a notice and leave **Org** empty. This is the site-wide notice that
+   every visitor sees.
+2. To add text for one organization, add another notice and choose that
+   organization. Its members see this text below the site-wide notice, under
+   the heading **For members of** and the organization name. Members of other
+   organizations and signed-out visitors do not see it. An admin sees the
+   text of the organization chosen in the sidebar.
+
+Each scope has at most one notice. Write the content in Markdown: headings,
+lists, emphasis, links, and tables. The page does not render raw HTML or
+images, and it drops `javascript:` and `data:` links. Each notice shows the
+date of its last change.
+
+The footer and the sign-in page link to the page only while there is a notice
+for the visitor to read. Until you add one, the page says that no privacy
+information has been published yet.
+
 ## Managing User Limits
 
 You can also change the request usage limits for individual users within the
