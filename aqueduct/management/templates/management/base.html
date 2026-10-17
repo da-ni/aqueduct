@@ -12,6 +12,12 @@
 <body class="min-h-screen bg-base-100 text-base-content">
 <div class="drawer xl:drawer-open">
     <input id="nav-drawer" type="checkbox" class="drawer-toggle">
+    {% if shell.viewer %}
+        <div class="drawer-side z-40 print:hidden">
+            <label for="nav-drawer" aria-label="Close navigation" class="drawer-overlay"></label>
+            {% include "management/_sidebar.html" %}
+        </div>
+    {% endif %}
     <div class="drawer-content flex min-h-screen min-w-0 flex-col{% block page_background %} bg-base-200{% endblock %}">
         {% if shell.viewer %}
             <div class="navbar border-b border-base-300 bg-base-100 xl:hidden print:hidden">
@@ -43,12 +49,6 @@
 
         {% include "management/_footer.html" %}
     </div>
-    {% if shell.viewer %}
-        <div class="drawer-side z-40 print:hidden">
-            <label for="nav-drawer" aria-label="Close navigation" class="drawer-overlay"></label>
-            {% include "management/_sidebar.html" %}
-        </div>
-    {% endif %}
 </div>
 
 <div class="fixed bottom-4 right-4 w-auto max-w-xl z-50">

@@ -175,7 +175,7 @@ class TeamDetailTest(TeamsPagesTestBase):
 
     def test_owner_of_a_service_account_cannot_be_removed(self):
         response = self.as_user(self.team_admin).get(self.url())
-        page = response.content.decode()
+        page = response.content.decode().split('id="members-title"', 1)[1]
         owner_row = page.split("team-admin@example.com</span>", 1)[1].split("</tr>", 1)[0]
         self.assertIn("disabled", owner_row)
         self.assertNotIn("user_profile_to_remove_id", owner_row)

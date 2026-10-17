@@ -77,6 +77,13 @@ html[data-theme] {
   --noise: 0;
 }
 
+/* The root always shows a scrollbar, so the page keeps its width while a long page is still
+   loading. daisyUI's root overflow reads --page-overflow, and its open drawer still sets it to
+   hidden. daisyUI's scrollbar track is transparent, which would leave a bare strip beside the
+   footer band on short pages, so the track takes the page color. */
+@layer base { :root { --page-overflow: auto scroll; } }
+:root { scrollbar-color: color-mix(in oklab, var(--color-base-content) 35%, var(--color-base-200)) var(--color-base-200); }
+
 .font-mono, code, pre, kbd { font-variant-numeric: tabular-nums; }
 
 .btn:not(.btn-square):not(.btn-circle):not(.join-item) { border-radius: 9999px; }
