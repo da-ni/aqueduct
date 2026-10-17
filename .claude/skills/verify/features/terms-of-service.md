@@ -19,8 +19,8 @@ Preconditions:
 
 - A fresh launch. `new-user` has no agreement. Every other seeded account has one.
 
-- **Prompt.** Run `aqv login new-user`. The JSON line shows `url` `/terms-of-service/confirm/?next=/aqueduct/management/tokens/`. The page shows the heading `Terms of Service`, the text `Verification terms of service.`, and the buttons `Accept` and `Reject`. Run `aqv shot terms/prompt-new-user`.
-- **Accept.** Run `aqv click --role button --name "Accept"`. The browser lands on `/aqueduct/management/tokens/`.
+- **Prompt.** Run `aqv login new-user`. The JSON line shows `url` `/terms-of-service/confirm/?next=/aqueduct/management/usage/`. The page shows the heading `Terms of Service`, the text `Verification terms of service.`, and the buttons `Accept` and `Reject`. Run `aqv shot terms/prompt-new-user`.
+- **Accept.** Run `aqv click --role button --name "Accept"`. The browser lands on `/aqueduct/management/usage/`.
 - **Stored value.** Run `aqv shell -c "from tos.models import UserAgreement; print(UserAgreement.objects.filter(user__username='new-user').count())"`. It prints `1`.
 
 ## Gotchas

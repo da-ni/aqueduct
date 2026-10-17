@@ -16,7 +16,7 @@ AQV=.claude/skills/verify/scripts/aqv
 $AQV launch
 ```
 
-Launch takes about 15 seconds. It migrates a fresh database, runs `scripts/seed.py`, starts the repository's mock OpenAI server (`aqueduct/mock_api/`) as the instance's upstream, starts `manage.py runserver --noreload` on a free port, and starts Chromium with a debug port. It is ready when it prints the run state as JSON and a final line `export AQV_RUN=/tmp/aqueduct-verify/run-<id>`. By then it has signed in as `user` over HTTP and loaded the API keys page. Pass that directory to later commands as `--run <dir>`, or set `AQV_RUN` in the same shell call. With exactly one live run, commands find it without either.
+Launch takes about 15 seconds. It migrates a fresh database, runs `scripts/seed.py`, starts the repository's mock OpenAI server (`aqueduct/mock_api/`) as the instance's upstream, starts `manage.py runserver --noreload` on a free port, and starts Chromium with a debug port. It is ready when it prints the run state as JSON and a final line `export AQV_RUN=/tmp/aqueduct-verify/run-<id>`. By then it has signed in as `user` over HTTP and landed on the Overview. Pass that directory to later commands as `--run <dir>`, or set `AQV_RUN` in the same shell call. With exactly one live run, commands find it without either.
 
 The instance runs the working tree as it was at launch, including uncommitted edits. Django does not reload in this mode. After you change Python code or templates, stop the run and launch a new one.
 
@@ -60,7 +60,7 @@ It reads only. It checks that the server and browser processes are alive, the mo
 
 The browser keeps its page and cookies between commands. Every navigating command prints one JSON line with `status` (the HTTP status of the last page load), `url`, `title`, and `server_error_page` (true when Django's debug error page is showing).
 
-- `aqv login <username> [--next <path>]` signs the browser in as a seeded account through `/verify-login/`, a route that exists only on verification instances. It clears cookies first.
+- `aqv login <username> [--next <path>]` signs the browser in as a seeded account through `/verify-login/`, a route that exists only on verification instances. It clears cookies first. Without `--next` it lands where a real sign-in lands, the Overview.
 - `aqv open <path>` loads a path, such as `/aqueduct/management/usage/?span=1w`.
 - `aqv click`, `aqv fill --value <v>`, and `aqv select --value <v>` act on one element. Name it with `--role <role> --name <accessible name>`, `--label <label>`, `--text <text>`, or `--selector <css>` as a last resort. Add `--exact` for an exact match and `--nth <n>` to pick one of several matches. The browser accepts every JavaScript `confirm()` dialog.
 - `aqv text [--selector main]` prints the visible text. `aqv aria [--selector main] [--save <name>]` prints or saves an ARIA snapshot.

@@ -5,13 +5,12 @@ more accounts than that. This route exists only on verification instances.
 """
 
 from aqueduct_dev_urls import urlpatterns as dev_urlpatterns
+from django.conf import settings
 from django.contrib.auth import get_user_model, login
 from django.http import HttpRequest, HttpResponse, HttpResponseNotFound
-from django.shortcuts import redirect
+from django.shortcuts import redirect, resolve_url
 from django.urls import path
 from django.utils.http import url_has_allowed_host_and_scheme
-
-DEFAULT_NEXT = "/aqueduct/management/tokens/"
 
 
 def verify_login(request: HttpRequest) -> HttpResponse:
@@ -19,9 +18,9 @@ def verify_login(request: HttpRequest) -> HttpResponse:
     if user is None:
         return HttpResponseNotFound("unknown username", content_type="text/plain")
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-    target = request.GET.get("next", DEFAULT_NEXT)
+    target = request.GET.get("next", "")
     if not url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
-        target = DEFAULT_NEXT
+        target = resolve_url(settings.LOGIN_REDIRECT_URL)
     return redirect(target)
 
 
