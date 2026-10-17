@@ -35,7 +35,6 @@ html[data-theme="light"] {
   --aq-muted: #4A6572;
   --aq-ok: #1B7A43; --aq-warn: #8A5A00; --aq-err: #B3261E;
   --aq-band: var(--deep); --aq-band-muted: #D0EBF7; --aq-band-link: var(--spray);
-  --aq-hover: #D0EBF7;
   --viz-cached: #449FD6; --viz-in: #0A84C6; --viz-out: #07486B; --viz-track: #D0EBF7;
 }
 
@@ -64,11 +63,12 @@ html[data-theme="dark"] {
   --aq-muted: #9DB6C0;
   --aq-ok: #7ADFA4; --aq-warn: #F2C14E; --aq-err: #FF9A8F;
   --aq-band: #041721; --aq-band-muted: #9DB6C0; --aq-band-link: var(--spray);
-  --aq-hover: var(--deep);
   --viz-cached: #0A84C6; --viz-in: #6BBAE6; --viz-out: #D0EBF7; --viz-track: #1D4C63;
 }
 
 html[data-theme] {
+  /* The hover color of daisyUI's menu items, so rows hover like the sidebar. */
+  --aq-hover: color-mix(in oklab, var(--color-base-content) 10%, transparent);
   --radius-selector: 1rem;
   --radius-field: 0.5rem;
   --radius-box: 1rem;
