@@ -265,15 +265,20 @@ class SevenDaysTest(ApiKeysPagesTestBase):
 
     def test_key_pages_leave_out_requests_the_log_does_not_show(self):
         served = self.request_log(self.key, timedelta(minutes=3), status_code=200)
-        no_model = self.request_log(self.key, timedelta(minutes=2), model="", path="/models")
-        retired = self.request_log(self.key, timedelta(minutes=1), model="retired-model")
+        retired = self.request_log(self.key, timedelta(minutes=2), model="retired-model")
+        no_model = self.request_log(self.key, timedelta(minutes=1), model="", path="/files")
         listed = self.get(self.owner, "tokens").context["keys"].rows[0].activity
         detail = self.get(self.owner, "token_detail", self.key.id).context
         overview = self.get(self.owner, "usage", key=self.key.id).context["kpis"]
         log = self.get(self.owner, "requests", key=self.key.id).context["log"]
         requests = next(kpi.value for kpi in overview if kpi.label == "Requests")
         self.assertEqual((listed.requests, detail["report"].totals.requests, requests), (1, 1, "1"))
-        self.assertEqual(listed.last_used, served.timestamp)
+        self.assertEqual(sum(day.activity.requests for day in detail["report"].days), 1)
+        # A key used only for files must not look unused, so "Last used" counts every request.
+        self.assertEqual(
+            (listed.last_used, detail["report"].totals.last_used),
+            (no_model.timestamp, no_model.timestamp),
+        )
         self.assertEqual([row.request for row in detail["latest"]], [served])
         self.assertEqual([row.request for row in log.rows], [served])
         for hidden in (no_model, retired):

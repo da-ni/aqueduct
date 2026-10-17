@@ -95,6 +95,8 @@ class Activity:
     cached: int = 0
     output: int = 0
     last_used: datetime | None = None
+    """The newest request of any kind, so a key used only for files or batches never reads as
+    unused. The counts cover only what `served` keeps."""
 
     @property
     def tokens(self) -> int:
@@ -136,7 +138,8 @@ def served(requests: QuerySet[Request]) -> QuerySet[Request]:
 
 
 def _sums(since: datetime) -> dict[str, Any]:
-    recent = Q(timestamp__gte=since)
+    """Totals since `since` of the requests `served` keeps."""
+    recent = Q(timestamp__gte=since, model__in=router_models())
     return {
         "requests": Count("id", filter=recent),
         "failed": Count("id", filter=recent & FAILED),
@@ -149,7 +152,7 @@ def _sums(since: datetime) -> dict[str, Any]:
 def activity_by(field: str, ids: Iterable[int], since: datetime) -> dict[int, Activity]:
     """Request activity grouped by `field`, a lookup that names a token or a team id."""
     rows = (
-        served(Request.objects.filter(**{f"{field}__in": list(ids)}))
+        Request.objects.filter(**{f"{field}__in": list(ids)})
         .values(field)
         .annotate(last_used=Max("timestamp"), **_sums(since))
     )
@@ -357,7 +360,6 @@ def chart(
 def window(requests: QuerySet[Request], now: datetime) -> Window:
     period = week(now)
     since = period.start
-    requests = served(requests)
     totals = Activity(**requests.aggregate(last_used=Max("timestamp"), **_sums(since)))
 
     per_day = {
@@ -376,9 +378,10 @@ def window(requests: QuerySet[Request], now: datetime) -> Window:
 
 
 def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> KeyReport:
-    requests = served(Request.objects.filter(token=token))
+    every = Request.objects.filter(token=token)
+    requests = served(every)
     recent = requests.filter(timestamp__gte=week(now).start)
-    base = window(requests, now)
+    base = window(every, now)
 
     by_model = list(
         recent.values("model")
