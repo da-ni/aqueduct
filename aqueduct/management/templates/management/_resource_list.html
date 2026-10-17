@@ -16,6 +16,7 @@
                     <tbody>{% block rows %}{% endblock %}</tbody>
                 </table>
             </div>
+            {% include "management/_pager.html" with pages=listing.pages %}
         </div>
     </section>
 

@@ -10,7 +10,7 @@ The Vector stores page lists the vector stores that your keys created through th
 
 ![Vector stores page](../assets/user_guide/vector_stores.png)
 
-The table lists the stores of your personal keys and of your teams' service accounts. Org admins also see the stores of every team in their organization. Each row shows:
+The table lists the stores of your personal keys and of your teams' service accounts. Org admins also see the stores of every team in their organization. The newest stores come first, 50 per page. Choose **Next** and **Previous** under the table to move between pages. Each row shows:
 
 - **Vector store**: the name and ID.
 - **Belongs to**: **Yours**, or the team name.
@@ -19,11 +19,11 @@ The table lists the stores of your personal keys and of your teams' service acco
 - **Size**: the total size of the files.
 - **Expires**: when the store expires, if it has an expiry.
 
-The line under the table counts your stores against the limits for your keys and for each team.
+The line under the table counts your stores against the limits for your keys and for each team you belong to.
 
 ## Open a vector store
 
-Choose a store's name to open its page. The page shows the store's status, ID, owner, dates, file count, and size, and lists its **Files** and **File batches** with the status of each.
+Choose a store's name to open its page. The page shows the store's status, ID, owner, dates, file count, and size, and lists its **Files**, newest first and 50 per page, and its **File batches**, with the status of each.
 
 ## Refresh a vector store
 
