@@ -20,19 +20,21 @@
                 <a class="link-plain row-link" href="{% url 'vector_store_detail' id=row.store.id %}">{{ row.store.name }}</a>
                 <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.store.id }}<button type="button" class="btn btn-ghost btn-xs btn-square relative z-10" data-copy="{{ row.store.id }}" aria-label="Copy ID of {{ row.store.name }}" title="Copy vector store ID">{% icon "copy" small=True %}</button></div>
             </td>
-            <td>{{ row.team|default:"Yours" }}</td>
+            <td>{{ row.owner }}</td>
             <td>{% include "management/_status.html" with status=row.status %}</td>
-            <td class="text-right font-mono">{{ row.files }} of {{ listing.files_limit|intcomma }}</td>
+            <td class="text-right font-mono">{{ row.files|intcomma }}</td>
             <td class="text-right font-mono">{{ row.size|filesizeformat }}</td>
             <td>{{ row.expiry|expiry }}</td>
             <td>
-                <form class="relative z-10 flex justify-end" action="{% url 'vector_store_card_refresh' id=row.store.id %}" method="post">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Refresh {{ row.store.name }}" title="Refresh from upstream">{% icon "rotate" small=True %}</button>
-                </form>
+                {% if row.syncable %}
+                    <form class="relative z-10 flex justify-end" action="{% url 'vector_store_card_refresh' id=row.store.id %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Sync status of {{ row.store.name }}" title="Sync status">{% icon "rotate" small=True %}</button>
+                    </form>
+                {% endif %}
             </td>
         </tr>
     {% empty %}
-        <tr><td colspan="7" class="muted">You have no vector stores. Create one through the Vector Stores API.</td></tr>
+        <tr><td colspan="7" class="muted">No vector stores{{ listing.scope.whose }} yet. Create one with the <a class="link" href="{{ listing.docs }}">Vector Stores API</a>.</td></tr>
     {% endfor %}
 {% endblock %}

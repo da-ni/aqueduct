@@ -11,7 +11,7 @@ from openai import OpenAIError
 
 from gateway.config import get_files_api_client
 from management.models import Batch
-from management.resources import CANCELLABLE, batch_list, list_url, own
+from management.resources import CANCELLABLE, batch_list, list_url, own, scope
 from management.views.base import BaseAqueductView
 
 
@@ -22,6 +22,7 @@ class UserBatchesView(BaseAqueductView, TemplateView):
         context = super().get_context_data(**kwargs)
         context["listing"] = batch_list(
             self.request.user,
+            scope(self.profile, self.viewed_org),
             self.profile.teams.all(),
             timezone.now(),
             self.request.GET.get("page"),

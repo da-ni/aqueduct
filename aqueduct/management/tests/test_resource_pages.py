@@ -1,10 +1,13 @@
 import time
+from datetime import UTC, datetime
+from html import unescape
 from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from gateway.config import get_files_api_client, get_mcp_config
 from gateway.tests.utils.test_runner import get_shared_mock_server
@@ -132,7 +135,7 @@ class FilesPageTest(ResourcePagesTestBase):
         self.assertContains(response, reverse("file_delete", args=[self.own_file.id]))
         self.assertNotContains(response, reverse("file_delete", args=[self.team_file.id]))
         self.assertContains(response, "Preview prompts.jsonl")
-        self.assertContains(response, "2 files · 4.0\xa0KB · up to 8 MB per file")
+        self.assertContains(response, "2 files · 4.0\xa0KB · max 8 MB each")
 
     def test_files_are_paged_newest_first_and_the_summary_counts_them_all(self):
         for n in range(50):
@@ -148,7 +151,7 @@ class FilesPageTest(ResourcePagesTestBase):
         self.assertContains(second, "older-49.jsonl")
         self.assertNotContains(second, "prompts.jsonl")
         for response in (first, second):
-            self.assertContains(response, "52 files · 104.0\xa0KB · up to 8 MB per file")
+            self.assertContains(response, "52 files · 104.0\xa0KB · max 8 MB each")
 
     def test_a_file_link_opens_the_page_that_holds_the_file(self):
         for n in range(50):
@@ -284,9 +287,24 @@ class BatchesPageTest(ResourcePagesTestBase):
         self.assertNotContains(response, "batch-outsider")
         self.assertContains(response, reverse("batch_cancel", args=[self.running.id]))
         self.assertNotContains(response, reverse("batch_cancel", args=[self.team_batch.id]))
-        self.assertContains(
-            response, "2 batches · Your keys: 1 of 10 running · NLP Lab: 1 of 25 running"
-        )
+        self.assertContains(response, "Running: you 1/10 · NLP Lab 1/25")
+
+    def test_a_running_batch_shows_when_it_must_finish_and_a_stopped_one_shows_nothing(self):
+        def local(timestamp: int) -> datetime:
+            return timezone.localtime(datetime.fromtimestamp(timestamp, tz=UTC))
+
+        soon, later = NOW + 60, NOW + 3 * 86_400
+        Batch.objects.filter(id=self.running.id).update(expires_at=soon)
+        self.batch(self.owner_key, "batch-later", "validating", expires_at=later)
+        self.batch(self.owner_key, "batch-done", "completed", expires_at=soon)
+        response = self.as_user(self.owner).get(reverse("batches"))
+        today = local(soon).date() == timezone.localdate()
+        first = local(soon).strftime("%H:%M" if today else "%-d %b %H:%M")
+        self.assertContains(response, f"Finish by {first}")
+        self.assertContains(response, f">{local(later):%-d %b %H:%M}</time>")
+        self.assertContains(response, "Finish by", count=2)
+        self.assertNotContains(response, "Today")
+        self.assertContains(response, "Output pending")
 
 
 class BatchCancelTest(ResourcePagesTestBase):
@@ -383,26 +401,16 @@ class VectorStoresPageTest(ResourcePagesTestBase):
         response = self.as_user(self.owner).get(reverse("vector_stores"))
         self.assertContains(response, "thesis-corpus")
         self.assertContains(response, "group-papers")
-        self.assertContains(response, "NLP Lab")
-        self.assertContains(response, "Yours")
-        self.assertContains(response, "1 of 1,000")
+        self.assertContains(response, "<td>NLP Lab</td>", html=False)
+        self.assertContains(response, "<td>You</td>", html=False)
         self.assertNotContains(response, "outsider-notes")
-        self.assertContains(
-            response, "Your keys: 1 of 10 vector stores · NLP Lab: 1 of 50 vector stores"
-        )
-
-    def test_org_admin_sees_the_team_stores_of_their_org_only(self):
-        response = self.as_user(self.org_admin).get(reverse("vector_stores"))
-        self.assertContains(response, "group-papers")
-        self.assertNotContains(response, "thesis-corpus")
-        foreign = self.as_user(self.foreign_admin).get(reverse("vector_stores"))
-        self.assertNotContains(foreign, "group-papers")
+        self.assertContains(response, "Vector stores: you 1/10 · NLP Lab 1/50")
 
     def test_quotas_cover_only_the_viewers_keys_and_their_own_teams(self):
         response = self.as_user(self.org_admin).get(reverse("vector_stores"))
         self.assertContains(response, "group-papers")
-        self.assertContains(response, "Your keys: 0 of 10 vector stores")
-        self.assertNotContains(response, "NLP Lab: 1 of 50 vector stores")
+        self.assertContains(response, "<td>outsider@example.com</td>", html=False)
+        self.assertContains(response, "Vector stores: you 0/10<")
 
     def test_detail_pages_the_store_files(self):
         for n in range(50):
@@ -418,7 +426,7 @@ class VectorStoresPageTest(ResourcePagesTestBase):
         first = self.as_user(self.owner).get(url)
         self.assertContains(first, "chunk-49.pdf")
         self.assertNotContains(first, "thesis.pdf")
-        self.assertContains(first, "51 <span")
+        self.assertContains(first, "51 files")
         self.assertContains(self.as_user(self.owner).get(url, {"page": 2}), "thesis.pdf")
 
     def test_detail_lists_the_store_files(self):
@@ -430,25 +438,29 @@ class VectorStoresPageTest(ResourcePagesTestBase):
             response, f'href="{reverse("files")}?file={self.thesis.id}#{self.thesis.id}"'
         )
         self.assertContains(response, "Ready")
+        self.assertContains(response, "1 file<")
+        self.assertContains(response, "Never expires")
+        self.assertNotContains(response, "File batches")
 
     def test_detail_links_a_file_only_when_the_files_page_lists_it(self):
         team_file = self.file(self.team_key, "papers.pdf", purpose="user_data")
-        VectorStoreFile.objects.create(
-            id="vsf-2",
-            vector_store=self.team_store,
-            file_obj=team_file,
-            status="completed",
-            created_at=NOW,
-        )
+        foreign_file = self.file(self.outsider_key, "borrowed.pdf", purpose="user_data")
+        for n, file in enumerate((team_file, foreign_file)):
+            VectorStoreFile.objects.create(
+                id=f"vsf-{n + 2}",
+                vector_store=self.team_store,
+                file_obj=file,
+                status="completed",
+                created_at=NOW,
+            )
         url = reverse("vector_store_detail", args=[self.team_store.id])
-        link = f'href="{reverse("files")}?file={team_file.id}#{team_file.id}"'
+        link = f'href="{reverse("files")}?file={{}}#{{}}"'.format
         member = self.as_user(self.teammate).get(url)
-        self.assertContains(member, link)
-        # An org admin sees the team's store but not the team's files.
+        self.assertContains(member, link(team_file.id, team_file.id))
+        self.assertContains(member, "borrowed.pdf")
+        self.assertNotContains(member, link(foreign_file.id, foreign_file.id))
         admin = self.as_user(self.org_admin).get(url)
-        self.assertContains(admin, "papers.pdf")
-        self.assertNotContains(admin, link)
-        self.assertNotContains(self.as_user(self.org_admin).get(reverse("files")), "papers.pdf")
+        self.assertContains(admin, link(foreign_file.id, foreign_file.id))
 
     def test_detail_of_a_store_outside_scope_shows_not_found(self):
         url = reverse("vector_store_detail", args=[self.own_store.id])
@@ -456,7 +468,129 @@ class VectorStoresPageTest(ResourcePagesTestBase):
             with self.subTest(user=user.username):
                 response = self.as_user(user).get(url)
                 self.assertContains(response, "Vector store not found")
+                self.assertContains(response, "It doesn't exist or you don't have access.")
                 self.assertNotContains(response, "thesis.pdf")
+
+
+class ResourceVisibilityTest(ResourcePagesTestBase):
+    """Each list shows what the request log shows: a user's own and their teams' items, every
+    item of the org to its admin, and what the org switch picks to a platform admin."""
+
+    PAGES = ("files", "batches", "vector_stores")
+
+    def setUp(self):
+        super().setUp()
+        self.far_org = self.foreign_admin.profile.org
+        stranger = self.user("stranger", org=self.far_org)
+        self.platform_admin = self.user("platform", group=UserGroup.ADMIN)
+        for tag, token in (
+            ("alpha", self.owner_key),
+            ("bravo", self.team_key),
+            ("charlie", self.outsider_key),
+            ("delta", make_token(stranger, "far-laptop")),
+        ):
+            self.file(token, f"{tag}.txt", purpose="user_data")
+            self.batch(token, f"batch-{tag}", "in_progress")
+            self.store(token, f"{tag}-store")
+
+    def assert_lists(self, user, tags: set[str], **params):
+        everything = {"alpha", "bravo", "charlie", "delta"}
+        names = {"files": "{}.txt", "batches": "batch-{}", "vector_stores": "{}-store"}
+        client = self.as_user(user)
+        for page in self.PAGES:
+            response = client.get(reverse(page), params)
+            for tag in sorted(everything):
+                with self.subTest(user=user.username, page=page, tag=tag, **params):
+                    name = names[page].format(tag)
+                    if tag in tags:
+                        self.assertContains(response, name)
+                    else:
+                        self.assertNotContains(response, name)
+
+    def test_user_sees_their_own_items(self):
+        self.assert_lists(self.outsider, {"charlie"})
+
+    def test_team_member_sees_their_own_and_their_teams_items(self):
+        self.assert_lists(self.owner, {"alpha", "bravo"})
+        self.assert_lists(self.teammate, {"bravo"})
+
+    def test_org_admin_sees_every_item_of_their_org(self):
+        self.assert_lists(self.org_admin, {"alpha", "bravo", "charlie"})
+        self.assert_lists(self.foreign_admin, {"delta"})
+
+    def test_platform_admin_follows_the_org_switch(self):
+        self.assert_lists(self.platform_admin, {"alpha", "bravo", "charlie"}, org=self.org.id)
+        self.assert_lists(self.platform_admin, {"delta"}, org=self.far_org.id)
+        self.assert_lists(self.platform_admin, {"alpha", "bravo", "charlie", "delta"}, org="all")
+
+    def test_others_items_name_their_owner_and_offer_no_delete_or_cancel(self):
+        client = self.as_user(self.org_admin)
+        files = client.get(reverse("files"))
+        self.assertContains(files, " · outsider@example.com")
+        self.assertContains(files, " · NLP Lab")
+        self.assertNotContains(files, "/delete/")
+        batches = client.get(reverse("batches"))
+        self.assertContains(batches, "batch-charlie")
+        self.assertNotContains(batches, "/cancel/")
+
+    def test_empty_lists_say_whose_items_they_list(self):
+        newcomer = self.user("newcomer")
+        lonely_admin = self.user(
+            "lonely", org=Org.objects.create(name="empty-org"), group=UserGroup.ORG_ADMIN
+        )
+        expected = (
+            (newcomer, "No files from your keys or your teams' keys yet."),
+            (lonely_admin, "No files in empty-org yet."),
+        )
+        for user, text in expected:
+            with self.subTest(user=user.username):
+                response = self.as_user(user).get(reverse("files"))
+                self.assertIn(text, unescape(response.content.decode()))
+                self.assertContains(
+                    response, 'href="https://tu-wien-datalab.github.io/aqueduct/api/files/"'
+                )
+        batches = self.as_user(newcomer).get(reverse("batches")).content.decode()
+        self.assertIn("No batches from your keys or your teams' keys yet.", unescape(batches))
+        stores = self.as_user(lonely_admin).get(reverse("vector_stores"))
+        self.assertContains(stores, "No vector stores in empty-org yet.")
+
+
+class VectorStoreSyncTest(ResourcePagesTestBase):
+    """Syncing stays with the keys a viewer created and the teams `get_teams_for_user` gives:
+    their own teams, or every team of the org to an org admin. Other users' stores are
+    view-only."""
+
+    def setUp(self):
+        super().setUp()
+        self.team_store = self.store(self.team_key, "group-papers")
+        self.outsider_store = self.store(self.outsider_key, "outsider-notes")
+
+    def list_page(self, user) -> str:
+        return self.as_user(user).get(reverse("vector_stores")).content.decode()
+
+    def test_org_admin_syncs_team_stores_but_only_views_other_users_stores(self):
+        page = self.list_page(self.org_admin)
+        self.assertIn('aria-label="Sync status of group-papers"', page)
+        self.assertIn("outsider-notes", page)
+        self.assertNotIn('aria-label="Sync status of outsider-notes"', page)
+        detail = self.as_user(self.org_admin).get(
+            reverse("vector_store_detail", args=[self.outsider_store.id])
+        )
+        self.assertContains(detail, "outsider-notes")
+        self.assertNotContains(detail, "Sync status")
+
+    def test_a_forbidden_sync_changes_nothing(self):
+        for name in ("vector_store_card_refresh", "vector_store_detail_refresh"):
+            with self.subTest(view=name):
+                url = reverse(name, args=[self.outsider_store.id])
+                response = self.as_user(self.org_admin).post(url, follow=True)
+                self.assertContains(response, "Vector store not found.")
+                self.outsider_store.refresh_from_db()
+                self.assertEqual(self.outsider_store.status, "completed")
+                self.assertEqual(self.outsider_store.name, "outsider-notes")
+
+    def test_owner_syncs_their_store(self):
+        self.assertIn('aria-label="Sync status of outsider-notes"', self.list_page(self.outsider))
 
 
 class MCPServersPageTest(ResourcePagesTestBase):

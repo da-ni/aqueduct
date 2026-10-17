@@ -1,12 +1,12 @@
 """Rows for the Files, Batches, and Vector stores pages.
 
-Each page lists what the viewer's keys and their teams' service account keys created,
-newest first, 50 rows per page. The viewer acts (delete, cancel) only on what their personal
-keys created, as with a personal key on the API.
+Each page lists what the keys of the viewer's `Scope` created, newest first, 50 rows per page.
+Seeing a row grants no action on it. The viewer deletes and cancels only what their personal
+keys created, as with a personal key on the API, and syncs what `syncable` allows.
 """
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 
 from django.conf import settings
@@ -16,6 +16,7 @@ from django.db.models import Count, Q, QuerySet, Sum
 from django.db.models.functions import Coalesce
 from django.template.defaultfilters import filesizeformat
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import urlencode
 
 from management.icons import Icon
@@ -24,25 +25,50 @@ from management.models import (
     Batch,
     BatchStatus,
     FileObject,
+    Org,
     Team,
     Token,
+    UserProfile,
     VectorStore,
     VectorStoreFile,
     VectorStoreFileBatch,
     VectorStoreFileStatus,
     VectorStoreStatus,
 )
+from management.request_log import visible_tokens
 
 DAY_SECONDS = 86_400
 PAGE_SIZE = 50
 NEWEST_FIRST = ("-created_at", "-id")
 
 
-def visible_to(user: AbstractBaseUser, teams: Iterable[Team]) -> Q:
-    """Two key subqueries rather than one OR across joins, which scans every key."""
-    return Q(token__in=Token.objects.filter(user=user)) | Q(
-        token__in=Token.objects.filter(service_account__team__in=teams)
-    )
+API_DOCS = "https://tu-wien-datalab.github.io/aqueduct/api/"
+
+
+@dataclass(frozen=True)
+class Scope:
+    """The keys whose files, batches, and vector stores the viewer sees, the same keys whose
+    requests the request log shows, and `whose` names them after "No files" on an empty page."""
+
+    keys: QuerySet[Token]
+    whose: str
+
+
+def scope(profile: UserProfile, org: Org | None) -> Scope:
+    """Every key of `org` for its admins, every key for an admin viewing every org (`org=None`),
+    otherwise the viewer's personal keys and the service account keys of their teams."""
+    keys = visible_tokens(profile, org, profile.teams.all())
+    if org is None:
+        return Scope(keys, "")
+    if profile.is_org_admin(org):
+        return Scope(keys, f" in {org.name}")
+    return Scope(keys, " from your keys or your teams' keys")
+
+
+def syncable(user: AbstractBaseUser, teams: Iterable[Team]) -> Q:
+    """The vector stores the viewer may sync from upstream: those of keys they created and of
+    `teams`, every team of the org for an org admin."""
+    return Q(token__user=user) | Q(token__service_account__team__in=teams)
 
 
 def own(user: AbstractBaseUser) -> Q:
@@ -62,8 +88,15 @@ def moment(timestamp: int | None) -> datetime | None:
     return None if timestamp is None else datetime.fromtimestamp(timestamp, tz=UTC)
 
 
-def team_of(token: Token | None) -> str | None:
-    return token.service_account.team.name if token and token.service_account else None
+YOU = "You"
+
+
+def owner_of(token: Token, viewer: AbstractBaseUser) -> str:
+    """The team of a service account's key, `YOU` for the viewer's personal key, or the email
+    of another user's personal key, which only an org admin sees."""
+    if token.service_account:
+        return token.service_account.team.name
+    return YOU if token.user_id == viewer.pk else token.user.email
 
 
 @dataclass(frozen=True)
@@ -151,21 +184,21 @@ class Quota:
     owner: str
     used: int
     limit: int
-    noun: str
 
     def __str__(self) -> str:
-        return f"{self.owner}: {self.used} of {self.limit} {self.noun}"
+        return f"{self.owner} {self.used}/{self.limit}"
 
 
 def quotas(
+    label: str,
     user: AbstractBaseUser,
     rows: QuerySet,
     teams: QuerySet[Team],
     limits: tuple[int, int],
-    noun: str,
-) -> tuple[Quota, ...]:
+) -> str:
     """What `rows` holds against the viewer's limit and against the limit of each team they
-    belong to, the limits the API enforces when it creates more."""
+    belong to, the limits the API enforces when it creates more, as "<label>: you 1/10 · <team>
+    0/25"."""
     user_limit, team_limit = limits
     per_team = dict(
         rows.filter(token__service_account__team__in=teams)
@@ -174,13 +207,14 @@ def quotas(
         .annotate(n=Count("id"))
         .values_list("token__service_account__team", "n")
     )
-    return (
-        Quota("Your keys", rows.filter(token__user=user).count(), user_limit, noun),
+    used = (
+        Quota("you", rows.filter(token__user=user).count(), user_limit),
         *(
-            Quota(team.name, per_team.get(team.id, 0), team_limit, noun)
+            Quota(team.name, per_team.get(team.id, 0), team_limit)
             for team in teams.order_by("name")
         ),
     )
+    return f"{label}: {' · '.join(map(str, used))}"
 
 
 @dataclass(frozen=True)
@@ -214,9 +248,9 @@ class Progress:
 @dataclass(frozen=True)
 class FileRow:
     file: FileObject
-    team: str | None
+    owner: str
     purpose: str
-    uploaded: datetime | None
+    created: datetime | None
     expiry: Expiry
     deletable: bool
 
@@ -226,35 +260,37 @@ class FileList:
     rows: tuple[FileRow, ...]
     pages: Page
     size: int
+    scope: Scope
+    docs = f"{API_DOCS}files/"
 
     @property
     def summary(self) -> str:
         limit = settings.AQUEDUCT_FILES_API_MAX_FILE_SIZE_MB
         return (
             f"{counted(self.pages.paginator.count, 'file')} · {filesizeformat(self.size)}"
-            f" · up to {limit} MB per file"
+            f" · max {limit} MB each"
         )
 
 
 def file_list(
     user: AbstractBaseUser,
-    teams: QuerySet[Team],
+    keys: Scope,
     now: datetime,
     page: str | int | None = None,
     file_id: str | None = None,
 ) -> FileList:
     """`file_id` opens the page that holds that file, so a link to it lands on its row."""
-    visible = FileObject.objects.filter(visible_to(user, teams))
+    visible = FileObject.objects.filter(token__in=keys.keys)
     size = visible.aggregate(size=Coalesce(Sum("bytes"), 0))["size"]
     pages, files = paged(visible, (file_id and page_holding(visible, file_id)) or page)
-    files = files.select_related("token__service_account__team")
+    files = files.select_related("token__user", "token__service_account__team")
     return FileList(
         tuple(
             FileRow(
                 file=file,
-                team=team_of(file.token),
+                owner=owner_of(file.token, user),
                 purpose=PURPOSES.get(file.purpose, file.purpose),
-                uploaded=moment(file.created_at),
+                created=moment(file.created_at),
                 expiry=Expiry.of(moment(file.expires_at), now),
                 deletable=owns(user, file.token),
             )
@@ -262,17 +298,20 @@ def file_list(
         ),
         pages,
         size,
+        keys,
     )
 
 
 @dataclass(frozen=True)
 class BatchRow:
     batch: Batch
-    team: str | None
+    owner: str
     status: Status
     progress: Progress
     created: datetime | None
-    expiry: Expiry
+    deadline: datetime | None
+    """When a running batch must finish, `None` once it stopped running."""
+    deadline_today: bool
     cancellable: bool
 
     @property
@@ -283,7 +322,7 @@ class BatchRow:
     @property
     def note(self) -> str:
         if self.batch.status in CANCELLABLE:
-            return "Output appears when it finishes"
+            return "Output pending"
         return "No output file"
 
 
@@ -291,11 +330,9 @@ class BatchRow:
 class BatchList:
     rows: tuple[BatchRow, ...]
     pages: Page
-    quotas: tuple[Quota, ...]
-
-    @property
-    def summary(self) -> str:
-        return " · ".join([counted(self.pages.paginator.count, "batch"), *map(str, self.quotas)])
+    summary: str
+    scope: Scope
+    docs = f"{API_DOCS}batches/"
 
 
 ACTIVE_BATCH = Q(
@@ -303,28 +340,52 @@ ACTIVE_BATCH = Q(
 )
 
 
-def batch_list(
-    user: AbstractBaseUser, teams: QuerySet[Team], now: datetime, page: str | None = None
-) -> BatchList:
-    pages, batches = paged(Batch.objects.filter(visible_to(user, teams)), page)
-    batches = batches.select_related(
-        "token__service_account__team", "input_file", "output_file", "error_file"
+def batch_row(batch: Batch, user: AbstractBaseUser, now: datetime) -> BatchRow:
+    running = batch.status in CANCELLABLE
+    deadline = moment(batch.expires_at) if running else None
+    return BatchRow(
+        batch=batch,
+        owner=owner_of(batch.token, user),
+        status=Status.of(batch.status, BATCH_STATUSES),
+        progress=Progress.of(batch.request_counts),
+        created=moment(batch.created_at),
+        deadline=deadline,
+        deadline_today=deadline is not None
+        and timezone.localdate(deadline) == timezone.localdate(now),
+        cancellable=running and owns(user, batch.token),
     )
-    rows = tuple(
-        BatchRow(
-            batch=batch,
-            team=team_of(batch.token),
-            status=Status.of(batch.status, BATCH_STATUSES),
-            progress=Progress.of(batch.request_counts),
-            created=moment(batch.created_at),
-            expiry=Expiry.of(moment(batch.expires_at), now),
-            cancellable=batch.status in CANCELLABLE and owns(user, batch.token),
-        )
-        for batch in batches
+
+
+def batch_list(
+    user: AbstractBaseUser,
+    keys: Scope,
+    teams: QuerySet[Team],
+    now: datetime,
+    page: str | None = None,
+) -> BatchList:
+    """Lists the batches of `keys`; the summary counts running batches of the viewer and of
+    the `teams` they belong to."""
+    pages, batches = paged(Batch.objects.filter(token__in=keys.keys), page)
+    batches = batches.select_related(
+        "token__user", "token__service_account__team", "input_file", "output_file", "error_file"
     )
     limits = (settings.MAX_USER_BATCHES, settings.MAX_TEAM_BATCHES)
-    running = quotas(user, Batch.objects.filter(ACTIVE_BATCH), teams, limits, "running")
-    return BatchList(rows, pages, running)
+    return BatchList(
+        tuple(batch_row(batch, user, now) for batch in batches),
+        pages,
+        quotas("Running", user, Batch.objects.filter(ACTIVE_BATCH), teams, limits),
+        keys,
+    )
+
+
+def expires(expiry: Expiry, now: datetime) -> Expiry:
+    """`expiry` worded to stand alone after "Created <date>": "Never expires", "Expires today",
+    "Expires 3 Nov 2026", or "Expired"."""
+    if expiry.at is None:
+        return replace(expiry, label="Never expires")
+    if expiry.at <= now:
+        return expiry
+    return replace(expiry, label=f"Expires {expiry.label[0].lower()}{expiry.label[1:]}")
 
 
 def store_expiry(store: VectorStore, now: datetime) -> Expiry:
@@ -339,63 +400,62 @@ def store_expiry(store: VectorStore, now: datetime) -> Expiry:
 @dataclass(frozen=True)
 class StoreRow:
     store: VectorStore
-    team: str | None
+    owner: str
     status: Status
     files: int
     size: int
     expiry: Expiry
+    syncable: bool
 
 
 @dataclass(frozen=True)
 class StoreList:
     rows: tuple[StoreRow, ...]
     pages: Page
-    quotas: tuple[Quota, ...]
-    files_limit: int
-
-    @property
-    def summary(self) -> str:
-        return " · ".join(map(str, self.quotas))
+    summary: str
+    scope: Scope
+    docs = f"{API_DOCS}vector-stores/"
 
 
-def store_row(store: VectorStore, now: datetime) -> StoreRow:
-    """`store` comes from `with_files`, which counts its files and their size."""
-    return StoreRow(
-        store=store,
-        team=team_of(store.token),
-        status=Status.of(store.status, STORE_STATUSES),
-        files=store.file_count,
-        size=store.size,
-        expiry=store_expiry(store, now),
-    )
-
-
-def with_files(stores: QuerySet[VectorStore]) -> QuerySet[VectorStore]:
-    return stores.select_related("token__service_account__team").annotate(
+def store_rows(
+    stores: QuerySet[VectorStore], user: AbstractBaseUser, sync: Q, now: datetime
+) -> tuple[StoreRow, ...]:
+    """A row for each of `stores`, counting its files and their size. `sync` is `syncable`."""
+    stores = stores.select_related("token__user", "token__service_account__team").annotate(
         file_count=Count("files"), size=Coalesce(Sum("files__file_obj__bytes"), 0)
     )
-
-
-def stores_visible_to(user: AbstractBaseUser, teams: QuerySet[Team]) -> QuerySet[VectorStore]:
-    return VectorStore.objects.filter(visible_to(user, teams))
+    synced = set(stores.filter(sync).values_list("id", flat=True))
+    return tuple(
+        StoreRow(
+            store=store,
+            owner=owner_of(store.token, user),
+            status=Status.of(store.status, STORE_STATUSES),
+            files=store.file_count,
+            size=store.size,
+            expiry=store_expiry(store, now),
+            syncable=store.id in synced,
+        )
+        for store in stores
+    )
 
 
 def store_list(
     user: AbstractBaseUser,
+    keys: Scope,
+    sync: Q,
     teams: QuerySet[Team],
-    member_teams: QuerySet[Team],
     now: datetime,
     page: str | None = None,
 ) -> StoreList:
-    """Lists the stores of `teams`; the quotas cover the viewer and the `member_teams` they
-    create stores for."""
-    pages, stores = paged(stores_visible_to(user, teams), page)
+    """Lists the stores of `keys`; the summary covers the viewer and the `teams` they belong
+    to, which they create stores for."""
+    pages, stores = paged(VectorStore.objects.filter(token__in=keys.keys), page)
     limits = (settings.MAX_USER_VECTOR_STORES, settings.MAX_TEAM_VECTOR_STORES)
     return StoreList(
-        tuple(store_row(store, now) for store in with_files(stores)),
+        store_rows(stores, user, sync, now),
         pages,
-        quotas(user, VectorStore.objects.all(), member_teams, limits, "vector stores"),
-        settings.MAX_VECTOR_STORE_FILES,
+        quotas("Vector stores", user, VectorStore.objects.all(), teams, limits),
+        keys,
     )
 
 
@@ -403,7 +463,7 @@ def store_list(
 class StoreFileRow:
     entry: VectorStoreFile
     status: Status
-    added: datetime | None
+    created: datetime | None
     listed: bool
 
 
@@ -419,32 +479,41 @@ class StoreBatchRow:
 @dataclass(frozen=True)
 class StoreDetail:
     row: StoreRow
+    expires: Expiry
     files: tuple[StoreFileRow, ...]
     pages: Page
     batches: tuple[StoreBatchRow, ...]
-    files_limit: int
     created: datetime | None
     last_active: datetime | None
 
 
 def store_detail(
-    store: VectorStore,
+    store_id: str,
     user: AbstractBaseUser,
-    file_teams: QuerySet[Team],
+    keys: Scope,
+    sync: Q,
     now: datetime,
     page: str | None = None,
-) -> StoreDetail:
-    """`file_teams` are the teams whose files the Files page lists, so a file links there only
-    when its row exists."""
+) -> StoreDetail | None:
+    """The store `store_id` of `keys`, `None` when `keys` did not create it. A file links to
+    the Files page, which lists the files of the same `keys`, only when its row is there."""
+    found = store_rows(
+        VectorStore.objects.filter(token__in=keys.keys, id=store_id), user, sync, now
+    )
+    if not found:
+        return None
+    row = found[0]
+    store = row.store
     pages, entries_on_page = paged(store.files.all(), page)
     entries = tuple(entries_on_page.select_related("file_obj"))
     listed = set(
         FileObject.objects.filter(
-            visible_to(user, file_teams), id__in=[entry.file_obj_id for entry in entries]
+            token__in=keys.keys, id__in=[entry.file_obj_id for entry in entries]
         ).values_list("id", flat=True)
     )
     return StoreDetail(
-        row=store_row(store, now),
+        row=row,
+        expires=expires(row.expiry, now),
         files=tuple(
             StoreFileRow(
                 entry,
@@ -465,7 +534,6 @@ def store_detail(
             )
             for batch in store.file_batches.all()
         ),
-        files_limit=settings.MAX_VECTOR_STORE_FILES,
         created=moment(store.created_at),
         last_active=moment(store.last_active_at),
     )

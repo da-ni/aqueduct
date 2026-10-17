@@ -18,30 +18,28 @@
                     <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
                         {% include "management/_status.html" with status=row.status %}
                         <span class="flex items-center gap-1 font-mono">{{ row.store.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.store.id }}" aria-label="Copy ID of {{ row.store.name }}" title="Copy vector store ID">{% icon "copy" small=True %}</button></span>
-                        <span>{{ row.team|default:"Yours" }}</span>
+                        <span>{{ row.owner }}</span>
                         <span>Created {{ detail.created|when:"date" }}</span>
                         {% if detail.last_active %}<span>Last active {{ detail.last_active|when:"date" }}</span>{% endif %}
-                        <span>Expires: {{ row.expiry|expiry }}</span>
+                        <span>{{ detail.expires|expiry }}</span>
                     </div>
                 </div>
-                <form action="{% url 'vector_store_detail_refresh' id=row.store.id %}" method="post">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-outline btn-primary">{% icon "rotate" small=True %}Refresh</button>
-                </form>
+                {% if row.syncable %}
+                    <form action="{% url 'vector_store_detail_refresh' id=row.store.id %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline btn-primary">{% icon "rotate" small=True %}Sync status</button>
+                    </form>
+                {% endif %}
             </header>
 
-            <section class="grid grid-cols-2 gap-4 md:grid-cols-3">
+            <section class="grid grid-cols-2 gap-4">
                 <div class="card bg-base-200"><div class="card-body gap-1 p-4">
                     <span class="muted text-sm">Files</span>
-                    <span class="text-2xl font-semibold">{{ row.files }} <span class="muted text-base font-normal">of {{ detail.files_limit|intcomma }}</span></span>
+                    <span class="text-2xl font-semibold">{{ row.files|intcomma }} file{{ row.files|pluralize }}</span>
                 </div></div>
                 <div class="card bg-base-200"><div class="card-body gap-1 p-4">
                     <span class="muted text-sm">Size</span>
                     <span class="text-2xl font-semibold">{{ row.size|filesizeformat }}</span>
-                </div></div>
-                <div class="card bg-base-200"><div class="card-body gap-1 p-4">
-                    <span class="muted text-sm">File batches</span>
-                    <span class="text-2xl font-semibold">{{ detail.batches|length }}</span>
                 </div></div>
             </section>
         {% endwith %}
@@ -51,7 +49,7 @@
                 <h2 class="px-3 pt-2 text-xl font-semibold">Files</h2>
                 <div class="overflow-x-auto">
                     <table class="table resource-table">
-                        <thead><tr><th>File</th><th>Status</th><th class="text-right">Size</th><th>Added</th></tr></thead>
+                        <thead><tr><th>File</th><th>Status</th><th class="text-right">Size</th><th>Created</th></tr></thead>
                         <tbody>
                             {% for file in detail.files %}
                                 <tr>
@@ -65,7 +63,7 @@
                                     </td>
                                     <td>{% include "management/_status.html" with status=file.status %}</td>
                                     <td class="text-right font-mono">{{ file.entry.usage_bytes|filesizeformat }}</td>
-                                    <td class="muted whitespace-nowrap font-mono text-[13px]">{{ file.added|when }}</td>
+                                    <td class="muted whitespace-nowrap font-mono text-[13px]">{{ file.created|when|dash }}</td>
                                 </tr>
                             {% empty %}
                                 <tr><td colspan="4" class="muted">No files in this vector store.</td></tr>
@@ -93,7 +91,7 @@
                                             {% include "management/_progress.html" with progress=batch.progress %}
                                             {% if batch.in_progress %}<div class="muted font-mono text-xs">{{ batch.in_progress }} in progress</div>{% endif %}
                                         </td>
-                                        <td class="muted whitespace-nowrap font-mono text-[13px]">{{ batch.created|when }}</td>
+                                        <td class="muted whitespace-nowrap font-mono text-[13px]">{{ batch.created|when|dash }}</td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
@@ -108,7 +106,7 @@
         </header>
         <section class="card bg-base-200">
             <div class="card-body items-start gap-4">
-                <p>This vector store does not exist, or none of your keys or your teams' keys created it.</p>
+                <p>It doesn't exist or you don't have access.</p>
                 <a class="btn btn-outline btn-primary" href="{% url 'vector_stores' %}">Back to vector stores</a>
             </div>
         </section>

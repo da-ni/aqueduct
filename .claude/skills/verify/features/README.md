@@ -14,7 +14,7 @@ This directory is the maintained source for verifying what users see and do in t
 - Start every recipe from a fresh launch unless it says otherwise. Recipes change data, and the seed runs only once per launch.
 - Sign in with `aqv login <username>`. Each recipe names the account.
 - Name elements by ARIA role and accessible name, as the recipes do. The icon buttons on the API keys page and the team page carry the item's name, such as `Rotate user-laptop` or `Delete verify-pipeline`.
-- Delete, Rotate, and member removal open the shared confirm dialog, `<dialog id="confirm-dialog">`. Choose its action button with `aqv click --role button --name <Delete|Rotate|Remove> --exact`, or `Cancel`. The question and consequence are in `aqv text --selector '#confirm-dialog'`. The browser still accepts every `confirm()` dialog, which the batch Cancel and the team admin buttons use.
+- Delete, Rotate, batch Cancel, and member removal open the shared confirm dialog, `<dialog id="confirm-dialog">`. Choose its action button with `aqv click --role button --name <Delete|Rotate|Remove|"Cancel batch"> --exact`, or `Cancel`. The question and consequence are in `aqv text --selector '#confirm-dialog'`. The browser still accepts every `confirm()` dialog, which the team admin buttons use.
 - Read stored values with `aqv shell -c`.
 
 ## Proof and skip reporting
