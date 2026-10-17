@@ -32,5 +32,29 @@
     if (event.target.closest('[data-toggle-theme]')) toggleTheme();
     const copyButton = event.target.closest('[data-copy]');
     if (copyButton) copy(copyButton);
+    toggleRow(event);
   });
+  document.addEventListener('auxclick', (event) => {
+    if (event.button === 1) toggleRow(event);
+  });
+
+  let pendingToggle;
+
+  // A click on a log row follows its arrow link. Links in the row, text selection, and
+  // double-clicks keep their usual effect, and a modified or middle click opens a new tab.
+  function toggleRow(event) {
+    clearTimeout(pendingToggle);
+    const row = event.target.closest('[data-row-toggle]');
+    if (!row || event.target.closest('a, button')) return;
+    const href = row.querySelector('[data-row-toggle-link]').href;
+    if (event.button === 1 || event.ctrlKey || event.metaKey || event.shiftKey) {
+      window.open(href, '_blank', 'noopener');
+      return;
+    }
+    if (event.detail > 1) return;
+    pendingToggle = setTimeout(() => {
+      if (!getSelection().toString()) window.location.href = href;
+    }, 250);
+  }
+
 })();
