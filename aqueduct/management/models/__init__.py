@@ -7,6 +7,7 @@ from management.models.mixins import (
     ModelExclusionMixin,
 )
 from management.models.org import Org
+from management.models.privacy_notice import PrivacyNotice
 from management.models.request import Request, Usage
 from management.models.service_account import ServiceAccount
 from management.models.snippet import Snippet, SnippetType
@@ -39,6 +40,7 @@ __all__ = [
     "Org",
     "OrgLatencyHour",
     "OrgUsageHour",
+    "PrivacyNotice",
     "Request",
     "ServiceAccount",
     "Snippet",

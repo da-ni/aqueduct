@@ -18,6 +18,7 @@ from django.urls import NoReverseMatch, include, path, reverse
 from django.utils import timezone
 
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
+from management.models import PrivacyNotice
 from management.nav import HELP, NAV, NAV_BOTTOM, Shell, build_shell
 
 User = get_user_model()
@@ -87,6 +88,8 @@ class ShellTest(TestCase):
         return reverse("sso") if FIXTURE_USER_PK_BY_ROLE[role] is None else reverse("tokens")
 
     def test_nav_shows_exactly_the_pages_the_viewer_may_open(self):
+        # The Privacy page opens without a notice but is linked only once one exists.
+        PrivacyNotice.objects.create(content="Notice.")
         extra = set(settings.EXTRA_NAV_LINKS.values())
         mounted, unmounted = set(), set()
         for page in every_page():

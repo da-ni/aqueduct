@@ -31,7 +31,7 @@ Admins choose the organization they look at, or **All organizations**, in the **
 
 A link with `?org=` in its address, such as a link someone shared, shows that organization and keeps it as your choice. Org admins and users always see their own organization and get no select.
 
-The footer of every page shows the gateway URL with a copy button. Use this URL as the base URL in OpenAI-compatible clients. The footer also links to the terms of service, when your deployment uses them.
+The footer of every page shows the gateway URL with a copy button. Use this URL as the base URL in OpenAI-compatible clients. The footer also links to the terms of service, when your deployment uses them, and to the **Privacy** page, when your deployment publishes privacy information. The Privacy page shows the information for everyone, followed by any information for your organization.
 
 ## Roles
 

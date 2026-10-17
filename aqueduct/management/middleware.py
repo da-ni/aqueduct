@@ -31,6 +31,9 @@ class UserAgreementMiddleware(TOSUserAgreementMiddleware):
         if request.path_info.rstrip("/") == reverse("admin_sso").rstrip("/"):
             return True
 
+        if request.path_info == reverse("privacy"):
+            return True
+
         return super().should_fast_skip(request)
 
 
