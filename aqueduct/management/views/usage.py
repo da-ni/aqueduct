@@ -197,27 +197,25 @@ class KeyUsageView(BaseAqueductView, TemplateView):
     template_name = "management/usage_keys.html"
 
     def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
-        context = self.get_context_data(**kwargs)
-        filters = context["filters"]
-        assert isinstance(filters, Filters)
-        only_key = filters.only_key
-        if not filters.can_pick_scope and only_key is not None and only_key.href is not None:
-            return redirect(only_key.href)
-        return self.render_to_response(context)
-
-    def get_context_data(self, **kwargs) -> dict[str, object]:
-        context = super().get_context_data(**kwargs)
-        params = self.request.GET.copy()
+        params = request.GET.copy()
         params.pop("key", None)
-        teams = self.get_teams_for_user()
         filters = read_filters(
             self.profile,
-            teams,
+            self.get_teams_for_user(),
             params,
             org=self.viewed_org,
             default_span=report.DEFAULT_SPAN,
             now=timezone.now(),
         )
+        only_key = filters.only_key
+        if not filters.can_pick_scope and only_key is not None and only_key.href is not None:
+            # The key page always shows the last 7 days of every model, so span and model go.
+            return redirect(only_key.href)
+        return self.render_to_response(self.get_context_data(filters=filters, **kwargs))
+
+    def get_context_data(self, *, filters: Filters, **kwargs) -> dict[str, object]:
+        context = super().get_context_data(**kwargs)
+        params = self.request.GET
         q = params.get("q", "").strip()
         search = key_search(q, by_owner=filters.can_pick_scope)
         order = report.KeyOrder.parse(params.get("sort", "")) or report.KeyOrder.TOKENS
