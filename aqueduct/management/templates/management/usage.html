@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load humanize ui %}
+{% load humanize l10n ui %}
 
 {% block page_background %}{% endblock %}
 
@@ -75,7 +75,7 @@
                     <a class="link-plain text-sm" href="{{ filters.log_url }}">Open the log</a>
                 </div>
                 <div class="flex h-3 gap-0.5 overflow-hidden rounded-full bg-base-300">
-                    {% for row in statuses %}{% if row.count %}<div class="{{ row.tone }} min-w-1 bg-current" style="flex: {{ row.count }} 1 0%"></div>{% endif %}{% endfor %}
+                    {% for row in statuses %}{% if row.count %}<div class="{{ row.tone }} min-w-1 bg-current" style="flex: {{ row.count|unlocalize }} 1 0%"></div>{% endif %}{% endfor %}
                 </div>
                 <ul class="-mx-2 flex flex-col">
                     {% for row in statuses %}
@@ -161,7 +161,7 @@
                     {% for org in orgs_usage %}
                         <div class="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_4rem] items-center gap-4 rounded-lg px-2 py-1 text-sm">
                             <span class="truncate" title="{{ org.name }}">{{ org.name }}</span>
-                            <div><div class="onebar" style="width: {{ org.width }}%"></div></div>
+                            <div><div class="onebar" style="width: {{ org.width|unlocalize }}%"></div></div>
                             <span class="text-right font-mono">{{ org.value }}</span>
                         </div>
                     {% endfor %}

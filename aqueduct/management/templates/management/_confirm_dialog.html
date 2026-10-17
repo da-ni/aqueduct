@@ -9,15 +9,16 @@ Only an `<a href>` or a `<button type="submit">` asks. A confirmed link posts to
 action, such as a DeleteView. Without JavaScript the link opens that page, which asks the same
 question. A confirmed button submits its own form.
 {% endcomment %}
+{% load i18n %}
 <dialog id="confirm-dialog" class="modal" aria-labelledby="confirm-title" aria-describedby="confirm-detail">
     <form method="post" class="modal-box flex max-w-md flex-col gap-3">
         {% csrf_token %}
         <h2 id="confirm-title" class="break-words text-xl font-semibold"></h2>
         <p id="confirm-detail"></p>
         <div class="modal-action mt-2">
-            <button type="submit" class="btn btn-error" data-confirm-submit>Delete</button>
-            <button type="submit" class="btn btn-outline btn-primary" formmethod="dialog" formnovalidate autofocus data-confirm-dismiss>Cancel</button>
+            <button type="submit" class="btn btn-error" data-confirm-submit>{% translate "Delete" %}</button>
+            <button type="submit" class="btn btn-outline btn-primary" formmethod="dialog" formnovalidate autofocus data-confirm-dismiss>{% translate "Cancel" %}</button>
         </div>
     </form>
-    <form method="dialog" class="modal-backdrop"><button tabindex="-1" aria-hidden="true">Cancel</button></form>
+    <form method="dialog" class="modal-backdrop"><button tabindex="-1" aria-hidden="true">{% translate "Cancel" %}</button></form>
 </dialog>

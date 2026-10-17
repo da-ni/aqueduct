@@ -85,6 +85,8 @@ cover/
 
 # Translations
 *.mo
+# The image has no gettext, so the compiled catalogs are committed.
+!aqueduct/locale/*/LC_MESSAGES/django.mo
 
 # Django stuff:
 

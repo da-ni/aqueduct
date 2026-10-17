@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load humanize ui %}
+{% load humanize l10n ui %}
 
 {% block page_background %}{% endblock %}
 
@@ -61,8 +61,8 @@
                                     <div class="flex items-center gap-3">
                                         <div class="hidden min-w-0 flex-1 md:block">
                                             {% if row.activity.tokens %}
-                                                <div class="tbar" style="width: {{ row.bar_width }}%">
-                                                    {% for css, count in row.activity.segments %}{% if count %}<i class="{{ css }}" style="flex: {{ count }} 1 0%"></i>{% endif %}{% endfor %}
+                                                <div class="tbar" style="width: {{ row.bar_width|unlocalize }}%">
+                                                    {% for css, count in row.activity.segments %}{% if count %}<i class="{{ css }}" style="flex: {{ count|unlocalize }} 1 0%"></i>{% endif %}{% endfor %}
                                                 </div>
                                             {% endif %}
                                         </div>

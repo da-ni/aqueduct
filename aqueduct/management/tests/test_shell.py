@@ -108,6 +108,26 @@ class ShellTest(TestCase):
                 self.assertSetEqual(shown, allowed)
                 self.assertSetEqual(labels(shell) & unmounted, set())
 
+    def test_every_page_renders_in_german_for_every_role(self):
+        PrivacyNotice.objects.create(content="Notice.")
+        for role in FIXTURE_USER_PK_BY_ROLE:
+            self.sign_in(role)
+            self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "de"
+            shell = self.shell_on(self.home(role))
+            links = [link for section in shell.sections for link in section.links]
+            extra = set(settings.EXTRA_NAV_LINKS.values())
+            urls = {self.home(role)} | {
+                link.href for link in (*links, *shell.bottom, *shell.help_links)
+            }
+            for url in sorted(urls - extra):
+                with self.subTest(role=role, url=url):
+                    page = self.client.get(url)
+                    self.assertEqual(page.status_code, HTTPStatus.OK)
+                    html = page.content.decode()
+                    self.assertIn('<html lang="de"', html)
+                    commas = re.findall(r'style="[^"]*\d,\d[^"]*"', html)
+                    self.assertEqual(commas, [])
+
     @override_settings(TOS_ENABLED=True, SILKY_ENABLED=True)
     def test_flags_without_their_routes_do_not_break_the_page(self):
         self.sign_in("admin")

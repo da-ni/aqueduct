@@ -6,6 +6,7 @@ from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.generic import TemplateView
+from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
 from tos import views as tos_views  # type: ignore[import-untyped]
 
 
@@ -55,3 +56,30 @@ class AdminSSOView(SSOTemplateView):
         if request.user.is_authenticated and not request.user.is_staff:
             raise PermissionDenied
         return super().dispatch(request, *args, **kwargs)
+
+
+def remember_language(response: HttpResponseBase, language: str) -> None:
+    """Copies a language saved in a profile into the cookie that `LocaleMiddleware` reads, so
+    the middleware never loads the profile."""
+    response.set_cookie(
+        settings.LANGUAGE_COOKIE_NAME,
+        language,
+        max_age=settings.LANGUAGE_COOKIE_AGE,
+        path=settings.LANGUAGE_COOKIE_PATH,
+        domain=settings.LANGUAGE_COOKIE_DOMAIN,
+        secure=settings.LANGUAGE_COOKIE_SECURE,
+        httponly=settings.LANGUAGE_COOKIE_HTTPONLY,
+        samesite=settings.LANGUAGE_COOKIE_SAMESITE,
+    )
+
+
+class OIDCCallbackView(OIDCAuthenticationCallbackView):
+    """The sign-in callback. It also restores the language saved in the profile, on a browser
+    that has no language cookie yet or a different one."""
+
+    def login_success(self) -> HttpResponseBase:
+        response = super().login_success()
+        language = self.user.profile.language
+        if language:
+            remember_language(response, language)
+        return response

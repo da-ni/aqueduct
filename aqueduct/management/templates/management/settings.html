@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load ui %}
+{% load i18n ui %}
 
 {% block page_background %}{% endblock %}
 
@@ -33,6 +33,22 @@
                     <form action="{% url 'oidc_logout' %}" method="post" class="border-t border-base-300 pt-4">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-outline btn-primary">{% icon "sign_out" small=True %}Sign out</button>
+                    </form>
+                </div>
+            </section>
+
+            <section class="card bg-base-200" aria-labelledby="language-title">
+                <div class="card-body flex-row flex-wrap items-center justify-between gap-3 p-5">
+                    <div class="flex flex-col gap-1">
+                        <h2 id="language-title" class="text-xl font-semibold">{% translate "Language" %}</h2>
+                        {% if not language_chosen %}<span class="muted text-sm">{% translate "Follows your browser until you choose one." %}</span>{% endif %}
+                    </div>
+                    <form method="post" action="{% url 'language' %}" class="join">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        {% for code, name in languages %}
+                            <button type="submit" name="language" value="{{ code }}" lang="{{ code }}" class="btn btn-sm join-item{% if code == LANGUAGE_CODE %} btn-primary{% endif %}" aria-pressed="{% if code == LANGUAGE_CODE %}true{% else %}false{% endif %}">{{ name }}</button>
+                        {% endfor %}
                     </form>
                 </div>
             </section>

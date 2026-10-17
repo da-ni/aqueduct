@@ -17,7 +17,7 @@
     if (label) label.dataset.idle ??= label.textContent;
     const report = (copied) => {
       button.classList.add(copied ? 'st-ok' : 'st-err');
-      if (label) label.textContent = copied ? 'Copied' : 'Copy failed';
+      if (label) label.textContent = copied ? label.dataset.copied : label.dataset.copyFailed;
       setTimeout(() => {
         button.classList.remove('st-ok', 'st-err');
         if (label) label.textContent = label.dataset.idle;
@@ -120,8 +120,11 @@
     const detail = dialog.querySelector('#confirm-detail');
     detail.textContent = trigger.dataset.confirmDetail;
     detail.hidden = !trigger.dataset.confirmDetail;
-    dialog.querySelector('[data-confirm-submit]').textContent = trigger.dataset.confirmAction || 'Delete';
-    dialog.querySelector('[data-confirm-dismiss]').textContent = trigger.dataset.confirmDismiss || 'Cancel';
+    for (const [selector, label] of [['[data-confirm-submit]', 'confirmAction'], ['[data-confirm-dismiss]', 'confirmDismiss']]) {
+      const button = dialog.querySelector(selector);
+      button.dataset.idle ??= button.textContent;
+      button.textContent = trigger.dataset[label] || button.dataset.idle;
+    }
     dialog.showModal();
   });
   document.addEventListener('submit', (event) => {
