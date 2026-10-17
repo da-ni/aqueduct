@@ -1,8 +1,8 @@
 import re
-from datetime import UTC, datetime, timedelta
-from unittest import mock
+from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -28,6 +28,7 @@ KEY_NAMES = ("solo-laptop", "member-laptop", "pipeline", "foreign-laptop")
 @PAGES
 class UsagePageTestBase(TestCase):
     def setUp(self):
+        cache.clear()
         self.org = Org.objects.create(name="lab-org")
         self.other_org = Org.objects.create(name="other-org")
         self.team = Team.objects.create(name="NLP Lab", org=self.org)
@@ -79,14 +80,13 @@ class UsagePageTestBase(TestCase):
         self.client.force_login(user)
         return self.client.get(reverse("usage"), params)
 
-    def kpi(self, response, label: str) -> tuple[str, str]:
+    def kpi(self, response, label: str) -> str:
         match = re.search(
-            rf'{label}</span>\s*<span class="text-2xl font-semibold">([^<]*)</span>\s*'
-            r"<span[^>]*>([^<]*)</span>",
+            rf'{label}</span>\s*<span class="text-2xl font-semibold">([^<]*)</span>',
             response.content.decode(),
         )
         self.assertIsNotNone(match, f"no {label} figure on the page")
-        return match.group(1), match.group(2).strip()
+        return match.group(1)
 
     def status_count(self, response, label: str) -> str:
         match = re.search(
@@ -117,7 +117,7 @@ class UsageAccessTest(UsagePageTestBase):
     def test_user_sees_only_their_own_key(self):
         response = self.page(self.solo)
         self.assert_keys(response, "solo-laptop")
-        self.assertEqual(self.kpi(response, "Requests")[0], "1")
+        self.assertEqual(self.kpi(response, "Requests"), "1")
         self.assertContains(response, f'href="{reverse("token_detail", args=[self.solo_key.id])}"')
         self.assertNotContains(response, "My keys")
         self.assertNotContains(response, "All organizations")
@@ -133,7 +133,7 @@ class UsageAccessTest(UsagePageTestBase):
     def test_org_admin_sees_their_org_but_links_no_other_users_key(self):
         response = self.page(self.org_admin)
         self.assert_keys(response, "solo-laptop", "member-laptop", "pipeline")
-        self.assertEqual(self.kpi(response, "Requests")[0], "3")
+        self.assertEqual(self.kpi(response, "Requests"), "3")
         self.assertContains(
             response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
         )
@@ -143,20 +143,20 @@ class UsageAccessTest(UsagePageTestBase):
     def test_my_keys_narrows_an_org_admin_to_their_own_keys(self):
         response = self.page(self.org_admin, scope="mine")
         self.assert_keys(response)
-        self.assertEqual(self.kpi(response, "Requests")[0], "0")
+        self.assertEqual(self.kpi(response, "Requests"), "0")
 
     def test_admin_sees_every_org_split_by_org(self):
         response = self.page(self.admin, org="all")
         self.assert_keys(response, *KEY_NAMES)
         self.assertContains(response, "By organization")
         self.assertContains(response, "other-org")
-        self.assertEqual(self.kpi(response, "Requests")[0], "4")
+        self.assertEqual(self.kpi(response, "Requests"), "4")
 
     def test_all_orgs_names_no_org_for_a_key_whose_owner_has_no_profile(self):
         root = User.objects.create_superuser("root", "root@example.com", "pw")
         self.log(make_token(root, "root-laptop"), timedelta(hours=1), 200, input_tokens=10)
         response = self.page(self.admin, org="all")
-        self.assertContains(response, "Personal · root@example.com · No organization")
+        self.assertContains(response, "root@example.com · No organization")
         self.assertNotContains(response, "· None")
 
     def test_admin_may_pick_another_org(self):
@@ -173,7 +173,7 @@ class UsageAccessTest(UsagePageTestBase):
     def test_key_filter_accepts_the_owners_key(self):
         response = self.page(self.solo, key=self.solo_key.id)
         self.assertContains(response, "for the key")
-        self.assertEqual(self.kpi(response, "Requests")[0], "1")
+        self.assertEqual(self.kpi(response, "Requests"), "1")
 
     def test_key_filter_hides_keys_outside_the_viewers_scope(self):
         self.client.force_login(self.solo)
@@ -187,24 +187,24 @@ class UsageAccessTest(UsagePageTestBase):
     def test_key_filter_accepts_a_service_account_key_for_its_team_only(self):
         response = self.page(self.member, key=self.pipeline_key.id)
         self.assertContains(response, "for the key")
-        self.assertEqual(self.kpi(response, "Requests")[0], "1")
+        self.assertEqual(self.kpi(response, "Requests"), "1")
         self.assertEqual(self.page(self.solo, key=self.pipeline_key.id).status_code, 404)
         self.assertEqual(self.page(self.other_org_admin, key=self.pipeline_key.id).status_code, 404)
 
     def test_key_filter_lets_an_org_admin_name_any_key_of_their_org(self):
         response = self.page(self.org_admin, key=self.member_key.id)
-        self.assertEqual(self.kpi(response, "Requests")[0], "1")
+        self.assertEqual(self.kpi(response, "Requests"), "1")
         self.assertContains(response, "By user ID")
 
 
 class UsageFiguresTest(UsagePageTestBase):
     def test_totals_count_tokens_cache_hits_and_failures(self):
         response = self.page(self.org_admin)
-        self.assertEqual(self.kpi(response, "Input tokens")[0], "6K")
-        self.assertEqual(self.kpi(response, "Output tokens")[0], "1.5K")
-        self.assertEqual(self.kpi(response, "Cache hits")[0], "4%")  # 250 of 6,000
-        self.assertEqual(self.kpi(response, "Failed")[0], "67%")  # 429 and 500 of 3
-        self.assertEqual(self.kpi(response, "Median response")[0], "100 ms")
+        self.assertEqual(self.kpi(response, "Input from cache"), "250")
+        self.assertEqual(self.kpi(response, "New input"), "5.8K")  # 6,000 less 250 cached
+        self.assertEqual(self.kpi(response, "Output"), "1.5K")
+        self.assertEqual(self.kpi(response, "Requests"), "3")
+        self.assertEqual(self.kpi(response, "Failed"), "67%")  # 429 and 500 of 3
 
     def test_requests_are_split_by_status(self):
         response = self.page(self.org_admin)
@@ -215,79 +215,48 @@ class UsageFiguresTest(UsagePageTestBase):
 
     def test_time_frame_limits_the_requests_counted(self):
         self.log(self.solo_key, timedelta(days=3), 200)
-        self.assertEqual(self.kpi(self.page(self.solo), "Requests")[0], "2")
-        self.assertEqual(self.kpi(self.page(self.solo, span="1d"), "Requests")[0], "1")
-
-    def test_change_compares_with_the_previous_period(self):
-        self.log(self.solo_key, timedelta(hours=2), 200)
-        self.log(self.solo_key, timedelta(days=1, hours=1), 200)
-        response = self.page(self.solo, span="1d")
-        self.assertEqual(self.kpi(response, "Requests"), ("2", "+100%"))
-        self.assertContains(response, "Change vs previous 24 hours")
-
-    def test_change_compares_equal_elapsed_time_mid_bucket(self):
-        now = datetime(2026, 10, 14, 6, 30, tzinfo=UTC)
-        Request.objects.all().delete()
-        Request.objects.bulk_create(
-            Request(
-                token=self.solo_key, timestamp=now - timedelta(hours=h), status_code=200, model=CHAT
-            )
-            for h in range(1, 14 * 24 + 1)
-        )
-        with mock.patch("django.utils.timezone.now", return_value=now):
-            response = self.page(self.solo, span="1w")
-        # One request per hour: 150 so far this week, 150 in the same stretch a week earlier.
-        self.assertEqual(self.kpi(response, "Requests"), ("150", "+0%"))
-
-    def test_median_response_has_a_bar_per_day(self):
-        now = datetime(2026, 10, 14, 12, 0, tzinfo=UTC)
-        Request.objects.all().delete()
-        for hours, ms in ((1, 100), (49, 300), (50, 500), (51, 700)):
-            Request.objects.create(
-                token=self.solo_key,
-                timestamp=now - timedelta(hours=hours),
-                status_code=200,
-                model=CHAT,
-                response_time_ms=ms,
-            )
-        with mock.patch("django.utils.timezone.now", return_value=now):
-            response = self.page(self.solo, span="1w")
-        median = next(kpi for kpi in response.context["kpis"] if kpi.label == "Median response")
-        self.assertEqual(
-            [str(bar.tip) for bar in median.spark],
-            [f"{day} Oct: n/a" for day in (8, 9, 10, 11)]
-            + ["12 Oct: 500 ms", "13 Oct: n/a", "14 Oct: 100 ms"],
-        )
-        self.assertEqual([bar.height for bar in median.spark][4:], [100, 0, 20])
-
-    def test_no_change_shown_where_the_previous_period_is_not_kept(self):
-        response = self.page(self.solo, span="1m")
-        self.assertEqual(self.kpi(response, "Requests"), ("1", ""))
-        self.assertNotContains(response, "Change vs previous")
+        self.assertEqual(self.kpi(self.page(self.solo), "Requests"), "2")
+        self.assertEqual(self.kpi(self.page(self.solo, span="1d"), "Requests"), "1")
 
     def test_model_filter_keeps_one_model(self):
         self.log(self.solo_key, timedelta(hours=1), 200, model=EMBEDDING, input_tokens=9)
-        self.assertEqual(self.kpi(self.page(self.solo), "Requests")[0], "2")
+        self.assertEqual(self.kpi(self.page(self.solo), "Requests"), "2")
         response = self.page(self.solo, model=EMBEDDING)
-        self.assertEqual(self.kpi(response, "Requests")[0], "1")
-        self.assertEqual(self.kpi(response, "Input tokens")[0], "9")
+        self.assertEqual(self.kpi(response, "Requests"), "1")
+        self.assertEqual(self.kpi(response, "New input"), "9")
 
     def test_models_outside_the_router_config_are_left_out(self):
         self.log(self.solo_key, timedelta(hours=1), 200, model="retired-model")
         response = self.page(self.solo)
-        self.assertEqual(self.kpi(response, "Requests")[0], "1")
+        self.assertEqual(self.kpi(response, "Requests"), "1")
         self.assertNotContains(response, "retired-model")
 
-    def test_heatmap_averages_tokens_per_hour_over_four_weeks(self):
+    def test_heatmap_averages_the_whole_orgs_tokens_per_hour_over_four_weeks(self):
         moment = timezone.now() - timedelta(hours=1)
         weekday = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")[moment.isoweekday() - 1]
-        response = self.page(self.solo)
-        # 1,500 tokens in one hour slot, spread over four weeks.
         until = (moment.hour + 1) % 24
-        self.assertContains(
-            response,
-            f'aria-label="{weekday} {moment.hour:02d}:00 to {until:02d}:00: 375 tokens per hour"',
+        cell = (
+            f'aria-label="{weekday} {moment.hour:02d}:00 to {until:02d}:00: {{}} tokens per hour"'
         )
+        # lab-org's 7,500 tokens in one hour slot, spread over four weeks, whatever the filters.
+        for user, params in (
+            (self.solo, {}),
+            (self.solo, {"key": self.solo_key.id, "model": EMBEDDING}),
+            (self.org_admin, {"scope": "mine"}),
+        ):
+            with self.subTest(user=user.username, **params):
+                response = self.page(user, **params)
+                self.assertContains(response, "Activity across lab-org")
+                self.assertContains(response, cell.format("1.9K"))
+        response = self.page(self.admin, org="all")
+        self.assertContains(response, "Activity across all organizations")
+        self.assertContains(response, cell.format("3.6K"))  # 14,500 tokens
+
+    def test_heatmap_is_cached_per_org(self):
+        heat = self.page(self.solo).context["heat"]
+        self.log(self.member_key, timedelta(minutes=1), 200, input_tokens=10**6)
+        self.assertEqual(self.page(self.org_admin).context["heat"], heat)
+        self.assertNotEqual(self.page(self.foreigner).context["heat"], heat)
 
     @override_settings(REQUEST_RETENTION_DAYS=7)
     def test_retention_warning_when_the_time_frame_reaches_past_retention(self):
@@ -299,7 +268,7 @@ class UsageFiguresTest(UsagePageTestBase):
         for span in ("all", "bogus"):
             response = self.page(self.solo, span=span)
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(self.kpi(response, "Requests")[0], "1")
+            self.assertEqual(self.kpi(response, "Requests"), "1")
             self.assertContains(response, 'aria-current="page">7 days</a>')
             self.assertNotContains(response, "All retained")
 
@@ -308,16 +277,12 @@ class UsageFiguresTest(UsagePageTestBase):
         start = (timezone.now() - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M")
         response = self.page(self.solo, start=start, end="2020-01-01T00:00")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.kpi(response, "Requests")[0], "2")
-
-    def test_change_caption_shows_only_beside_a_change(self):
-        self.assertNotContains(self.page(self.solo, span="1d"), "Change vs previous")
+        self.assertEqual(self.kpi(response, "Requests"), "2")
 
     def test_empty_time_frame_says_so_in_each_section(self):
         Request.objects.all().delete()
         response = self.page(self.solo)
         self.assertContains(response, "No requests in this time frame.", count=3)
-        self.assertNotContains(response, "Change vs previous")
 
     def test_model_rows_open_the_log_on_their_model(self):
         response = self.page(self.solo, span="1d")
@@ -327,14 +292,28 @@ class UsageFiguresTest(UsagePageTestBase):
         )
         self.assertNotContains(response, f"{reverse('models')}?model=")
 
-    def test_largest_keys_rows_open_the_key(self):
+    def test_model_and_key_rows_show_the_lower_median_response(self):
+        Request.objects.all().delete()
+        for ms in (700, 100, None, 500, 300):
+            Request.objects.create(
+                token=self.solo_key,
+                timestamp=timezone.now() - timedelta(hours=1),
+                status_code=200,
+                model=CHAT,
+                response_time_ms=ms,
+            )
+        context = self.page(self.solo).context
+        self.assertEqual([row.median for row in context["models"]], ["300 ms"])
+        self.assertEqual([key.median for key in context["keys"]], ["300 ms"])
+
+    def test_top_keys_rows_open_the_key(self):
         response = self.page(self.solo)
         detail = reverse("token_detail", args=[self.solo_key.id])
         self.assertContains(
             response, f'class="link-plain row-link block truncate font-mono" href="{detail}"'
         )
 
-    def test_largest_keys_count_tokens_and_requests_like_the_model_rows(self):
+    def test_top_keys_count_tokens_and_requests_like_the_model_rows(self):
         self.log(self.pipeline_key, timedelta(hours=2), 200, input_tokens=1000)
         self.log(self.pipeline_key, timedelta(hours=3), 200, output_tokens=500)
         keys = {key.name: key for key in self.page(self.org_admin).context["keys"]}

@@ -2,13 +2,14 @@
 
 import math
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
-from django.db.models import Count, F, Q, QuerySet, Sum
+from django.core.cache import cache
+from django.db.models import Aggregate, Count, F, IntegerField, Q, QuerySet, Sum
 from django.db.models.functions import ExtractHour, ExtractIsoWeekDay, Trunc
-from django.urls import reverse
 from django.utils import timezone
 
 from management.key_activity import (
@@ -18,20 +19,26 @@ from management.key_activity import (
     Share,
     SparkBar,
     Tip,
+    as_cached,
     as_requests,
     as_tokens,
     chart,
     compact,
-    heights,
     percent,
+    served,
     spark,
 )
-from management.models import Request
+from management.models import Org, Request, Token
+
+if TYPE_CHECKING:
+    from management.request_log import Key
 
 SPARK_BARS = 12
 SECOND_MS = 1000
 AXIS_LABELS = 8
-TOP_KEYS = 25
+TOP_KEYS = 10
+TOP_USER_IDS = 25
+HEAT_CACHE_SECONDS = 60 * 60
 HEAT_CLASSES = (
     "bg-base-300",
     "bg-primary/20",
@@ -113,11 +120,6 @@ class Period:
         end = step.floor(now) + step.size
         return cls(end - count * step.size, end, step, label)
 
-    def previous(self, now: datetime) -> "Period":
-        """The same stretch one period earlier, cut where this period's elapsed time ends."""
-        length = self.end - self.start
-        return replace(self, start=self.start - length, end=min(self.end, now) - length)
-
     @property
     def buckets(self) -> list[datetime]:
         moment, found = self.step.floor(self.start), []
@@ -128,183 +130,6 @@ class Period:
 
     def of(self, requests: QuerySet[Request]) -> QuerySet[Request]:
         return requests.filter(timestamp__gte=self.start, timestamp__lt=self.end)
-
-
-def totals(requests: QuerySet[Request]) -> Activity:
-    return Activity(**requests.aggregate(**TOTALS))
-
-
-def series(requests: QuerySet[Request], period: Period) -> list[tuple[datetime, Activity]]:
-    """Activity per bucket of the period, empty buckets included."""
-    rows = (
-        period.of(requests)
-        .annotate(bucket=Trunc("timestamp", period.step.kind))
-        .values("bucket")
-        .annotate(**TOTALS)
-        .order_by()
-    )
-    found = {row.pop("bucket"): Activity(**row) for row in rows}
-    return [(bucket, found.get(bucket, Activity())) for bucket in period.buckets]
-
-
-def columns(
-    points: Sequence[tuple[datetime, Activity]], step: Step, metric: str
-) -> tuple[Column, ...]:
-    labelled = [(timezone.localtime(moment).strftime(step.label_format), a) for moment, a in points]
-    return chart(labelled, metric, every=math.ceil(len(points) / AXIS_LABELS) or 1)
-
-
-def median_ms(requests: QuerySet[Request]) -> int | None:
-    timed = requests.exclude(response_time_ms=None)
-    count = timed.count()
-    if not count:
-        return None
-    return timed.order_by("response_time_ms").values_list("response_time_ms", flat=True)[count // 2]
-
-
-def duration(ms: int | None) -> str:
-    if ms is None:
-        return "n/a"
-    return f"{ms:,} ms" if ms < SECOND_MS else f"{ms / SECOND_MS:.1f} s"
-
-
-def _ratio(part: int, whole: int) -> float:
-    return part / whole if whole else 0.0
-
-
-def _relative(now: float, before: float) -> str | None:
-    return f"{round(100 * (now - before) / before):+d}%" if before else None
-
-
-def _points(now: float, before: float) -> str:
-    return f"{100 * (now - before):+.1f}".removesuffix(".0") + " pts"
-
-
-@dataclass(frozen=True)
-class Kpi:
-    label: str
-    value: str
-    change: str | None
-    spark: tuple[SparkBar, ...]
-
-
-def _share(ratio: float) -> str:
-    return f"{round(100 * ratio)}%"
-
-
-def _summed(activities: Sequence[Activity]) -> Activity:
-    return Activity(**{field: sum(getattr(a, field) for a in activities) for field in TOTALS})
-
-
-@dataclass(frozen=True)
-class Slot:
-    """The buckets one spark bar covers: `start <= timestamp < end`."""
-
-    label: str
-    start: datetime
-    end: datetime
-    activity: Activity
-
-
-def slots(points: Sequence[tuple[datetime, Activity]], step: Step) -> tuple[Slot, ...]:
-    """The period's buckets grouped into at most `SPARK_BARS` spark bars."""
-    size = math.ceil(len(points) / SPARK_BARS) or 1
-
-    def slot(group: Sequence[tuple[datetime, Activity]]) -> Slot:
-        first, last = (
-            timezone.localtime(m).strftime(step.label_format) for m in (group[0][0], group[-1][0])
-        )
-        return Slot(
-            first if first == last else f"{first} to {last}",
-            group[0][0],
-            group[-1][0] + step.size,
-            _summed([a for _, a in group]),
-        )
-
-    return tuple(slot(points[i : i + size]) for i in range(0, len(points), size))
-
-
-def slot_medians(
-    requests: QuerySet[Request], spark_slots: Sequence[Slot]
-) -> tuple[int | None, ...]:
-    return tuple(
-        median_ms(requests.filter(timestamp__gte=s.start, timestamp__lt=s.end)) for s in spark_slots
-    )
-
-
-def kpis(
-    spark_slots: Sequence[Slot],
-    median: int | None,
-    medians: Sequence[int | None],
-    before: Activity | None,
-    before_median: int | None,
-) -> tuple[Kpi, ...]:
-    """The headline figures, each with its change against the previous period when known.
-
-    `medians` holds the median response time of each slot."""
-    now = _summed([s.activity for s in spark_slots])
-    known = before if before is not None and before.requests else None
-
-    def relative(field: str) -> str | None:
-        return _relative(getattr(now, field), getattr(known, field)) if known else None
-
-    def bars_of(
-        value: Callable[[Activity], float], show: Callable[[float], str]
-    ) -> tuple[SparkBar, ...]:
-        return spark([(s.label, value(s.activity)) for s in spark_slots], show)
-
-    def points(part: str, whole: str) -> str | None:
-        if not known:
-            return None
-        return _points(
-            _ratio(getattr(now, part), getattr(now, whole)),
-            _ratio(getattr(known, part), getattr(known, whole)),
-        )
-
-    median_bars = tuple(
-        SparkBar(height, Tip(s.label, duration(ms)))
-        for s, ms, height in zip(
-            spark_slots, medians, heights([ms or 0 for ms in medians]), strict=True
-        )
-    )
-    return (
-        Kpi(
-            "Input tokens",
-            compact(now.input),
-            relative("input"),
-            bars_of(lambda a: a.input, lambda n: f"{compact(round(n))} input tokens"),
-        ),
-        Kpi(
-            "Output tokens",
-            compact(now.output),
-            relative("output"),
-            bars_of(lambda a: a.output, lambda n: f"{compact(round(n))} output tokens"),
-        ),
-        Kpi(
-            "Cache hits",
-            now.cache_hits,
-            points("cached", "input"),
-            bars_of(lambda a: _ratio(a.cached, a.input), _share),
-        ),
-        Kpi(
-            "Requests",
-            f"{now.requests:,}",
-            relative("requests"),
-            bars_of(lambda a: a.requests, as_requests),
-        ),
-        Kpi(
-            "Failed",
-            now.failed_share,
-            points("failed", "requests"),
-            bars_of(lambda a: _ratio(a.failed, a.requests), _share),
-        ),
-        Kpi(
-            "Median response",
-            duration(median),
-            _relative(median, before_median) if known and median and before_median else None,
-            median_bars,
-        ),
-    )
 
 
 @dataclass(frozen=True)
@@ -332,24 +157,165 @@ STATUSES = (
 )
 
 
-def statuses(
-    requests: QuerySet[Request], total: int, link: Callable[..., str]
-) -> tuple[StatusRow, ...]:
-    """Requests per status group. `link(status=codes)` opens the log on that group."""
-    counts = requests.aggregate(
-        **{f"s{i}": Count("id", filter=match) for i, (*_, match) in enumerate(STATUSES)}
-    )
-    return tuple(
-        StatusRow(
-            label,
-            codes,
-            icon,
-            tone,
-            counts[f"s{i}"],
-            percent(counts[f"s{i}"], total),
-            link(status=codes),
+class Median(Aggregate):
+    """The lower median of the non-null values, one per group.
+
+    SQLite has no ordered-set aggregates, so there the values are collected and the median is
+    picked in Python, which is fine at development scale."""
+
+    function = "PERCENTILE_DISC"
+    template = "%(function)s(0.5) WITHIN GROUP (ORDER BY %(expressions)s)"
+    output_field = IntegerField()
+
+    def as_sqlite(self, compiler, connection, **extra_context) -> tuple[str, Sequence[Any]]:
+        return super().as_sql(
+            compiler,
+            connection,
+            function="GROUP_CONCAT",
+            template="%(function)s(%(expressions)s)",
+            **extra_context,
         )
-        for i, (label, codes, icon, tone, _) in enumerate(STATUSES)
+
+    def get_db_converters(self, connection) -> list[Callable[..., Any]]:
+        if connection.vendor == "sqlite":
+            return [_lower_median]
+        return super().get_db_converters(connection)
+
+
+def _lower_median(value: str | None, *_: object) -> int | None:
+    if not value:
+        return None
+    ordered = sorted(int(v) for v in value.split(","))
+    return ordered[(len(ordered) - 1) // 2]
+
+
+MEDIAN = Median("response_time_ms")
+STATUS_COUNTS = {f"s{i}": Count("id", filter=match) for i, (*_, match) in enumerate(STATUSES)}
+
+
+@dataclass(frozen=True)
+class Series:
+    """Activity per bucket of a period, empty buckets included, and the requests per status
+    group of `STATUSES` over the whole period."""
+
+    points: list[tuple[datetime, Activity]]
+    status_counts: tuple[int, ...]
+
+    @property
+    def total(self) -> Activity:
+        return _summed([a for _, a in self.points])
+
+
+def series(requests: QuerySet[Request], period: Period) -> Series:
+    rows = (
+        period.of(requests)
+        .annotate(bucket=Trunc("timestamp", period.step.kind))
+        .values("bucket")
+        .annotate(**TOTALS, **STATUS_COUNTS)
+        .order_by()
+    )
+    found, status_counts = {}, [0] * len(STATUSES)
+    for row in rows:
+        bucket = row.pop("bucket")
+        for i in range(len(STATUSES)):
+            status_counts[i] += row.pop(f"s{i}")
+        found[bucket] = Activity(**row)
+    return Series(
+        [(bucket, found.get(bucket, Activity())) for bucket in period.buckets], tuple(status_counts)
+    )
+
+
+def columns(
+    points: Sequence[tuple[datetime, Activity]], step: Step, metric: str
+) -> tuple[Column, ...]:
+    labelled = [(timezone.localtime(moment).strftime(step.label_format), a) for moment, a in points]
+    return chart(labelled, metric, every=math.ceil(len(points) / AXIS_LABELS) or 1)
+
+
+def duration(ms: int | None) -> str:
+    if ms is None:
+        return "n/a"
+    return f"{ms:,} ms" if ms < SECOND_MS else f"{ms / SECOND_MS:.1f} s"
+
+
+def _ratio(part: int, whole: int) -> float:
+    return part / whole if whole else 0.0
+
+
+@dataclass(frozen=True)
+class Kpi:
+    label: str
+    value: str
+    spark: tuple[SparkBar, ...]
+
+
+def _share(ratio: float) -> str:
+    return f"{round(100 * ratio)}%"
+
+
+def _summed(activities: Sequence[Activity]) -> Activity:
+    return Activity(**{field: sum(getattr(a, field) for a in activities) for field in TOTALS})
+
+
+@dataclass(frozen=True)
+class Slot:
+    """The buckets one spark bar covers."""
+
+    label: str
+    activity: Activity
+
+
+def slots(points: Sequence[tuple[datetime, Activity]], step: Step) -> tuple[Slot, ...]:
+    """The period's buckets grouped into at most `SPARK_BARS` spark bars."""
+    size = math.ceil(len(points) / SPARK_BARS) or 1
+
+    def slot(group: Sequence[tuple[datetime, Activity]]) -> Slot:
+        first, last = (
+            timezone.localtime(m).strftime(step.label_format) for m in (group[0][0], group[-1][0])
+        )
+        return Slot(
+            first if first == last else f"{first} to {last}", _summed([a for _, a in group])
+        )
+
+    return tuple(slot(points[i : i + size]) for i in range(0, len(points), size))
+
+
+def kpis(spark_slots: Sequence[Slot]) -> tuple[Kpi, ...]:
+    """The headline figures of the period, each with a spark bar per slot."""
+    now = _summed([s.activity for s in spark_slots])
+
+    def bars_of(
+        value: Callable[[Activity], float], show: Callable[[float], str]
+    ) -> tuple[SparkBar, ...]:
+        return spark([(s.label, value(s.activity)) for s in spark_slots], show)
+
+    return (
+        Kpi("Input from cache", compact(now.cached), bars_of(lambda a: a.cached, as_cached)),
+        Kpi(
+            "New input",
+            compact(now.input - now.cached),
+            bars_of(
+                lambda a: a.input - a.cached, lambda n: f"{compact(round(n))} new input tokens"
+            ),
+        ),
+        Kpi(
+            "Output",
+            compact(now.output),
+            bars_of(lambda a: a.output, lambda n: f"{compact(round(n))} output tokens"),
+        ),
+        Kpi("Requests", f"{now.requests:,}", bars_of(lambda a: a.requests, as_requests)),
+        Kpi("Failed", now.failed_share, bars_of(lambda a: _ratio(a.failed, a.requests), _share)),
+    )
+
+
+def statuses(timeline: Series, link: Callable[..., str]) -> tuple[StatusRow, ...]:
+    """Requests per status group. `link(status=codes)` opens the log on that group."""
+    total = timeline.total.requests
+    return tuple(
+        StatusRow(label, codes, icon, tone, count, percent(count, total), link(status=codes))
+        for (label, codes, icon, tone, _), count in zip(
+            STATUSES, timeline.status_counts, strict=True
+        )
     )
 
 
@@ -365,16 +331,31 @@ class HeatRow:
     cells: tuple[HeatCell, ...]
 
 
-def heat(requests: QuerySet[Request], now: datetime, weeks: int) -> tuple[HeatRow, ...]:
-    """Average tokens per hour for each weekday and hour over the last `weeks` weeks."""
-    rows = (
-        requests.filter(timestamp__gte=now - timedelta(weeks=weeks))
-        .annotate(weekday=ExtractIsoWeekDay("timestamp"), hour=ExtractHour("timestamp"))
-        .values("weekday", "hour")
-        .annotate(tokens=Sum(TOKENS, default=0))
-        .order_by()
-    )
-    average = {(row["weekday"], row["hour"]): row["tokens"] / weeks for row in rows}
+def org_requests(org: Org | None) -> QuerySet[Request]:
+    """Every request of the keys of `org`, whoever owns them, limited to the models the router
+    serves. `None` means every org."""
+    if org is None:
+        return served(Request.objects.all())
+    tokens = Token.objects.filter(Q(user__profile__org=org) | Q(service_account__team__org=org))
+    return served(Request.objects.filter(token__in=tokens))
+
+
+def heat(org: Org | None, now: datetime, weeks: int) -> tuple[HeatRow, ...]:
+    """Average tokens per hour for each weekday and hour over the last `weeks` weeks, across
+    `org`. Cached for an hour, because it reads weeks of requests of a whole org."""
+    cache_key = f"usage-heat:{org.pk if org else 'all'}:{weeks}"
+    average = cache.get(cache_key)
+    if average is None:
+        rows = (
+            org_requests(org)
+            .filter(timestamp__gte=now - timedelta(weeks=weeks))
+            .annotate(weekday=ExtractIsoWeekDay("timestamp"), hour=ExtractHour("timestamp"))
+            .values("weekday", "hour")
+            .annotate(tokens=Sum(TOKENS, default=0))
+            .order_by()
+        )
+        average = {(row["weekday"], row["hour"]): row["tokens"] / weeks for row in rows}
+        cache.set(cache_key, average, HEAT_CACHE_SECONDS)
     top = max(average.values(), default=0)
     levels = len(HEAT_CLASSES) - 1
 
@@ -407,10 +388,11 @@ def model_rows(
     requests: QuerySet[Request], kinds: Mapping[str, str], link: Callable[..., str]
 ) -> tuple[ModelRow, ...]:
     """Every model with requests, busiest first. `link(model=name)` opens the log on one."""
-    found = {
-        row.pop("model"): Activity(**row)
-        for row in requests.values("model").annotate(**TOTALS).order_by()
-    }
+    medians, found = {}, {}
+    for row in requests.values("model").annotate(**TOTALS, median=MEDIAN).order_by():
+        model = row.pop("model")
+        medians[model] = row.pop("median")
+        found[model] = Activity(**row)
     ranked = sorted(found.items(), key=lambda item: (-item[1].tokens, -item[1].requests, item[0]))
     total = sum(a.tokens for a in found.values())
     busiest = max((a.tokens for a in found.values()), default=0)
@@ -421,7 +403,7 @@ def model_rows(
             activity=activity,
             input=compact(activity.input),
             output=compact(activity.output),
-            median=duration(median_ms(requests.filter(model=name))),
+            median=duration(medians[name]),
             share=percent(activity.tokens, total),
             width=round(100 * activity.tokens / busiest) if busiest else 0,
             log_url=link(model=name),
@@ -432,7 +414,7 @@ def model_rows(
 
 @dataclass(frozen=True)
 class KeyShare:
-    """One row of the Overview's Largest keys or By user ID table, laid out like `ModelRow`."""
+    """One row of the Overview's Top keys or By user ID table, laid out like `ModelRow`."""
 
     name: str
     detail: str
@@ -457,16 +439,13 @@ def _widths(values: Iterable[int]) -> list[int]:
     return [round(100 * v / top) if top else 0 for v in values]
 
 
-def _figures(
-    requests: QuerySet[Request], rows: list[dict], one: Callable[[dict], Q]
-) -> list[tuple[Activity, str, str, int]]:
-    """Activity, median response, token share, and bar width of each row, as `model_rows` shows
-    them. `one(row)` picks the row's requests."""
-    total = requests.aggregate(tokens=Sum(TOKENS, default=0))["tokens"]
+def _figures(rows: Sequence[dict], total: int) -> list[tuple[Activity, str, str, int]]:
+    """Activity, median response, token share, and bar width of each grouped row, as
+    `model_rows` shows them. `total` is the period's token count."""
     return [
         (
             Activity(**{name: row[name] for name in TOTALS}),
-            duration(median_ms(requests.filter(one(row)))),
+            duration(row["median"]),
             percent(row["tokens"], total),
             width,
         )
@@ -475,55 +454,44 @@ def _figures(
 
 
 def key_shares(
-    requests: QuerySet[Request], viewer_id: int, team_ids: set[int], with_org: bool
+    requests: QuerySet[Request], total: int, describe: Callable[[Token], "Key"]
 ) -> tuple[KeyShare, ...]:
-    """The keys that used the most tokens. A key links to the page the viewer may open for it."""
+    """The keys that used the most tokens. `describe` names a key and links it where the viewer
+    may open it."""
     rows = list(
-        requests.values(
-            "token_id",
-            "token__name",
-            "token__user_id",
-            "token__user__email",
-            "token__service_account__team_id",
-            "token__service_account__team__name",
-            "token__user__profile__org__name",
-        )
+        requests.values("token_id")
         .annotate(**TOTALS, tokens=Sum(TOKENS, default=0))
-        .order_by("-tokens", "-requests", "token__name")[:TOP_KEYS]
+        .order_by("-tokens", "-requests", "token_id")[:TOP_KEYS]
     )
-
-    def describe(row: dict) -> tuple[str, str | None]:
-        team_id = row["token__service_account__team_id"]
-        if team_id is not None:
-            detail = f"Service account · {row['token__service_account__team__name']}"
-            visible = team_id in team_ids
-            href = reverse("token_detail", kwargs={"id": row["token_id"]}) if visible else None
-        else:
-            detail = f"Personal · {row['token__user__email']}"
-            own = row["token__user_id"] == viewer_id
-            href = reverse("token_detail", kwargs={"id": row["token_id"]}) if own else None
-        if with_org:
-            detail += f" · {row['token__user__profile__org__name'] or NO_ORG}"
-        return detail, href
-
-    figures = _figures(requests, rows, lambda row: Q(token_id=row["token_id"]))
+    ids = [row["token_id"] for row in rows]
+    medians = {
+        row["token_id"]: row["median"]
+        for row in requests.filter(token_id__in=ids)
+        .values("token_id")
+        .annotate(median=MEDIAN)
+        .order_by()
+    }
+    tokens = Token.objects.select_related(
+        "user__profile__org", "service_account__team__org"
+    ).in_bulk(ids)
+    keys = [describe(tokens[token_id]) for token_id in ids]
+    figures = _figures([row | {"median": medians.get(row["token_id"])} for row in rows], total)
     return tuple(
-        KeyShare(row["token__name"], *describe(row), *figure)
-        for row, figure in zip(rows, figures, strict=True)
+        KeyShare(key.name, key.note, key.href, *figure)
+        for key, figure in zip(keys, figures, strict=True)
     )
 
 
-def user_id_shares(requests: QuerySet[Request]) -> tuple[KeyShare, ...]:
+def user_id_shares(requests: QuerySet[Request], total: int) -> tuple[KeyShare, ...]:
     """Tokens per `user` value the client sent, for one key."""
     rows = list(
         requests.values("user_id")
-        .annotate(**TOTALS, tokens=Sum(TOKENS, default=0))
-        .order_by("-tokens", "-requests", "user_id")[:TOP_KEYS]
+        .annotate(**TOTALS, tokens=Sum(TOKENS, default=0), median=MEDIAN)
+        .order_by("-tokens", "-requests", "user_id")[:TOP_USER_IDS]
     )
-    figures = _figures(requests, rows, lambda row: Q(user_id=row["user_id"]))
     return tuple(
         KeyShare(row["user_id"] or "Not sent", "", None, *figure)
-        for row, figure in zip(rows, figures, strict=True)
+        for row, figure in zip(rows, _figures(rows, total), strict=True)
     )
 
 

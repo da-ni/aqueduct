@@ -17,22 +17,18 @@
 
     <div class="flex flex-wrap items-center gap-3">
         {% include "management/_filters.html" %}
-        {% if compares_previous %}
-            <span class="muted ml-auto font-mono text-xs">Change vs previous {{ period.label }}</span>
-        {% endif %}
     </div>
 
     {% if retention_warning %}
         <div class="alert alert-warning" role="alert">{% icon "warning" %}<span>The time frame reaches back further than the {{ retention_days }} days requests are kept. Older requests are missing from these figures.</span></div>
     {% endif %}
 
-    <section aria-label="Totals" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+    <section aria-label="Totals" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
         {% for kpi in kpis %}
             <div class="card bg-base-200">
                 <div class="card-body gap-1 p-4">
                     <span class="muted text-sm">{{ kpi.label }}</span>
                     <span class="text-2xl font-semibold">{{ kpi.value }}</span>
-                    <span class="muted min-h-4 font-mono text-xs">{% if kpi.change %}{{ kpi.change }}{% endif %}</span>
                     {% include "management/_spark.html" with bars=kpi.spark %}
                 </div>
             </div>
@@ -99,30 +95,6 @@
     </section>
 
     <section class="card bg-base-200">
-        <div class="card-body gap-4 p-5">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 class="text-xl font-semibold">Usage by weekday and hour</h2>
-                <div class="muted flex flex-wrap items-center gap-2 font-mono text-xs">
-                    <span class="mr-3">Average tokens per hour · last {{ heat_days }} days</span>
-                    <span>Less</span>
-                    {% for css in heat_legend %}<span class="sw {{ css }}"></span>{% endfor %}
-                    <span>More</span>
-                </div>
-            </div>
-            <div class="overflow-x-auto lg:overflow-visible">
-                <div class="grid min-w-[640px] grid-cols-[2.5rem_repeat(24,minmax(0,1fr))] gap-1">
-                    {% for row in heat %}
-                        <span class="muted self-center font-mono text-xs">{{ row.day }}</span>
-                        {% for cell in row.cells %}<span class="aq-tip-host heat-cell {{ cell.css }}{% if forloop.parentloop.counter0 < 3 %} tip-below{% endif %}{% if forloop.counter0 < 12 %} tip-start{% else %} tip-end{% endif %} relative h-6 rounded" role="img" aria-label="{{ cell.tip }}">{% include "management/_tip.html" with tip=cell.tip %}</span>{% endfor %}
-                    {% endfor %}
-                    <span></span>
-                    {% for hour in heat_hours %}<span class="muted text-center font-mono text-xs">{{ hour }}</span>{% endfor %}
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="card bg-base-200">
         <div class="card-body gap-3 p-5">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-xl font-semibold">By model</h2>
@@ -170,7 +142,7 @@
 
     <section class="card bg-base-200">
         <div class="card-body gap-3 p-5">
-            <h2 class="text-xl font-semibold">{% if filters.key %}By user ID{% else %}Largest keys{% endif %}</h2>
+            <h2 class="text-xl font-semibold">{% if filters.key %}By user ID{% else %}Top keys{% endif %}</h2>
             {% if keys %}
                 <div class="overflow-x-auto">
                     <table class="table table-fixed model-table min-w-[860px]">
@@ -223,5 +195,35 @@
             </div>
         </section>
     {% endif %}
+
+    <section aria-labelledby="org-activity" class="flex flex-col gap-4 border-t border-base-300 pt-6">
+        <div>
+            <h2 id="org-activity" class="text-xl font-semibold">Activity across {% if heat_org %}{{ heat_org.name }}{% else %}all organizations{% endif %}</h2>
+            <p class="muted text-sm">All users and keys, last {{ heat_days }} days. The filters above do not apply here.</p>
+        </div>
+        <div class="card bg-base-200">
+            <div class="card-body gap-4 p-5">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h3 class="font-semibold">Usage by weekday and hour</h3>
+                    <div class="muted flex flex-wrap items-center gap-2 font-mono text-xs">
+                        <span class="mr-3">Average tokens per hour</span>
+                        <span>Less</span>
+                        {% for css in heat_legend %}<span class="sw {{ css }}"></span>{% endfor %}
+                        <span>More</span>
+                    </div>
+                </div>
+                <div class="overflow-x-auto lg:overflow-visible">
+                    <div class="grid min-w-[640px] grid-cols-[2.5rem_repeat(24,minmax(0,1fr))] gap-1">
+                        {% for row in heat %}
+                            <span class="muted self-center font-mono text-xs">{{ row.day }}</span>
+                            {% for cell in row.cells %}<span class="aq-tip-host heat-cell {{ cell.css }}{% if forloop.parentloop.counter0 < 3 %} tip-below{% endif %}{% if forloop.counter0 < 12 %} tip-start{% else %} tip-end{% endif %} relative h-6 rounded" role="img" aria-label="{{ cell.tip }}">{% include "management/_tip.html" with tip=cell.tip %}</span>{% endfor %}
+                        {% endfor %}
+                        <span></span>
+                        {% for hour in heat_hours %}<span class="muted text-center font-mono text-xs">{{ hour }}</span>{% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 </div>
 {% endblock %}
