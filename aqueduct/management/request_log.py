@@ -1,3 +1,4 @@
+import hashlib
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -5,7 +6,9 @@ from enum import StrEnum
 from http import HTTPStatus
 
 from django.contrib.sessions.backends.base import SessionBase
-from django.db.models import Count, Q, QuerySet
+from django.core.cache import cache
+from django.db.models import Count, F, Q, QuerySet
+from django.db.models.expressions import CombinedExpression, OrderBy
 from django.http import Http404, HttpRequest
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -19,11 +22,14 @@ from management.usage_rollup import org_series
 
 PAGE_SIZE = 50
 _MAX_ID = 2**63 - 2  # the largest bigint that `Cursor.just_before` can still add one to
+_MAX_DIGITS = len(str(_MAX_ID))
 
 
 def parse_id(raw: str | None) -> int | None:
     """A database id from a URL parameter, or `None` for anything else."""
-    if not (raw and raw.isascii() and raw.isdigit()) or int(raw) > _MAX_ID:
+    if not (raw and len(raw) <= _MAX_DIGITS and raw.isascii() and raw.isdigit()):
+        return None
+    if int(raw) > _MAX_ID:
         return None
     return int(raw)
 
@@ -177,6 +183,7 @@ def describe_key(
 class Filters:
     """The selection the Overview page and the request log share: org, whose keys, key, model,
     and time frame. `requests` holds the visible requests narrowed by all but the time frame.
+    `visibility` names everything that decides which requests `requests` holds, for cache keys.
 
     The key picker lists `keys`, the viewer's own keys, and `matches`, the visible keys that
     match the search `key_q`. `page_params` holds the page's own parameters, such as the
@@ -196,6 +203,7 @@ class Filters:
     span: Span
     period: Period
     requests: QuerySet[Request]
+    visibility: tuple[object, ...]
 
     @property
     def spans(self) -> tuple[Span, ...]:
@@ -291,6 +299,18 @@ def read_filters(
     span = Span.parse(params.get("span", "")) or default_span
     period = Period.last(span, now)
 
+    if org is None:
+        viewer: tuple[object, ...] = ("all orgs",)
+    elif sees_others:
+        viewer = ("org", org.pk)
+    else:
+        viewer = ("keys of", org.pk, profile.user_id, *sorted(team_ids))
+    narrowed = (
+        ("mine", profile.user_id, *(k.token.id for k in keys)) if mine else (),
+        key.token.id if key else None,
+        model,
+    )
+
     return Filters(
         can_pick_org=profile.is_admin(),
         org=org,
@@ -308,6 +328,7 @@ def read_filters(
         span=span,
         period=period,
         requests=requests,
+        visibility=(viewer, *narrowed),
     )
 
 
@@ -362,36 +383,139 @@ class Tab:
         return self.outcome.value if self.outcome else None
 
 
+class Column(StrEnum):
+    """A column the log sorts by. `TIME` pages by cursor. The others page by offset, which
+    sorts every matching request, so the log offers them only where `sorts_freely`."""
+
+    TIME = "time"
+    MODEL = "model"
+    STATUS = "status"
+    TOKENS = "tokens"
+    RESPONSE = "response"
+
+    @property
+    def expression(self) -> F | CombinedExpression:
+        """What the column sorts on. `TOKENS` is the total, input plus output tokens."""
+        if self is Column.TOKENS:
+            return F("input_tokens") + F("output_tokens")
+        field = {
+            Column.TIME: "timestamp",
+            Column.MODEL: "model",
+            Column.STATUS: "status_code",
+            Column.RESPONSE: "response_time_ms",
+        }[self]
+        return F(field)
+
+    @property
+    def starts_descending(self) -> bool:
+        """The direction of a first sort: newest, worst, largest and slowest first, models A-Z."""
+        return self is not Column.MODEL
+
+
+@dataclass(frozen=True)
+class Sort:
+    """An order of the log. In a URL it reads `<column>`, or `-<column>` for descending."""
+
+    column: Column
+    descending: bool
+
+    @classmethod
+    def parse(cls, raw: str) -> "Sort | None":
+        try:
+            return cls(Column(raw.removeprefix("-")), raw.startswith("-"))
+        except ValueError:
+            return None
+
+    def __str__(self) -> str:
+        return f"{'-' if self.descending else ''}{self.column.value}"
+
+    @property
+    def ordering(self) -> tuple[OrderBy, OrderBy]:
+        """Ties are broken by id in the same direction, and missing values come last."""
+        nulls_last = True if self.column in (Column.STATUS, Column.RESPONSE) else None
+        if self.descending:
+            return self.column.expression.desc(nulls_last=nulls_last), F("id").desc()
+        return self.column.expression.asc(nulls_last=nulls_last), F("id").asc()
+
+    @property
+    def param(self) -> str | None:
+        """The `sort` URL value, `None` for the default order."""
+        return None if self == NEWEST else str(self)
+
+
+NEWEST = Sort(Column.TIME, descending=True)
+FREE_SORT_SPAN = timedelta(days=7)
+
+
+def sorts_freely(filters: Filters) -> bool:
+    """Whether the log may sort by any column: the selection spans at most `FREE_SORT_SPAN`,
+    is one key or one model, or is no wider than the viewer's own keys and teams. Sorting by
+    time stays cheap on any selection, because it reads the timestamp index."""
+    return (
+        not counts_whole_org(filters)
+        or filters.model is not None
+        or filters.period.end - filters.period.start <= FREE_SORT_SPAN
+    )
+
+
+@dataclass(frozen=True)
+class Header:
+    """A sortable column heading. `choice` is the `sort` value a click sets; `aria_sort` is
+    `ascending` or `descending` on the column the log is sorted by. A heading the selection is
+    too wide to sort by has `sortable` false."""
+
+    sortable: bool
+    choice: str | None
+    aria_sort: str | None
+
+
+def _headers(sort: Sort, free: bool) -> dict[str, Header]:
+    def header(column: Column) -> Header:
+        if column is sort.column:
+            choice = Sort(column, not sort.descending)
+            aria_sort: str | None = "descending" if sort.descending else "ascending"
+        else:
+            choice, aria_sort = Sort(column, column.starts_descending), None
+        return Header(free or column is Column.TIME, choice.param, aria_sort)
+
+    return {column.value: header(column) for column in Column}
+
+
 @dataclass(frozen=True)
 class Cursor:
-    """A place in the log, newest first: the request at `timestamp` with `id`. In a URL it
-    reads `<microseconds since the epoch>,<id>`."""
+    """A place in the log, at the request at `timestamp` with `id`. `rank` is that request's
+    1-based position in the log's order, when known. In a URL it reads
+    `<microseconds since the epoch>,<id>`, with `,<rank>` when the rank is known."""
 
     timestamp: datetime
     id: int
+    rank: int | None = None
 
     @classmethod
     def parse(cls, raw: str | None) -> "Cursor | None":
-        micros, _, raw_id = (raw or "").partition(",")
+        micros, _, rest = (raw or "").partition(",")
+        raw_id, _, raw_rank = rest.partition(",")
         pk = parse_id(raw_id)
-        if pk is None or not (micros.isascii() and micros.isdigit()):
+        if pk is None or parse_id(micros) is None:
             return None
+        rank = parse_id(raw_rank)
         try:
-            return cls(_EPOCH + timedelta(microseconds=int(micros)), pk)
+            return cls(_EPOCH + timedelta(microseconds=int(micros)), pk, rank)
         except OverflowError:
             return None
 
     @classmethod
-    def at(cls, request: Request) -> "Cursor":
-        return cls(request.timestamp, request.id)
+    def at(cls, request: Request, rank: int | None = None) -> "Cursor":
+        return cls(request.timestamp, request.id, rank)
 
     def __str__(self) -> str:
-        return f"{(self.timestamp - _EPOCH) // timedelta(microseconds=1)},{self.id}"
+        micros = (self.timestamp - _EPOCH) // timedelta(microseconds=1)
+        return f"{micros},{self.id}" + ("" if self.rank is None else f",{self.rank}")
 
     @property
     def older(self) -> Q:
-        """Requests after this one in the log. The first term lets Postgres range-scan an index
-        on the timestamp."""
+        """Requests older than this one. The first term lets Postgres range-scan an index on
+        the timestamp."""
         return Q(timestamp__lte=self.timestamp) & (
             Q(timestamp__lt=self.timestamp) | Q(id__lt=self.id)
         )
@@ -402,28 +526,68 @@ class Cursor:
             Q(timestamp__gt=self.timestamp) | Q(id__gt=self.id)
         )
 
-    @property
-    def just_before(self) -> "Cursor":
-        """The cursor whose `older` requests start with this one."""
-        return Cursor(self.timestamp, self.id + 1)
+    def just_before(self, newest_first: bool) -> "Cursor":
+        """The cursor whose next page, in a log sorted `newest_first` or oldest first, starts
+        with this request."""
+        rank = None if self.rank is None else self.rank - 1
+        return Cursor(self.timestamp, self.id + (1 if newest_first else -1), rank)
 
 
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+LAST = "last"
+
+
+@dataclass(frozen=True)
+class Place:
+    """The URL parameters that open a page of the log. At most one is set, and none opens
+    the first page. `before` and `after` are cursors, older or newer than which the page
+    lists requests; `page` is a page number, or `last`."""
+
+    before: str | None = None
+    after: str | None = None
+    page: str | None = None
+
+
+@dataclass(frozen=True)
+class Pager:
+    """Where a page sits. `here` reopens it, and the links are `None` where there is no page
+    to go to. `start` is the position of the page's first row, `None` when unknown."""
+
+    here: Place
+    first: Place | None
+    previous: Place | None
+    next: Place | None
+    last: Place | None
+    start: int | None
+
+    @property
+    def links(self) -> tuple[tuple[str, Place | None], ...]:
+        return (
+            ("First", self.first),
+            ("Previous", self.previous),
+            ("Next", self.next),
+            ("Last", self.last),
+        )
 
 
 @dataclass(frozen=True)
 class RequestLog:
-    """One page of the log. `here` reproduces the page as a `before` cursor, `None` on the
-    newest page; `newer` and `older` are the `after` and `before` cursors of the pages next to
-    it, `None` at either end. The cursors are URL values. `count` is the number of requests in
-    the chosen tab."""
+    """One page of the log, of the requests in the chosen tab that match `search`. `count` is
+    the number of them."""
 
     rows: tuple[Row, ...]
     tabs: tuple[Tab, ...]
     count: int
-    here: str | None
-    newer: str | None
-    older: str | None
+    outcome: Outcome | None
+    search: str
+    sort: Sort
+    headers: Mapping[str, Header]
+    pager: Pager
+
+    @property
+    def end(self) -> int | None:
+        start = self.pager.start
+        return None if start is None else start + len(self.rows) - 1
 
 
 def counts_whole_org(filters: Filters) -> bool:
@@ -432,63 +596,182 @@ def counts_whole_org(filters: Filters) -> bool:
     return filters.can_pick_scope and not filters.mine and filters.key is None
 
 
-def _tab_counts(filters: Filters, filtered: QuerySet[Request]) -> dict[Outcome | None, int]:
-    """The requests in each tab, `None` for All. An org-wide selection reads the rollups."""
-    if counts_whole_org(filters):
-        found = org_series(filters.org, filters.model, filters.period, requests=filters.requests)
-        by_codes = zip((codes for _, codes, *_ in STATUSES), found.status_counts, strict=True)
-        return {None: found.total.requests, Outcome.ERRORS: found.total.failed} | {
-            Outcome(codes): count for codes, count in by_codes
-        }
-    counts = filtered.aggregate(
-        total=Count("id"), **{o.name: Count("id", filter=o.matches) for o in Outcome}
+SEARCH_MAX = 256
+
+
+def request_search(text: str) -> Q:
+    """Requests whose id is `text`, or whose path, user ID sent by the client, or user agent
+    holds it. No index serves this: the filters and the time frame bound the scan."""
+    found = Q(path__icontains=text) | Q(user_id__icontains=text) | Q(user_agent__icontains=text)
+    if (pk := parse_id(text)) is not None:
+        found |= Q(pk=pk)
+    return found
+
+
+COUNTS_SECONDS = 60
+
+
+def _tab_counts(
+    filters: Filters, filtered: QuerySet[Request], search: str
+) -> dict[Outcome | None, int]:
+    """The requests in each tab, `None` for All, cached for `COUNTS_SECONDS` under everything
+    that decides them, so paging and sorting do not count again. An org-wide selection without
+    a search reads the rollups."""
+
+    def count() -> dict[Outcome | None, int]:
+        if counts_whole_org(filters) and not search:
+            found = org_series(
+                filters.org, filters.model, filters.period, requests=filters.requests
+            )
+            by_codes = zip((codes for _, codes, *_ in STATUSES), found.status_counts, strict=True)
+            return {None: found.total.requests, Outcome.ERRORS: found.total.failed} | {
+                Outcome(codes): n for codes, n in by_codes
+            }
+        counts = filtered.aggregate(
+            total=Count("id"), **{o.name: Count("id", filter=o.matches) for o in Outcome}
+        )
+        return {None: counts["total"]} | {o: counts[o.name] for o in Outcome}
+
+    period = filters.period
+    scope = (filters.visibility, period.start.isoformat(), period.end.isoformat(), search)
+    key = "request-log-tabs:" + hashlib.sha256(repr(scope).encode()).hexdigest()
+    found: dict[Outcome | None, int] | None = cache.get(key)
+    if found is None:
+        found = count()
+        cache.set(key, found, COUNTS_SECONDS)
+    return found
+
+
+def _nearest(listed: QuerySet[Request], cursor: Cursor | None, *, older: bool) -> list[Request]:
+    """Up to `PAGE_SIZE + 1` requests older or newer than `cursor`, nearest first. Without a
+    cursor, from the newest or the oldest end."""
+    if older:
+        found = listed.order_by("-timestamp", "-id")
+        found = found.filter(cursor.older) if cursor else found
+    else:
+        found = listed.order_by("timestamp", "id")
+        found = found.filter(cursor.newer) if cursor else found
+    return list(found[: PAGE_SIZE + 1])
+
+
+def _page_by_time(
+    listed: QuerySet[Request],
+    newest_first: bool,
+    params: Mapping[str, str],
+    open_id: int | None,
+    count: int,
+) -> tuple[list[Request], Pager]:
+    """A page of the log sorted by time, paged by cursor, never by offset. Without a cursor the
+    page is the first one, or the page that starts at `open_id` when the first page does not
+    hold it. Each link carries its rank, so the page knows its position without counting."""
+    forward, backward = ("before", "after") if newest_first else ("after", "before")
+    before, after = Cursor.parse(params.get("before")), Cursor.parse(params.get("after"))
+    cursor, side = (before, "before") if before else (after, "after")
+    last = cursor is None and params.get("page") == LAST
+    if cursor is not None and side == backward:
+        found = _nearest(listed, cursor, older=not newest_first)
+        if len(found) <= PAGE_SIZE:  # less than a page before the cursor: the first page
+            cursor = None
+
+    start: int | None
+    if last:
+        found = _nearest(listed, None, older=not newest_first)
+        page, has_previous, has_next = found[PAGE_SIZE - 1 :: -1], len(found) > PAGE_SIZE, False
+        start = count - len(page) + 1
+    elif cursor is not None and side == backward:
+        page, has_previous, has_next = found[PAGE_SIZE - 1 :: -1], True, True
+        start = None if cursor.rank is None else cursor.rank - PAGE_SIZE
+    else:
+        found = _nearest(listed, cursor, older=newest_first)
+        page, has_previous, has_next = found[:PAGE_SIZE], cursor is not None, len(found) > PAGE_SIZE
+        start = 1 if cursor is None else None if cursor.rank is None else cursor.rank + 1
+        if cursor is None and open_id is not None and all(r.id != open_id for r in page):
+            anchor = listed.prefetch_related(None).filter(pk=open_id).only("timestamp").first()
+            if anchor is not None:
+                cursor = Cursor.at(anchor).just_before(newest_first)
+                found = _nearest(listed, cursor, older=newest_first)
+                page, has_previous, has_next = found[:PAGE_SIZE], True, len(found) > PAGE_SIZE
+                start = None
+
+    if start is None and page and not has_next:
+        start = count - len(page) + 1
+    if start is not None and not (start >= 1 and start + len(page) - 1 <= max(count, 1)):
+        start = None
+    if last:
+        here = Place(page=LAST)
+    elif page and has_previous:
+        here = Place(**{forward: str(Cursor.at(page[0], start).just_before(newest_first))})
+    elif cursor is not None:
+        here = Place(**{side: str(cursor)})
+    else:
+        here = Place()
+    end = None if start is None else start + len(page) - 1
+    return page, Pager(
+        here=here,
+        first=Place() if has_previous else None,
+        previous=(
+            (Place(**{backward: str(Cursor.at(page[0], start))}) if page else Place())
+            if has_previous
+            else None
+        ),
+        next=Place(**{forward: str(Cursor.at(page[-1], end))}) if has_next else None,
+        last=Place(page=LAST) if has_next else None,
+        start=start,
     )
-    return {None: counts["total"]} | {o: counts[o.name] for o in Outcome}
+
+
+def _page_by_offset(
+    listed: QuerySet[Request], sort: Sort, raw_page: str | None, count: int
+) -> tuple[list[Request], Pager]:
+    """A page of the log in another order than time, paged by offset. `count` may be up to
+    `COUNTS_SECONDS` old, so a page past it still links to the next one when it holds more."""
+    pages = max(1, -(-count // PAGE_SIZE))
+    number = pages if raw_page == LAST else max(parse_id(raw_page) or 1, 1)
+    offset = (number - 1) * PAGE_SIZE
+    found = list(listed.order_by(*sort.ordering)[offset : offset + PAGE_SIZE + 1])
+    page, has_next = found[:PAGE_SIZE], len(found) > PAGE_SIZE or number < pages
+
+    def at(n: int) -> Place:
+        return Place() if n == 1 else Place(page=str(n))
+
+    return page, Pager(
+        here=at(number),
+        first=at(1) if number > 1 else None,
+        previous=at(number - 1) if number > 1 else None,
+        next=at(number + 1) if has_next else None,
+        last=Place(page=LAST) if number < pages else None,
+        start=offset + 1 if offset + len(page) <= count else None,
+    )
 
 
 def request_log(
-    profile: UserProfile,
-    teams: QuerySet[Team],
-    filters: Filters,
-    *,
-    outcome: Outcome | None,
-    before: Cursor | None,
-    after: Cursor | None,
-    open_id: int | None,
+    profile: UserProfile, teams: QuerySet[Team], filters: Filters, params: Mapping[str, str]
 ) -> RequestLog:
-    """A page of the log, paged by cursor, never by offset. Without a cursor the page is the
-    newest one, or the page that starts at `open_id` when the newest page does not hold it."""
+    """The page of the log that `params` asks for: its status tab (`status`), search
+    (`q`), order (`sort`), place (`before`, `after` or `page`), and open request (`request`).
+    An order the selection is too wide for falls back to newest first."""
     team_ids = set(teams.values_list("id", flat=True))
-    filtered = filters.period.of(filters.requests)
+    outcome = Outcome.parse(params.get("status", ""))
+    search = params.get("q", "").strip()[:SEARCH_MAX]
+    free = sorts_freely(filters)
+    sort = Sort.parse(params.get("sort", "")) or NEWEST
+    if not (free or sort.column is Column.TIME):
+        sort = NEWEST
+    open_id = parse_id(params.get("request"))
 
-    counts = _tab_counts(filters, filtered)
+    filtered = filters.period.of(filters.requests)
+    if search:
+        filtered = filtered.filter(request_search(search))
+    counts = _tab_counts(filters, filtered, search)
     tabs = (Tab(None, "All", counts[None]), *(Tab(o, o.label, counts[o]) for o in Outcome))
 
     if outcome is not None:
         filtered = filtered.filter(outcome.matches)
     listed = filtered.prefetch_related("token__user", "token__service_account__team")
-    newest_first = listed.order_by("-timestamp", "-id")
-
-    def older_than(cursor: Cursor | None) -> tuple[list[Request], bool]:
-        found = list(
-            (newest_first.filter(cursor.older) if cursor else newest_first)[: PAGE_SIZE + 1]
-        )
-        return found[:PAGE_SIZE], len(found) > PAGE_SIZE
-
-    newer = []
-    if after is not None and before is None:
-        newer = list(listed.filter(after.newer).order_by("timestamp", "id")[: PAGE_SIZE + 1])
-    if len(newer) > PAGE_SIZE:
-        page, has_older = newer[PAGE_SIZE - 1 :: -1], True
-        here: Cursor | None = Cursor.at(page[0]).just_before
+    if sort.column is Column.TIME:
+        page, pager = _page_by_time(listed, sort.descending, params, open_id, counts[outcome])
     else:
-        here = before
-        page, has_older = older_than(here)
-    if here is None and open_id is not None and all(r.id != open_id for r in page):
-        anchor = filtered.filter(pk=open_id).only("timestamp").first()
-        if anchor is not None:
-            here = Cursor.at(anchor).just_before
-            page, has_older = older_than(here)
+        page, pager = _page_by_offset(listed, sort, params.get("page"), counts[outcome])
 
     rows = tuple(
         Row(request, describe_key(request.token, profile, team_ids), request.id == open_id)
@@ -498,7 +781,9 @@ def request_log(
         rows=rows,
         tabs=tabs,
         count=counts[outcome],
-        here=str(here) if here else None,
-        newer=str(Cursor.at(rows[0].request)) if here and rows else None,
-        older=str(Cursor.at(rows[-1].request)) if has_older else None,
+        outcome=outcome,
+        search=search,
+        sort=sort,
+        headers=_headers(sort, free),
+        pager=pager,
     )

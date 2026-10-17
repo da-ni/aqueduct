@@ -67,6 +67,7 @@ class Icon(Enum):
     OFF = (_el("circle", cx="12", cy="12", r="9"), _el("path", d="M8 12h8"))
     PLUS = (_el("path", d="M12 5v14M5 12h14"),)
     CHEVRON = (_el("path", d="M9 6l6 6-6 6"),)
+    SORT = (_el("path", d="M8 9l4-4 4 4M8 15l4 4 4-4"),)
     TRANSFER = (_el("path", d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4"),)
     ROTATE = (_el("path", d="M20 12a8 8 0 11-2.6-5.9M20 4v5h-5"),)
     DELETE = (_el("path", d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"),)

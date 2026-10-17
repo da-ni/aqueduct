@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import connection
-from django.db.models import QuerySet
+from django.db.models import F, QuerySet
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -22,7 +22,7 @@ from management.models import (
     UserGroup,
     UserProfile,
 )
-from management.request_log import PAGE_SIZE, Outcome
+from management.request_log import PAGE_SIZE, Outcome, Place
 from management.tests.test_api_keys_pages import PAGES, make_token
 from management.usage_report import Period, Span, org_requests
 
@@ -386,16 +386,16 @@ class RequestsPaginationTest(RequestsPageTestBase):
         content = first.content.decode()
         self.assertEqual(len(first.context["log"].rows), PAGE_SIZE)
         self.assertLess(content.index(">/bulk-0</div>"), content.index(">/bulk-1</div>"))
-        self.assertIn(f"{PAGE_SIZE + 2} requests", content)
-        self.assertNotIn(">Newer</a>", content)
+        self.assertIn(f"1\u2013{PAGE_SIZE} of {PAGE_SIZE + 2}", content)
+        self.assertNotIn(">Previous</a>", content)
 
-        second = self.client.get(self.pager_link(content, "Older"))
+        second = self.client.get(self.pager_link(content, "Next"))
         self.assertEqual(self.paths_on(second), {"/own"})
         self.assertIn(f">/bulk-{PAGE_SIZE}</div>", content)
         self.assertIn(f">/bulk-{PAGE_SIZE - 1}</div>", second.content.decode())
-        self.assertNotIn(">Older</a>", second.content.decode())
+        self.assertNotIn(">Next</a>", second.content.decode())
 
-        back = self.client.get(self.pager_link(second.content.decode(), "Newer"))
+        back = self.client.get(self.pager_link(second.content.decode(), "Previous"))
         self.assertEqual(
             [row.request.path for row in back.context["log"].rows],
             [row.request.path for row in first.context["log"].rows],
@@ -409,8 +409,10 @@ class RequestsPaginationTest(RequestsPageTestBase):
         log = response.context["log"]
         self.assertEqual([row.request.id for row in log.rows if row.is_open], [own.id])
         content = response.content.decode()
-        self.assertIn(">Newer</a>", content)
-        self.assertIn(urlencode({"before": log.here}), content)
+        self.assertIn(">Previous</a>", content)
+        self.assertIn(urlencode({"before": log.pager.here.before}), content)
+        total = PAGE_SIZE + 6
+        self.assertIn(f"{total}\u2013{total} of {total}", content)
         closed = self.client.get(self.pager_link(content, f"Hide details of request {own.id}"))
         self.assertEqual(
             closed.context["log"].rows,
@@ -420,7 +422,7 @@ class RequestsPaginationTest(RequestsPageTestBase):
     def test_a_linked_request_outside_the_viewers_scope_stays_closed(self):
         foreign = Request.objects.get(path="/foreign")
         log = self.get(self.owner, request=foreign.id).context["log"]
-        self.assertEqual(log.here, None)
+        self.assertEqual(log.pager.here, Place())
         self.assertFalse(any(row.is_open for row in log.rows))
 
     def test_a_malformed_cursor_or_id_shows_the_newest_page(self):
@@ -431,7 +433,15 @@ class RequestsPaginationTest(RequestsPageTestBase):
                 with self.subTest(cursor=cursor, direction=direction):
                     response = self.get(self.owner, **{direction: cursor})
                     self.assertEqual(self.paths_on(response), {"/own"})
-        for raw in ("\N{SUPERSCRIPT ONE}", huge):
+        endless = "9" * 5000
+        for cursor in (f"{endless},1", f"1,{endless}"):
+            with self.subTest(cursor=cursor[:12]):
+                self.assertEqual(self.paths_on(self.get(self.owner, before=cursor)), {"/own"})
+        self.assertEqual(self.get(self.owner, before=f"1,1,{endless}").status_code, 200)
+        for page in (endless, "0", "-1", "abc"):
+            with self.subTest(page=page[:12]):
+                self.assertEqual(self.get(self.owner, sort="-response", page=page).status_code, 200)
+        for raw in ("\N{SUPERSCRIPT ONE}", huge, endless):
             with self.subTest(request=raw):
                 self.assertEqual(self.paths_on(self.get(self.owner, request=raw)), {"/own"})
             with self.subTest(org=raw):
@@ -442,9 +452,9 @@ class RequestsPaginationTest(RequestsPageTestBase):
     def test_a_page_past_the_oldest_request_links_back_to_the_newest(self):
         content = self.get(self.owner, before="1,1").content.decode()
         self.assertEqual(self.paths_on(self.get(self.owner, before="1,1")), set())
-        self.assertIn(">Newer</a>", content)
+        self.assertIn(">Previous</a>", content)
         self.assertEqual(
-            self.paths_on(self.client.get(self.pager_link(content, "Newer"))), {"/own"}
+            self.paths_on(self.client.get(self.pager_link(content, "Previous"))), {"/own"}
         )
 
     def pager_link(self, content: str, label: str) -> str:
@@ -459,6 +469,7 @@ class RequestsPaginationTest(RequestsPageTestBase):
         self.log(self.key, "/limited", status_code=429)
         self.client.force_login(self.org_admin)
         for params in ({}, {"status": "429"}):
+            cache.clear()
             with self.subTest(**params), CaptureQueriesContext(connection) as queries:
                 log = self.client.get(reverse("requests"), params).context["log"]
             tab = next(tab for tab in log.tabs if tab.value == params.get("status"))
@@ -473,6 +484,7 @@ class RequestsPaginationTest(RequestsPageTestBase):
         for minutes in range(30):
             self.log(self.side_key, f"/bulk-{minutes}")
             self.log(self.others_key, f"/more-{minutes}")
+        cache.clear()
         with CaptureQueriesContext(connection) as many:
             self.client.get(reverse("requests"))
         self.assertEqual(len(many), len(few))
@@ -546,3 +558,309 @@ class RequestsRollupCountsTest(RequestsPageTestBase):
             with self.subTest(user=user.username):
                 own = served(Request.objects.filter(token=key))
                 self.assertEqual(self.tabs(user), self.raw_tabs(own))
+
+
+def listed(response) -> list[str]:
+    return [row.request.path for row in response.context["log"].rows]
+
+
+class RequestsSearchTest(RequestsPageTestBase):
+    def test_search_matches_the_id_path_user_id_and_user_agent(self):
+        own = Request.objects.get(path="/own")
+        self.log(self.key, "/agent", user_agent="Curl/8.5")
+        self.log(self.key, "/sent", user_id="Alice@Example.com")
+        for q, paths in (
+            (str(own.id), ["/own"]),
+            ("OWN", ["/own"]),
+            ("curl", ["/agent"]),
+            (" alice@ ", ["/sent"]),
+            ("nothing-like-it", []),
+        ):
+            with self.subTest(q=q):
+                response = self.get(self.owner, q=q)
+                self.assertEqual(listed(response), paths)
+                self.assertEqual(response.context["log"].tabs[0].count, len(paths))
+
+    def test_search_never_reaches_beyond_what_the_viewer_sees(self):
+        foreign = Request.objects.get(path="/foreign")
+        for user, params, paths in (
+            (self.owner, {"q": str(foreign.id)}, []),
+            (self.owner, {"q": "others"}, []),
+            (self.owner, {"q": "owner@example.com"}, []),
+            (self.member, {"q": "sa"}, ["/team-sa"]),
+            (self.org_admin, {"q": "foreign"}, []),
+            (self.other_org_admin, {"q": str(foreign.id)}, ["/foreign"]),
+            (self.admin, {"q": "foreign", "org": "all"}, ["/foreign"]),
+        ):
+            with self.subTest(user=user.username, **params):
+                self.assertEqual(listed(self.get(user, **params)), paths)
+
+    def test_search_stays_within_the_filters_and_the_time_frame(self):
+        self.log(self.key, "/find-old", ago=timedelta(days=3))
+        self.log(self.key, "/find-failed", status_code=500)
+        self.log(self.key, "/find-other-model", model=OTHER_MODEL)
+        self.assertEqual(len(listed(self.get(self.owner, q="find"))), 3)
+        for params, paths in (
+            ({"span": "1d"}, ["/find-failed", "/find-other-model"]),
+            ({"status": "failed"}, ["/find-failed"]),
+            ({"model": OTHER_MODEL}, ["/find-other-model"]),
+        ):
+            with self.subTest(**params):
+                self.assertEqual(sorted(listed(self.get(self.owner, q="find", **params))), paths)
+
+    def test_search_form_keeps_the_filters_and_starts_on_the_first_page(self):
+        content = self.get(
+            self.org_admin, model=MODEL, status="failed", sort="time", before="1,1", q="x"
+        ).content.decode()
+        form = content.split('role="search" class="flex', 1)[1].split("</form>", 1)[0]
+        for name, value in (("model", MODEL), ("status", "failed"), ("sort", "time")):
+            self.assertIn(f'name="{name}" value="{value}"', form)
+        self.assertNotIn('name="before"', form)
+        self.assertIn('name="q" value="x"', form)
+
+
+class RequestsSortTest(RequestsPageTestBase):
+    def setUp(self):
+        super().setUp()
+        Request.objects.filter(path="/own").delete()
+        fields = (
+            (300, 10, 5, 200, MODEL),
+            (None, 1, 1, 500, OTHER_MODEL),
+            (300, 2, 2, 429, MODEL),
+            (100, 40, 0, None, OTHER_MODEL),
+            (200, 3, 1, 404, MODEL),
+        )
+        for n, (ms, input_tokens, output_tokens, status, model) in enumerate(fields):
+            self.log(
+                self.key,
+                f"/sorted-{n}",
+                ago=timedelta(minutes=n),
+                response_time_ms=ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                status_code=status,
+                model=model,
+            )
+
+    def test_each_column_sorts_both_ways_with_missing_values_last(self):
+        for sort, order in (
+            ("-time", [0, 1, 2, 3, 4]),
+            ("time", [4, 3, 2, 1, 0]),
+            ("-response", [2, 0, 4, 3, 1]),
+            ("response", [3, 4, 0, 2, 1]),
+            ("-tokens", [3, 0, 4, 2, 1]),
+            ("tokens", [1, 2, 4, 0, 3]),
+            ("model", [0, 2, 4, 1, 3]),
+            ("-status", [1, 2, 4, 0, 3]),
+        ):
+            with self.subTest(sort=sort):
+                expected = [f"/sorted-{n}" for n in order]
+                self.assertEqual(listed(self.get(self.owner, sort=sort)), expected)
+
+    def test_org_wide_30_days_sorts_by_time_only(self):
+        for user, params in ((self.org_admin, {}), (self.admin, {"org": "all"})):
+            with self.subTest(user=user.username, **params):
+                response = self.get(user, sort="-response", **params)
+                self.assertEqual(str(response.context["log"].sort), "-time")
+                content = response.content.decode()
+                self.assertIn("To sort by response, choose 7 days or less", content)
+                self.assertIn('tabindex="0">Response<span', content)
+                self.assertNotIn('">Response<svg', content)
+                self.assertIn("sort=time", content)
+                oldest = self.get(user, sort="time", **params).context["log"].rows[0]
+                self.assertEqual(oldest.request.path, "/others")
+
+    def test_a_short_time_frame_a_key_a_model_or_own_keys_allow_every_sort(self):
+        for params in ({"span": "1w"}, {"model": MODEL}, {"key": self.key.id}, {"scope": "mine"}):
+            with self.subTest(**params):
+                response = self.get(self.org_admin, sort="-response", **params)
+                self.assertEqual(str(response.context["log"].sort), "-response")
+                self.assertNotIn("choose 7 days or less", response.content.decode())
+
+    def test_headings_mark_the_sort_and_toggle_it(self):
+        content = self.get(self.owner).content.decode()
+        self.assertEqual(content.count("aria-sort="), 1)
+        self.assertIn('aria-sort="descending"><a', content)
+        self.assertIn("?sort=time", content)
+        content = self.get(self.owner, sort="-response").content.decode()
+        self.assertEqual(content.count("aria-sort="), 1)
+        self.assertIn('text-right" aria-sort="descending"', content)
+        self.assertIn("?sort=response", content)
+        content = self.get(self.owner, sort="model").content.decode()
+        self.assertIn('aria-sort="ascending"', content)
+        self.assertIn("?sort=-model", content)
+
+
+class RequestsPagerTest(RequestsPageTestBase):
+    TOTAL = 2 * PAGE_SIZE + 8
+
+    def setUp(self):
+        super().setUp()
+        now = timezone.now()
+        for n in range(self.TOTAL - 1):
+            Request.objects.create(
+                token=self.key,
+                path=f"/bulk-{n}",
+                model=MODEL,
+                status_code=200,
+                timestamp=now - timedelta(minutes=n // 3),
+                response_time_ms=None if n % 7 == 0 else n % 4,
+            )
+        self.client.force_login(self.owner)
+
+    def open(self, url: str):
+        return self.client.get(url)
+
+    def follow(self, response, label: str):
+        content = response.content.decode()
+        if f">{label}</a>" not in content:
+            return None
+        anchor = content.split(f">{label}</a>", maxsplit=1)[0].rsplit("<a ", 1)[1]
+        href = anchor.split('href="', 1)[1].split('"', 1)[0].replace("&amp;", "&")
+        return self.client.get(reverse("requests") + href)
+
+    def expected(self, *ordering) -> list[str]:
+        own = Request.objects.filter(token=self.key)
+        return list(own.order_by(*ordering).values_list("path", flat=True))
+
+    def label(self, response) -> str:
+        log = response.context["log"]
+        if log.pager.start is None:
+            return f"{log.count} requests"
+        return f"{log.pager.start}\u2013{log.end} of {log.count}"
+
+    def test_next_and_previous_walk_every_request_once_in_order(self):
+        for sort, ordering in (
+            ({}, ("-timestamp", "-id")),
+            ({"sort": "time"}, ("timestamp", "id")),
+            ({"sort": "-response"}, (F("response_time_ms").desc(nulls_last=True), "-id")),
+        ):
+            with self.subTest(**sort):
+                expected = self.expected(*ordering)
+                page = self.get(self.owner, **sort)
+                walked, labels, pages = [], [], []
+                while page is not None:
+                    walked += listed(page)
+                    labels.append(self.label(page))
+                    pages.append(listed(page))
+                    page = self.follow(page, "Next")
+                self.assertEqual(walked, expected)
+                t = self.TOTAL
+                self.assertEqual(
+                    labels, [f"1\u201350 of {t}", f"51\u2013100 of {t}", f"101\u2013{t} of {t}"]
+                )
+                back = self.get(self.owner, **sort)
+                for _ in range(2):
+                    back = self.follow(back, "Next")
+                for want in reversed(pages[:-1]):
+                    back = self.follow(back, "Previous")
+                    self.assertEqual(listed(back), want)
+                self.assertIsNone(self.follow(back, "Previous"))
+
+    def test_last_and_first_open_the_ends_of_the_log(self):
+        t = self.TOTAL
+        for sort, ordering, last_label, before_last in (
+            ({}, ("-timestamp", "-id"), f"{t - 49}\u2013{t} of {t}", slice(t - 100, t - 50)),
+            (
+                {"sort": "time"},
+                ("timestamp", "id"),
+                f"{t - 49}\u2013{t} of {t}",
+                slice(t - 100, t - 50),
+            ),
+            (
+                {"sort": "-tokens"},
+                (F("input_tokens").desc(), "-id"),
+                f"101\u2013{t} of {t}",
+                slice(50, 100),
+            ),
+        ):
+            with self.subTest(**sort):
+                expected = self.expected(*ordering)
+                last = self.follow(self.get(self.owner, **sort), "Last")
+                self.assertEqual(self.label(last), last_label)
+                self.assertEqual(listed(last), expected[-len(listed(last)) :])
+                self.assertIsNone(self.follow(last, "Next"))
+                self.assertIsNone(self.follow(last, "Last"))
+                previous = self.follow(last, "Previous")
+                self.assertEqual(listed(previous), expected[before_last])
+                first = self.follow(last, "First")
+                self.assertEqual(listed(first), expected[:PAGE_SIZE])
+                self.assertEqual(self.label(first), f"1\u201350 of {t}")
+
+    def test_a_deep_link_mid_log_shows_the_total_until_the_position_is_known(self):
+        expected = self.expected("-timestamp", "-id")
+        middle = Request.objects.get(path=expected[55])
+        linked = self.get(self.owner, request=middle.id)
+        self.assertEqual(listed(linked), expected[55:105])
+        self.assertEqual(
+            [r.request.id for r in linked.context["log"].rows if r.is_open], [middle.id]
+        )
+        self.assertEqual(self.label(linked), f"{self.TOTAL} requests")
+        self.assertIn(f"{self.TOTAL} requests", linked.content.decode())
+        end = self.follow(linked, "Next")
+        self.assertEqual(listed(end), expected[105:])
+        self.assertEqual(self.label(end), f"106\u2013{self.TOTAL} of {self.TOTAL}")
+        self.assertEqual(listed(self.follow(linked, "Previous")), expected[5:55])
+
+    def test_requests_newer_than_the_cached_count_stay_reachable(self):
+        first = self.get(self.owner, sort="-tokens")
+        last = self.follow(first, "Last")
+        self.assertIsNone(self.follow(last, "Next"))
+        for n in range(PAGE_SIZE):
+            self.log(self.key, f"/late-{n}", input_tokens=0)
+        late = self.follow(self.follow(last, "First"), "Last")
+        self.assertEqual(len(listed(late)), PAGE_SIZE)
+        self.assertEqual(self.label(late), f"{self.TOTAL} requests")
+        beyond = self.follow(late, "Next")
+        self.assertEqual(len(listed(beyond)), self.TOTAL - 2 * PAGE_SIZE)
+        self.assertIsNone(self.follow(beyond, "Next"))
+
+    def test_closing_a_row_keeps_the_page(self):
+        last = self.follow(self.get(self.owner), "Last")
+        row = last.context["log"].rows[3].request
+        opened = self.client.get(reverse("requests"), {"page": "last", "request": row.id})
+        self.assertEqual(listed(opened), listed(last))
+        self.assertTrue(opened.context["log"].rows[3].is_open)
+
+
+class RequestsCountCacheTest(RequestsPageTestBase):
+    def all_count(self, user, **params) -> int:
+        return self.get(user, **params).context["log"].tabs[0].count
+
+    def test_cached_counts_are_never_shared_between_viewers(self):
+        team_admin = self.user("team-admin")
+        TeamMembership.objects.create(
+            user_profile=team_admin.profile, team=self.side_team, is_admin=True
+        )
+        for user, params, count in (
+            (self.owner, {}, 1),
+            (self.other, {}, 2),
+            (self.member, {}, 1),
+            (team_admin, {}, 1),
+            (self.org_admin, {}, 5),
+            (self.other_org_admin, {}, 1),
+            (self.admin, {}, 5),
+            (self.admin, {"org": "all"}, 6),
+            (self.admin, {"org": self.other_org.id}, 1),
+            (self.org_admin, {"scope": "mine"}, 0),
+            (self.owner, {"q": "o"}, 1),
+            (self.other, {"q": "o"}, 2),
+            (self.org_admin, {"q": "o"}, 3),
+        ):
+            with self.subTest(user=user.username, **params):
+                self.assertEqual(self.all_count(user, **params), count)
+
+    def test_a_new_role_or_team_reads_its_own_counts(self):
+        self.assertEqual(self.all_count(self.owner), 1)
+        TeamMembership.objects.create(user_profile=self.owner.profile, team=self.team)
+        self.assertEqual(self.all_count(self.owner), 2)
+        self.owner.profile.group = UserGroup.ORG_ADMIN
+        self.assertEqual(self.all_count(self.owner), 5)
+
+    def test_counts_are_reused_until_the_selection_changes(self):
+        self.assertEqual(self.all_count(self.owner), 1)
+        self.log(self.key, "/newer")
+        self.assertEqual(self.all_count(self.owner), 1)
+        self.assertEqual(self.all_count(self.owner, status="failed"), 1)
+        self.assertEqual(self.all_count(self.owner, span="1w"), 2)
+        self.assertEqual(self.all_count(self.owner, q="/"), 2)
