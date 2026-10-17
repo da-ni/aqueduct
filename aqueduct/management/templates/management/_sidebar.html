@@ -1,13 +1,13 @@
-{% load static ui %}
+{% load i18n static ui %}
 <aside class="aq-sidebar sticky top-0 flex h-screen w-64 flex-col gap-5 overflow-y-auto border-r border-base-300 bg-base-200 p-4">
     <a href="/" class="flex items-center gap-3 px-2 py-1">
         <img src="{% static 'images/Aqueduct_Icon_80x80.png' %}" alt="" class="h-9 w-9">
-        <span class="text-lg font-semibold">Aqueduct</span>
+        <span class="text-lg font-semibold">{% translate "Aqueduct" %}</span>
     </a>
 
     {% if shell.org_switch %}{% include "management/_org_switch.html" %}{% endif %}
 
-    <nav aria-label="Main">
+    <nav aria-label="{% translate 'Main' %}">
         <ul class="menu w-full gap-1 p-0">
             {% for section in shell.sections %}
                 {% if section.title %}<li class="menu-title label-mono mt-3">{{ section.title }}</li>{% endif %}
@@ -30,7 +30,7 @@
             {% include "management/_theme_toggle.html" %}
             <form action="{% url 'oidc_logout' %}" method="post" class="flex">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Sign out" title="Sign out">{% icon "sign_out" %}</button>
+                <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="{% translate 'Sign out' %}" title="{% translate 'Sign out' %}">{% icon "sign_out" %}</button>
             </form>
         </div>
     </div>

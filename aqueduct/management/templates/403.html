@@ -1,12 +1,13 @@
 {% extends "management/base.html" %}
+{% load i18n %}
 
-{% block title %}Access denied · Aqueduct AI Gateway{% endblock %}
+{% block title %}{% translate "Access denied" %} · {% translate "Aqueduct AI Gateway" %}{% endblock %}
 
 {% block content %}
 <div class="flex max-w-2xl flex-col gap-4">
     <p class="label-mono">403</p>
-    <h1 class="text-3xl font-semibold">Access denied</h1>
-    <p>You don't have access. Ask your org admin.</p>
-    <div><a class="btn btn-primary" href="{% url 'usage' %}">Go to Overview</a></div>
+    <h1 class="text-3xl font-semibold">{% translate "Access denied" %}</h1>
+    <p>{% translate "You don't have access. Ask your org admin." %}</p>
+    <div><a class="btn btn-primary" href="{% url 'usage' %}">{% translate "Go to Overview" %}</a></div>
 </div>
 {% endblock %}

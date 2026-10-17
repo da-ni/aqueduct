@@ -1,17 +1,17 @@
-{% load humanize %}
+{% load humanize i18n %}
 {% if pages.paginator.num_pages > 1 %}
     <div class="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-1">
-        <span class="muted font-mono text-xs">{{ pages.start_index|intcomma }}–{{ pages.end_index|intcomma }} of {{ pages.paginator.count|intcomma }}</span>
-        <nav class="join" aria-label="Pages">
+        <span class="muted font-mono text-xs">{% blocktranslate with first=pages.start_index|intcomma last=pages.end_index|intcomma total=pages.paginator.count|intcomma %}{{ first }}–{{ last }} of {{ total }}{% endblocktranslate %}</span>
+        <nav class="join" aria-label="{% translate 'Pages' %}">
             {% if pages.has_previous %}
-                <a class="btn btn-sm join-item" href="{% querystring page=pages.previous_page_number file=None %}">Previous</a>
+                <a class="btn btn-sm join-item" href="{% querystring page=pages.previous_page_number file=None %}">{% translate "Previous" %}</a>
             {% else %}
-                <button type="button" class="btn btn-sm join-item" disabled>Previous</button>
+                <button type="button" class="btn btn-sm join-item" disabled>{% translate "Previous" %}</button>
             {% endif %}
             {% if pages.has_next %}
-                <a class="btn btn-sm join-item" href="{% querystring page=pages.next_page_number file=None %}">Next</a>
+                <a class="btn btn-sm join-item" href="{% querystring page=pages.next_page_number file=None %}">{% translate "Next" %}</a>
             {% else %}
-                <button type="button" class="btn btn-sm join-item" disabled>Next</button>
+                <button type="button" class="btn btn-sm join-item" disabled>{% translate "Next" %}</button>
             {% endif %}
         </nav>
     </div>

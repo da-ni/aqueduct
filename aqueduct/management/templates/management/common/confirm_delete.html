@@ -1,4 +1,5 @@
 {% extends "management/base.html" %}
+{% load i18n %}
 {% comment %}The page behind a confirm link, for a click without JavaScript, a middle click, or a direct address. It asks what `_confirm_dialog.html` asks on the page.{% endcomment %}
 
 {% block title %}{{ confirmation.title }} · {{ block.super }}{% endblock %}
@@ -13,7 +14,7 @@
         {% if confirmation.detail %}<p>{{ confirmation.detail }}</p>{% endif %}
         <div class="mt-2 flex flex-wrap justify-end gap-2">
             <button type="submit" class="btn btn-error">{{ confirmation.action }}</button>
-            <a class="btn btn-outline btn-primary" href="{{ cancel_url }}">Cancel</a>
+            <a class="btn btn-outline btn-primary" href="{{ cancel_url }}">{% translate "Cancel" %}</a>
         </div>
     </div>
 </form>

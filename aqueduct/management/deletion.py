@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from django.utils.translation import gettext, ngettext
+
 from management.models import FileObject, ServiceAccount, Team, Token
 
 
@@ -10,10 +12,7 @@ class Confirmation:
 
     title: str
     detail: str
-    action: str = "Delete"
-
-
-KEY_DATA = "requests, files, batches, and vector stores"
+    action: str
 
 
 def deletion(obj: Token | ServiceAccount | Team | FileObject) -> Confirmation:
@@ -21,22 +20,36 @@ def deletion(obj: Token | ServiceAccount | Team | FileObject) -> Confirmation:
     and `FileObject` decide each sentence."""
     match obj:
         case Token():
-            name, detail = obj.name, f"Apps using it stop working, and its {KEY_DATA} are deleted."
+            name = obj.name
+            detail = gettext(
+                "Apps using it stop working, and its requests, files, batches, and vector stores "
+                "are deleted."
+            )
         case ServiceAccount():
             name = obj.name
-            detail = f"Its key stops working, and the key's {KEY_DATA} are deleted."
+            detail = gettext(
+                "Its key stops working, and the key's requests, files, batches, and vector stores "
+                "are deleted."
+            )
         case Team():
             name, count = obj.name, obj.service_accounts.count()
-            detail = "Members keep their personal keys."
-            if count == 1:
-                gone = f"Its 1 service account is deleted with its key and the key's {KEY_DATA}."
-                detail = f"{gone} {detail}"
-            elif count:
-                gone = f"Its {count} service accounts are deleted with their keys and the keys'"
-                detail = f"{gone} {KEY_DATA}. {detail}"
+            if count:
+                detail = ngettext(
+                    "Its %(count)s service account is deleted with its key and the key's "
+                    "requests, files, batches, and vector stores. Members keep their personal "
+                    "keys.",
+                    "Its %(count)s service accounts are deleted with their keys and the keys' "
+                    "requests, files, batches, and vector stores. Members keep their personal "
+                    "keys.",
+                    count,
+                ) % {"count": count}
+            else:
+                detail = gettext("Members keep their personal keys.")
         case FileObject():
             name = obj.filename
-            detail = "Batches that use it as input are deleted with it, and vector stores drop it."
+            detail = gettext(
+                "Batches that use it as input are deleted with it, and vector stores drop it."
+            )
         case _:
             raise TypeError(f"no deletion text for {type(obj).__name__}")
-    return Confirmation(f"Delete {name}?", detail)
+    return Confirmation(gettext("Delete %(name)s?") % {"name": name}, detail, gettext("Delete"))

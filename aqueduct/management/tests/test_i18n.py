@@ -40,29 +40,19 @@ UNTRANSLATED: frozenset[str] = frozenset()
 # template that has no bare text left, so the list only shrinks.
 UNTRANSLATED_TEMPLATES = frozenset(
     {
-        "403.html",
-        "404.html",
         "admin/management/snippet/change_list.html",
         "admin/management/snippet/test_console.html",
         "management/_filters.html",
-        "management/_footer.html",
         "management/_key_actions.html",
         "management/_key_table.html",
         "management/_limits.html",
         "management/_model_detail.html",
         "management/_new_key.html",
-        "management/_org_switch.html",
-        "management/_pager.html",
-        "management/_public_header.html",
         "management/_rate_usage.html",
         "management/_request_status.html",
-        "management/_sidebar.html",
-        "management/_theme_toggle.html",
         "management/_token_bar.html",
         "management/_token_legend.html",
-        "management/base.html",
         "management/batches.html",
-        "management/common/confirm_delete.html",
         "management/create/service_account.html",
         "management/create/team.html",
         "management/create/token.html",
@@ -71,15 +61,11 @@ UNTRANSLATED_TEMPLATES = frozenset(
         "management/edit/team.html",
         "management/edit/token.html",
         "management/files.html",
-        "management/header.html",
-        "management/login.html",
         "management/mcp_servers.html",
         "management/model_list.html",
         "management/org.html",
         "management/organization.html",
-        "management/privacy.html",
         "management/requests.html",
-        "management/settings.html",
         "management/team.html",
         "management/token_detail.html",
         "management/tokens.html",
@@ -223,7 +209,11 @@ class GermanCatalogTest(SimpleTestCase):
         with TemporaryDirectory() as tmp:
             copy = Path(tmp) / "aqueduct"
             shutil.copytree(
-                BASE_DIR, copy, ignore=shutil.ignore_patterns("__pycache__", "staticfiles")
+                BASE_DIR,
+                copy,
+                ignore=shutil.ignore_patterns(
+                    "__pycache__", "staticfiles", ".mypy_cache", "*.sqlite3", "media"
+                ),
             )
             subprocess.run(
                 [

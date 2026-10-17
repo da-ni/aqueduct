@@ -64,6 +64,7 @@ The management pages come in English and German, in the formal "Sie". The langua
 | Personal key | persönlicher Schlüssel |
 | Service account | Dienstkonto |
 | Organization | Organisation |
+| Platform admin | Plattform-Admin |
 | Org admin | Organisations-Admin |
 | Team admin | Team-Admin |
 | Member | Mitglied |
@@ -90,5 +91,14 @@ The management pages come in English and German, in the formal "Sie". The langua
 | Privacy | Datenschutz |
 | Copy, Copied | Kopieren, Kopiert |
 | Delete, Cancel, Save | Löschen, Abbrechen, Speichern |
+| Account | Konto |
+| Role | Rolle |
+| Limit | Limit |
+| Organization default | Vorgabe der Organisation |
+| Viewing (an organization) | Ansicht |
+| Accept, Decline | Akzeptieren, Ablehnen |
+| Version of (a date) | Fassung vom |
+| Previous, Next | Zurück, Weiter |
+| Aqueduct, Aqueduct AI Gateway | unchanged, as product names |
 
 German compact numbers use "Tsd.", "Mio.", "Mrd.", and "Bio.".

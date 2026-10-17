@@ -6,6 +6,8 @@ from django.contrib.auth.models import Group
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import models
 from django.utils.functional import cached_property
+from django.utils.translation import gettext, gettext_noop
+from django.utils.translation import gettext_lazy as _
 
 from management.models.mixins import LimitMixin, MCPServerExclusionMixin, ModelExclusionMixin
 from management.models.org import Org
@@ -13,18 +15,23 @@ from management.models.team import Team
 
 
 class Role(StrEnum):
-    """What someone may manage, in the words every page uses for it."""
+    """What someone may manage, in the words every page uses for it. Pages show `label`, the
+    word in the viewer's language."""
 
-    ADMIN = "Platform admin"
-    ORG_ADMIN = "Org admin"
-    TEAM_ADMIN = "Team admin"
-    MEMBER = "Member"
+    ADMIN = gettext_noop("Platform admin")
+    ORG_ADMIN = gettext_noop("Org admin")
+    TEAM_ADMIN = gettext_noop("Team admin")
+    MEMBER = gettext_noop("Member")
+
+    @property
+    def label(self) -> str:
+        return gettext(self.value)
 
 
 class UserGroup(models.TextChoices):
-    ADMIN = "admin", Role.ADMIN
-    ORG_ADMIN = "org-admin", Role.ORG_ADMIN
-    USER = "user", Role.MEMBER
+    ADMIN = "admin", _(Role.ADMIN)
+    ORG_ADMIN = "org-admin", _(Role.ORG_ADMIN)
+    USER = "user", _(Role.MEMBER)
 
 
 class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, models.Model):
@@ -50,7 +57,7 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
         max_length=8,
         choices=settings.LANGUAGES,
         blank=True,
-        help_text="Language of the management pages. Blank follows the browser.",
+        help_text=_("Language of the management pages. Blank follows the browser."),
     )
 
     teams: "models.ManyToManyField[Team, UserProfile]" = models.ManyToManyField(

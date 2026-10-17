@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.translation import gettext
 from django.views.generic import TemplateView, UpdateView, View
 
 from management.forms import OrgAvailabilityForm, OrgLimitsForm
@@ -96,13 +97,18 @@ class OrgSwitchView(BaseAqueductView, View):
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
         if not self.is_admin():
-            messages.error(request, "Only platform admins can do that.")
+            messages.error(request, gettext("Only platform admins can do that."))
             return redirect(reverse("org"))
 
         raw = request.POST.get("org_id", "")
         org = None if raw == "all" else get_object_or_404(Org, pk=parse_id(raw))
         remember_org(request.session, org)
-        messages.success(request, f"Viewing {org.name if org else 'all organizations'}.")
+        messages.success(
+            request,
+            gettext("Viewing %(name)s.") % {"name": org.name}
+            if org
+            else gettext("Viewing all organizations."),
+        )
         back = request.POST.get("next", "")
         if url_has_allowed_host_and_scheme(back, {request.get_host()}, request.is_secure()):
             return redirect(_without_org_params(back))
