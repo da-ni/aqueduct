@@ -24,7 +24,7 @@ class RequestLogView(BaseAqueductView, TemplateView):
             default_span=Span.DAY,
             now=timezone.now(),
         )
-        log = request_log(self.profile, teams, filters, params)
+        log = request_log(filters, params)
         context.update(
             log=log,
             filters=filters,

@@ -6,7 +6,9 @@ from unittest import mock
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.db import connection
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -542,6 +544,67 @@ class OrgAdminKeyAccessTest(ApiKeysPagesTestBase):
             {token.name for token in KeyAccess.of(self.org_admin.profile).tokens()},
             {"laptop", "others-laptop", "pipeline", "hidden-sa"},
         )
+
+
+class KeyLinksTest(ApiKeysPagesTestBase):
+    """The request log, the Overview's Top keys and All keys link a key exactly when the viewer
+    may open it."""
+
+    PAGES = ("requests", "usage", "usage_keys")
+
+    def setUp(self):
+        super().setUp()
+        self.org_admin = self.user("org-admin")
+        self.org_admin.profile.group = UserGroup.ORG_ADMIN
+        self.hidden_key = Token.objects.get(name="hidden-sa")
+        self.members_key = make_token(self.member, "members-laptop")
+        for token in (
+            self.key,
+            self.others_key,
+            self.pipeline_key,
+            self.hidden_key,
+            self.members_key,
+        ):
+            self.request_log(token, timedelta(hours=1), input_tokens=100)
+
+    def detail(self, token: Token) -> str:
+        return f'href="{reverse("token_detail", args=[token.id])}"'
+
+    def test_org_admin_sees_every_members_key_linked(self):
+        for page in self.PAGES:
+            response = self.get(self.org_admin, page)
+            for token in (self.key, self.others_key, self.pipeline_key, self.hidden_key):
+                with self.subTest(page=page, key=token.name):
+                    self.assertContains(response, self.detail(token))
+
+    def test_team_member_sees_only_their_own_and_their_teams_keys_linked(self):
+        for page in ("requests", "usage"):
+            response = self.get(self.member, page)
+            with self.subTest(page=page):
+                self.assertContains(response, self.detail(self.members_key))
+                self.assertContains(response, self.detail(self.pipeline_key))
+                for token in (self.key, self.others_key, self.hidden_key):
+                    self.assertNotContains(response, self.detail(token))
+
+    def test_queries_do_not_grow_with_the_keys_listed(self):
+        def queries() -> dict[str, int]:
+            self.client.force_login(self.org_admin)
+            counts = {}
+            for page in self.PAGES:
+                cache.clear()
+                with CaptureQueriesContext(connection) as captured:
+                    self.assertEqual(self.client.get(reverse(page)).status_code, 200)
+                counts[page] = len(captured)
+            return counts
+
+        before = queries()
+        for n in range(5):
+            colleague = self.user(f"colleague-{n}")
+            self.request_log(make_token(colleague, f"colleague-{n}"), timedelta(hours=1))
+            account = ServiceAccount.objects.create(name=f"bot-{n}", team=self.other_team)
+            bot = make_token(colleague, f"bot-{n}", service_account=account)
+            self.request_log(bot, timedelta(hours=1))
+        self.assertEqual(queries(), before)
 
 
 class ServiceAccountKeyDetailTest(ApiKeysPagesTestBase):

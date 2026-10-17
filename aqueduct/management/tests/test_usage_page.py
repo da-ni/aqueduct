@@ -144,15 +144,12 @@ class UsageAccessTest(UsagePageTestBase):
         )
         self.assertNotContains(response, f"key={self.solo_key.id}")
 
-    def test_org_admin_sees_their_org_but_links_no_other_users_key(self):
+    def test_org_admin_sees_and_links_every_key_of_their_org(self):
         response = self.page(self.org_admin)
         self.assert_keys(response, "solo-laptop", "member-laptop", "pipeline")
         self.assertEqual(self.kpi(response, "Requests"), "3")
-        self.assertContains(
-            response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
-        )
-        for key in (self.solo_key, self.member_key):
-            self.assertNotContains(response, reverse("token_detail", args=[key.id]))
+        for key in (self.solo_key, self.member_key, self.pipeline_key):
+            self.assertContains(response, f'href="{reverse("token_detail", args=[key.id])}"')
 
     def test_my_keys_narrows_an_org_admin_to_their_own_keys(self):
         response = self.page(self.org_admin, scope="mine")

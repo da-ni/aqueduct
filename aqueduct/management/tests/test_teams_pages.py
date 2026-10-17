@@ -285,9 +285,10 @@ class TeamDetailTest(TeamsPagesTestBase):
         for user, shown in [(self.member, False), (self.team_admin, False), (self.org_admin, True)]:
             with self.subTest(user=user.username):
                 response = self.as_user(user).get(self.url())
-                self.assertEqual(
-                    "Applies to each service account key." in response.content.decode(), shown
-                )
+                self.assertEqual('id="limits-title"' in response.content.decode(), shown)
+        response = self.as_user(self.org_admin).get(self.url())
+        self.assertContains(response, '<p class="muted text-sm">No limits</p>', html=True)
+        self.assertNotContains(response, "Applies to each service account key.")
         edit = f'href="{reverse("team_edit", args=[self.team.id])}" aria-label="Edit limits"'
         self.assertContains(self.as_user(self.org_admin).get(self.url()), edit)
 
@@ -301,6 +302,7 @@ class TeamDetailTest(TeamsPagesTestBase):
             '<dd><span class="font-mono font-semibold">5,000</span></dd></div>',
             html=True,
         )
+        self.assertContains(response, "Applies to each service account key.")
 
     def role_of(self, response, email: str) -> str:
         page = response.content.decode()
@@ -581,6 +583,8 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
         )
         self.assertEqual(response.redirect_chain, [(reverse("team", args=[self.team.id]), 302)])
         self.assertContains(response, "Your key is ready")
+        self.assertNotContains(response, "created.")
+        self.assertNotContains(response, 'class="alert ')
         sa = ServiceAccount.objects.get(name="rag", team=self.team)
         self.assertEqual(Token.find_by_key(secret_on(response)), sa.token)
 

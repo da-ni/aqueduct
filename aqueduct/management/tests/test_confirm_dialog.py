@@ -1,3 +1,5 @@
+from django.template import Context, Template
+from django.test import SimpleTestCase
 from django.urls import reverse
 
 from management.models import Team, Token
@@ -91,3 +93,15 @@ class ConfirmDialogTest(TeamsPagesTestBase):
         make_token(self.member, '<b>"x"</b>')
         page = self.as_user(self.member).get(reverse("tokens"))
         self.assertContains(page, 'data-confirm="Delete &lt;b&gt;&quot;x&quot;&lt;/b&gt;?"')
+
+
+class ConfirmTagTest(SimpleTestCase):
+    def render(self, tag: str, **context: str) -> str:
+        return Template("{% load ui %}" + tag).render(Context(context))
+
+    def test_the_dismiss_button_says_cancel_unless_told_otherwise(self):
+        self.assertEqual(self.render('{% confirm "Delete x?" %}'), asks("Delete x?", ""))
+        self.assertEqual(
+            self.render('{% confirm "Stop x?" "" "Stop" dismiss=keep %}', keep="Keep <going>"),
+            asks("Stop x?", "", "Stop") + ' data-confirm-dismiss="Keep &lt;going&gt;"',
+        )

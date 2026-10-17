@@ -111,8 +111,9 @@ class UsageRollupTest(TestCase):
         return user
 
     def log(self, token: Token, ago: timedelta, **fields) -> Request:
+        fields.setdefault("model", CHAT)
         return Request.objects.create(
-            token=token, model=CHAT, timestamp=self.now - ago, status_code=200, **fields
+            token=token, timestamp=self.now - ago, status_code=200, **fields
         )
 
     def scoped(self, org: Org | None, model: str | None):
@@ -151,15 +152,19 @@ class UsageRollupTest(TestCase):
                 )
 
         start = now - timedelta(weeks=4)
-        raw_heat = {
+        self.assertEqual(
+            rollup.org_heat(org, start, now, model=model), self.raw_heat(org, model, start, now)
+        )
+
+    def raw_heat(self, org, model, start, end) -> dict[tuple[int, int], int]:
+        return {
             (row["day"], row["at"]): row["tokens"]
-            for row in self.scoped(org, None)
-            .filter(timestamp__gte=start, timestamp__lt=now)
+            for row in self.scoped(org, model)
+            .filter(timestamp__gte=start, timestamp__lt=end)
             .values(day=rollup.ExtractIsoWeekDay("timestamp"), at=rollup.ExtractHour("timestamp"))
             .annotate(tokens=rollup.Sum(TOKENS))
             .order_by()
         }
-        self.assertEqual(rollup.org_heat(org, start, now), raw_heat)
 
     def rollup_rows(self):
         return (
@@ -178,6 +183,22 @@ class UsageRollupTest(TestCase):
         rollup.refresh(self.now)
         self.assertTrue(OrgUsageHour.objects.filter(org=None).exists(), "orphan key counted")
         self.assert_matches_raw()
+
+    def test_the_heatmap_of_one_model_adds_the_raw_tail_to_the_rollups(self):
+        rollup.refresh(self.now - timedelta(hours=3))
+        for ago in (timedelta(minutes=5), timedelta(hours=2)):
+            self.log(self.member_key, ago, input_tokens=7000, output_tokens=11)
+            self.log(self.member_key, ago, input_tokens=9000, model=EMBEDDING)
+        sealed = rollup.Sealed.read()
+        self.assertLess(sealed.until, self.now - timedelta(hours=2))
+        start = self.now - timedelta(weeks=4)
+        self.assertTrue(OrgUsageHour.objects.filter(model=CHAT, hour__gte=start).exists())
+        for org in (self.org, None):
+            with self.subTest(org=org):
+                self.assertEqual(
+                    rollup.org_heat(org, start, self.now, sealed, model=CHAT),
+                    self.raw_heat(org, CHAT, start, self.now),
+                )
 
     def test_a_period_the_rollups_cover_entirely_gives_the_raw_figures(self):
         rollup.refresh(self.now)

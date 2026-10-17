@@ -109,12 +109,18 @@ def dash(value: object) -> object:
 
 
 @register.simple_tag
-def confirm(title: str, detail: str = "", action: str = "Delete") -> SafeString:
+def confirm(
+    title: str, detail: str = "", action: str = "Delete", dismiss: str = "Cancel"
+) -> SafeString:
     """Attributes that make a link or a submit button ask `title` in the shared confirm dialog
-    first. See `management/_confirm_dialog.html`."""
-    return format_html(
+    first. `dismiss` labels the button that backs out, for when "Cancel" would read as the
+    action. See `management/_confirm_dialog.html`."""
+    attrs = format_html(
         'data-confirm="{}" data-confirm-detail="{}" data-confirm-action="{}"', title, detail, action
     )
+    if dismiss != "Cancel":
+        attrs = format_html('{} data-confirm-dismiss="{}"', attrs, dismiss)
+    return attrs
 
 
 @register.simple_tag

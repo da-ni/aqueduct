@@ -1,4 +1,4 @@
-from collections.abc import Callable, Collection
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Any
@@ -19,7 +19,7 @@ from management import usage_report as report
 from management import usage_rollup as rollup
 from management.key_activity import Activity
 from management.model_catalog import mode_for
-from management.models import Org, Request, Token, UserProfile
+from management.models import Org, Request, Token
 from management.models.token import of_org
 from management.request_log import (
     PAGE_SIZE,
@@ -78,14 +78,12 @@ def _org_tokens(filters: Filters) -> QuerySet[Token]:
     return Token.objects.all() if filters.org is None else Token.objects.filter(of_org(filters.org))
 
 
-def _describe(
-    filters: Filters, profile: UserProfile, team_ids: Collection[int]
-) -> Callable[[Token], Key]:
+def _describe(filters: Filters) -> Callable[[Token], Key]:
     """How the usage tables name a key. Its second line says whose key it is: "You" for the
     viewer's own, nothing when the viewer sees only their own keys and their teams'."""
 
     def describe(token: Token) -> Key:
-        key = describe_key(token, profile, team_ids, with_org=filters.org is None)
+        key = describe_key(token, filters.access, with_org=filters.org is None)
         if not filters.can_pick_scope:
             return replace(key, note="")
         return replace(key, note="You") if key.own else key
@@ -140,7 +138,6 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         elif filters.only_key is not None:
             keys = ()
         else:
-            team_ids = set(self.get_teams_for_user().values_list("id", flat=True))
             windows = _key_windows(filters)
             ranked = (
                 report.top_keys(in_period, report.TOP_KEYS + 1)
@@ -148,9 +145,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 else report.ranked_totals(windows, report.KeyOrder.TOKENS, _org_tokens(filters))
             )
             more_keys = len(ranked) > report.TOP_KEYS
-            keys = report.key_shares(
-                ranked[: report.TOP_KEYS], total.tokens, _describe(filters, profile, team_ids)
-            )
+            keys = report.key_shares(ranked[: report.TOP_KEYS], total.tokens, _describe(filters))
 
         context.update(
             {
@@ -202,27 +197,25 @@ class KeyUsageView(BaseAqueductView, TemplateView):
     template_name = "management/usage_keys.html"
 
     def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
-        context = self.get_context_data(**kwargs)
-        filters = context["filters"]
-        assert isinstance(filters, Filters)
-        only_key = filters.only_key
-        if not filters.can_pick_scope and only_key is not None and only_key.href is not None:
-            return redirect(only_key.href)
-        return self.render_to_response(context)
-
-    def get_context_data(self, **kwargs) -> dict[str, object]:
-        context = super().get_context_data(**kwargs)
-        params = self.request.GET.copy()
+        params = request.GET.copy()
         params.pop("key", None)
-        teams = self.get_teams_for_user()
         filters = read_filters(
             self.profile,
-            teams,
+            self.get_teams_for_user(),
             params,
             org=self.viewed_org,
             default_span=report.DEFAULT_SPAN,
             now=timezone.now(),
         )
+        only_key = filters.only_key
+        if not filters.can_pick_scope and only_key is not None and only_key.href is not None:
+            # The key page always shows the last 7 days of every model, so span and model go.
+            return redirect(only_key.href)
+        return self.render_to_response(self.get_context_data(filters=filters, **kwargs))
+
+    def get_context_data(self, *, filters: Filters, **kwargs) -> dict[str, object]:
+        context = super().get_context_data(**kwargs)
+        params = self.request.GET
         q = params.get("q", "").strip()
         search = key_search(q, by_owner=filters.can_pick_scope)
         order = report.KeyOrder.parse(params.get("sort", "")) or report.KeyOrder.TOKENS
@@ -243,12 +236,8 @@ class KeyUsageView(BaseAqueductView, TemplateView):
             rows = report.CountedKeys(report.ranked_keys(listed, order), count)
 
         pages = Paginator(rows, PAGE_SIZE).get_page(parse_id(params.get("page")) or 1)
-        team_ids = set(teams.values_list("id", flat=True))
         keys = report.key_shares(
-            pages.object_list,
-            everyone.tokens,
-            _describe(filters, self.profile, team_ids),
-            everyone.busiest,
+            pages.object_list, everyone.tokens, _describe(filters), everyone.busiest
         )
         context.update(
             {

@@ -216,24 +216,21 @@ class ShellTest(TestCase):
         self.client.logout()
         self.assertNotContains(self.client.get(reverse("sso")), "http://testserver/v1")
 
-    def test_contact_icons_show_only_once_configured(self):
+    def test_contact_icons_show_unless_their_url_is_empty(self):
         links = {
-            "Matrix support channel": "https://matrix.to/#/#aqueduct:example.org",
+            "Matrix support channel": settings.MATRIX_SUPPORT_URL,
             "GitHub repository": "https://github.com/TU-Wien-dataLAB/aqueduct",
         }
         for role in ("anonymous", "user"):
             self.sign_in(role)
             with self.subTest(role=role):
                 page = self.client.get(self.home(role))
-                for label in links:
-                    self.assertNotContains(page, f'aria-label="{label}"')
-                with self.settings(
-                    MATRIX_SUPPORT_URL=links["Matrix support channel"],
-                    GITHUB_REPOSITORY_URL=links["GitHub repository"],
-                ):
-                    page = self.client.get(self.home(role))
                 for label, url in links.items():
                     self.assertContains(page, f'href="{url}" aria-label="{label}"', count=1)
+                with self.settings(MATRIX_SUPPORT_URL="", GITHUB_REPOSITORY_URL=""):
+                    page = self.client.get(self.home(role))
+                for label in links:
+                    self.assertNotContains(page, f'aria-label="{label}"')
 
     def test_admin_keeps_a_top_bar_with_the_shared_nav(self):
         self.sign_in("admin")

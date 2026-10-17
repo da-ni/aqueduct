@@ -26,9 +26,12 @@ class KeyUsageAccessTest(KeyUsagePageTestBase):
             self.client.get(url), f"{reverse('sso')}?next={url}", fetch_redirect_response=False
         )
 
-    def test_a_user_with_one_key_goes_to_its_page(self):
-        response = self.keys_page(self.solo, span="1w")
+    def test_a_user_with_one_key_goes_to_its_page_without_building_the_list(self):
+        with mock.patch("management.views.usage.report.key_shares") as listed:
+            response = self.keys_page(self.solo, span="1w", model=EMBEDDING)
+        # The key page shows a fixed week of every model, so it takes neither parameter.
         self.assertRedirects(response, reverse("token_detail", args=[self.solo_key.id]))
+        listed.assert_not_called()
 
     def test_user_with_several_keys_sees_only_their_own(self):
         make_token(self.solo, "solo-desktop")
@@ -40,14 +43,11 @@ class KeyUsageAccessTest(KeyUsagePageTestBase):
     def test_team_member_sees_their_key_and_the_team_service_account(self):
         self.assert_keys(self.keys_page(self.member), "member-laptop", "pipeline")
 
-    def test_org_admin_sees_their_org_but_links_no_other_users_key(self):
+    def test_org_admin_sees_and_links_every_key_of_their_org(self):
         response = self.keys_page(self.org_admin)
         self.assert_keys(response, "solo-laptop", "member-laptop", "pipeline")
-        self.assertContains(
-            response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
-        )
-        for key in (self.solo_key, self.member_key):
-            self.assertNotContains(response, reverse("token_detail", args=[key.id]))
+        for key in (self.solo_key, self.member_key, self.pipeline_key):
+            self.assertContains(response, f'href="{reverse("token_detail", args=[key.id])}"')
 
     def test_my_keys_narrows_an_org_admin_to_their_own_keys(self):
         self.assertEqual(self.names(self.org_admin, scope="mine"), [])

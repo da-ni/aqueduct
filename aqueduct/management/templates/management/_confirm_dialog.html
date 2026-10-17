@@ -1,6 +1,6 @@
 {% comment %}
 The one confirm dialog of every page. A link or submit button asks in it first when it carries
-the attributes of {% confirm title detail action %} or {% confirm_delete obj %} from `ui`:
+the attributes of {% confirm title detail action dismiss="Cancel" %} or {% confirm_delete obj %} from `ui`:
 
     <a href="{% url 'token_delete' token.id %}" {% confirm_delete token %}>Delete</a>
     <button type="submit" name="remove" value="7" {% confirm "Remove ana@example.com?" "She loses access." "Remove" %}>Remove</button>
@@ -16,7 +16,7 @@ question. A confirmed button submits its own form.
         <p id="confirm-detail"></p>
         <div class="modal-action mt-2">
             <button type="submit" class="btn btn-error" data-confirm-submit>Delete</button>
-            <button type="submit" class="btn btn-outline btn-primary" formmethod="dialog" formnovalidate autofocus>Cancel</button>
+            <button type="submit" class="btn btn-outline btn-primary" formmethod="dialog" formnovalidate autofocus data-confirm-dismiss>Cancel</button>
         </div>
     </form>
     <form method="dialog" class="modal-backdrop"><button tabindex="-1" aria-hidden="true">Cancel</button></form>

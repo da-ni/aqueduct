@@ -21,10 +21,11 @@ class UserVectorStoresView(BaseAqueductView, TemplateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
+        seen = scope(self.profile, self.viewed_org)
         context["listing"] = store_list(
             self.request.user,
-            scope(self.profile, self.viewed_org),
-            syncable(self.request.user, self.get_teams_for_user()),
+            seen,
+            syncable(self.request.user, self.get_teams_for_user(), seen),
             self.profile.teams.all(),
             timezone.now(),
             self.request.GET.get("page"),
@@ -37,11 +38,12 @@ class VectorStoreDetailView(BaseAqueductView, TemplateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
+        seen = scope(self.profile, self.viewed_org)
         context["detail"] = store_detail(
             self.kwargs["id"],
             self.request.user,
-            scope(self.profile, self.viewed_org),
-            syncable(self.request.user, self.get_teams_for_user()),
+            seen,
+            syncable(self.request.user, self.get_teams_for_user(), seen),
             timezone.now(),
             self.request.GET.get("page"),
         )
@@ -71,10 +73,11 @@ class VectorStoreCardRefreshView(BaseAqueductView, View):
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
         vector_store_id = self.kwargs.get("id")
+        seen = scope(self.profile, self.viewed_org)
 
         try:
             vs = VectorStore.objects.get(
-                syncable(request.user, self.get_teams_for_user()), id=vector_store_id
+                syncable(request.user, self.get_teams_for_user(), seen), id=vector_store_id
             )
         except VectorStore.DoesNotExist:
             messages.error(request, "Vector store not found.")
@@ -96,10 +99,11 @@ class VectorStoreDetailRefreshView(BaseAqueductView):
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
         vector_store_id = self.kwargs.get("id")
+        seen = scope(self.profile, self.viewed_org)
 
         try:
             vs = VectorStore.objects.get(
-                syncable(request.user, self.get_teams_for_user()), id=vector_store_id
+                syncable(request.user, self.get_teams_for_user(), seen), id=vector_store_id
             )
         except VectorStore.DoesNotExist:
             messages.error(request, "Vector store not found.")
