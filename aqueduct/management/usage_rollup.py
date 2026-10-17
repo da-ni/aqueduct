@@ -7,11 +7,12 @@ so they return what the raw queries in `usage_report` return, except that median
 approximate. Without rollups they read the raw requests only."""
 
 import math
+import operator
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from functools import cache
+from functools import cache, reduce
 from itertools import accumulate
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -224,12 +225,18 @@ def _insert(table: type[models.Model], rows: QuerySet[Any, Row], **fixed: int) -
 
 
 def org_series(
-    org: Org | None, model: str | None, period: Period, sealed: "Sealed | None" = None
+    org: Org | None,
+    model: str | None,
+    period: Period,
+    sealed: "Sealed | None" = None,
+    requests: QuerySet[Request] | None = None,
 ) -> Series:
     """`usage_report.series` of the requests of `org`, every org when `None`, and of `model`,
-    every served model when `None`."""
+    every served model when `None`. `requests` are `usage_report.org_requests(org)`, which a
+    page looks up once for all its figures; they are looked up now when `None`."""
     found = _gather(
         org,
+        requests,
         model,
         period.start,
         period.end,
@@ -250,11 +257,17 @@ def org_series(
 
 
 def org_models(
-    org: Org | None, model: str | None, period: Period, sealed: "Sealed | None" = None
+    org: Org | None,
+    model: str | None,
+    period: Period,
+    sealed: "Sealed | None" = None,
+    requests: QuerySet[Request] | None = None,
 ) -> dict[str, ModelUsage]:
     """Activity and approximate median response time per model, for the models with requests.
     Each median is within 4.5% of the lower median response time, or 1 ms below 12 ms."""
-    args = (org, model, period.start, period.end)
+    if requests is None:
+        requests = org_requests(org)
+    args = (org, requests, model, period.start, period.end)
     totals = _gather(
         *args,
         ("model",),
@@ -290,6 +303,7 @@ def org_tokens(
     """Tokens per org id, `None` for keys of no org, as `usage_report.org_tokens` sums them."""
     found = _gather(
         None,
+        None,
         model,
         period.start,
         period.end,
@@ -305,11 +319,16 @@ def org_tokens(
 
 
 def org_heat(
-    org: Org | None, start: datetime, end: datetime, sealed: "Sealed | None" = None
+    org: Org | None,
+    start: datetime,
+    end: datetime,
+    sealed: "Sealed | None" = None,
+    requests: QuerySet[Request] | None = None,
 ) -> dict[tuple[int, int], int]:
     """Tokens per ISO weekday and local hour of day, as `usage_report.heat` sums them."""
     found = _gather(
         org,
+        requests,
         None,
         start,
         end,
@@ -413,19 +432,26 @@ class Sealed:
         return self.until is not None and self.until >= now - CURRENT
 
 
-def _split(start: datetime, end: datetime, sealed_until: datetime | None) -> tuple[Q | None, Q]:
-    """The hours of [start, end) that the rollups hold, and the requests of the rest."""
+def _split(
+    start: datetime, end: datetime, sealed_until: datetime | None
+) -> tuple[Q | None, Q | None]:
+    """The hours of [start, end) that the rollups hold, and the requests of the rest. A range
+    the rollups leave empty is dropped, so that the planner can scan one timestamp range."""
     if sealed_until is not None:
         first, last = _ceil_hour(start), min(sealed_until, floor_hour(end))
         if first < last:
-            return Q(hour__gte=first, hour__lt=last), Q(
-                timestamp__gte=start, timestamp__lt=first
-            ) | Q(timestamp__gte=last, timestamp__lt=end)
+            rest = [
+                Q(timestamp__gte=low, timestamp__lt=high)
+                for low, high in ((start, first), (last, end))
+                if low < high
+            ]
+            return Q(hour__gte=first, hour__lt=last), reduce(operator.or_, rest) if rest else None
     return None, Q(timestamp__gte=start, timestamp__lt=end)
 
 
 def _gather(
     org: Org | None,
+    requests: QuerySet[Request] | None,
     model: str | None,
     start: datetime,
     end: datetime,
@@ -436,12 +462,13 @@ def _gather(
     sealed: Sealed | None,
 ) -> Grouped:
     """Counts per `keys` over [start, end), from rollup rows up to `sealed`, read now when
-    `None`, and from requests elsewhere."""
+    `None`, and from the `requests` of `org`, looked up now when `None`, elsewhere."""
     hours, rest = _split(start, end, (sealed or Sealed.read()).until)
-    requests = org_requests(org).filter(rest)
+    if requests is None:
+        requests = org_requests(org)
     if model is not None:
         requests = requests.filter(model=model)
-    rows = list(from_requests(requests.order_by()))
+    rows = [] if rest is None else list(from_requests(requests.filter(rest).order_by()))
     if hours is not None:
         kept = table.objects.filter(hours, model__in=router_models())
         if org is not None:

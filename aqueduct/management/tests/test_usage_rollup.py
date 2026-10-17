@@ -1,15 +1,15 @@
 import random
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from unittest import mock
 
 from django.contrib.auth import get_user_model
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
 from aqueduct.celery import delete_old_requests
 from management import usage_rollup as rollup
-from management.key_activity import Activity
+from management.key_activity import Activity, served
 from management.models import (
     KeyUsageWindow,
     Org,
@@ -39,6 +39,37 @@ MEDIAN_BOUND = 2 ** (1 / 16)
 class ApproximateMedianTest(SimpleTestCase):
     def test_no_requests_have_no_median(self):
         self.assertIsNone(rollup.approximate_median({}))
+
+
+class SplitTest(SimpleTestCase):
+    start = datetime(2026, 10, 11, tzinfo=UTC)
+    end = datetime(2026, 10, 18, tzinfo=UTC)
+    sealed = datetime(2026, 10, 17, 14, tzinfo=UTC)
+
+    def raw(self, low: datetime, high: datetime) -> Q:
+        return Q(timestamp__gte=low, timestamp__lt=high)
+
+    def test_a_start_on_the_hour_leaves_one_raw_range(self):
+        hours, rest = rollup._split(self.start, self.end, self.sealed)
+        self.assertEqual(hours, Q(hour__gte=self.start, hour__lt=self.sealed))
+        self.assertEqual(rest, self.raw(self.sealed, self.end))
+
+    def test_a_start_within_an_hour_reads_the_rest_of_that_hour_raw(self):
+        start = self.start + timedelta(minutes=23)
+        hours, rest = rollup._split(start, self.end, self.sealed)
+        first = self.start + timedelta(hours=1)
+        self.assertEqual(hours, Q(hour__gte=first, hour__lt=self.sealed))
+        self.assertEqual(rest, self.raw(start, first) | self.raw(self.sealed, self.end))
+
+    def test_rollups_up_to_the_end_leave_no_raw_range(self):
+        hours, rest = rollup._split(self.start, self.sealed, self.sealed)
+        self.assertEqual(hours, Q(hour__gte=self.start, hour__lt=self.sealed))
+        self.assertIsNone(rest)
+
+    def test_without_rollups_everything_is_raw(self):
+        self.assertEqual(
+            rollup._split(self.start, self.end, None), (None, self.raw(self.start, self.end))
+        )
 
 
 @PAGES
@@ -147,6 +178,23 @@ class UsageRollupTest(TestCase):
         rollup.refresh(self.now)
         self.assertTrue(OrgUsageHour.objects.filter(org=None).exists(), "orphan key counted")
         self.assert_matches_raw()
+
+    def test_a_period_the_rollups_cover_entirely_gives_the_raw_figures(self):
+        rollup.refresh(self.now)
+        self.assert_matches_raw(Period.last(Span.WEEK, self.now - timedelta(days=2)))
+
+    def test_an_org_with_few_keys_names_them_and_one_with_many_uses_a_subquery(self):
+        tokens = Token.objects.filter(of_org(self.org))
+        expected = set(
+            served(Request.objects.filter(token__in=tokens)).values_list("id", flat=True)
+        )
+        named = org_requests(self.org)
+        self.assertNotIn("management_token", str(named.query))
+        self.assertEqual(set(named.values_list("id", flat=True)), expected)
+        with mock.patch("management.key_activity.LISTED_KEYS", 1):
+            many = org_requests(self.org)
+        self.assertIn("management_token", str(many.query))
+        self.assertEqual(set(many.values_list("id", flat=True)), expected)
 
     def test_sealed_hours_are_read_from_the_rollups(self):
         rollup.refresh(self.now)

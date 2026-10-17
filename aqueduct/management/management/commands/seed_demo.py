@@ -871,7 +871,9 @@ class Command(BaseCommand):
 
     def insert(self, rows: Iterator[LogRow], expected: int) -> int:
         """Write `rows` with COPY on Postgres and batched INSERTs elsewhere, which is many times
-        faster than `bulk_create` of model instances."""
+        faster than `bulk_create` of model instances, then analyze the table. SQLite keeps no
+        statistics until told to, and without them it may read a small org's requests through
+        the model index, over every org's."""
         table = Request._meta.db_table
         columns = ", ".join(LogRow._fields)
         written = 0
@@ -905,6 +907,7 @@ class Command(BaseCommand):
                 if written % step == 0:
                     progress()
             cursor.executemany(sql, batch)
+            cursor.execute(f"ANALYZE {table}")
             return written
 
     @staticmethod
