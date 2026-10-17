@@ -1,10 +1,9 @@
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from http import HTTPStatus
 
-from django.core.paginator import Page, Paginator
 from django.db.models import Count, Q, QuerySet
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -16,6 +15,14 @@ from management.models import Org, Request, Team, Token, UserProfile
 from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
 
 PAGE_SIZE = 50
+_MAX_ID = 2**63 - 2  # the largest bigint that `Cursor.just_before` can still add one to
+
+
+def parse_id(raw: str | None) -> int | None:
+    """A database id from a URL parameter, or `None` for anything else."""
+    if not (raw and raw.isascii() and raw.isdigit()) or int(raw) > _MAX_ID:
+        return None
+    return int(raw)
 
 
 def chosen_org(profile: UserProfile, raw: str | None) -> Org | None:
@@ -24,38 +31,37 @@ def chosen_org(profile: UserProfile, raw: str | None) -> Org | None:
         return profile.org
     if raw == "all":
         return None
-    if raw and raw.isdigit():
-        return Org.objects.filter(pk=int(raw)).first() or profile.org
+    if (org_id := parse_id(raw)) is not None:
+        return Org.objects.filter(pk=org_id).first() or profile.org
     return profile.org
 
 
 def visible_tokens(profile: UserProfile, org: Org | None, teams: QuerySet[Team]) -> QuerySet[Token]:
     """Keys whose requests the viewer may see in `org`: every key for an org admin, else their
-    own keys and their teams' service accounts. `org=None` means every org."""
+    personal keys and their teams' service accounts. `org=None` means every org."""
     if org is None:
         return Token.objects.all()
     if profile.is_org_admin(org):
         return Token.objects.filter(Q(user__profile__org=org) | Q(service_account__team__org=org))
-    return Token.objects.filter(Q(user=profile.user) | Q(service_account__team__in=teams))
+    return Token.objects.filter(
+        Q(user=profile.user, service_account__isnull=True) | Q(service_account__team__in=teams)
+    )
 
 
 def visible_requests(
     profile: UserProfile, org: Org | None, teams: QuerySet[Team]
 ) -> QuerySet[Request]:
-    """Requests the viewer may see in `org`, limited to the models the router serves.
-
-    Besides the requests of `visible_tokens`, a user also sees requests that name their email
-    as `user_id` on another key of their org.
-    """
+    """Requests of the `visible_tokens`, limited to the models the router serves."""
     if org is None:
         return served(Request.objects.all())
-    requests = Request.objects.filter(token__in=visible_tokens(profile, org, teams))
+    tokens = visible_tokens(profile, org, teams)
     if not profile.is_org_admin(org):
-        user = profile.user
-        requests |= Request.objects.filter(
-            user_id=user.email, token__user__profile__org=profile.org
+        # A user has a few keys. Naming them lets Postgres plan with the actual ids instead of a
+        # join, and find their requests through the token or the timestamp index.
+        return served(
+            Request.objects.filter(token_id__in=list(tokens.values_list("id", flat=True)))
         )
-    return served(requests)
+    return served(Request.objects.filter(token__in=tokens))
 
 
 _OVERVIEW_STATUS = {
@@ -157,7 +163,11 @@ def describe_key(
 @dataclass(frozen=True)
 class Filters:
     """The selection the Overview page and the request log share: org, whose keys, key, model,
-    and time frame. `requests` holds the visible requests narrowed by all but the time frame."""
+    and time frame. `requests` holds the visible requests narrowed by all but the time frame.
+
+    The key picker lists `keys`, the viewer's own keys, and `matches`, the visible keys that
+    match the search `key_q`. `page_params` holds the page's own parameters, such as the
+    log's status tab, which the key search keeps."""
 
     orgs: tuple[Org, ...]
     org: Org | None
@@ -165,6 +175,9 @@ class Filters:
     mine: bool
     keys: tuple[Key, ...]
     key: Key | None
+    key_q: str
+    matches: tuple[Key, ...]
+    page_params: tuple[tuple[str, str], ...]
     models: tuple[str, ...]
     model: str | None
     span: Span
@@ -189,9 +202,20 @@ class Filters:
         found["span"] = self.span.value
         return found
 
+    @property
+    def search_params(self) -> tuple[tuple[str, str], ...]:
+        """What the key search submits besides `key_q`."""
+        return tuple((dict(self.page_params) | self.query).items())
+
     def log_url(self, **narrower: str) -> str:
         """The request log with this selection, narrowed or overridden by `narrower`."""
         return f"{reverse('requests')}?{urlencode(self.query | narrower)}"
+
+
+KEY_MATCHES = 20
+_NOT_PAGE_PARAMS = frozenset(
+    {"org", "scope", "key", "model", "span", "key_q", "before", "after", "request", "page"}
+)
 
 
 def read_filters(
@@ -205,35 +229,40 @@ def read_filters(
     """Parse the shared filters. A key outside what the viewer may see is a 404."""
     org = chosen_org(profile, params.get("org"))
     sees_others = org is None or profile.is_org_admin(org)
-    scope = visible_requests(profile, org, teams)
+    requests = visible_requests(profile, org, teams)
     team_ids = set(teams.values_list("id", flat=True))
-    requests = scope
-    mine = sees_others and params.get("scope") == "mine"
-    if mine:
-        requests = requests.filter(
-            Q(token__user=profile.user, token__service_account__isnull=True)
-            | Q(token__service_account__team__in=profile.teams.all())
-        )
-
-    tokens = Token.objects.select_related(
-        "user__profile__org", "service_account__team__org"
-    ).order_by("name", "id")
+    tokens = (
+        visible_tokens(profile, org, teams)
+        .select_related("user__profile__org", "service_account__team__org")
+        .order_by("name", "id")
+    )
 
     def describe(token: Token) -> Key:
         return describe_key(token, profile, team_ids, with_org=org is None)
 
-    keys = tuple(describe(token) for token in tokens.filter(id__in=requests.values("token_id")))
+    own = Q(user=profile.user, service_account__isnull=True) | Q(
+        service_account__team__in=profile.teams.all()
+    )
+    keys = tuple(describe(token) for token in tokens.filter(own))
+    mine = sees_others and params.get("scope") == "mine"
+    if mine:
+        requests = requests.filter(token_id__in=[key.token.id for key in keys])
+
     key = None
     if raw_key := params.get("key", ""):
-        if not raw_key.isdigit():
+        if (key_id := parse_id(raw_key)) is None:
             raise Http404
-        allowed = Q(id__in=scope.values("token_id")) | Q(
-            id__in=visible_tokens(profile, org, teams).values("id")
-        )
-        key = describe(get_object_or_404(tokens.filter(allowed), pk=int(raw_key)))
-        if key.token not in (k.token for k in keys):
-            keys = (key, *keys)
+        key = describe(get_object_or_404(tokens, pk=key_id))
         requests = requests.filter(token=key.token)
+
+    key_q = params.get("key_q", "").strip()
+    matches = ()
+    if key_q:
+        # Only a viewer who sees the whole org may learn who created a service account's key.
+        by_owner = Q(user__email__icontains=key_q) if sees_others else Q()
+        found = tokens.filter(Q(name__icontains=key_q) | by_owner)
+        matches = tuple(describe(token) for token in found[:KEY_MATCHES])
+
     models = tuple(sorted(router_models()))
     model = params.get("model") if params.get("model") in models else None
     if model is not None:
@@ -249,6 +278,11 @@ def read_filters(
         mine=mine,
         keys=keys,
         key=key,
+        key_q=key_q,
+        matches=matches,
+        page_params=tuple(
+            (name, value) for name, value in params.items() if name not in _NOT_PAGE_PARAMS
+        ),
         models=models,
         model=model,
         span=span,
@@ -309,10 +343,67 @@ class Tab:
 
 
 @dataclass(frozen=True)
+class Cursor:
+    """A place in the log, newest first: the request at `timestamp` with `id`. In a URL it
+    reads `<microseconds since the epoch>,<id>`."""
+
+    timestamp: datetime
+    id: int
+
+    @classmethod
+    def parse(cls, raw: str | None) -> "Cursor | None":
+        micros, _, raw_id = (raw or "").partition(",")
+        pk = parse_id(raw_id)
+        if pk is None or not (micros.isascii() and micros.isdigit()):
+            return None
+        try:
+            return cls(_EPOCH + timedelta(microseconds=int(micros)), pk)
+        except OverflowError:
+            return None
+
+    @classmethod
+    def at(cls, request: Request) -> "Cursor":
+        return cls(request.timestamp, request.id)
+
+    def __str__(self) -> str:
+        return f"{(self.timestamp - _EPOCH) // timedelta(microseconds=1)},{self.id}"
+
+    @property
+    def older(self) -> Q:
+        """Requests after this one in the log. The first term lets Postgres range-scan an index
+        on the timestamp."""
+        return Q(timestamp__lte=self.timestamp) & (
+            Q(timestamp__lt=self.timestamp) | Q(id__lt=self.id)
+        )
+
+    @property
+    def newer(self) -> Q:
+        return Q(timestamp__gte=self.timestamp) & (
+            Q(timestamp__gt=self.timestamp) | Q(id__gt=self.id)
+        )
+
+    @property
+    def just_before(self) -> "Cursor":
+        """The cursor whose `older` requests start with this one."""
+        return Cursor(self.timestamp, self.id + 1)
+
+
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+
+
+@dataclass(frozen=True)
 class RequestLog:
-    page: Page
+    """One page of the log. `here` reproduces the page as a `before` cursor, `None` on the
+    newest page; `newer` and `older` are the `after` and `before` cursors of the pages next to
+    it, `None` at either end. The cursors are URL values. `count` is the number of requests in
+    the chosen tab."""
+
     rows: tuple[Row, ...]
     tabs: tuple[Tab, ...]
+    count: int
+    here: str | None
+    newer: str | None
+    older: str | None
 
 
 def request_log(
@@ -321,9 +412,12 @@ def request_log(
     filters: Filters,
     *,
     outcome: Outcome | None,
-    page_number: str | None,
+    before: Cursor | None,
+    after: Cursor | None,
     open_id: int | None,
 ) -> RequestLog:
+    """A page of the log, paged by cursor, never by offset. Without a cursor the page is the
+    newest one, or the page that starts at `open_id` when the newest page does not hold it."""
     team_ids = set(teams.values_list("id", flat=True))
     filtered = filters.period.of(filters.requests)
 
@@ -334,16 +428,39 @@ def request_log(
 
     if outcome is not None:
         filtered = filtered.filter(outcome.matches)
-    paginator = Paginator(
-        filtered.select_related("token__user", "token__service_account__team").order_by(
-            "-timestamp", "-id"
-        ),
-        PAGE_SIZE,
-    )
-    paginator.count = counts[outcome.name if outcome else "total"]
-    page = paginator.get_page(page_number)
+    listed = filtered.select_related("token__user", "token__service_account__team")
+    newest_first = listed.order_by("-timestamp", "-id")
+
+    def older_than(cursor: Cursor | None) -> tuple[list[Request], bool]:
+        found = list(
+            (newest_first.filter(cursor.older) if cursor else newest_first)[: PAGE_SIZE + 1]
+        )
+        return found[:PAGE_SIZE], len(found) > PAGE_SIZE
+
+    newer = []
+    if after is not None and before is None:
+        newer = list(listed.filter(after.newer).order_by("timestamp", "id")[: PAGE_SIZE + 1])
+    if len(newer) > PAGE_SIZE:
+        page, has_older = newer[PAGE_SIZE - 1 :: -1], True
+        here: Cursor | None = Cursor.at(page[0]).just_before
+    else:
+        here = before
+        page, has_older = older_than(here)
+    if here is None and open_id is not None and all(r.id != open_id for r in page):
+        anchor = filtered.filter(pk=open_id).only("timestamp").first()
+        if anchor is not None:
+            here = Cursor.at(anchor).just_before
+            page, has_older = older_than(here)
+
     rows = tuple(
         Row(request, describe_key(request.token, profile, team_ids), request.id == open_id)
         for request in page
     )
-    return RequestLog(page, rows, tabs)
+    return RequestLog(
+        rows=rows,
+        tabs=tabs,
+        count=counts[outcome.name if outcome else "total"],
+        here=str(here) if here else None,
+        newer=str(Cursor.at(rows[0].request)) if here and rows else None,
+        older=str(Cursor.at(rows[-1].request)) if has_older else None,
+    )

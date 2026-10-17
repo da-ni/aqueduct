@@ -17,7 +17,7 @@
         <nav class="join max-sm:flex-wrap max-sm:gap-1 max-sm:[&>.join-item]:rounded-full!" aria-label="Status">
             {% for tab in log.tabs %}
                 <a class="btn btn-sm join-item{% if tab.outcome == outcome %} btn-primary{% endif %}"
-                   href="{% querystring status=tab.value page=None request=None %}"
+                   href="{% querystring key_q=None status=tab.value before=None after=None request=None %}"
                    {% if tab.outcome == outcome %}aria-current="page"{% endif %}{% if tab.outcome.codes %} title="{{ tab.outcome.codes }}"{% endif %}>{{ tab.label }} <span class="font-mono text-xs opacity-70">{{ tab.count|intcomma }}</span></a>
             {% endfor %}
         </nav>
@@ -46,7 +46,7 @@
                                 <tr id="request-{{ request.id }}" class="cursor-pointer font-mono text-[13px]" data-row-toggle>
                                     <td>
                                         <a class="btn btn-ghost btn-xs btn-square" data-row-toggle-link
-                                           href="{% if row.is_open %}{% querystring request=None %}{% else %}{% querystring request=request.id %}#request-{{ request.id }}{% endif %}"
+                                           href="{% if row.is_open %}{% querystring key_q=None request=None before=log.here after=None %}{% else %}{% querystring key_q=None request=request.id before=log.here after=None %}#request-{{ request.id }}{% endif %}"
                                            aria-expanded="{{ row.is_open|yesno:'true,false' }}"
                                            aria-label="{% if row.is_open %}Hide{% else %}Show{% endif %} details of request {{ request.id }}">{% if row.is_open %}{% icon "chevron" small=True extra_class="rotate-90" %}{% else %}{% icon "chevron" small=True %}{% endif %}</a>
                                     </td>
@@ -56,7 +56,7 @@
                                         <div class="muted truncate font-sans text-xs" title="{{ row.key.note }}">{{ row.key.note }}</div>
                                     </td>
                                     <td class="truncate">
-                                        {% if request.model %}<a class="link-plain" href="{% querystring model=request.model page=None request=None %}" title="Show only {{ request.model }}">{{ request.model }}</a>{% else %}n/a{% endif %}
+                                        {% if request.model %}<a class="link-plain" href="{% querystring key_q=None model=request.model before=None after=None request=None %}" title="Show only {{ request.model }}">{{ request.model }}</a>{% else %}n/a{% endif %}
                                         <div class="muted truncate text-xs" title="{{ request.path }}">{{ request.path }}</div>
                                     </td>
                                     <td>
@@ -91,17 +91,19 @@
             </div>
             <div class="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-1">
                 <span class="muted font-mono text-xs">
-                    {% if log.page.paginator.count %}Showing {{ log.page.start_index|intcomma }}–{{ log.page.end_index|intcomma }} of {{ log.page.paginator.count|intcomma }}{% else %}Showing 0{% endif %}
+                    {{ log.count|intcomma }} request{{ log.count|pluralize }}
                     · Requests are kept for {{ retention_days }} days
                 </span>
                 <nav class="join" aria-label="Pages">
-                    {% if log.page.has_previous %}
-                        <a class="btn btn-sm join-item" href="{% querystring page=log.page.previous_page_number request=None %}">Newer</a>
+                    {% if log.newer %}
+                        <a class="btn btn-sm join-item" href="{% querystring key_q=None after=log.newer before=None request=None %}">Newer</a>
+                    {% elif log.here %}
+                        <a class="btn btn-sm join-item" href="{% querystring key_q=None after=None before=None request=None %}">Newer</a>
                     {% else %}
                         <button type="button" class="btn btn-sm join-item" disabled>Newer</button>
                     {% endif %}
-                    {% if log.page.has_next %}
-                        <a class="btn btn-sm join-item" href="{% querystring page=log.page.next_page_number request=None %}">Older</a>
+                    {% if log.older %}
+                        <a class="btn btn-sm join-item" href="{% querystring key_q=None before=log.older after=None request=None %}">Older</a>
                     {% else %}
                         <button type="button" class="btn btn-sm join-item" disabled>Older</button>
                     {% endif %}

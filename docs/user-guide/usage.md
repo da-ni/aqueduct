@@ -22,14 +22,14 @@ The Overview page shows the token and request usage of the keys you can see. Cho
 ## Whose usage you see
 
 - Users see their own keys and the service accounts of their teams.
-- Org admins see every key of their organization. **Everyone** and **My keys** switch between the whole organization and your own keys.
+- Org admins see every key of their organization. In the key menu, **All keys in** your organization and **My keys** switch between the whole organization and your own keys.
 - Admins also choose an organization, or **All organizations**, in the organization select.
 
 ## Choose the time frame, the key, and the model
 
 Choose **1 hour**, **24 hours**, **7 days**, or **30 days**. The page opens on **7 days**.
 
-To show one key or one model, choose it in **All keys** or **All models**. The [Requests](requests.md) page has the same filters.
+To show one model, choose it in **All models**. To show one key, open the key menu: it lists your own keys and your teams' service accounts. To find another key, type part of its name, or of its owner's e-mail address, in the search field of the menu and press Enter. The menu shows up to 20 matches. The [Requests](requests.md) page has the same filters.
 
 The gateway keeps requests for a limited time, 30 days by default. If the time frame reaches back further, the page warns that older requests are missing.
 

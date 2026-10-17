@@ -23,7 +23,7 @@ The Requests page is the log of single API requests, newest first. Use it to fin
 
 You see the same requests as on the [Overview](usage.md) page:
 
-- Users see the requests of their own keys and of their teams' service accounts. They also see requests that any key in their organization sent with their e-mail address as [`user_id`](../api/index.md#sending-user_id-in-api-requests).
+- Users see the requests of their own keys and of their teams' service accounts. A request that another person's key sent with your e-mail address as [`user_id`](../api/index.md#sending-user_id-in-api-requests) stays that person's request.
 - Org admins see every request of their organization.
 - Admins also choose an organization, or **All organizations**, in the organization select.
 
@@ -45,10 +45,10 @@ Choose a model name to show only that model. Choose a row, or the arrow at its s
 ## Filter the log
 
 - To show one kind of status, choose a tab: **All**, **Failed**, **2xx**, **429**, **Other 4xx**, or **5xx**. **Failed** holds every `4xx` and `5xx` request. Each tab shows its count.
-- The log has the same filters as the [Overview](usage.md) page: the organization, **Everyone** or **My keys**, **All keys**, **All models**, and the time frame. The log opens on **30 days**.
+- The log has the same filters as the [Overview](usage.md) page: the organization, the key, **All models**, and the time frame. The log opens on **30 days**.
 - On the Overview page, **Open the log**, a status group, and a model open the log with the same filters.
 
-The log shows 50 requests per page. Choose **Older** and **Newer** to move between pages.
+The log shows 50 requests per page, and the line under the table shows how many requests match. Choose **Older** and **Newer** to move between pages.
 
 ## How long requests are kept
 
