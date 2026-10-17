@@ -3,12 +3,15 @@ from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import connection
+from django.db.models import QuerySet
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import urlencode
 
+from management import usage_rollup as rollup
+from management.key_activity import served
 from management.models import (
     Org,
     Request,
@@ -19,8 +22,9 @@ from management.models import (
     UserGroup,
     UserProfile,
 )
-from management.request_log import PAGE_SIZE
+from management.request_log import PAGE_SIZE, Outcome
 from management.tests.test_api_keys_pages import PAGES, make_token
+from management.usage_report import Period, Span, org_requests
 
 User = get_user_model()
 
@@ -472,3 +476,73 @@ class RequestsPaginationTest(RequestsPageTestBase):
         with CaptureQueriesContext(connection) as many:
             self.client.get(reverse("requests"))
         self.assertEqual(len(many), len(few))
+
+
+class RequestsRollupCountsTest(RequestsPageTestBase):
+    def setUp(self):
+        super().setUp()
+        TeamMembership.objects.create(
+            user_profile=self.user("team-admin").profile, team=self.team, is_admin=True
+        )
+        keys = (self.key, self.others_key, self.team_key, self.side_key, self.foreign_key)
+        statuses = (200, 302, 429, 404, 400, 500, 503, None)
+        for i in range(40):
+            self.log(
+                keys[i % len(keys)],
+                f"/old-{i}",
+                ago=timedelta(hours=2 + 13 * i),
+                status_code=statuses[i % len(statuses)],
+                model=(MODEL, OTHER_MODEL, "not-in-the-router")[i % 3],
+            )
+        rollup.rebuild()
+
+    def raw_tabs(self, requests: QuerySet[Request]) -> dict[str | None, int]:
+        requests = Period.last(Span.MONTH, timezone.now()).of(requests)
+        return {None: requests.count()} | {
+            o.value: requests.filter(o.matches).count() for o in Outcome
+        }
+
+    def org_tabs(self, org: Org | None, model: str | None = None) -> dict[str | None, int]:
+        requests = org_requests(org)
+        return self.raw_tabs(requests if model is None else requests.filter(model=model))
+
+    def tabs(self, user, **params) -> dict[str | None, int]:
+        log = self.get(user, **params).context["log"]
+        return {tab.value: tab.count for tab in log.tabs}
+
+    def test_org_wide_tabs_match_the_raw_counts(self):
+        viewers = (
+            (self.org_admin, {}, self.org),
+            (self.other_org_admin, {}, self.other_org),
+            (self.admin, {}, self.org),
+            (self.admin, {"org": self.other_org.id}, self.other_org),
+            (self.admin, {"org": "all"}, None),
+        )
+        for user, params, org in viewers:
+            for model in (None, MODEL):
+                narrowed = {**params, **({"model": model} if model else {})}
+                with self.subTest(user=user.username, **narrowed):
+                    found = self.tabs(user, **narrowed)
+                    self.assertEqual(found, self.org_tabs(org, model))
+                    for status in ("failed", "429"):
+                        log = self.get(user, **narrowed, status=status).context["log"]
+                        self.assertEqual(log.count, found[status])
+
+    def test_org_wide_tabs_read_the_rollups_and_narrower_ones_the_requests(self):
+        Request.objects.filter(path="/old-0").update(status_code=500)
+        self.assertEqual(self.tabs(self.org_admin)["2xx"], self.org_tabs(self.org)["2xx"] + 1)
+        mine = Request.objects.none()
+        self.assertEqual(self.tabs(self.org_admin, scope="mine"), self.raw_tabs(mine))
+        own = served(Request.objects.filter(token=self.key))
+        self.assertEqual(self.tabs(self.org_admin, key=self.key.id), self.raw_tabs(own))
+
+    def test_users_and_team_admins_count_their_own_requests(self):
+        team_admin = User.objects.get(username="team-admin")
+        for user, key in (
+            (self.owner, self.key),
+            (self.member, self.team_key),
+            (team_admin, self.team_key),
+        ):
+            with self.subTest(user=user.username):
+                own = served(Request.objects.filter(token=key))
+                self.assertEqual(self.tabs(user), self.raw_tabs(own))
