@@ -28,8 +28,7 @@ class ServiceAccountForm(forms.ModelForm):
         widget=forms.DateTimeInput(
             attrs={"type": "datetime-local", "class": EXPIRY_INPUT}, format="%Y-%m-%dT%H:%M"
         ),
-        label="Key expiry in UTC (optional)",
-        help_text="Leave it empty and the key never expires.",
+        label="Expires (UTC, optional)",
     )
 
     class Meta:
@@ -139,6 +138,39 @@ class TeamCreateForm(forms.ModelForm):
                 self.add_error("name", "A team with this name already exists in your organization.")
 
         return cleaned_data
+
+
+TEAM_LIMITS = {
+    "requests_per_minute": "Requests per minute, per key",
+    "input_tokens_per_minute": "Input tokens per minute, per key",
+    "output_tokens_per_minute": "Output tokens per minute, per key",
+}
+
+
+class TeamLimitsForm(TeamCreateForm):
+    """The team form for an admin of the team's org, who also sets the limits of the team's
+    service account keys. The model's validation applies, as in the Django admin."""
+
+    class Meta(TeamCreateForm.Meta):
+        fields: ClassVar[list] = [*TeamCreateForm.Meta.fields, *TEAM_LIMITS]
+        widgets: ClassVar[dict] = {
+            **TeamCreateForm.Meta.widgets,
+            **{
+                field: forms.NumberInput(attrs={"class": NUMBER_INPUT, "min": 0})
+                for field in TEAM_LIMITS
+            },
+        }
+        labels: ClassVar[dict] = {**TeamCreateForm.Meta.labels, **TEAM_LIMITS}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in TEAM_LIMITS:
+            fallback = getattr(self.org, field)
+            self.fields[field].help_text = (
+                "Leave it empty for no limit."
+                if fallback is None
+                else f"Leave it empty for the organization's limit, {fallback:,}."
+            )
 
 
 class TokenCreateForm(forms.ModelForm):

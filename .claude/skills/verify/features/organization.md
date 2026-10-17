@@ -14,7 +14,6 @@ Org admins and admins have an Organization page. It shows the org's number of te
 
 - Choose **Organization** under **Admin** in the sidebar. The path is `/aqueduct/management/organization/`.
 - Choose **Edit** on the Limits card or the Unavailable card. The paths are `/aqueduct/management/organization/<id>/limits/` and `/aqueduct/management/organization/<id>/availability/`. `Verify Org` has ID 1.
-- On the Teams page, an org admin's **Edit** next to the default limit opens the limits form.
 
 ## Driving it with aqv
 

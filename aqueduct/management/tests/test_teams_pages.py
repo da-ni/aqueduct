@@ -1,5 +1,6 @@
 import re
 from datetime import timedelta
+from typing import ClassVar
 
 from django.contrib.auth import get_user_model
 from django.db import connection
@@ -66,18 +67,23 @@ class TeamListTest(TeamsPagesTestBase):
         url = reverse("org")
         self.assert_sent_to_sign_in(self.client.get(url), url)
 
-    def test_member_sees_only_their_teams_with_their_role(self):
+    def test_member_sees_only_their_teams_and_team_admins_see_a_badge(self):
+        badge = '<span class="badge badge-sm bg-base-100">Team admin</span>'
         response = self.as_user(self.member).get(reverse("org"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, f'href="{reverse("team", args=[self.team.id])}"')
-        self.assertContains(response, "<td>Member</td>", html=True)
+        self.assertContains(response, "Your role")
+        self.assertNotContains(response, badge, html=True)
         self.assertNotContains(response, "Robotics")
         self.assertNotContains(response, reverse("team_create"))
+        self.assertContains(self.as_user(self.team_admin).get(reverse("org")), badge, html=True)
 
-    def test_user_outside_every_team_sees_an_empty_list(self):
+    def test_user_outside_every_team_is_told_whom_to_ask(self):
         response = self.as_user(self.outsider).get(reverse("org"))
-        self.assertContains(response, "You are not in a team yet.")
+        self.assertContains(response, "You're not in a team. Ask your org admin to add you.")
         self.assertNotContains(response, "NLP Lab")
+        self.assertNotContains(response, 'name="q"')
+        self.assertNotContains(response, "<table")
 
     def test_org_admin_sees_every_team_of_their_org_and_may_create_one(self):
         response = self.as_user(self.org_admin).get(reverse("org"))
@@ -119,11 +125,14 @@ class TeamListTest(TeamsPagesTestBase):
         response = self.as_user(self.member).get(reverse("org"))
         row = response.content.decode().split("Language tech", 1)[1].split("</tr>", 1)[0]
         members_and_service_accounts = re.findall(
-            r'<td class="text-right font-mono">(\d+)</td>', row
+            r'<td class="text-right font-mono max-lg:hidden">(\d+)</td>', row
         )
         self.assertEqual(members_and_service_accounts, ["2", "2"])
         self.assertIn("1,200", row)
         self.assertIn(">2.5K<", row)
+        self.assertIn("2 members · 2 service accounts · 2.5K tokens", row)
+        self.assertContains(response, "Requests/min")
+        self.assertContains(response, "Service account tokens, 7 days")
 
     def test_teams_come_fifty_a_page_and_keep_the_search(self):
         for n in range(55):
@@ -138,23 +147,15 @@ class TeamListTest(TeamsPagesTestBase):
         self.assertIn("Squad 54", second)
         self.assertNotIn("Squad 49", second)
 
-    def test_org_default_limit_links_to_its_edit_page_for_org_admins_and_admin_for_staff(self):
+    def test_list_leaves_the_org_limits_to_the_organization_page(self):
         self.org.requests_per_minute = 600
         self.org.save()
-        edit = reverse("organization_limits", args=[self.org.id])
-        admin = reverse("admin:management_org_change", args=[self.org.id])
-        response = self.as_user(self.org_admin).get(reverse("org"))
-        self.assertContains(response, '<span class="font-mono font-semibold">600</span>')
-        self.assertContains(response, edit)
-        self.assertNotContains(response, admin)
-        member_page = self.as_user(self.member).get(reverse("org"))
-        self.assertNotContains(member_page, edit)
-        self.assertNotContains(member_page, admin)
         self.org_admin.is_staff = True
         self.org_admin.save()
         response = self.as_user(self.org_admin).get(reverse("org"))
-        self.assertContains(response, edit)
-        self.assertContains(response, admin)
+        self.assertNotContains(response, "Default limits")
+        self.assertNotContains(response, reverse("organization_limits", args=[self.org.id]))
+        self.assertNotContains(response, reverse("admin:management_org_change", args=[self.org.id]))
 
 
 class TeamDetailTest(TeamsPagesTestBase):
@@ -200,20 +201,47 @@ class TeamDetailTest(TeamsPagesTestBase):
         self.assertNotContains(response, "outsider@example.com")
         self.assertNotContains(response, "<option")
 
-    def test_owner_of_a_service_account_cannot_be_removed(self):
+    def test_owner_of_a_service_account_is_pointed_to_the_transfer(self):
         response = self.as_user(self.team_admin).get(self.url())
         page = response.content.decode().split('id="members-title"', 1)[1]
         owner_row = page.split("team-admin@example.com</span>", 1)[1].split("</tr>", 1)[0]
-        self.assertIn("disabled", owner_row)
+        owner_row = owner_row.rsplit("<td", 1)[1].split(">", 1)[1].rsplit("</td>", 1)[0]
+        transfer = reverse("service_account_transfer", args=[self.pipeline.id])
+        self.assertInHTML(
+            '<div class="muted text-sm">Owns <span class="font-mono">pipeline</span> · '
+            f'<a class="link" href="{transfer}">Transfer</a></div>',
+            owner_row,
+        )
         self.assertNotIn("user_profile_to_remove_id", owner_row)
         member_row = page.split("member@example.com</span>", 1)[1].split("</tr>", 1)[0]
         self.assertIn(f'value="{self.member.profile.id}"', member_row)
 
-    def test_org_admin_may_appoint_team_admins_and_delete_the_team(self):
+    def test_org_admin_may_appoint_team_admins_and_finds_delete_on_the_edit_page(self):
         response = self.as_user(self.org_admin).get(self.url())
-        self.assertContains(response, reverse("team_delete", args=[self.team.id]))
-        self.assertContains(response, "Make team admin")
-        self.assertContains(response, "Remove team admin")
+        self.assertNotContains(response, reverse("team_delete", args=[self.team.id]))
+        self.assertContains(response, 'name="action" value="add"')
+        self.assertContains(response, ">Make admin</button>")
+        self.assertContains(response, 'name="action" value="remove"')
+        self.assertContains(response, ">Remove admin</button>")
+
+    def test_only_admins_see_the_service_account_cap(self):
+        self.assertContains(
+            self.as_user(self.member).get(self.url()), "<span>1 service account</span>"
+        )
+        self.assertContains(
+            self.as_user(self.team_admin).get(self.url()), "<span>1 of 10 service accounts</span>"
+        )
+
+    def test_add_member_opens_one_email_field(self):
+        response = self.as_user(self.team_admin).get(self.url())
+        self.assertContains(response, 'placeholder="name@example.org"')
+        self.assertNotContains(
+            response, '<details class="group flex w-full flex-col items-end sm:w-auto" open>'
+        )
+        response = self.as_user(self.team_admin).post(self.url(), {"email": "nobody@example.com"})
+        self.assertContains(
+            response, '<details class="group flex w-full flex-col items-end sm:w-auto" open>'
+        )
 
     def test_service_account_row_and_totals_count_seven_days(self):
         Request.objects.create(
@@ -227,15 +255,41 @@ class TeamDetailTest(TeamsPagesTestBase):
         )
         response = self.as_user(self.member).get(self.url())
         self.assertContains(response, self.pipeline_key.key_preview)
-        self.assertContains(response, '<span class="text-2xl font-semibold">3K</span>', html=True)
-        self.assertContains(response, '<span class="text-2xl font-semibold">50%</span>', html=True)
+        self.assertContains(response, "Service accounts, last 7 days")
+        cards = re.findall(
+            r'<span class="muted text-sm">(\w+)</span>\s*<span class="[^"]*font-semibold[^"]*">'
+            r"([^<]+)</span>",
+            response.content.decode(),
+        )
+        self.assertEqual(cards, [("Tokens", "4K"), ("Requests", "1"), ("Failed", "0%")])
         self.assertContains(response, ">4K<")
+        self.assertContains(
+            response,
+            'aria-label="Tokens, 7 days: 4K tokens (Cached 1,500, New input 1,500, Output 1,000)"',
+        )
+        self.assertNotContains(response, '<span class="sw c"></span>Cached</span>')
 
-    def test_unavailable_models_show_only_to_org_admins(self):
+    def test_unavailable_models_show_only_to_org_admins_and_only_when_some_are(self):
+        response = self.as_user(self.org_admin).get(self.url())
+        self.assertContains(response, "Unavailable to service accounts")
+        self.assertNotContains(response, '<dt class="muted">Models</dt>', html=True)
         self.team.excluded_models = ["gpt-image-1"]
         self.team.save()
         self.assertNotContains(self.as_user(self.member).get(self.url()), "gpt-image-1")
-        self.assertContains(self.as_user(self.org_admin).get(self.url()), "gpt-image-1")
+        response = self.as_user(self.org_admin).get(self.url())
+        self.assertContains(response, "gpt-image-1")
+        self.assertContains(response, '<dt class="muted">Models</dt>', html=True)
+        self.assertNotContains(response, '<dt class="muted">MCP servers</dt>', html=True)
+
+    def test_limits_without_any_limit_show_only_to_org_admins(self):
+        for user, shown in [(self.member, False), (self.team_admin, False), (self.org_admin, True)]:
+            with self.subTest(user=user.username):
+                response = self.as_user(user).get(self.url())
+                self.assertEqual(
+                    "Applies to each service account key." in response.content.decode(), shown
+                )
+        edit = f'href="{reverse("team_edit", args=[self.team.id])}" aria-label="Edit limits"'
+        self.assertContains(self.as_user(self.org_admin).get(self.url()), edit)
 
     def test_limits_are_listed(self):
         self.team.input_tokens_per_minute = 5000
@@ -396,7 +450,7 @@ class TeamFormsTest(TeamsPagesTestBase):
         client = self.as_user(self.org_admin)
         page = client.get(reverse("team_create"))
         self.assertContains(page, "Create a team")
-        self.assertContains(page, "The team is created in lab-org.")
+        self.assertNotContains(page, "The team is created in")
         response = client.post(
             reverse("team_create"), {"name": "Vision", "description": "", "org": self.org.id}
         )
@@ -440,11 +494,88 @@ class TeamFormsTest(TeamsPagesTestBase):
         self.assertEqual(self.team.name, "NLP Lab")
 
 
+class TeamLimitsEditTest(TeamsPagesTestBase):
+    """Admins of the team's org set its limits in the Edit team form, validated as in the Django
+    admin. Team admins edit the same form without the limits."""
+
+    LIMITS: ClassVar[dict] = {
+        "requests_per_minute": "120",
+        "input_tokens_per_minute": "50000",
+        "output_tokens_per_minute": "",
+    }
+
+    def url(self) -> str:
+        return reverse("team_edit", args=[self.team.id])
+
+    def post(self, user, **limits):
+        data = {"name": "NLP Lab", "description": "Language tech", **self.LIMITS, **limits}
+        return self.as_user(user).post(self.url(), data)
+
+    def limits(self) -> tuple:
+        self.team.refresh_from_db()
+        return (
+            self.team.requests_per_minute,
+            self.team.input_tokens_per_minute,
+            self.team.output_tokens_per_minute,
+        )
+
+    def test_org_admin_and_admin_set_the_limits(self):
+        admin = self.user("site-admin", UserGroup.ADMIN, self.other_org)
+        for user in (self.org_admin, admin):
+            with self.subTest(user=user.username):
+                self.team.requests_per_minute = None
+                self.team.save()
+                page = self.as_user(user).get(self.url())
+                self.assertContains(page, 'name="requests_per_minute"')
+                response = self.post(user)
+                self.assertRedirects(
+                    response, reverse("team", args=[self.team.id]), fetch_redirect_response=False
+                )
+                self.assertEqual(self.limits(), (120, 50000, None))
+
+    def test_help_names_the_org_limit_an_empty_field_falls_back_to(self):
+        self.org.requests_per_minute = 600
+        self.org.save()
+        page = self.as_user(self.org_admin).get(self.url())
+        self.assertContains(page, "Leave it empty for the organization&#x27;s limit, 600.")
+        self.assertContains(page, "Leave it empty for no limit.")
+
+    def test_negative_limit_rerenders_the_form(self):
+        response = self.post(self.org_admin, requests_per_minute="-1")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ensure this value is greater than or equal to 0.")
+        self.assertEqual(self.limits(), (None, None, None))
+
+    def test_team_admin_edits_the_team_but_not_its_limits(self):
+        self.assertNotContains(
+            self.as_user(self.team_admin).get(self.url()), 'name="requests_per_minute"'
+        )
+        response = self.post(self.team_admin, name="NLP Group")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.limits(), (None, None, None))
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.name, "NLP Group")
+
+    def test_member_and_other_org_admin_change_nothing(self):
+        for user, status in [(self.member, 302), (self.other_org_admin, 404), (self.outsider, 404)]:
+            with self.subTest(user=user.username):
+                self.assertEqual(self.post(user).status_code, status)
+        self.assertEqual(self.limits(), (None, None, None))
+
+    def test_only_org_admins_find_delete_on_the_edit_page(self):
+        delete = f'href="{reverse("team_delete", args=[self.team.id])}"'
+        self.assertContains(self.as_user(self.org_admin).get(self.url()), delete)
+        self.assertNotContains(self.as_user(self.team_admin).get(self.url()), delete)
+
+
 class ServiceAccountFormsTest(TeamsPagesTestBase):
     def test_team_admin_creates_a_service_account_and_sees_its_key_once(self):
         client = self.as_user(self.team_admin)
         url = reverse("service_account_create", args=[self.team.id])
-        self.assertContains(client.get(url), "Add a service account")
+        page = client.get(url)
+        self.assertContains(page, "Add a service account")
+        self.assertContains(page, "You'll own its key. It's shown once, after you create it.")
+        self.assertContains(page, "Expires (UTC, optional)")
         response = client.post(
             url, {"name": "rag", "description": "", "token_expires_at": ""}, follow=True
         )
@@ -495,12 +626,33 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
         self.pipeline.refresh_from_db()
         self.assertEqual(self.pipeline.name, "pipeline")
 
-    def test_team_admin_transfers_the_key_to_a_member_by_email(self):
+    def test_team_admin_picks_the_new_owner_from_the_members(self):
         url = reverse("service_account_transfer", args=[self.pipeline.id])
         client = self.as_user(self.team_admin)
         page = client.get(url)
-        self.assertContains(page, 'name="email"')
-        self.assertNotContains(page, "member@example.com")
+        self.assertContains(page, '<select name="email" id="new-owner"')
+        self.assertContains(
+            page, '<option value="member@example.com">member@example.com</option>', html=True
+        )
+        self.assertNotContains(page, '<option value="team-admin@example.com"')
+        self.assertContains(page, "The key keeps working. Only the owner changes.")
+        response = client.post(url, {"email": "member@example.com"})
+        self.assertRedirects(
+            response, reverse("team", args=[self.team.id]), fetch_redirect_response=False
+        )
+        self.pipeline_key.refresh_from_db()
+        self.assertEqual(self.pipeline_key.user, self.member)
+
+    def test_team_of_more_than_fifty_names_the_new_owner_by_email(self):
+        for n in range(48):
+            self.join(self.user(f"a{n:02}"), self.team)
+        url = reverse("service_account_transfer", args=[self.pipeline.id])
+        client = self.as_user(self.team_admin)
+        self.assertContains(client.get(url), "<select")
+        self.join(self.user("a48"), self.team)
+        page = client.get(url)
+        self.assertNotContains(page, "<select")
+        self.assertContains(page, '<input type="email" name="email" id="new-owner"')
         response = client.post(url, {"email": "MEMBER@example.com"})
         self.assertRedirects(
             response, reverse("team", args=[self.team.id]), fetch_redirect_response=False
