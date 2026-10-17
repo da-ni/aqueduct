@@ -57,32 +57,33 @@
     </section>
 
     <section class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div class="card bg-base-200 lg:col-span-2">
+        <div class="card bg-base-200 lg:col-span-2" data-metric-scope>
             <div class="card-body gap-4 p-5">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h2 class="text-xl font-semibold">{% if metric == "requests" %}Requests{% else %}Tokens{% endif %} per day</h2>
+                    <h2 class="text-xl font-semibold"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>Tokens</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>Requests</span> per day</h2>
                     <div class="flex flex-wrap items-center gap-4">
-                        <div class="flex items-center gap-4 text-sm">
-                            {% if metric == "requests" %}
-                                <span class="flex items-center gap-2"><span class="sw i"></span>Answered</span>
-                                <span class="flex items-center gap-2"><span class="sw f"></span>Failed</span>
-                            {% else %}
-                                <span class="flex items-center gap-2"><span class="sw c"></span>Input from cache</span>
-                                <span class="flex items-center gap-2"><span class="sw i"></span>New input</span>
-                                <span class="flex items-center gap-2"><span class="sw o"></span>Output</span>
-                            {% endif %}
+                        <div class="flex items-center gap-4 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
+                            <span class="flex items-center gap-2"><span class="sw c"></span>Input from cache</span>
+                            <span class="flex items-center gap-2"><span class="sw i"></span>New input</span>
+                            <span class="flex items-center gap-2"><span class="sw o"></span>Output</span>
+                        </div>
+                        <div class="flex items-center gap-4 text-sm" data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>
+                            <span class="flex items-center gap-2"><span class="sw i"></span>Answered</span>
+                            <span class="flex items-center gap-2"><span class="sw f"></span>Failed</span>
                         </div>
                         <nav class="join" aria-label="Chart metric">
-                            <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None %}"{% if metric == 'tokens' %} aria-current="page"{% endif %}>Tokens</a>
-                            <a class="btn btn-sm join-item{% if metric == 'requests' %} btn-primary{% endif %}" href="{% querystring metric='requests' %}"{% if metric == 'requests' %} aria-current="page"{% endif %}>Requests</a>
+                            <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None %}" data-metric-show="tokens"{% if metric == 'tokens' %} aria-current="page"{% endif %}>Tokens</a>
+                            <a class="btn btn-sm join-item{% if metric == 'requests' %} btn-primary{% endif %}" href="{% querystring metric='requests' %}" data-metric-show="requests"{% if metric == 'requests' %} aria-current="page"{% endif %}>Requests</a>
                         </nav>
                     </div>
                 </div>
-                <div class="grid h-64 grid-cols-7 gap-3">
-                    {% for column in chart %}
-                        {% include "management/_chart_column.html" %}
-                    {% endfor %}
-                </div>
+                {% for shown, chart in charts %}
+                    <div class="grid h-64 grid-cols-7 gap-3" data-metric="{{ shown }}"{% if shown != metric %} hidden{% endif %}>
+                        {% for column in chart %}
+                            {% include "management/_chart_column.html" %}
+                        {% endfor %}
+                    </div>
+                {% endfor %}
             </div>
         </div>
 

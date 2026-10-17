@@ -62,11 +62,13 @@ def _heat(
     return tokens
 
 
-def _tab_urls(filters: Filters) -> dict[str, str]:
-    """The Overview and All keys tabs, both on the selection of `filters`."""
+def _tab_urls(filters: Filters, metric: str = "tokens") -> dict[str, str]:
+    """The Overview and All keys tabs, both on the selection of `filters`. The Overview tab
+    keeps the chart's `metric`, as the page's metric switch writes it into its own links."""
     query = urlencode(filters.query)
+    overview = urlencode(filters.query | ({"metric": metric} if metric == "requests" else {}))
     return {
-        "overview_url": f"{reverse('usage')}?{query}",
+        "overview_url": f"{reverse('usage')}?{overview}",
         "all_keys_url": f"{reverse('usage_keys')}?{query}",
     }
 
@@ -126,7 +128,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
 
         context.update(
             {
-                **_tab_urls(filters),
+                **_tab_urls(filters, metric),
                 "filters": filters,
                 "period": period,
                 "kpis": report.kpis(report.slots(timeline.points, period.step)),

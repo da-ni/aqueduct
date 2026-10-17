@@ -55,7 +55,8 @@
       if (other === link) other.setAttribute('aria-current', 'page');
       else other.removeAttribute('aria-current');
     });
-    const metric = new URL(link.href).searchParams.get('metric');
+    // The raw attribute: an empty href, the default metric, would resolve against the address set below.
+    const metric = new URLSearchParams(link.getAttribute('href').split('?')[1] ?? '').get('metric');
     const keep = (url) => {
       if (metric === null) url.searchParams.delete('metric');
       else url.searchParams.set('metric', metric);
