@@ -243,8 +243,28 @@ class KeyDetailTest(ApiKeysPagesTestBase):
     def test_requests_metric_charts_failed_requests(self):
         self.request_log(self.key, timedelta(minutes=5), status_code=500)
         response = self.get(self.owner, "token_detail", self.key.id, metric="requests")
-        self.assertContains(response, "Requests per day")
+        self.assertContains(response, '<span data-metric="requests">Requests</span> per day')
         self.assertContains(response, '<i class="f" style="height: 100%"></i>', html=True)
+
+    def test_chart_holds_both_series_so_the_switch_needs_no_reload(self):
+        self.request_log(self.key, timedelta(minutes=5), status_code=500, output_tokens=7)
+        today = f"{timezone.localdate():%-d %b}"
+        for metric, shown, hidden in (
+            ("tokens", "tokens", "requests"),
+            ("requests", "requests", "tokens"),
+        ):
+            with self.subTest(metric=metric):
+                html = self.get(self.owner, "token_detail", self.key.id, metric=metric)
+                html = html.content.decode()
+                self.assertIn(f'grid-cols-7 gap-3" data-metric="{shown}">', html)
+                self.assertIn(f'grid-cols-7 gap-3" data-metric="{hidden}" hidden>', html)
+                self.assertIn(f'aria-label="{today}: 1 request (Answered 0, Failed 1)"', html)
+                self.assertIn(f'aria-label="{today}: 7 tokens (', html)
+
+    def test_metric_links_still_load_the_page_without_scripts(self):
+        html = self.get(self.owner, "token_detail", self.key.id).content.decode()
+        self.assertIn('href="?metric=requests" data-metric-show="requests"', html)
+        self.assertIn('href="" data-metric-show="tokens" aria-current="page"', html)
 
     def test_chart_column_names_its_day_and_counts(self):
         self.request_log(self.key, timedelta(minutes=5), status_code=500)

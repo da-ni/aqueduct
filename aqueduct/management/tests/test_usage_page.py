@@ -400,7 +400,7 @@ class UsageTabsTest(UsagePageTestBase):
         self.assertEqual(
             self.tabs(response),
             {
-                "Overview": (f"{reverse('usage')}?{query}", True),
+                "Overview": (f"{reverse('usage')}?{query}&metric=requests", True),
                 "All keys": (f"{reverse('usage_keys')}?{query}", False),
             },
         )

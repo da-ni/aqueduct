@@ -65,7 +65,7 @@ class TokenDetailView(BaseAqueductView, DetailView):
             report=report,
             latest=tuple(Row(request, Key(token, None, ""), False) for request in report.latest),
             metric=metric,
-            chart=report.chart(metric),
+            charts=tuple((shown, report.chart(shown)) for shown in ("tokens", "requests")),
             expiry=Expiry.of(token.expires_at, now),
             limits=token.get_limit(),
             usage=get_per_token_usage([token.id])[token.id],
