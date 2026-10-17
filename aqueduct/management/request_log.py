@@ -261,6 +261,12 @@ def read_filters(
     may see is a 404."""
     sees_others = org is None or profile.is_org_admin(org)
     requests = visible_requests(profile, org, teams)
+    if sees_others:
+        models = tuple(sorted(router_models()))
+    else:
+        # A user's list: what their keys may use, and what their requests used.
+        used = requests.order_by().values_list("model", flat=True).distinct()
+        models = tuple(sorted({*usable_models(scopes_for(profile)), *used}))
     team_ids = set(teams.values_list("id", flat=True))
     tokens = (
         visible_tokens(profile, org, teams)
@@ -292,13 +298,6 @@ def read_filters(
         found = tokens.filter(key_search(key_q, by_owner=sees_others))
         matches = tuple(describe(token) for token in found[:KEY_MATCHES])
 
-    if sees_others:
-        models = tuple(sorted(router_models()))
-    else:
-        # A user's list: what their keys may use, and what their requests used.
-        visible = visible_requests(profile, org, teams).order_by()
-        used = visible.values_list("model", flat=True).distinct()
-        models = tuple(sorted({*usable_models(scopes_for(profile)), *used}))
     model = params.get("model") if params.get("model") in models else None
     if model is not None:
         requests = requests.filter(model=model)

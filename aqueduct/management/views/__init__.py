@@ -21,6 +21,7 @@ from .service_account import (
 from .settings import SettingsView
 from .team import (
     TeamAdminManagementView,
+    TeamAvailabilityEditView,
     TeamCreateView,
     TeamDeleteView,
     TeamDetailView,

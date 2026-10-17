@@ -6,7 +6,13 @@ from django.core.exceptions import ValidationError
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from .availability import AvailabilityForm, configured_mcp_servers
+from .availability import (
+    INHERIT_HELP,
+    INHERIT_LABELS,
+    AvailabilityForm,
+    Checklist,
+    configured_mcp_servers,
+)
 from .models import Org, ServiceAccount, Team, Token, UserProfile
 
 NAME_INPUT = "input w-full max-w-md"
@@ -208,20 +214,38 @@ class OrgLimitsForm(forms.ModelForm):
         }
 
 
-class CheckboxList(forms.CheckboxSelectMultiple):
+class CheckboxList(Checklist):
     template_name = "management/widgets/checkboxes.html"
 
 
-class OrgAvailabilityForm(AvailabilityForm):
+MERGE_WIDGETS = {
+    "merge_exclusion_lists": forms.CheckboxInput(attrs={"class": CHECKBOX}),
+    "merge_mcp_server_exclusion_lists": forms.CheckboxInput(attrs={"class": CHECKBOX}),
+}
+
+
+class ChecklistForm(AvailabilityForm):
+    """The availability checklists as the management pages render them. Without an MCP config
+    the form has no MCP fields, so a save leaves the stored MCP list as it is."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ("available_models", "available_mcp_servers"):
+            self.fields[name].widget = CheckboxList(
+                attrs={"class": CHECKBOX}, choices=self.fields[name].choices
+            )
+        if not configured_mcp_servers():
+            del self.fields["available_mcp_servers"]
+            self.fields.pop("merge_mcp_server_exclusion_lists", None)
+
+
+class OrgAvailabilityForm(ChecklistForm):
     """What keys in the org may use, limited to the models and MCP servers the gateway knows."""
 
     class Meta:
         model = Org
         fields: ClassVar[list] = ["merge_exclusion_lists", "merge_mcp_server_exclusion_lists"]
-        widgets: ClassVar[dict] = {
-            "merge_exclusion_lists": forms.CheckboxInput(attrs={"class": CHECKBOX}),
-            "merge_mcp_server_exclusion_lists": forms.CheckboxInput(attrs={"class": CHECKBOX}),
-        }
+        widgets: ClassVar[dict] = MERGE_WIDGETS
         labels: ClassVar[dict] = {
             "merge_exclusion_lists": "Apply the server's default unavailable models",
             "merge_mcp_server_exclusion_lists": "Apply the server's default unavailable MCP "
@@ -230,10 +254,6 @@ class OrgAvailabilityForm(AvailabilityForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name in ("available_models", "available_mcp_servers"):
-            self.fields[name].widget = CheckboxList(
-                attrs={"class": CHECKBOX}, choices=self.fields[name].choices
-            )
         self.fields["available_models"].help_text = (
             "Clear a box to make the model unavailable to keys in this organization. "
             "A model added to the configuration later starts out available."
@@ -243,6 +263,8 @@ class OrgAvailabilityForm(AvailabilityForm):
             "merge_mcp_server_exclusion_lists": settings.AQUEDUCT_DEFAULT_MCP_SERVER_EXCLUSION_LIST,
         }
         for name, names in defaults.items():
+            if name not in self.fields:
+                continue
             # Without server defaults the box changes nothing, and leaving it out keeps it.
             if names:
                 self.fields[name].help_text = (
@@ -251,10 +273,24 @@ class OrgAvailabilityForm(AvailabilityForm):
                 )
             else:
                 del self.fields[name]
-        if not configured_mcp_servers():
-            # Without the field the form leaves the stored list as it is.
-            del self.fields["available_mcp_servers"]
-            self.fields.pop("merge_mcp_server_exclusion_lists", None)
+
+
+class TeamAvailabilityForm(ChecklistForm):
+    """What the team's service account keys may use."""
+
+    class Meta:
+        model = Team
+        fields: ClassVar[list] = ["merge_exclusion_lists", "merge_mcp_server_exclusion_lists"]
+        widgets: ClassVar[dict] = MERGE_WIDGETS
+        labels: ClassVar[dict] = INHERIT_LABELS
+        help_texts: ClassVar[dict] = INHERIT_HELP
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["available_models"].help_text = (
+            "Clear a box to make the model unavailable to the team's service account keys. "
+            "Members' personal keys are not affected."
+        )
 
 
 class MemberEmailForm(forms.Form):

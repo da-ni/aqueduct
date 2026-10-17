@@ -33,7 +33,7 @@ Preconditions:
 
 - The edit pages answer 404, not a redirect, to a signed-in user who may not edit that org. Prove a refusal by the status and by reading the org with `aqv shell`.
 - The number inputs have `min="0"`, so the browser blocks a negative value before it reaches the server. Use an out-of-range multiplier to see a server-side form error.
-- Team and user availability is edited in the Django admin, under **Availability** with the same checked-means-available lists. The team rows here only show them. The team page shows a team's unavailable lists to org admins only.
+- User availability is edited in the Django admin, under **Availability** with the same checked-means-available lists. Team availability is edited on the team page at `/aqueduct/management/team/<id>/availability/` by org admins of the team's org and admins; everyone else gets 404. The team page shows a team's unavailable lists and the `Edit availability` link to those roles only. A save posts `<field>-shown` with each list, and a list posted without it is left as stored.
 - `Personal keys per person` comes from the server setting `MAX_USER_TOKENS` and is not editable here.
 - A stored unavailable name that the config no longer lists shows as a cleared box labelled `<name> (not in the current config)`. Saving keeps it. Checking the box removes it.
 - Without an MCP config, the availability form has no MCP fields and keeps the stored MCP list.

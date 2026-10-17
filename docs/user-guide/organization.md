@@ -54,4 +54,4 @@ The server configuration can also make models or MCP servers unavailable everywh
 
 The form lists the models and MCP servers of the current configuration. An unavailable name that the configuration no longer has shows as a cleared box labelled `(not in the current config)`. Saving keeps it unavailable. Check the box to remove it.
 
-Team and user availability is edited in the Admin panel. See [Model availability](admin.md#model-availability).
+Team availability is edited on each team page, and user availability in the Admin panel. See [Teams](teams.md#limits-and-model-availability) and [Model availability](admin.md#model-availability).

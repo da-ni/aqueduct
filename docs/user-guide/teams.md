@@ -87,4 +87,6 @@ Org admins and admins also appoint team admins. Choose **Make team admin** in a 
 
 ## Limits and model availability
 
-Team limits and the models and MCP servers available to a team are set in the Admin panel. Admins get an **Edit** link next to **Limits** on the team page. See [Admin](admin.md).
+Team limits are set in the Admin panel. Admins get an **Edit** link next to **Limits** on the team page. See [Admin](admin.md).
+
+Org admins and admins choose the models and MCP servers that the team's service accounts can use. Choose **Edit** under **Unavailable to service accounts** on the team page. Every box starts checked. Clear a box to make the model or server unavailable to the team's service account keys. Members' personal keys are not affected. **Also apply the organization's unavailable models** adds the organization's list. Clear it to use only the team's boxes.

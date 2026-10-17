@@ -425,6 +425,10 @@ class ModelsPageTest(TestCase):
         self.switch_off(self.whale, merge=False)
         self.assertNotContains(self.page(model="dall-e-2"), "Available with")
 
+    def test_nothing_usable_says_so(self):
+        self.switch_off(self.org, *(raw["model_name"] for raw in EXAMPLE_ENTRIES))
+        self.assertContains(self.page(), "No models are available to you.")
+
     def test_admins_see_only_what_their_keys_may_use(self):
         self.switch_off(self.whale, "whisper-1")
         self.switch_off(UserProfile.objects.get(user_id=1), "whisper-1")

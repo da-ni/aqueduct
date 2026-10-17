@@ -262,9 +262,10 @@ the `merge_exclusion_lists` field. On an Org, the same field is **Also apply the
 server's default unavailable models**.
 
 Org admins and admins can also set an org's limits and its available models and
-MCP servers on the [Organization](organization.md) page of the management UI.
+MCP servers on the [Organization](organization.md) page of the management UI, and
+a team's available models and MCP servers on its [team page](teams.md).
 
-![Exclude Models](../assets/user_guide/exclude_models.png)
+![Availability section of a team in the Admin panel](../assets/user_guide/availability.png)
 
 ### Merge exclusion lists
 

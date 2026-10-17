@@ -21,7 +21,7 @@ from django.utils.html import format_html
 
 from gateway.config import get_files_api_client
 from gateway.rate_limiting import get_per_token_usage
-from management.availability import AvailabilityForm
+from management.availability import INHERIT_HELP, INHERIT_LABELS, AvailabilityForm
 from management.models import (
     Batch,
     FileObject,
@@ -63,16 +63,6 @@ def format_unix_timestamp(timestamp: int | None) -> str:
         return dt.strftime("%Y-%m-%d %H:%M:%S")
     except (ValueError, OSError):
         return str(timestamp)
-
-
-INHERIT_LABELS = {
-    "merge_exclusion_lists": "Also apply the organization's unavailable models",
-    "merge_mcp_server_exclusion_lists": "Also apply the organization's unavailable MCP servers",
-}
-INHERIT_HELP = {
-    "merge_exclusion_lists": "Clear this to use only the boxes above.",
-    "merge_mcp_server_exclusion_lists": "Clear this to use only the boxes above.",
-}
 
 
 class UserProfileAdminForm(AvailabilityForm):

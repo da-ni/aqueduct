@@ -10,12 +10,16 @@ from dataclasses import dataclass
 from typing import Any
 
 from django import forms
+from django.utils.html import format_html
+from django.utils.safestring import SafeString
 
 from gateway.config import get_mcp_config, get_router_config
 
 
 def configured_models() -> list[str]:
-    return [entry["model_name"] for entry in get_router_config().get("model_list", [])]
+    # LiteLLM balances load over entries that repeat a `model_name`.
+    entries = get_router_config().get("model_list", [])
+    return list(dict.fromkeys(entry["model_name"] for entry in entries))
 
 
 def configured_mcp_servers() -> list[str]:
@@ -46,12 +50,30 @@ CHECKLISTS: dict[str, tuple[str, Callable[[], list[str]]]] = {
     "available_mcp_servers": ("excluded_mcp_servers", configured_mcp_servers),
 }
 """Each checklist field, the list it stores to, and the names the config has."""
+INHERIT_LABELS = {
+    "merge_exclusion_lists": "Also apply the organization's unavailable models",
+    "merge_mcp_server_exclusion_lists": "Also apply the organization's unavailable MCP servers",
+}
+INHERIT_HELP = {
+    "merge_exclusion_lists": "Clear this to use only the boxes above.",
+    "merge_mcp_server_exclusion_lists": "Clear this to use only the boxes above.",
+}
+"""Labels of the merge flags of a team or profile, whose parent is the organization."""
 ORDER = (
     "available_models",
     "merge_exclusion_lists",
     "available_mcp_servers",
     "merge_mcp_server_exclusion_lists",
 )
+
+
+class Checklist(forms.CheckboxSelectMultiple):
+    """Also posts `<name>-shown`, so the form can tell a list cleared of every box from a list
+    it did not render. Without the marker a save leaves the stored list as it is."""
+
+    def render(self, name, value, attrs=None, renderer=None) -> SafeString:  # type: ignore[no-untyped-def]
+        checklist = super().render(name, value, attrs, renderer)
+        return format_html('{}<input type="hidden" name="{}-shown" value="1">', checklist, name)
 
 
 class AvailabilityForm(forms.ModelForm):
@@ -63,13 +85,13 @@ class AvailabilityForm(forms.ModelForm):
 
     available_models = forms.MultipleChoiceField(
         required=False,
-        widget=forms.CheckboxSelectMultiple,
+        widget=Checklist,
         label="Available models",
         help_text="Clear a box to make the model unavailable.",
     )
     available_mcp_servers = forms.MultipleChoiceField(
         required=False,
-        widget=forms.CheckboxSelectMultiple,
+        widget=Checklist,
         label="Available MCP servers",
         help_text="Clear a box to make the MCP server unavailable.",
     )
@@ -93,12 +115,12 @@ class AvailabilityForm(forms.ModelForm):
 
     def save(self, commit: bool = True) -> Any:
         for name, (stored, _) in CHECKLISTS.items():
-            if name not in self.cleaned_data:
+            if name not in self.cleaned_data or f"{self.add_prefix(name)}-shown" not in self.data:
                 continue
             checked = set(self.cleaned_data[name])
             offered = [value for value, _ in self.fields[name].choices]  # type: ignore[attr-defined]
             excluded: list[str] = getattr(self.instance, stored)
             kept = [n for n in excluded if n not in checked]
-            cleared = [n for n in offered if n not in checked and n not in kept]
-            setattr(self.instance, stored, kept + cleared)
+            cleared = [n for n in offered if n not in checked]
+            setattr(self.instance, stored, list(dict.fromkeys(kept + cleared)))
         return super().save(commit)

@@ -28,6 +28,11 @@ urlpatterns = [
     path("team/create/", views.TeamCreateView.as_view(), name="team_create"),
     path("team/<int:id>/delete/", views.TeamDeleteView.as_view(), name="team_delete"),
     path("team/<int:id>/edit/", views.TeamUpdateView.as_view(), name="team_edit"),
+    path(
+        "team/<int:id>/availability/",
+        views.TeamAvailabilityEditView.as_view(),
+        name="team_availability",
+    ),
     path("team/<int:id>", views.TeamDetailView.as_view(), name="team"),
     path(
         "team/<int:id>/service-accounts/add/",

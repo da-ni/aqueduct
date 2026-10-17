@@ -34,9 +34,13 @@ LIMITS = {
 
 def available(*unavailable: str, mcp: tuple[str, ...] | None = None) -> dict:
     """The availability form as posted with every box checked except `unavailable`."""
-    data: dict = {"available_models": [m for m in configured_models() if m not in unavailable]}
+    data: dict = {
+        "available_models": [m for m in configured_models() if m not in unavailable],
+        "available_models-shown": "1",
+    }
     if mcp is not None:
         data["available_mcp_servers"] = [s for s in configured_mcp_servers() if s not in mcp]
+        data["available_mcp_servers-shown"] = "1"
     return data
 
 
@@ -212,6 +216,7 @@ class OrganizationEditFormTest(OrganizationTestBase):
             self.org.save()
             form = self.form()
             data = {name: form[name].value() for name in form.fields}
+            data |= {f"{name}-shown": "1" for name in ("available_models", "available_mcp_servers")}
             self.assertEqual(self.post("organization_availability", data).status_code, 302)
         org = Org.objects.get(pk=self.org.pk)
         self.assertEqual(org.excluded_models, ["retired-model", "whisper-1", "gpt-4.1-nano"])

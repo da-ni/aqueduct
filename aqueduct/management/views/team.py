@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, UpdateView
 
-from management.forms import MemberEmailForm, TeamCreateForm
+from management.forms import MemberEmailForm, TeamAvailabilityForm, TeamCreateForm
 from management.models import Org, ServiceAccount, Team, UserProfile
 from management.request_log import parse_id
 from management.team_overview import team_page
@@ -99,6 +99,38 @@ class TeamUpdateView(BaseTeamView, TeamAdminRequiredMixin, UpdateView):
         context["cancel_url"] = self.get_success_url()  # Add cancel URL
         # context['team'] is set automatically by UpdateView
         return context
+
+
+class TeamAvailabilityEditView(BaseTeamView, UpdateView):
+    """Edits what a team's service account keys may use. Only an org admin of the team's org
+    may, others get 404."""
+
+    model = Team
+    form_class = TeamAvailabilityForm
+    template_name = "management/edit/team.html"
+    context_object_name = "team"
+
+    def get_object(self, queryset=None) -> Team:
+        team = self.get_team_object()
+        if not self.profile.is_org_admin(team.org):
+            raise Http404("No team found.")
+        return team
+
+    def form_valid(self, form) -> HttpResponse:
+        response = super().form_valid(form)
+        messages.success(self.request, f"Availability of {self.object.name} saved.")
+        return response
+
+    def get_success_url(self) -> str:
+        return reverse("team", kwargs={"id": self.object.id})
+
+    def get_context_data(self, **kwargs) -> dict[str, object]:
+        return super().get_context_data(
+            view_title="Availability",
+            breadcrumb="Availability",
+            cancel_url=self.get_success_url(),
+            **kwargs,
+        )
 
 
 class TeamDeleteView(BaseTeamView, OrgAdminRequiredMixin, DeleteView):

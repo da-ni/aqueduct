@@ -11,6 +11,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from management.models import Org, ServiceAccount, Team, Token, UserProfile
+from management.tests.test_api_keys_pages import PAGES
 
 User = get_user_model()
 
@@ -22,6 +23,7 @@ def _make_token(user: UserProfile, **kwargs) -> Token:
     return token
 
 
+@PAGES
 class TokenEditViewOwnershipTests(TestCase):
     def setUp(self):
         self.org = Org.objects.create(name="edit-org")
