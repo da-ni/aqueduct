@@ -1,11 +1,11 @@
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
-from django.db.models import Count, F, Max, Q, QuerySet, Sum
+from django.db.models import Count, F, OuterRef, Q, QuerySet, Subquery, Sum
 from django.db.models.functions import TruncDate
 from django.urls import reverse
 from django.utils import timezone
@@ -138,26 +138,38 @@ def served(requests: QuerySet[Request]) -> QuerySet[Request]:
     return requests.filter(model__in=router_models())
 
 
-def _sums(since: datetime) -> dict[str, Any]:
-    """Totals since `since` of the requests `served` keeps."""
-    recent = Q(timestamp__gte=since, model__in=router_models())
-    return {
-        "requests": Count("id", filter=recent),
-        "failed": Count("id", filter=recent & FAILED),
-        "input": Sum("input_tokens", filter=recent, default=0),
-        "cached": Sum("cached_input_tokens", filter=recent, default=0),
-        "output": Sum("output_tokens", filter=recent, default=0),
-    }
+_SUMS = {
+    "requests": Count("id"),
+    "failed": Count("id", filter=FAILED),
+    "input": Sum("input_tokens", default=0),
+    "cached": Sum("cached_input_tokens", default=0),
+    "output": Sum("output_tokens", default=0),
+}
+"""The `Activity` counts, for requests already narrowed to `served` ones in the `week`."""
 
 
-def activity_by(field: str, ids: Iterable[int], since: datetime) -> dict[int, Activity]:
-    """Request activity grouped by `field`, a lookup that names a token or a team id."""
+def activity_by(field: str, ids: Iterable[int], now: datetime) -> dict[int, Activity]:
+    """`week` activity grouped by `field`, a lookup that names a token or a team id. Leaves
+    `last_used` empty; `key_activity` fills it in."""
     rows = (
-        Request.objects.filter(**{f"{field}__in": list(ids)})
+        served(week(now).of(Request.objects.filter(**{f"{field}__in": list(ids)})))
         .values(field)
-        .annotate(last_used=Max("timestamp"), **_sums(since))
+        .annotate(**_SUMS)
+        .order_by()
     )
     return {row.pop(field): Activity(**row) for row in rows}
+
+
+def key_activity(token_ids: Iterable[int], now: datetime) -> dict[int, Activity]:
+    ids = list(token_ids)
+    activity = activity_by("token_id", ids, now)
+    # One probe of the (token, timestamp) index per key, however much history it has.
+    newest = Request.objects.filter(token=OuterRef("pk")).order_by("-timestamp")
+    used = Token.objects.filter(id__in=ids).annotate(used=Subquery(newest.values("timestamp")[:1]))
+    return {
+        token_id: replace(activity.get(token_id, Activity()), last_used=at)
+        for token_id, at in used.values_list("id", "used")
+    }
 
 
 @dataclass(frozen=True)
@@ -213,7 +225,7 @@ def key_list(profile: UserProfile, kind: KeyKind | None, query: str, now: dateti
         if (kind is None or entry_kind is kind)
         and (needle in token.name.casefold() or needle in (team or "").casefold())
     ]
-    activity = activity_by("token_id", (token.id for token, *_ in entries), week(now).start)
+    activity = key_activity((token.id for token, *_ in entries), now)
     busiest = max((a.tokens for a in activity.values()), default=0)
     rows = tuple(
         KeyRow(
@@ -360,17 +372,17 @@ def chart(
 
 def window(requests: QuerySet[Request], now: datetime) -> Window:
     period = week(now)
-    since = period.start
-    totals = Activity(**requests.aggregate(last_used=Max("timestamp"), **_sums(since)))
-
     per_day = {
         row.pop("day"): Activity(**row)
-        for row in requests.filter(timestamp__gte=since)
+        for row in served(period.of(requests))
         .annotate(day=TruncDate("timestamp"))
         .values("day")
-        .annotate(**_sums(since))
+        .annotate(**_SUMS)
         .order_by()
     }
+    totals = Activity(
+        **{name: sum(getattr(day, name) for day in per_day.values()) for name in _SUMS}
+    )
     days = tuple(
         Day(day, per_day.get(day, Activity()))
         for day in (timezone.localdate(bucket) for bucket in period.buckets)
@@ -406,8 +418,9 @@ def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> K
     ]
     client_text = ", ".join(f"{name} {percent(n, base.totals.requests)}" for name, n in clients)
 
+    newest = every.order_by("-timestamp").values_list("timestamp", flat=True).first()
     return KeyReport(
-        totals=base.totals,
+        totals=replace(base.totals, last_used=newest),
         days=base.days,
         models=models,
         clients=client_text,
