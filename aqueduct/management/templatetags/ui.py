@@ -55,7 +55,7 @@ def widget(field: BoundField) -> SafeString:
     return field.as_widget(attrs={"class": f"{classes} {component}-error"})
 
 
-WHEN_FORMATS = {"date": "j M Y", "datetime": "j M Y H:i"}
+WHEN_FORMATS = {"date": "j M Y", "datetime": "j M Y H:i", "recent": "j M H:i"}
 
 
 @register.filter(expects_localtime=True)
@@ -70,7 +70,7 @@ def when(value: object, style: str = "datetime") -> SafeString | str:
         short = format_date(value, WHEN_FORMATS[style])
     else:
         raise template.TemplateSyntaxError(
-            f"unknown when style {style!r}; use date, datetime, or relative"
+            f"unknown when style {style!r}; use date, datetime, recent, or relative"
         )
     return _time(value, short)
 

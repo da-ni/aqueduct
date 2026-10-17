@@ -101,26 +101,16 @@ class Outcome(StrEnum):
 
     @property
     def label(self) -> str:
-        return {Outcome.ERRORS: "Failed", Outcome.REFUSED: "Other 4xx"}.get(self, self.value)
+        return "Failed" if self is Outcome.ERRORS else _OVERVIEW_STATUS[self.value][0]
 
     @property
     def codes(self) -> str | None:
-        """The status codes of a group whose label does not name them."""
-        return "4xx and 5xx" if self is Outcome.ERRORS else None
+        """The status codes of a group, `None` for `ERRORS`, which spans several groups."""
+        return None if self is Outcome.ERRORS else self.value
 
     @property
     def matches(self) -> Q:
         return FAILED if self is Outcome.ERRORS else _OVERVIEW_STATUS[self.value][3]
-
-    @property
-    def meaning(self) -> str:
-        return {
-            Outcome.OK: "The request succeeded.",
-            Outcome.RATE_LIMITED: "Rate-limited: the key or the provider was over a limit.",
-            Outcome.REFUSED: "The request was not valid, for example an unknown model "
-            "or a malformed body.",
-            Outcome.FAILED: "The model or the provider failed or timed out.",
-        }[self]
 
     @property
     def tone(self) -> str:
@@ -148,6 +138,13 @@ class Outcome(StrEnum):
         if status_code < HTTPStatus.INTERNAL_SERVER_ERROR:
             return cls.REFUSED
         return cls.FAILED
+
+
+_ERROR_MEANINGS = {
+    Outcome.RATE_LIMITED: "The key or the provider was over a limit.",
+    Outcome.REFUSED: "The request was not valid, for example an unknown model or a malformed body.",
+    Outcome.FAILED: "The model or the provider failed or timed out.",
+}
 
 
 @dataclass(frozen=True)
@@ -356,25 +353,31 @@ class Row:
             return ""
 
     @property
-    def meaning(self) -> str:
+    def error(self) -> str | None:
+        """What a failed request's status means, `None` for a successful one."""
         outcome = self.outcome
-        if outcome is not None:
-            return outcome.meaning
-        return "No status was recorded." if self.request.status_code is None else ""
+        if outcome is None:
+            return "No status was recorded."
+        if outcome is Outcome.OK:
+            return None
+        phrase = self.status_phrase
+        code = f"{self.request.status_code} {phrase}. " if phrase else ""
+        return code + _ERROR_MEANINGS[outcome]
 
     @property
     def response_time(self) -> str:
         return duration(self.request.response_time_ms)
 
     @property
-    def overhead(self) -> str:
-        return duration(self.request.processing_time_ms)
+    def overhead(self) -> str | None:
+        ms = self.request.processing_time_ms
+        return None if ms is None else duration(ms)
 
     @property
-    def output_speed(self) -> str:
+    def output_speed(self) -> str | None:
         tokens, ms = self.request.output_tokens, self.request.response_time_ms
         if not tokens or not ms:
-            return "n/a"
+            return None
         return f"{round(tokens * 1000 / ms):,} tok/s"
 
 
@@ -579,7 +582,8 @@ class Pager:
 @dataclass(frozen=True)
 class RequestLog:
     """One page of the log, of the requests in the chosen tab that match `search`. `count` is
-    the number of them."""
+    the number of them. `shows_key` is false when every row is of the same key, and
+    `shows_overhead` is true for a viewer who sees the whole org."""
 
     rows: tuple[Row, ...]
     tabs: tuple[Tab, ...]
@@ -589,6 +593,8 @@ class RequestLog:
     sort: Sort
     headers: Mapping[str, Header]
     pager: Pager
+    shows_key: bool
+    shows_overhead: bool
 
     @property
     def end(self) -> int | None:
@@ -792,4 +798,6 @@ def request_log(
         sort=sort,
         headers=_headers(sort, free),
         pager=pager,
+        shows_key=counts_whole_org(filters) or (filters.key is None and len(filters.keys) > 1),
+        shows_overhead=filters.can_pick_scope,
     )

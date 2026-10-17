@@ -21,7 +21,7 @@ class RequestLogView(BaseAqueductView, TemplateView):
             teams,
             params,
             org=self.viewed_org,
-            default_span=Span.MONTH,
+            default_span=Span.DAY,
             now=timezone.now(),
         )
         log = request_log(self.profile, teams, filters, params)
@@ -34,7 +34,7 @@ class RequestLogView(BaseAqueductView, TemplateView):
             ),
             narrowed=log.outcome is not None
             or bool(log.search)
-            or filters.span is not Span.MONTH
+            or filters.span is not Span.DAY
             or bool(filters.mine or filters.key or filters.model),
             retention_days=int(getattr(settings, "REQUEST_RETENTION_DAYS", 30)),
         )

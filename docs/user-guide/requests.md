@@ -31,21 +31,23 @@ The log lists only requests to models that the gateway still serves.
 
 ## Read a request
 
-Each row shows the time, the key, the model and the API path, the status code, the input tokens, the input tokens from cache, the output tokens, and the response time.
+Each row shows the time, the key, the model and the API path, the status code, the input tokens, the input tokens from cache, the output tokens, and the response time. The **Key** column is hidden when every request in the log comes from the same key: when you have only one key, or when you chose one key.
 
-Choose a model name to show only that model. Choose a row, or the arrow at its start, to show its details. Choose it again to hide them.
+On a phone, each row is a short card: the time, the status, and the response time on the first line, and the model with the input and output tokens on the second. The key is on a third line when the log holds more than one key.
+
+Choose a model name to show only that model. Choose a row, or the arrow at its start, to show its details. Choose it again to hide them. The details list only the fields that have a value:
 
 - **Request ID**: the number Aqueduct stores the request under. The copy button copies it.
+- **Error**: for a failed request, the status code in plain words.
 - **User agent**: the client that sent the request.
-- **User ID sent by the client**: the `user_id` value, if the client sent one.
-- **Gateway overhead**: the time Aqueduct added to the provider's response time.
+- **User ID**: the [`user_id`](../api/index.md#sending-user_id-in-api-requests) value that the client sent.
+- **Gateway overhead**: the time Aqueduct added to the provider's response time. Only org admins and admins see it.
 - **Output speed**: the output tokens per second.
-- **What the status means**: the status code in plain words.
 
 ## Filter the log
 
-- To show one kind of status, choose a tab: **All**, **Failed**, **2xx**, **429**, **Other 4xx**, or **5xx**. **Failed** holds every `4xx` and `5xx` request. Each tab shows its count.
-- The log has the same filters as the [Overview](usage.md) page: the organization, the key, **All models**, and the time frame. The log opens on **30 days**.
+- To show one kind of status, choose a tab: **All**, **Failed**, **OK** (`2xx`), **Rate-limited** (`429`), **Client error** (`4xx`), or **Server error** (`5xx`). **Failed** holds every `4xx` and `5xx` request. Each tab shows its count.
+- The log has the same filters as the [Overview](usage.md) page: the organization, the key, **All models**, and the time frame. The log opens on **24 hours**.
 - On the Overview page, **Open the log**, a status group, and a model open the log with the same filters.
 
 ## Search the log
@@ -67,7 +69,7 @@ The log opens with the newest request first. To sort by a column, choose its hea
 - **Status** puts the highest status codes first.
 - Requests without a response time or a status code come last.
 
-You can always sort by **Time**. The other columns sort only a selection of 7 days or less, one key, or one model. Users and team admins can sort their requests over all 30 days. Over all of an organization for 30 days, the other headings show a hint and do not sort.
+You can always sort by **Time**. The other columns sort only a selection of 7 days or less, one key, or one model. Users and team admins can sort their requests over all 30 days. Over all of an organization for 30 days, the other headings do not sort.
 
 ## Move between pages
 
@@ -77,4 +79,4 @@ The counts under the tabs and the table are kept for one minute. Move between pa
 
 ## How long requests are kept
 
-The line under the table shows how many days Aqueduct keeps requests. The default is 30 days. Aqueduct deletes older requests once a day, and the Overview page cannot show them either. Your deployment sets the number of days with the `REQUEST_RETENTION_DAYS` environment variable.
+On the last page, and when the log is empty, the line under the table shows how many days Aqueduct keeps requests. The default is 30 days. Aqueduct deletes older requests once a day, and the Overview page cannot show them either. Your deployment sets the number of days with the `REQUEST_RETENTION_DAYS` environment variable.
