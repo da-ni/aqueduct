@@ -19,9 +19,9 @@
             <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
                 <span>{% if team %}Service account · <a class="link-plain" href="{% url 'team' team.id %}">{{ team.name }}</a>{% else %}Personal{% endif %}</span>
                 <span class="font-mono">{{ token.key_preview }}</span>
-                <span>Created {{ token.created_at|date:"j M Y" }}</span>
+                <span>Created: {{ token.created_at|date:"j M Y" }}</span>
                 <span>Expires: <span class="{{ expiry.tone }}">{{ expiry.label }}</span></span>
-                <span>Last used {{ report.totals.last_used|naturaltime|default:"never" }}</span>
+                <span>Last used: {% include "management/_last_used.html" with last_used=report.totals.last_used %}</span>
             </div>
         </div>
         {% if can_manage %}
@@ -114,7 +114,10 @@
         <div class="card-body gap-3 p-5">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-xl font-semibold">Latest requests</h2>
-                <a class="link-plain text-sm" href="{% url 'usage' %}?key={{ token.id }}">Open in Overview</a>
+                <div class="flex flex-wrap gap-4 text-sm">
+                    <a class="link-plain" href="{% url 'usage' %}?key={{ token.id }}">Open in Overview</a>
+                    <a class="link-plain" href="{% url 'requests' %}?key={{ token.id }}">Open the log</a>
+                </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="table table-sm">
@@ -126,25 +129,21 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for request in report.latest %}
-                            <tr class="font-mono text-[13px]">
-                                <td class="muted">{{ request.timestamp|date:"j M H:i:s" }}</td>
-                                <td>{{ request.model|default:"n/a" }}</td>
-                                <td class="muted">{{ request.path }}</td>
-                                <td>
-                                    {% if request.status_code >= 400 %}
-                                        <span class="st-err inline-flex items-center gap-1.5">{% icon "failed" small=True %}{{ request.status_code }}</span>
-                                    {% elif request.status_code %}
-                                        <span class="st-ok inline-flex items-center gap-1.5">{% icon "ok" small=True %}{{ request.status_code }}</span>
-                                    {% else %}
-                                        <span class="st-off inline-flex items-center gap-1.5">{% icon "off" small=True %}n/a</span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-right">{{ request.input_tokens|intcomma }}</td>
-                                <td class="text-right">{{ request.cached_input_tokens|intcomma }}</td>
-                                <td class="text-right">{{ request.output_tokens|intcomma }}</td>
-                                <td class="text-right">{% if request.response_time_ms is not None %}{{ request.response_time_ms|intcomma }} ms{% else %}n/a{% endif %}</td>
-                            </tr>
+                        {% for row in latest %}
+                            {% with request=row.request %}
+                                <tr class="font-mono text-[13px]">
+                                    <td><a class="muted row-link" href="{% url 'requests' %}?key={{ token.id }}&amp;request={{ request.id }}#request-{{ request.id }}" aria-label="Open request {{ request.id }} in the log">{{ request.timestamp|date:"j M H:i:s" }}</a></td>
+                                    <td>{{ request.model|default:"n/a" }}</td>
+                                    <td class="muted">{{ request.path }}</td>
+                                    <td>
+                                        {% include "management/_request_status.html" %}
+                                    </td>
+                                    <td class="text-right">{{ request.input_tokens|intcomma }}</td>
+                                    <td class="text-right">{{ request.cached_input_tokens|intcomma }}</td>
+                                    <td class="text-right">{{ request.output_tokens|intcomma }}</td>
+                                    <td class="text-right">{{ row.response_time }}</td>
+                                </tr>
+                            {% endwith %}
                         {% empty %}
                             <tr><td colspan="8" class="muted">This key has not made a request yet.</td></tr>
                         {% endfor %}

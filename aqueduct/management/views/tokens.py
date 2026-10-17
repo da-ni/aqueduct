@@ -25,6 +25,7 @@ from management.key_activity import (
     personal_tokens,
 )
 from management.models import Token
+from management.request_log import Key, Row
 from management.views.base import BaseAqueductView
 
 
@@ -71,6 +72,7 @@ class TokenDetailView(BaseAqueductView, DetailView):
         metric = "requests" if self.request.GET.get("metric") == "requests" else "tokens"
         context.update(
             report=report,
+            latest=tuple(Row(request, Key(token, None, ""), False) for request in report.latest),
             metric=metric,
             chart=report.chart(metric),
             expiry=Expiry.of(token.expires_at, now),
@@ -115,7 +117,7 @@ class TokenCreateView(BaseAqueductView, CreateView):
         self.object.save()
 
         # Use the returned secret_key in the success message
-        messages.success(self.request, f"API key '{self.object.name}' created successfully.")
+        messages.success(self.request, f'API key "{self.object.name}" created successfully.')
         messages.info(self.request, f"{secret_key}", extra_tags="token-regenerated-key")
 
         return redirect(self.get_success_url())
@@ -135,7 +137,6 @@ class TokenEditView(BaseAqueductView, UpdateView):
     form_class = TokenCreateForm
     template_name = "management/edit/token.html"
     pk_url_kwarg = "id"
-    success_url = reverse_lazy("tokens")
 
     def get_queryset(self) -> QuerySet:
         return personal_tokens(self.request.user)
@@ -144,6 +145,14 @@ class TokenEditView(BaseAqueductView, UpdateView):
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.user
         return kwargs
+
+    def get_success_url(self) -> str:
+        return reverse("token_detail", kwargs={"id": self.object.id})
+
+    def form_valid(self, form) -> HttpResponse:
+        response = super().form_valid(form)
+        messages.success(self.request, f'API key "{self.object.name}" updated successfully.')
+        return response
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
@@ -164,14 +173,14 @@ class TokenDeleteView(BaseAqueductView, DeleteView):
     def form_valid(self, form) -> HttpResponse:
         token_name = self.object.name
         response = super().form_valid(form)
-        messages.success(self.request, f"API key '{token_name}' deleted successfully.")
+        messages.success(self.request, f'API key "{token_name}" deleted successfully.')
         return response
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         context["object_type_name"] = "API key"
         context["object_name"] = self.object.name
-        context["cancel_url"] = self.get_success_url()
+        context["cancel_url"] = reverse("token_detail", kwargs={"id": self.object.id})
         return context
 
 
@@ -211,7 +220,7 @@ class TokenRegenerateView(BaseAqueductView, View):
                     messages.error(
                         request,
                         f"You do not have permission to regenerate the token for service account "
-                        f"'{token.service_account.name}'.",
+                        f'"{token.service_account.name}".',
                     )
             # Check if user owns the token
             elif token.user == user:
@@ -225,7 +234,7 @@ class TokenRegenerateView(BaseAqueductView, View):
                 new_key = token.regenerate_key()  # Assumes regenerate_key() saves the token
                 messages.success(
                     request,
-                    f"API key '{token_name}' has been regenerated. "
+                    f'API key "{token_name}" has been regenerated. '
                     f"Please update any clients using the old key.",
                 )
                 messages.info(

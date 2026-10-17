@@ -10,6 +10,7 @@ from django.db.models.functions import TruncDate
 from django.urls import reverse
 from django.utils import timezone
 
+from gateway.config import get_router_config
 from management.models import LimitSet, Request, ServiceAccount, Token, UserProfile
 
 if TYPE_CHECKING:
@@ -94,6 +95,8 @@ class Activity:
     cached: int = 0
     output: int = 0
     last_used: datetime | None = None
+    """The newest request of any kind, so a key used only for files or batches never reads as
+    unused. The counts cover only what `served` keeps."""
 
     @property
     def tokens(self) -> int:
@@ -124,8 +127,19 @@ def week(now: datetime) -> "Period":
     return Period.last(Span.WEEK, now, now)
 
 
+def router_models() -> list[str]:
+    return [entry["model_name"] for entry in get_router_config().get("model_list", [])]
+
+
+def served(requests: QuerySet[Request]) -> QuerySet[Request]:
+    """The requests every page counts and lists: those for a model the router serves. Calls
+    that name no model, such as listing models or files, are left out."""
+    return requests.filter(model__in=router_models())
+
+
 def _sums(since: datetime) -> dict[str, Any]:
-    recent = Q(timestamp__gte=since)
+    """Totals since `since` of the requests `served` keeps."""
+    recent = Q(timestamp__gte=since, model__in=router_models())
     return {
         "requests": Count("id", filter=recent),
         "failed": Count("id", filter=recent & FAILED),
@@ -364,13 +378,13 @@ def window(requests: QuerySet[Request], now: datetime) -> Window:
 
 
 def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> KeyReport:
-    requests = Request.objects.filter(token=token)
+    every = Request.objects.filter(token=token)
+    requests = served(every)
     recent = requests.filter(timestamp__gte=week(now).start)
-    base = window(requests, now)
+    base = window(every, now)
 
     by_model = list(
-        recent.exclude(model="")
-        .values("model")
+        recent.values("model")
         .annotate(tokens=Sum(F("input_tokens") + F("output_tokens")))
         .order_by("-tokens", "model")[:top]
     )

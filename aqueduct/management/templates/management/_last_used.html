@@ -1,0 +1,1 @@
+{% load humanize tz %}{% if last_used %}<time datetime="{{ last_used|utc|date:"c" }}" title="{{ last_used|utc|date:"j M Y, H:i:s" }} UTC">{{ last_used|naturaltime }}</time>{% else %}Never{% endif %}

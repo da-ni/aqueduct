@@ -70,6 +70,7 @@ class ApiKeysPagesTestBase(TestCase):
         return user
 
     def request_log(self, token: Token, ago: timedelta, **fields) -> Request:
+        fields.setdefault("model", "gpt-4.1-nano")
         return Request.objects.create(token=token, timestamp=timezone.now() - ago, **fields)
 
     def get(self, user, name: str, *args, **params):
@@ -104,8 +105,11 @@ class KeyListTest(ApiKeysPagesTestBase):
         self.assertContains(
             response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
         )
-        self.assertContains(response, f'href="{reverse("team", args=[self.team.id])}"')
-        self.assertContains(response, "Service account · keys-team")
+        team = reverse("team", args=[self.team.id])
+        self.assertContains(
+            response,
+            f'Service account · <a class="link-plain relative z-10" href="{team}">keys-team</a>',
+        )
         self.assertContains(response, "Managed by the team")
         self.assertNotContains(response, reverse("token_edit", args=[self.pipeline_key.id]))
         self.assertNotContains(response, reverse("token_delete", args=[self.pipeline_key.id]))
@@ -132,6 +136,12 @@ class KeyListTest(ApiKeysPagesTestBase):
     def test_unused_key_reads_never(self):
         response = self.get(self.owner, "tokens")
         self.assertContains(response, '<td class="muted">Never</td>', html=True)
+
+    def test_last_used_names_the_exact_utc_time(self):
+        used = self.request_log(self.key, timedelta(hours=2)).timestamp
+        response = self.get(self.owner, "tokens")
+        self.assertContains(response, f'datetime="{used.isoformat()}"')
+        self.assertContains(response, f'title="{used:%-d %b %Y, %H:%M:%S} UTC"')
 
     def test_type_tab_and_search_filter_rows(self):
         make_token(self.member, "notebook")
@@ -189,6 +199,33 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         self.assertIn("/responses", page)
         self.assertIn(f"{reverse('usage')}?key={self.key.id}", page)
 
+    def test_latest_requests_match_the_request_log(self):
+        limited = self.request_log(
+            self.key,
+            timedelta(minutes=5),
+            model="gpt-4.1-nano",
+            status_code=429,
+            response_time_ms=5640,
+        )
+        response = self.get(self.owner, "token_detail", self.key.id)
+        self.assertContains(
+            response,
+            '<span class="st-warn inline-flex items-center gap-1.5" title="Too Many Requests">',
+        )
+        self.assertContains(response, '<td class="text-right">5.6 s</td>', html=True)
+        log = reverse("requests")
+        self.assertContains(
+            response,
+            f'href="{log}?key={self.key.id}&amp;request={limited.id}#request-{limited.id}"',
+        )
+        self.assertContains(
+            response,
+            f'<a class="link-plain" href="{log}?key={self.key.id}">Open the log</a>',
+            html=True,
+        )
+        opened = self.client.get(f"{log}?key={self.key.id}&request={limited.id}")
+        self.assertContains(opened, f'aria-label="Details of request {limited.id}"')
+
     def test_requests_metric_charts_failed_requests(self):
         self.request_log(self.key, timedelta(minutes=5), status_code=500)
         response = self.get(self.owner, "token_detail", self.key.id, metric="requests")
@@ -226,6 +263,29 @@ class SevenDaysTest(ApiKeysPagesTestBase):
         self.assertEqual((listed, detail.totals.requests, requests), (2, 2, "2"))
         self.assertEqual(sum(day.activity.requests for day in detail.days), 2)
 
+    def test_key_pages_leave_out_requests_the_log_does_not_show(self):
+        served = self.request_log(self.key, timedelta(minutes=3), status_code=200)
+        retired = self.request_log(self.key, timedelta(minutes=2), model="retired-model")
+        no_model = self.request_log(self.key, timedelta(minutes=1), model="", path="/files")
+        listed = self.get(self.owner, "tokens").context["keys"].rows[0].activity
+        detail = self.get(self.owner, "token_detail", self.key.id).context
+        overview = self.get(self.owner, "usage", key=self.key.id).context["kpis"]
+        log = self.get(self.owner, "requests", key=self.key.id).context["log"]
+        requests = next(kpi.value for kpi in overview if kpi.label == "Requests")
+        self.assertEqual((listed.requests, detail["report"].totals.requests, requests), (1, 1, "1"))
+        self.assertEqual(sum(day.activity.requests for day in detail["report"].days), 1)
+        # A key used only for files must not look unused, so "Last used" counts every request.
+        self.assertEqual(
+            (listed.last_used, detail["report"].totals.last_used),
+            (no_model.timestamp, no_model.timestamp),
+        )
+        self.assertEqual([row.request for row in detail["latest"]], [served])
+        self.assertEqual([row.request for row in log.rows], [served])
+        for hidden in (no_model, retired):
+            self.assertNotContains(
+                self.get(self.owner, "token_detail", self.key.id), f"request={hidden.id}"
+            )
+
 
 class SecretShownOnceTest(ApiKeysPagesTestBase):
     def test_created_key_secret_appears_once_on_the_list(self):
@@ -262,6 +322,22 @@ class SecretShownOnceTest(ApiKeysPagesTestBase):
         self.assertFalse(Token.objects.filter(name="fourth").exists())
 
 
+class KeyEditAndDeleteReturnTest(ApiKeysPagesTestBase):
+    def test_edit_and_delete_cancel_return_to_the_key(self):
+        detail = reverse("token_detail", args=[self.key.id])
+        for page in ("token_edit", "token_delete"):
+            with self.subTest(page=page):
+                response = self.get(self.owner, page, self.key.id)
+                self.assertContains(response, f'href="{detail}">Cancel</a>')
+
+    def test_delete_returns_to_the_list_with_a_message(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(reverse("token_delete", args=[self.key.id]), follow=True)
+        self.assertRedirects(response, reverse("tokens"))
+        self.assertContains(response, "API key &quot;laptop&quot; deleted successfully.")
+        self.assertFalse(Token.objects.filter(id=self.key.id).exists())
+
+
 class ExpiryTest(SimpleTestCase):
     def test_labels(self):
         now = timezone.now()
@@ -291,7 +367,7 @@ class ServiceAccountKeyDetailTest(ApiKeysPagesTestBase):
         UserProfile.objects.create(
             user=self.other_org_admin, org=other_org
         ).group = UserGroup.ORG_ADMIN
-        self.request_log(self.pipeline_key, timedelta(hours=1), input_tokens=4200, model="m")
+        self.request_log(self.pipeline_key, timedelta(hours=1), input_tokens=4200)
 
     def detail(self, user):
         return self.get(user, "token_detail", self.pipeline_key.id)

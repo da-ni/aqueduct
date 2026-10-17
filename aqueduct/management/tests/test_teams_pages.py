@@ -96,13 +96,22 @@ class TeamListTest(TeamsPagesTestBase):
         self.team.save()
         now = timezone.now()
         Request.objects.create(
-            token=self.pipeline_key, timestamp=now, input_tokens=2000, output_tokens=500
+            token=self.pipeline_key,
+            model="gpt-4.1-nano",
+            timestamp=now,
+            input_tokens=2000,
+            output_tokens=500,
         )
         Request.objects.create(
-            token=self.pipeline_key, timestamp=now - timedelta(days=9), input_tokens=9_000_000
+            token=self.pipeline_key,
+            model="gpt-4.1-nano",
+            timestamp=now - timedelta(days=9),
+            input_tokens=9_000_000,
         )
         personal = make_token(self.member, "laptop")
-        Request.objects.create(token=personal, timestamp=now, input_tokens=7_000_000)
+        Request.objects.create(
+            token=personal, model="gpt-4.1-nano", timestamp=now, input_tokens=7_000_000
+        )
         response = self.as_user(self.member).get(reverse("org"))
         row = response.content.decode().split("Language tech", 1)[1].split("</tr>", 1)[0]
         self.assertIn('<td class="text-right font-mono">2</td>', row)  # members
@@ -191,6 +200,7 @@ class TeamDetailTest(TeamsPagesTestBase):
     def test_service_account_row_and_totals_count_seven_days(self):
         Request.objects.create(
             token=self.pipeline_key,
+            model="gpt-4.1-nano",
             timestamp=timezone.now(),
             input_tokens=3000,
             cached_input_tokens=1500,

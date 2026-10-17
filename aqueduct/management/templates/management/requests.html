@@ -61,13 +61,7 @@
                                     </td>
                                     <td class="truncate">{{ request.model|default:"n/a" }}<div class="muted text-xs">{{ request.path }}</div></td>
                                     <td>
-                                        {% if row.outcome %}
-                                            <span class="{{ row.outcome.tone }} inline-flex items-center gap-1.5" title="{{ row.status_phrase }}">{% icon row.outcome.icon small=True %}{{ request.status_code }}</span>
-                                        {% elif request.status_code %}
-                                            <span class="inline-flex items-center gap-1.5" title="{{ row.status_phrase }}">{{ request.status_code }}</span>
-                                        {% else %}
-                                            <span class="st-off inline-flex items-center gap-1.5">{% icon "off" small=True %}n/a</span>
-                                        {% endif %}
+                                        {% include "management/_request_status.html" %}
                                     </td>
                                     <td class="text-right">{{ request.input_tokens|intcomma }}</td>
                                     <td class="text-right">{{ request.cached_input_tokens|intcomma }}</td>
