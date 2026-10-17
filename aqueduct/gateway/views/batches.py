@@ -1,5 +1,6 @@
 from typing import Any
 
+from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.handlers.asgi import ASGIRequest
 from django.utils import timezone
@@ -16,6 +17,7 @@ from gateway.decorators import (
     token_authenticated,
     tos_accepted,
 )
+from gateway.decorators.files import check_batch_file_models
 from gateway.response_error import error_response
 from gateway.response_type import RawJsonResponse
 from management.models import Batch, BatchStatus, FileObject, Token
@@ -80,6 +82,14 @@ async def batches(
         file_obj = await FileObject.objects.aget(token.reach(), id=pydantic_model["input_file_id"])
     except FileObject.DoesNotExist:
         return error_response("Input file not found.", param="input_file_id", status=404)
+
+    # The key's switch-offs may have changed since the upload checked the file's models.
+    excluded_models = set(await sync_to_async(token.model_exclusion_list)())
+    stored = await client.files.content(file_obj.id)
+    try:
+        check_batch_file_models(stored.content, excluded_models)
+    except ValueError as e:
+        return error_response(f"Batch file validation failed: {e!s}", status=400)
 
     # Create batch on upstream using file ID
     remote_batch = await client.batches.create(

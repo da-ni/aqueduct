@@ -9,7 +9,7 @@ from gateway.tests.utils import _build_chat_headers, _build_chat_payload
 from gateway.tests.utils.base import GatewayBatchesTestCase
 from management.models import Batch as BatchModel
 from management.models import BatchStatus, FileObject, Org, ServiceAccount, Team, Token, UserProfile
-from mock_api.mock_configs import MockConfig
+from mock_api.mock_configs import MockConfig, MockPlainTextConfig
 
 User = get_user_model()
 
@@ -774,6 +774,54 @@ class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
         resp = self._upload_batch_file(self.model, headers=self._sa_headers())
 
         self._assert_upload_rejected(resp, self.model)
+
+    def _create_batch_after_switch_off(self, exclude) -> tuple:
+        """Upload a batch file for `self.model`, switch the model off with `exclude`, then start
+        a batch from the file. The mock upstream serves the file as the upload stored it."""
+        resp = self._upload_batch_file(self.model)
+        self.assertEqual(resp.status_code, 200, resp.content)
+        file_id = resp.json()["id"]
+        line = {
+            "custom_id": "1",
+            "method": "POST",
+            "url": self.url_chat,
+            "body": {"model": self.model},
+        }
+        exclude()
+        stored = MockPlainTextConfig(response_data=json.dumps(line) + "\n")
+        with self.mock_server.patch_external_api(f"files/{file_id}/content", stored):
+            return self.client.post(
+                "/batches",
+                data=json.dumps(
+                    {
+                        "input_file_id": file_id,
+                        "completion_window": "24h",
+                        "endpoint": self.url_chat,
+                    }
+                ),
+                headers=self.headers,
+                content_type="application/json",
+            )
+
+    def test_batch_from_a_file_whose_model_was_switched_off_since_upload_is_rejected(self):
+        resp = self._create_batch_after_switch_off(
+            lambda: UserProfile.objects.get(user_id=1).add_excluded_model(self.model)
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertEqual(
+            resp.json()["error"]["message"],
+            f"Batch file validation failed: Unknown model '{self.model}' for custom_id '1'",
+        )
+        self.assertFalse(BatchModel.objects.exists())
+
+    def test_batch_from_a_file_whose_model_is_still_on_starts(self):
+        resp = self._create_batch_after_switch_off(
+            lambda: UserProfile.objects.get(user_id=1).add_excluded_model("dall-e-2")
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertTrue(BatchModel.objects.exists())
 
     def test_switch_off_of_another_model_keeps_upload(self):
         UserProfile.objects.get(user_id=1).add_excluded_model("dall-e-2")
