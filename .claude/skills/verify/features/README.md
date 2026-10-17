@@ -31,7 +31,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 
 ## Features
 
-- [API keys](./api-keys.md) covers the key table, the key detail page, creating, editing, rotating, and deleting personal keys, and the per-user limit.
+- [API keys](./api-keys.md) covers the key table, the key detail page, creating, editing, rotating, and deleting keys, service account actions on the list, org admin read-only access, and the per-user limit.
 - [Organization switch](./org-switch.md) covers the admin's org select in the sidebar, which every org-scoped page follows.
 - [Organization](./organization.md) covers the organization page, editing the org's limits and available models and MCP servers, and who may do it.
 - [Teams](./teams.md) covers the team list, team members, team admins, and service accounts, and who may see or change each.

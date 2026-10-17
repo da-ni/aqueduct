@@ -18,7 +18,14 @@ from gateway.rate_limiting import get_per_token_usage
 from management.availability import Reach, configured_mcp_servers, configured_models
 from management.deletion import deletion
 from management.forms import TokenCreateForm
-from management.key_activity import Expiry, KeyKind, key_list, key_report, personal_tokens
+from management.key_activity import (
+    Expiry,
+    KeyAccess,
+    KeyKind,
+    key_list,
+    key_report,
+    personal_tokens,
+)
 from management.models import Token
 from management.models.token import HIERARCHY
 from management.request_log import Key, Row
@@ -52,9 +59,7 @@ class TokenDetailView(BaseAqueductView, DetailView):
     context_object_name = "token"
 
     def get_queryset(self) -> QuerySet:
-        """The viewer's personal keys and the service account keys of every team they may see."""
-        service = Token.objects.filter(service_account__team__in=self.get_teams_for_user())
-        return (personal_tokens(self.request.user) | service).select_related(*HIERARCHY)
+        return KeyAccess.of(self.profile).tokens().select_related(*HIERARCHY)
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
@@ -62,6 +67,7 @@ class TokenDetailView(BaseAqueductView, DetailView):
         now = timezone.now()
         report = key_report(token, now)
         team = token.service_account.team if token.service_account else None
+        own = team is None and token.user_id == self.request.user.id
         metric = "requests" if self.request.GET.get("metric") == "requests" else "tokens"
         context.update(
             report=report,
@@ -74,7 +80,8 @@ class TokenDetailView(BaseAqueductView, DetailView):
             models=Reach.of(configured_models(), token.model_exclusion_list()),
             mcp_servers=Reach.of(configured_mcp_servers(), token.mcp_server_exclusion_list()),
             team=team,
-            can_manage=team is None or self.profile.is_team_admin(team),
+            own=own,
+            can_manage=self.profile.is_team_admin(team) if team else own,
         )
         return context
 
@@ -108,15 +115,13 @@ class TokenCreateView(BaseAqueductView, CreateView):
         # This will trigger clean() with the user assigned
         self.object.save()
 
-        # Use the returned secret_key in the success message
-        messages.success(self.request, f"API key {self.object.name} created.")
         messages.info(self.request, f"{secret_key}", extra_tags="token-regenerated-key")
 
         return redirect(self.get_success_url())
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["view_title"] = "Create an API key"
+        context["view_title"] = "New API key"
         return context
 
 
@@ -144,7 +149,6 @@ class TokenEditView(BaseAqueductView, UpdateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["view_title"] = "Edit API key"
         context["cancel_url"] = self.get_success_url()
         return context
 
@@ -191,7 +195,6 @@ class TokenRegenerateView(BaseAqueductView, View):
             messages.error(request, ONLY_TEAM_ADMINS)
             return redirect(back)
         new_key = token.regenerate_key()
-        messages.success(request, f"Key {token.name} rotated. Update your clients.")
         messages.info(request, new_key, extra_tags="token-regenerated-key")
-        detail_url = reverse("token_detail", kwargs={"id": token.id})
-        return redirect(detail_url if request.POST.get("next") == detail_url else back)
+        returns = (reverse("token_detail", kwargs={"id": token.id}), reverse("tokens"))
+        return redirect(request.POST["next"] if request.POST.get("next") in returns else back)

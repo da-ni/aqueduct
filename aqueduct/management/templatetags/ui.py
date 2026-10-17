@@ -42,9 +42,9 @@ def icon(name: Icon | str, small: bool = False, extra_class: str = "") -> SafeSt
 @register.filter
 def key_snippet(secret: str, gateway_url: str) -> str:
     return (
-        f"export AQUEDUCT_API_KEY={shlex.quote(secret)}\n"
-        f"curl {shlex.quote(gateway_url + '/models')} \\\n"
-        '  -H "Authorization: Bearer $AQUEDUCT_API_KEY"'
+        f"export OPENAI_BASE_URL={shlex.quote(gateway_url)}\n"
+        f"export OPENAI_API_KEY={shlex.quote(secret)}\n"
+        'curl $OPENAI_BASE_URL/models -H "Authorization: Bearer $OPENAI_API_KEY"'
     )
 
 

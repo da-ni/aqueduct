@@ -60,7 +60,7 @@ The **All keys** page lists every key you can see that has requests in the time 
 
 If a service sends requests for many people with one key, it can send the [`user_id`](../api/index.md#sending-user_id-in-api-requests) field with each request. To see the usage per `user_id` value:
 
-1. Open the key's page from **API keys**.
-2. Choose **Open in Overview**.
+1. Open the **Overview**.
+2. Choose the key in the key filter.
 
 The page then shows only this key, and **By user ID** replaces **Top keys**. **Show all keys** returns to all keys.

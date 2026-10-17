@@ -10,7 +10,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from management.key_activity import Expiry
+from management.key_activity import Expiry, KeyAccess
 from management.models import (
     Org,
     Request,
@@ -21,6 +21,7 @@ from management.models import (
     UserGroup,
     UserProfile,
 )
+from management.models.token import HIERARCHY
 
 User = get_user_model()
 
@@ -93,7 +94,8 @@ class KeyListTest(ApiKeysPagesTestBase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, f'href="{reverse("token_detail", args=[self.key.id])}"')
         self.assertContains(response, self.key.key_preview)
-        self.assertContains(response, "1 of 3 personal keys")
+        self.assertContains(response, "Create API key")
+        self.assertContains(response, ">1/3</span>")
         self.assertNotContains(response, "others-laptop")
         self.assertNotContains(response, "pipeline")
 
@@ -102,7 +104,7 @@ class KeyListTest(ApiKeysPagesTestBase):
         self.assertNotContains(response, f"/tokens/{self.others_key.id}/")
         self.assertNotContains(response, f"key={self.others_key.id}")
 
-    def test_team_member_sees_team_service_account_managed_from_the_team_page(self):
+    def test_team_admin_manages_the_teams_service_accounts_from_the_list(self):
         response = self.get(self.member, "tokens")
         self.assertContains(
             response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
@@ -112,11 +114,34 @@ class KeyListTest(ApiKeysPagesTestBase):
             response,
             f'Service account · <a class="link-plain relative z-10" href="{team}">keys-team</a>',
         )
-        self.assertContains(response, "Managed by the team")
+        self.assertContains(response, reverse("token_regenerate", args=[self.pipeline_key.id]))
+        self.assertContains(response, reverse("service_account_edit", args=[self.pipeline.id]))
+        self.assertContains(response, reverse("service_account_delete", args=[self.pipeline.id]))
+        self.assertContains(response, 'data-confirm="Delete pipeline?"')
         self.assertNotContains(response, reverse("token_edit", args=[self.pipeline_key.id]))
-        self.assertNotContains(response, reverse("token_delete", args=[self.pipeline_key.id]))
-        self.assertNotContains(response, reverse("token_regenerate", args=[self.pipeline_key.id]))
         self.assertNotContains(response, "hidden-sa")
+
+    def test_plain_team_member_sees_the_service_account_without_actions(self):
+        plain = self.user("plain")
+        TeamMembership.objects.create(user_profile=plain.profile, team=self.team)
+        response = self.get(plain, "tokens")
+        self.assertContains(
+            response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
+        )
+        self.assertNotContains(response, reverse("token_regenerate", args=[self.pipeline_key.id]))
+        self.assertNotContains(response, reverse("service_account_edit", args=[self.pipeline.id]))
+        self.assertNotContains(response, reverse("service_account_delete", args=[self.pipeline.id]))
+        self.assertNotContains(response, "Managed by the team")
+
+    def test_rotating_from_the_list_returns_to_the_list_with_the_new_secret(self):
+        self.client.force_login(self.member)
+        response = self.client.post(
+            reverse("token_regenerate", args=[self.pipeline_key.id]),
+            {"next": reverse("tokens")},
+            follow=True,
+        )
+        self.assertEqual(response.redirect_chain, [(reverse("tokens"), 302)])
+        self.assertEqual(Token.find_by_key(secret_on(response)), self.pipeline_key)
 
     def test_columns_count_the_last_seven_days(self):
         self.request_log(
@@ -132,12 +157,12 @@ class KeyListTest(ApiKeysPagesTestBase):
         row = response.content.decode().split(self.key.key_preview, 1)[1]
         self.assertIn("1\xa0hour ago", row)
         self.assertIn("2.5K", row)  # 2,000 input + 500 output, the old request left out
-        self.assertIn("12%", row)  # 250 of 2,000 input tokens from the cache
-        self.assertIn('<td class="text-right font-mono">2</td>', row)
+        self.assertIn('<td class="hidden text-right font-mono md:table-cell">2</td>', row)
 
-    def test_unused_key_reads_never(self):
+    def test_unused_key_and_key_without_expiry_read_as_such(self):
         response = self.get(self.owner, "tokens")
-        self.assertContains(response, '<td class="muted">Never</td>', html=True)
+        self.assertContains(response, '<td class="muted hidden md:table-cell">—</td>', html=True)
+        self.assertContains(response, '<span class="muted">No expiry</span>', html=True)
 
     def test_last_used_names_the_exact_utc_time(self):
         used = self.request_log(self.key, timedelta(hours=2)).timestamp
@@ -155,14 +180,29 @@ class KeyListTest(ApiKeysPagesTestBase):
         self.assertNotContains(response, "Service account · keys-team")
         response = self.get(self.member, "tokens", q="nothing-like-this")
         self.assertContains(response, "No key matches.")
+        self.assertNotContains(response, "No keys yet.")
+
+    def test_tabs_read_all_personal_and_service_accounts(self):
+        response = self.get(self.member, "tokens")
+        for label in ("All", "Personal", "Service accounts"):
+            self.assertContains(response, f">{label}</a>")
+
+    def test_without_keys_the_list_offers_to_create_one(self):
+        response = self.get(self.user("newcomer"), "tokens")
+        self.assertContains(response, "No keys yet.")
+        self.assertContains(response, f'href="{reverse("token_create")}"', count=2)
+        self.assertContains(response, ">0/3</span>")
 
     def test_create_button_is_disabled_at_the_limit(self):
         make_token(self.owner, "two")
         make_token(self.owner, "three")
         response = self.get(self.owner, "tokens")
-        self.assertContains(response, "3 of 3 personal keys")
         self.assertNotContains(response, f'href="{reverse("token_create")}"')
-        self.assertContains(response, '<button type="button" class="btn btn-primary" disabled>')
+        self.assertContains(
+            response,
+            '<button type="button" class="btn btn-primary" disabled>3 of 3 keys used</button>',
+            html=True,
+        )
 
 
 class KeyDetailTest(ApiKeysPagesTestBase):
@@ -199,7 +239,8 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         self.assertIn("50%", page)  # one of two requests failed
         self.assertIn("curl/8.5.0 100%", page)
         self.assertIn("/responses", page)
-        self.assertIn(f"{reverse('usage')}?key={self.key.id}", page)
+        self.assertIn("Last 7 days", page)
+        self.assertNotIn(f"{reverse('usage')}?key={self.key.id}", page)
 
     def test_latest_requests_match_the_request_log(self):
         limited = self.request_log(
@@ -222,7 +263,8 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         )
         self.assertContains(
             response,
-            f'<a class="link-plain" href="{log}?key={self.key.id}&amp;span=1m">Open the log</a>',
+            f'<a class="link-plain text-sm" href="{log}?key={self.key.id}&amp;span=1m">'
+            "All requests</a>",
             html=True,
         )
         opened = self.client.get(f"{log}?key={self.key.id}&request={limited.id}")
@@ -357,9 +399,17 @@ class SecretShownOnceTest(ApiKeysPagesTestBase):
         )
         self.assertEqual(response.redirect_chain, [(reverse("tokens"), 302)])
         self.assertContains(response, "Your key is ready")
+        self.assertContains(response, "Copy it now. You won't see it again.")
+        self.assertNotContains(response, "created.")
+        self.assertNotContains(response, 'class="alert ')
         secret = secret_on(response)
         self.assertEqual(Token.find_by_key(secret), Token.objects.get(name="fresh"))
-        self.assertContains(response, "curl http://testserver/v1/models")
+        self.assertContains(response, "export OPENAI_BASE_URL=http://testserver/v1")
+        self.assertContains(response, f"export OPENAI_API_KEY={secret}")
+        self.assertContains(
+            response,
+            "curl $OPENAI_BASE_URL/models -H &quot;Authorization: Bearer $OPENAI_API_KEY&quot;",
+        )
 
         again = self.client.get(reverse("tokens"))
         self.assertNotContains(again, "Your key is ready")
@@ -373,7 +423,9 @@ class SecretShownOnceTest(ApiKeysPagesTestBase):
         self.key.refresh_from_db()
         self.assertNotEqual(self.key.key_hash, old_hash)
         self.assertEqual(Token.find_by_key(secret), self.key)
-        self.assertContains(response, "Key laptop rotated. Update your clients.")
+        self.assertContains(response, "Your key is ready")
+        self.assertNotContains(response, "rotated")
+        self.assertNotContains(response, 'class="alert ')
 
     def test_create_at_the_limit_rerenders_the_form_with_an_error(self):
         make_token(self.owner, "two")
@@ -405,7 +457,7 @@ class ExpiryTest(SimpleTestCase):
     def test_labels(self):
         now = timezone.now()
         cases = [
-            (None, "Never", "muted"),
+            (None, "No expiry", "muted"),
             (now - timedelta(minutes=1), "Expired", "st-err font-semibold"),
             (now + timedelta(hours=3), "Today", "st-warn font-semibold"),
             (now + timedelta(days=5, hours=1), "In 5 days", "st-warn font-semibold"),
@@ -414,6 +466,82 @@ class ExpiryTest(SimpleTestCase):
         for expires_at, label, tone in cases:
             with self.subTest(label=label):
                 self.assertEqual(Expiry.of(expires_at, now), Expiry(label, tone, expires_at))
+
+
+class OrgAdminKeyAccessTest(ApiKeysPagesTestBase):
+    """Org admins open every key of their org read-only; admins open every key."""
+
+    def setUp(self):
+        super().setUp()
+        self.org_admin = self.user("org-admin")
+        self.org_admin.profile.group = UserGroup.ORG_ADMIN
+        other_org = Org.objects.create(name="elsewhere")
+        self.far_admin = User.objects.create_user(username="far", email="far@example.com")
+        UserProfile.objects.create(user=self.far_admin, org=other_org).group = UserGroup.ORG_ADMIN
+        self.admin = User.objects.create_user(username="admin", email="admin@example.com")
+        UserProfile.objects.create(user=self.admin, org=other_org).group = UserGroup.ADMIN
+        self.request_log(self.key, timedelta(hours=1), input_tokens=4200)
+
+    def test_org_admin_sees_a_members_key_without_actions(self):
+        response = self.get(self.org_admin, "token_detail", self.key.id)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "4.2K")
+        self.assertContains(response, "Personal · owner@example.com")
+        self.assertContains(response, f"{reverse('requests')}?key={self.key.id}")
+        for action in ("token_regenerate", "token_edit", "token_delete"):
+            self.assertNotContains(response, reverse(action, args=[self.key.id]))
+
+    def test_org_admin_cannot_change_a_members_key(self):
+        self.client.force_login(self.org_admin)
+        before = Token.objects.values().get(id=self.key.id)
+        for action, data in (
+            ("token_regenerate", {}),
+            ("token_edit", {"name": "taken-over", "expires_at": ""}),
+            ("token_delete", {}),
+        ):
+            with self.subTest(action=action):
+                response = self.client.post(reverse(action, args=[self.key.id]), data)
+                self.assertEqual(response.status_code, 404)
+        self.assertEqual(Token.objects.values().get(id=self.key.id), before)
+
+    def test_org_admin_of_another_org_gets_not_found(self):
+        for key in (self.key, self.pipeline_key):
+            with self.subTest(key=key.name):
+                self.assertEqual(self.get(self.far_admin, "token_detail", key.id).status_code, 404)
+
+    def test_admin_opens_any_key_whatever_org_the_switch_shows(self):
+        self.client.force_login(self.admin)
+        self.client.get(reverse("tokens"), {"org": Org.objects.get(name="elsewhere").id})
+        for key in (self.key, self.pipeline_key):
+            with self.subTest(key=key.name):
+                response = self.client.get(reverse("token_detail", args=[key.id]))
+                self.assertEqual(response.status_code, 200)
+
+    def test_admin_rotating_another_orgs_service_account_lands_on_its_key(self):
+        detail = reverse("token_detail", args=[self.pipeline_key.id])
+        self.client.force_login(self.admin)
+        self.client.get(reverse("tokens"), {"org": Org.objects.get(name="elsewhere").id})
+        response = self.client.post(
+            reverse("token_regenerate", args=[self.pipeline_key.id]), {"next": detail}, follow=True
+        )
+        self.assertEqual(response.redirect_chain, [(detail, 302)])
+        self.assertEqual(Token.find_by_key(secret_on(response)), self.pipeline_key)
+
+    def test_key_links_agree_with_the_keys_that_open(self):
+        plain = self.user("plain")
+        TeamMembership.objects.create(user_profile=plain.profile, team=self.team)
+        everyone = Token.objects.select_related(*HIERARCHY)
+        for user in (self.owner, self.member, plain, self.org_admin, self.far_admin, self.admin):
+            access = KeyAccess.of(user.profile)
+            with self.subTest(user=user.username):
+                self.assertEqual(
+                    {token.id for token in everyone if access.can_open(token)},
+                    set(access.tokens().values_list("id", flat=True)),
+                )
+        self.assertEqual(
+            {token.name for token in KeyAccess.of(self.org_admin.profile).tokens()},
+            {"laptop", "others-laptop", "pipeline", "hidden-sa"},
+        )
 
 
 class ServiceAccountKeyDetailTest(ApiKeysPagesTestBase):
