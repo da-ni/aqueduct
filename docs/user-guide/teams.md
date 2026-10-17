@@ -39,7 +39,7 @@ Org admins and admins manage teams:
 2. Enter a **Name** and, optionally, a **Description**.
 3. Choose **Create team**.
 
-To delete a team, open it and choose **Delete**, then confirm.
+To delete a team, open it and choose **Delete**, then confirm. Its service accounts and their keys stop working. Members keep their personal keys.
 
 ## Open a team
 
@@ -74,14 +74,14 @@ The buttons at the end of each service account row are:
 - **Rotate** replaces the key and shows the new one in the **Your key is ready** panel. The old key stops working immediately.
 - **Edit** changes the name, the description, or the key expiry.
 - **Transfer** gives the service account to another team member. Enter the email of the **New owner**, then choose **Transfer ownership**. The new owner must be a member of the team.
-- **Delete** deletes the service account and its key after a confirmation page.
+- **Delete** deletes the service account and its key after you confirm.
 
 ## Manage members
 
 Team admins and org admins manage members:
 
 - To add a member, enter the person's email and choose **Add member**. The person must belong to the team's organization. Upper and lower case do not matter.
-- To remove a member, choose the delete button in the member's row. You cannot remove a member who owns a service account of the team. Transfer the service account first.
+- To remove a member, choose the delete button in the member's row, then **Remove**. You cannot remove a member who owns a service account of the team. Transfer the service account first.
 
 Org admins and admins also appoint team admins. Choose **Make team admin** in a member's row. **Remove team admin** takes the role away. Team admins cannot appoint other team admins.
 
