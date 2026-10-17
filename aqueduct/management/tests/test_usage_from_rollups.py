@@ -208,9 +208,9 @@ class UsageFromRollupsTest(TestCase):
     def test_whole_org_figures_come_from_the_rollups_and_the_rest_from_the_requests(self):
         self.refresh()
         views = {
-            "org": (self.org_admin, {}),
-            "org, mine": (self.org_admin, {"scope": "mine"}),
-            "member": (self.member, {}),
+            "org": (self.org_admin, {"span": "1w"}),
+            "org, mine": (self.org_admin, {"scope": "mine", "span": "1w"}),
+            "member": (self.member, {"span": "1w"}),
         }
 
         def requests() -> dict[str, tuple[int, int]]:

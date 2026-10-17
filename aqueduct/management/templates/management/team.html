@@ -110,9 +110,7 @@
             </div>
             {% if page.service_accounts %}
                 <div class="flex flex-wrap items-center gap-4 px-3 pt-1 text-sm">
-                    <span class="flex items-center gap-2"><span class="sw c"></span>Input from cache</span>
-                    <span class="flex items-center gap-2"><span class="sw i"></span>New input</span>
-                    <span class="flex items-center gap-2"><span class="sw o"></span>Output</span>
+                    {% include "management/_token_legend.html" %}
                 </div>
             {% endif %}
         </div>

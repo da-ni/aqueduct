@@ -12,7 +12,7 @@
 
     <header class="flex min-h-12 flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 class="text-3xl font-semibold">All keys</h1>
-        <span class="muted">{{ count|intcomma }} key{{ count|pluralize }} with requests in the last {{ filters.period.label }}</span>
+        <span class="muted">{{ count|intcomma }} key{{ count|pluralize }}</span>
     </header>
 
     <div class="flex flex-wrap items-center gap-3">
@@ -24,21 +24,16 @@
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <form method="get" role="search" class="w-full sm:w-80">
                     {% for name, value in filters.query.items %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
-                    <input type="hidden" name="sort" value="{{ order.value }}">
+                    {% if order.value != "tokens" %}<input type="hidden" name="sort" value="{{ order.value }}">{% endif %}
                     <label class="input input-sm w-full">
                         {% icon "search" small=True %}
                         <input type="search" name="q" value="{{ q }}" placeholder="{% if filters.can_pick_scope %}Key name or owner email{% else %}Key name{% endif %}" aria-label="Search keys">
                         <button type="submit" class="btn btn-ghost btn-xs -me-2">Search</button>
                     </label>
                 </form>
-                <nav class="join" aria-label="Sort by">
-                    {% for option in orders %}
-                        <a class="btn btn-sm join-item{% if option == order %} btn-primary{% endif %}" href="{% querystring sort=option.value page=None %}"{% if option == order %} aria-current="page"{% endif %}>{{ option.label }}</a>
-                    {% endfor %}
-                </nav>
             </div>
             {% if keys %}
-                {% include "management/_key_table.html" with first_column="Key" %}
+                {% include "management/_key_table.html" with first_column="Key" headers=headers %}
             {% elif q %}
                 <p class="muted text-sm">No key that matches “{{ q }}” has requests in this time frame.</p>
             {% else %}

@@ -258,7 +258,7 @@ class KeyDetailTest(ApiKeysPagesTestBase):
                 html = html.content.decode()
                 self.assertIn(f'grid-cols-7 gap-3" data-metric="{shown}">', html)
                 self.assertIn(f'grid-cols-7 gap-3" data-metric="{hidden}" hidden>', html)
-                self.assertIn(f'aria-label="{today}: 1 request (Answered 0, Failed 1)"', html)
+                self.assertIn(f'aria-label="{today}: 1 request (OK 0, Failed 1)"', html)
                 self.assertIn(f'aria-label="{today}: 7 tokens (', html)
 
     def test_metric_links_still_load_the_page_without_scripts(self):
@@ -270,7 +270,7 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         self.request_log(self.key, timedelta(minutes=5), status_code=500)
         response = self.get(self.owner, "token_detail", self.key.id, metric="requests")
         today = f"{timezone.localdate():%-d %b}"
-        self.assertContains(response, f'aria-label="{today}: 1 request (Answered 0, Failed 1)"')
+        self.assertContains(response, f'aria-label="{today}: 1 request (OK 0, Failed 1)"')
 
     def test_dates_name_the_full_utc_time_and_the_tab_names_the_key(self):
         used = self.request_log(self.key, timedelta(minutes=5)).timestamp
@@ -308,7 +308,7 @@ class SevenDaysTest(ApiKeysPagesTestBase):
         with mock.patch("django.utils.timezone.now", return_value=now):
             listed = self.get(self.owner, "tokens").context["keys"].rows[0].activity.requests
             detail = self.get(self.owner, "token_detail", self.key.id).context["report"]
-            overview = self.get(self.owner, "usage", key=self.key.id).context["kpis"]
+            overview = self.get(self.owner, "usage", key=self.key.id, span="1w").context["kpis"]
         requests = next(kpi.value for kpi in overview if kpi.label == "Requests")
         # 20:00 seven days back falls before the window; 01:00 six days back falls inside.
         self.assertEqual((listed, detail.totals.requests, requests), (2, 2, "2"))
@@ -320,7 +320,7 @@ class SevenDaysTest(ApiKeysPagesTestBase):
         no_model = self.request_log(self.key, timedelta(minutes=1), model="", path="/files")
         listed = self.get(self.owner, "tokens").context["keys"].rows[0].activity
         detail = self.get(self.owner, "token_detail", self.key.id).context
-        overview = self.get(self.owner, "usage", key=self.key.id).context["kpis"]
+        overview = self.get(self.owner, "usage", key=self.key.id, span="1w").context["kpis"]
         log = self.get(self.owner, "requests", key=self.key.id).context["log"]
         requests = next(kpi.value for kpi in overview if kpi.label == "Requests")
         self.assertEqual((listed.requests, detail["report"].totals.requests, requests), (1, 1, "1"))

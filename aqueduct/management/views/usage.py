@@ -1,9 +1,14 @@
+from collections.abc import Callable, Collection
+from dataclasses import replace
 from datetime import datetime, timedelta
+from typing import Any
 
 from django.conf import settings
 from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.db.models import QuerySet
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import urlencode
@@ -14,11 +19,13 @@ from management import usage_report as report
 from management import usage_rollup as rollup
 from management.key_activity import Activity
 from management.model_catalog import mode_for
-from management.models import Org, Request, Token
+from management.models import Org, Request, Token, UserProfile
 from management.models.token import of_org
 from management.request_log import (
     PAGE_SIZE,
     Filters,
+    Header,
+    Key,
     counts_whole_org,
     describe_key,
     key_search,
@@ -47,23 +54,43 @@ HEAT_CACHE_SECONDS = 60 * 60
 
 
 def _heat(
-    org: Org | None, requests: QuerySet[Request], now: datetime, weeks: int, sealed: rollup.Sealed
+    org: Org | None,
+    model: str | None,
+    requests: QuerySet[Request],
+    now: datetime,
+    weeks: int,
+    sealed: rollup.Sealed,
 ) -> dict[tuple[int, int], int]:
     """`rollup.org_heat` of the last `weeks` weeks. While the rollups are not current, it reads
     weeks of requests of a whole org, so it is cached for an hour."""
     start = now - timedelta(weeks=weeks)
     if sealed.current(now):
-        return rollup.org_heat(org, start, now, sealed, requests)
-    key = f"usage-heat:{org.pk if org else 'all'}:{weeks}"
+        return rollup.org_heat(org, start, now, sealed, requests, model)
+    key = f"usage-heat:{org.pk if org else 'all'}:{weeks}:{model or ''}"
     tokens = cache.get(key)
     if tokens is None:
-        tokens = rollup.org_heat(org, start, now, sealed, requests)
+        tokens = rollup.org_heat(org, start, now, sealed, requests, model)
         cache.set(key, tokens, HEAT_CACHE_SECONDS)
     return tokens
 
 
 def _org_tokens(filters: Filters) -> QuerySet[Token]:
     return Token.objects.all() if filters.org is None else Token.objects.filter(of_org(filters.org))
+
+
+def _describe(
+    filters: Filters, profile: UserProfile, team_ids: Collection[int]
+) -> Callable[[Token], Key]:
+    """How the usage tables name a key. Its second line says whose key it is: "You" for the
+    viewer's own, nothing when the viewer sees only their own keys and their teams'."""
+
+    def describe(token: Token) -> Key:
+        key = describe_key(token, profile, team_ids, with_org=filters.org is None)
+        if not filters.can_pick_scope:
+            return replace(key, note="")
+        return replace(key, note="You") if key.own else key
+
+    return describe
 
 
 class UsageDashboardView(BaseAqueductView, TemplateView):
@@ -104,10 +131,14 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         total = timeline.total
         metric = "requests" if params.get("metric") == "requests" else "tokens"
         heat_weeks = max(1, min(4, int(retention_days // 7)))
+        heat_model = params.get("heat_model")
+        heat_model = heat_model if heat_model in filters.models else None
 
+        more_keys = False
         if selected_key is not None:
             keys = report.user_id_shares(in_period, total.tokens)
-            more_keys = False
+        elif filters.only_key is not None:
+            keys = ()
         else:
             team_ids = set(self.get_teams_for_user().values_list("id", flat=True))
             windows = _key_windows(filters)
@@ -118,9 +149,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
             )
             more_keys = len(ranked) > report.TOP_KEYS
             keys = report.key_shares(
-                ranked[: report.TOP_KEYS],
-                total.tokens,
-                lambda token: describe_key(token, profile, team_ids, with_org=selected_org is None),
+                ranked[: report.TOP_KEYS], total.tokens, _describe(filters, profile, team_ids)
             )
 
         context.update(
@@ -136,8 +165,10 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 ),
                 "statuses": report.statuses(timeline, filters.log_url),
                 "heat_org": selected_org,
+                "heat_model": heat_model,
                 "heat": report.heat(
-                    _heat(selected_org, org_requests, now, heat_weeks, sealed), heat_weeks
+                    _heat(selected_org, heat_model, org_requests, now, heat_weeks, sealed),
+                    heat_weeks,
                 ),
                 "heat_days": heat_weeks * 7,
                 "heat_legend": report.HEAT_CLASSES[1:],
@@ -165,9 +196,19 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
 
 class KeyUsageView(BaseAqueductView, TemplateView):
     """The All keys page: the usage of every key the viewer may see, a page at a time, with the
-    Overview's filters, so its first rows are the Overview's Top keys."""
+    Overview's filters, so its first rows are the Overview's Top keys. A user who sees only
+    one key goes to that key's page instead."""
 
     template_name = "management/usage_keys.html"
+
+    def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        context = self.get_context_data(**kwargs)
+        filters = context["filters"]
+        assert isinstance(filters, Filters)
+        only_key = filters.only_key
+        if not filters.can_pick_scope and only_key is not None and only_key.href is not None:
+            return redirect(only_key.href)
+        return self.render_to_response(context)
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
@@ -206,7 +247,7 @@ class KeyUsageView(BaseAqueductView, TemplateView):
         keys = report.key_shares(
             pages.object_list,
             everyone.tokens,
-            lambda token: describe_key(token, self.profile, team_ids, with_org=filters.org is None),
+            _describe(filters, self.profile, team_ids),
             everyone.busiest,
         )
         context.update(
@@ -216,8 +257,19 @@ class KeyUsageView(BaseAqueductView, TemplateView):
                 "keys": keys,
                 "count": count,
                 "q": q,
-                "orders": tuple(report.KeyOrder),
                 "order": order,
+                "headers": {
+                    option.value: Header(
+                        sortable=True,
+                        choice=None if option is report.KeyOrder.TOKENS else option.value,
+                        aria_sort=(
+                            ("ascending" if option.ascending else "descending")
+                            if option is order
+                            else None
+                        ),
+                    )
+                    for option in report.KeyOrder
+                },
                 "pages": pages,
             }
         )

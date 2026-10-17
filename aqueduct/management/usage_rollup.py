@@ -324,12 +324,14 @@ def org_heat(
     end: datetime,
     sealed: "Sealed | None" = None,
     requests: QuerySet[Request] | None = None,
+    model: str | None = None,
 ) -> dict[tuple[int, int], int]:
-    """Tokens per ISO weekday and local hour of day, as `usage_report.heat` sums them."""
+    """Tokens per ISO weekday and local hour of day, as `usage_report.heat` sums them, of
+    `model`, every served model when `None`."""
     found = _gather(
         org,
         requests,
-        None,
+        model,
         start,
         end,
         ("day", "at"),

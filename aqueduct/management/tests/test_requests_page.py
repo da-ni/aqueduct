@@ -350,11 +350,12 @@ class RequestsFilterTest(RequestsPageTestBase):
         filters = self.get(self.org_admin).context["filters"]
         self.assertEqual([key.name for key in filters.keys], ["admin-laptop", "side-sa"])
         response = self.get(self.org_admin, key=admin_key.id)
-        self.assertContains(response, ">All keys in lab-org</a>")
+        self.assertContains(response, ">All keys</a>")
         self.assertContains(response, ">My keys</a>")
         self.assertNotContains(response, ">Everyone</a>")
+        make_token(self.owner, "owner-spare")
         response = self.get(self.owner)
-        self.assertContains(response, 'aria-current="true" class="menu-active">All my keys</a>')
+        self.assertContains(response, 'aria-current="true" class="menu-active">All keys</a>')
         self.assertNotContains(response, ">My keys</a>")
 
     def matches(self, user, query: str, **params) -> list[str]:

@@ -42,12 +42,10 @@
                     <h2 class="text-xl font-semibold"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>Tokens</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>Requests</span> per {{ period.step.kind }}</h2>
                     <div class="flex flex-wrap items-center gap-4">
                         <div class="flex items-center gap-4 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
-                            <span class="flex items-center gap-2"><span class="sw c"></span>Input from cache</span>
-                            <span class="flex items-center gap-2"><span class="sw i"></span>New input</span>
-                            <span class="flex items-center gap-2"><span class="sw o"></span>Output</span>
+                            {% include "management/_token_legend.html" %}
                         </div>
                         <div class="flex items-center gap-4 text-sm" data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>
-                            <span class="flex items-center gap-2"><span class="sw i"></span>Answered</span>
+                            <span class="flex items-center gap-2"><span class="sw i"></span>OK</span>
                             <span class="flex items-center gap-2"><span class="sw f"></span>Failed</span>
                         </div>
                         <nav class="join" aria-label="Chart metric">
@@ -99,21 +97,19 @@
         <div class="card-body gap-3 p-5">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-xl font-semibold">By model</h2>
-                <div class="flex items-center gap-4 text-sm">
-                    <span class="flex items-center gap-2"><span class="sw c"></span>Input from cache</span>
-                    <span class="flex items-center gap-2"><span class="sw i"></span>New input</span>
-                    <span class="flex items-center gap-2"><span class="sw o"></span>Output</span>
+                <div class="hidden items-center gap-4 text-sm md:flex">
+                    {% include "management/_token_legend.html" %}
                 </div>
             </div>
             {% if models %}
                 <div class="overflow-x-auto">
-                    <table class="table table-fixed model-table min-w-[860px]">
+                    <table class="table table-fixed model-table min-w-[640px] md:min-w-[860px]">
                         <thead>
                             <tr>
-                                <th class="w-[22%]">Model</th><th class="w-[26%]">Tokens</th>
-                                <th class="w-[8%] text-right">Input</th><th class="w-[8%] text-right">Output</th>
-                                <th class="w-[10%] text-right">Cache hits</th><th class="w-[10%] text-right">Requests</th>
-                                <th class="w-[8%] text-right">{% if approximate_tip %}<span class="tooltip tooltip-left" data-tip="{{ approximate_tip }}">Median<span class="sr-only">, {{ approximate_tip }}</span></span>{% else %}Median{% endif %}</th><th class="w-[8%] text-right">Share</th>
+                                <th class="w-[28%] md:w-[22%]">Model</th><th class="hidden w-[26%] md:table-cell">Tokens</th>
+                                <th class="w-[10%] text-right md:w-[8%]">Input</th><th class="w-[10%] text-right md:w-[8%]">Cached</th><th class="w-[10%] text-right md:w-[8%]">Output</th>
+                                <th class="w-[13%] text-right md:w-[10%]">Requests</th>
+                                <th class="w-[17%] text-right md:w-[10%]">{% if approximate_tip %}<span class="tooltip tooltip-left" data-tip="{{ approximate_tip }}" tabindex="0">Median time<span class="sr-only">, {{ approximate_tip }}</span></span>{% else %}Median time{% endif %}</th><th class="w-[12%] text-right md:w-[8%]">Share</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -123,10 +119,10 @@
                                         <a class="link-plain row-link break-all font-mono" href="{{ row.log_url }}" aria-label="{{ row.name }}, open its requests in the request log">{{ row.name }}</a>
                                         <div class="muted text-xs">{{ row.kind }}</div>
                                     </td>
-                                    <td>{% include "management/_token_bar.html" with activity=row.activity width=row.width %}</td>
+                                    <td class="hidden md:table-cell">{% include "management/_token_bar.html" with activity=row.activity width=row.width %}</td>
                                     <td class="text-right font-mono">{{ row.input }}</td>
+                                    <td class="text-right font-mono">{{ row.cached }}</td>
                                     <td class="text-right font-mono">{{ row.output }}</td>
-                                    <td class="text-right font-mono">{{ row.activity.cache_hits }}</td>
                                     <td class="text-right font-mono">{{ row.activity.requests|intcomma }}</td>
                                     <td class="whitespace-nowrap text-right font-mono">{% if row.approximate %}<span aria-hidden="true">≈ </span><span class="sr-only">approximately </span>{% endif %}{{ row.median }}</td>
                                     <td class="muted text-right font-mono">{{ row.share }}</td>
@@ -141,6 +137,7 @@
         </div>
     </section>
 
+    {% if filters.key or not filters.only_key %}
     <section class="card bg-base-200">
         <div class="card-body gap-3 p-5">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
@@ -154,6 +151,7 @@
             {% endif %}
         </div>
     </section>
+    {% endif %}
 
     {% if orgs_usage %}
         <section class="card bg-base-200">
@@ -172,15 +170,28 @@
         </section>
     {% endif %}
 
-    <section aria-labelledby="org-activity" class="flex flex-col gap-4 border-t border-base-300 pt-6">
+    <section id="org-activity" aria-labelledby="org-activity-heading" class="flex scroll-mt-24 flex-col gap-4 border-t border-base-300 pt-6">
         <div>
-            <h2 id="org-activity" class="text-xl font-semibold">Activity across {% if heat_org %}{{ heat_org.name }}{% else %}all organizations{% endif %}</h2>
-            <p class="muted text-sm">All users and keys, last {{ heat_days }} days. The filters above do not apply here.</p>
+            <h2 id="org-activity-heading" class="text-xl font-semibold">Activity across {% if heat_org %}{{ heat_org.name }}{% else %}all organizations{% endif %}</h2>
+            <p class="muted text-sm">All users and keys, last {{ heat_days }} days.</p>
         </div>
         <div class="card bg-base-200">
             <div class="card-body gap-4 p-5">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h3 class="font-semibold">Usage by weekday and hour</h3>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="font-semibold">Usage by weekday and hour</h3>
+                        {% if filters.models|length > 1 %}
+                        <details class="dropdown">
+                            <summary class="btn btn-sm">{% icon "models" small=True %}<span class="sr-only">Heatmap model: </span>{{ heat_model|default:"All models" }}</summary>
+                            <ul class="menu dropdown-content z-10 mt-1 max-h-80 w-64 flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow">
+                                <li><a href="{% querystring heat_model=None key_q=None %}#org-activity"{% if not heat_model %} aria-current="true" class="menu-active"{% endif %}>All models</a></li>
+                                {% for name in filters.models %}
+                                    <li><a class="font-mono{% if name == heat_model %} menu-active{% endif %}" href="{% querystring heat_model=name key_q=None %}#org-activity"{% if name == heat_model %} aria-current="true"{% endif %}>{{ name }}</a></li>
+                                {% endfor %}
+                            </ul>
+                        </details>
+                        {% endif %}
+                    </div>
                     <div class="muted flex flex-wrap items-center gap-2 font-mono text-xs">
                         <span class="mr-3">Average tokens per hour</span>
                         <span>Less</span>

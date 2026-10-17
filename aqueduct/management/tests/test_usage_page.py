@@ -1,5 +1,6 @@
 import re
 from datetime import timedelta
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -116,13 +117,24 @@ class UsageAccessTest(UsagePageTestBase):
             self.client.get(url), f"{reverse('sso')}?next={url}", fetch_redirect_response=False
         )
 
-    def test_user_sees_only_their_own_key(self):
+    def test_user_with_one_key_gets_no_key_picker_and_no_top_keys(self):
         response = self.page(self.solo)
-        self.assert_keys(response, "solo-laptop")
+        self.assert_keys(response)
         self.assertEqual(self.kpi(response, "Requests"), "1")
-        self.assertContains(response, f'href="{reverse("token_detail", args=[self.solo_key.id])}"')
-        self.assertNotContains(response, "My keys")
+        self.assertNotContains(response, '<span class="sr-only">Key: </span>')
+        self.assertNotContains(response, "Top keys")
         self.assertNotContains(response, "All organizations")
+
+    def test_user_with_several_keys_picks_from_all_keys_only(self):
+        make_token(self.solo, "solo-desktop")
+        response = self.page(self.solo)
+        self.assertContains(response, '<span class="sr-only">Key: </span>')
+        self.assertContains(response, 'aria-current="true" class="menu-active">All keys</a>')
+        self.assertNotContains(response, "My keys")
+        self.assertNotContains(response, "Your keys")
+        self.assertNotContains(response, 'name="key_q"')
+        self.assertContains(response, "Top keys")
+        self.assertEqual([key.detail for key in response.context["keys"]], [""])
 
     def test_team_member_sees_their_key_and_the_team_service_account(self):
         response = self.page(self.member)
@@ -163,14 +175,14 @@ class UsageAccessTest(UsagePageTestBase):
 
     def test_admin_may_pick_another_org(self):
         response = self.page(self.admin, org=self.other_org.id)
-        self.assert_keys(response, "foreign-laptop")
+        self.assertEqual(self.kpi(response, "Input"), "7K")
         self.assertNotContains(response, "By organization")
 
     def test_org_admin_cannot_pick_another_org(self):
-        response = self.page(self.other_org_admin, org=self.org.id)
-        self.assert_keys(response, "foreign-laptop")
-        response = self.page(self.other_org_admin, org="all")
-        self.assert_keys(response, "foreign-laptop")
+        for org in (self.org.id, "all"):
+            response = self.page(self.other_org_admin, org=org)
+            self.assertEqual(self.kpi(response, "Input"), "7K")
+            self.assertContains(response, "Activity across other-org")
 
     def test_key_filter_accepts_the_owners_key(self):
         response = self.page(self.solo, key=self.solo_key.id)
@@ -202,30 +214,30 @@ class UsageAccessTest(UsagePageTestBase):
 class UsageFiguresTest(UsagePageTestBase):
     def test_totals_count_tokens_cache_hits_and_failures(self):
         response = self.page(self.org_admin)
-        self.assertEqual(self.kpi(response, "Input from cache"), "250")
-        self.assertEqual(self.kpi(response, "New input"), "5.8K")  # 6,000 less 250 cached
+        self.assertEqual(self.kpi(response, "Input"), "6K")  # cached input included
         self.assertEqual(self.kpi(response, "Output"), "1.5K")
+        self.assertEqual(self.kpi(response, "Cached"), "250")
         self.assertEqual(self.kpi(response, "Requests"), "3")
         self.assertEqual(self.kpi(response, "Failed"), "67%")  # 429 and 500 of 3
 
     def test_requests_are_split_by_status(self):
         response = self.page(self.org_admin)
-        self.assertEqual(self.status_count(response, "Answered"), "1")
+        self.assertEqual(self.status_count(response, "OK"), "1")
         self.assertEqual(self.status_count(response, "Rate-limited"), "1")
-        self.assertEqual(self.status_count(response, "Other client errors"), "0")
-        self.assertEqual(self.status_count(response, "Model or provider error"), "1")
+        self.assertEqual(self.status_count(response, "Client error"), "0")
+        self.assertEqual(self.status_count(response, "Server error"), "1")
 
     def test_time_frame_limits_the_requests_counted(self):
         self.log(self.solo_key, timedelta(days=3), 200)
-        self.assertEqual(self.kpi(self.page(self.solo), "Requests"), "2")
-        self.assertEqual(self.kpi(self.page(self.solo, span="1d"), "Requests"), "1")
+        self.assertEqual(self.kpi(self.page(self.solo), "Requests"), "1")
+        self.assertEqual(self.kpi(self.page(self.solo, span="1w"), "Requests"), "2")
 
     def test_model_filter_keeps_one_model(self):
         self.log(self.solo_key, timedelta(hours=1), 200, model=EMBEDDING, input_tokens=9)
         self.assertEqual(self.kpi(self.page(self.solo), "Requests"), "2")
         response = self.page(self.solo, model=EMBEDDING)
         self.assertEqual(self.kpi(response, "Requests"), "1")
-        self.assertEqual(self.kpi(response, "New input"), "9")
+        self.assertEqual(self.kpi(response, "Input"), "9")
 
     def test_models_outside_the_router_config_are_left_out(self):
         self.log(self.solo_key, timedelta(hours=1), 200, model="retired-model")
@@ -273,25 +285,26 @@ class UsageFiguresTest(UsagePageTestBase):
         self.assertContains(self.page(self.solo, span="1m"), "Older requests are missing")
         self.assertNotContains(self.page(self.solo, span="1w"), "Older requests are missing")
 
-    def test_an_unknown_time_frame_falls_back_to_7_days(self):
-        self.log(self.solo_key, timedelta(days=10), 200)
-        for span in ("all", "bogus"):
+    def test_the_time_frame_is_24_hours_unless_a_known_one_is_chosen(self):
+        self.log(self.solo_key, timedelta(days=2), 200)
+        for span in ("", "all", "bogus"):
             response = self.page(self.solo, span=span)
             self.assertEqual(response.status_code, 200)
             self.assertEqual(self.kpi(response, "Requests"), "1")
-            self.assertContains(response, 'aria-current="page">7 days</a>')
+            self.assertContains(response, 'aria-current="page">24 hours</a>')
             self.assertNotContains(response, "All retained")
+        self.assertEqual(self.kpi(self.page(self.solo, span="1w"), "Requests"), "2")
 
     def test_start_and_end_parameters_are_ignored(self):
-        self.log(self.solo_key, timedelta(days=3), 200)
-        start = (timezone.now() - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M")
+        self.log(self.solo_key, timedelta(hours=3), 200)
+        start = (timezone.now() - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M")
         response = self.page(self.solo, start=start, end="2020-01-01T00:00")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.kpi(response, "Requests"), "2")
 
     def test_empty_time_frame_says_so_in_each_section(self):
         Request.objects.all().delete()
-        response = self.page(self.solo)
+        response = self.page(self.member)
         self.assertContains(response, "No requests in this time frame.", count=3)
 
     def test_model_rows_open_the_log_on_their_model(self):
@@ -316,8 +329,8 @@ class UsageFiguresTest(UsagePageTestBase):
         self.assertNotContains(self.page(self.solo), APPROXIMATE_MEDIAN)
 
     def test_top_keys_rows_open_the_key(self):
-        response = self.page(self.solo)
-        detail = reverse("token_detail", args=[self.solo_key.id])
+        response = self.page(self.member)
+        detail = reverse("token_detail", args=[self.member_key.id])
         self.assertContains(
             response, f'class="link-plain row-link block truncate font-mono" href="{detail}"'
         )
@@ -333,10 +346,11 @@ class UsageFiguresTest(UsagePageTestBase):
         pipeline = keys["pipeline"]
         self.assertEqual((pipeline.input, pipeline.output), ("4K", "1.5K"))
         self.assertEqual(pipeline.share, "61%")
-        self.assertEqual(pipeline.activity.segments, (("c", 0), ("i", 4000), ("o", 1500)))
+        self.assertEqual(pipeline.activity.segments, (("c", 0), ("n", 4000), ("o", 1500)))
         self.assertEqual(
-            keys["solo-laptop"].activity.segments, (("c", 250), ("i", 750), ("o", 500))
+            keys["solo-laptop"].activity.segments, (("c", 250), ("n", 750), ("o", 500))
         )
+        self.assertEqual((keys["solo-laptop"].cached, pipeline.cached), ("25%", "0%"))
 
     def test_totals_do_not_link_to_the_log(self):
         response = self.page(self.org_admin)
@@ -365,7 +379,7 @@ class UsageChartTest(UsagePageTestBase):
         self.assertTrue(series["tokens"][0])
         self.assertFalse(series["requests"][0])
         self.assertIn("Output", series["tokens"][1])
-        self.assertIn("Answered 1, Failed 2", series["requests"][1])
+        self.assertIn("OK 1, Failed 2", series["requests"][1])
 
     def test_the_metric_parameter_picks_the_series_shown(self):
         response = self.page(self.org_admin, metric="requests")
@@ -379,3 +393,128 @@ class UsageChartTest(UsagePageTestBase):
         html = response.content.decode()
         self.assertIn('href="?span=1m" data-metric-show="tokens" aria-current="page"', html)
         self.assertIn('href="?span=1m&amp;metric=requests" data-metric-show="requests"', html)
+
+
+class UsageHeatModelTest(UsagePageTestBase):
+    """The heatmap has a model choice of its own, `heat_model`, apart from the page's filters."""
+
+    def test_heat_model_narrows_only_the_heatmap(self):
+        self.log(self.member_key, timedelta(hours=1), 200, model=EMBEDDING, input_tokens=400)
+        moment = timezone.now() - timedelta(hours=1)
+        weekday = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")[moment.isoweekday() - 1]
+        cell = (
+            f'aria-label="{weekday} {moment.hour:02d}:00 to {(moment.hour + 1) % 24:02d}:00: '
+            '{} tokens per hour"'
+        )
+        everything = self.page(self.org_admin)
+        embedding = self.page(self.org_admin, heat_model=EMBEDDING)
+        self.assertContains(everything, cell.format("2K"))  # 7,900 tokens over four weeks
+        self.assertContains(embedding, cell.format("100"))  # 400 tokens over four weeks
+        self.assertEqual(self.kpi(embedding, "Requests"), self.kpi(everything, "Requests"))
+        self.assertEqual(self.kpi(embedding, "Requests"), "4")
+
+    def test_the_page_filters_leave_the_heatmap_alone(self):
+        heat = self.page(self.org_admin).context["heat"]
+        for params in ({"model": EMBEDDING}, {"scope": "mine"}, {"span": "1h"}):
+            with self.subTest(**params):
+                self.assertEqual(self.page(self.org_admin, **params).context["heat"], heat)
+
+    def test_heat_model_links_keep_the_filters_and_return_to_the_heatmap(self):
+        response = self.page(self.org_admin, model=CHAT, span="1w")
+        self.assertContains(
+            response, f'href="?model={CHAT}&amp;span=1w&amp;heat_model={EMBEDDING}#org-activity"'
+        )
+        self.assertNotContains(response, "The filters above do not apply here")
+
+    def test_an_unknown_heat_model_shows_every_model(self):
+        response = self.page(self.org_admin, heat_model="retired-model")
+        self.assertIsNone(response.context["heat_model"])
+        self.assertEqual(response.context["heat"], self.page(self.org_admin).context["heat"])
+
+
+class UsageFilterChoicesTest(UsagePageTestBase):
+    """A filter shows only when it offers a real choice."""
+
+    def test_models_sort_without_regard_to_case(self):
+        with mock.patch(
+            "management.request_log.router_models", return_value=["b-model", "A-model", "c-model"]
+        ):
+            filters = self.page(self.org_admin).context["filters"]
+        self.assertEqual(filters.models, ("A-model", "b-model", "c-model"))
+
+    def test_the_model_filter_hides_with_one_model(self):
+        self.assertContains(self.page(self.org_admin), '<span class="sr-only">Model: </span>')
+        with mock.patch("management.request_log.router_models", return_value=[CHAT]):
+            response = self.page(self.org_admin)
+        self.assertNotContains(response, '<span class="sr-only">Model: </span>')
+        self.assertNotContains(response, "Heatmap model")
+
+    def test_an_org_admin_without_keys_gets_no_my_keys(self):
+        response = self.page(self.org_admin)
+        self.assertContains(response, 'aria-current="true" class="menu-active">All keys</a>')
+        self.assertNotContains(response, ">My keys</a>")
+
+    def test_an_org_admin_finds_their_own_keys_under_my_keys(self):
+        own = make_token(self.org_admin, "admin-laptop")
+        response = self.page(self.org_admin)
+        html = response.content.decode()
+        mine = html.index(">My keys</a>")
+        self.assertGreater(html.index(f"key={own.id}", mine), mine)
+        self.assertNotContains(response, "Your keys")
+
+
+class UsageKeyNamesTest(UsagePageTestBase):
+    def details(self, user, **params) -> dict[str, str]:
+        return {key.name: key.detail for key in self.page(user, **params).context["keys"]}
+
+    def test_the_second_line_says_whose_key_it_is(self):
+        own = make_token(self.org_admin, "admin-laptop")
+        self.log(own, timedelta(hours=1), 200, input_tokens=5)
+        self.assertEqual(
+            self.details(self.org_admin),
+            {
+                "pipeline": "Service account · NLP Lab",
+                "member-laptop": "member@example.com",
+                "solo-laptop": "solo@example.com",
+                "admin-laptop": "You",
+            },
+        )
+
+    def test_a_viewer_of_their_own_keys_gets_no_second_line(self):
+        self.assertEqual(self.details(self.member), {"pipeline": "", "member-laptop": ""})
+
+
+class UsageModelColumnsTest(UsagePageTestBase):
+    def test_median_time_is_marked_approximate_only_org_wide(self):
+        self.assertContains(self.page(self.org_admin), f'data-tip="{APPROXIMATE_MEDIAN}"')
+        response = self.page(self.member)
+        self.assertContains(response, "Median time")
+        self.assertNotContains(response, f'data-tip="{APPROXIMATE_MEDIAN}"')
+
+    def test_models_without_tokens_show_dashes_and_follow_by_requests(self):
+        for _ in range(2):
+            self.log(self.solo_key, timedelta(hours=1), 200, model=EMBEDDING)
+        Request.objects.filter(model=EMBEDDING).update(response_time_ms=None)
+        rows = self.page(self.solo).context["models"]
+        self.assertEqual([row.name for row in rows], [CHAT, EMBEDDING])
+        unmetered = rows[1]
+        self.assertEqual(
+            (
+                unmetered.input,
+                unmetered.cached,
+                unmetered.output,
+                unmetered.share,
+                unmetered.median,
+            ),
+            ("—", "—", "—", "—", "—"),
+        )
+        self.assertEqual((rows[0].input, rows[0].cached), ("1K", "25%"))
+
+    def test_day_columns_read_only_the_day_on_small_screens(self):
+        response = self.page(self.org_admin, span="1w")
+        day = timezone.localtime().strftime("%-d")
+        self.assertContains(
+            response,
+            f'<span class="sm:hidden">{day}</span><span class="hidden sm:inline">'
+            f"{timezone.localtime():%-d %b}</span>",
+        )

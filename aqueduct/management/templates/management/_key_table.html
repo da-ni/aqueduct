@@ -1,12 +1,13 @@
 {% load humanize %}
 <div class="overflow-x-auto">
-    <table class="table table-fixed model-table min-w-[860px]">
+    <table class="table table-fixed model-table min-w-[560px] md:min-w-[860px]">
         <thead>
             <tr>
-                <th class="w-[26%]">{{ first_column }}</th><th class="w-[30%]">Tokens</th>
-                <th class="w-[8%] text-right">Input</th><th class="w-[8%] text-right">Output</th>
-                <th class="w-[10%] text-right">Cache hits</th><th class="w-[10%] text-right">Requests</th>
-                <th class="w-[8%] text-right">Share</th>
+                <th class="w-[34%] md:w-[26%]"{% if headers.name.aria_sort %} aria-sort="{{ headers.name.aria_sort }}"{% endif %}>{% if headers %}{% include "management/_sort_heading.html" with header=headers.name label=first_column %}{% else %}{{ first_column }}{% endif %}</th>
+                <th class="hidden w-[30%] md:table-cell"{% if headers.tokens.aria_sort %} aria-sort="{{ headers.tokens.aria_sort }}"{% endif %}>{% if headers %}{% include "management/_sort_heading.html" with header=headers.tokens label="Tokens" %}{% else %}Tokens{% endif %}</th>
+                <th class="w-[12%] text-right md:w-[8%]">Input</th><th class="w-[12%] text-right md:w-[8%]">Cached</th><th class="w-[12%] text-right md:w-[8%]">Output</th>
+                <th class="w-[16%] text-right md:w-[10%]"{% if headers.requests.aria_sort %} aria-sort="{{ headers.requests.aria_sort }}"{% endif %}>{% if headers %}{% include "management/_sort_heading.html" with header=headers.requests label="Requests" %}{% else %}Requests{% endif %}</th>
+                <th class="w-[14%] text-right md:w-[10%]">Share</th>
             </tr>
         </thead>
         <tbody>
@@ -16,10 +17,10 @@
                         {% if key.href %}<a class="link-plain row-link block truncate font-mono" href="{{ key.href }}" title="{{ key.name }}">{{ key.name }}</a>{% else %}<div class="truncate font-mono" title="{{ key.name }}">{{ key.name }}</div>{% endif %}
                         {% if key.detail %}<div class="muted truncate text-xs" title="{{ key.detail }}">{{ key.detail }}</div>{% endif %}
                     </td>
-                    <td>{% include "management/_token_bar.html" with activity=key.activity width=key.width %}</td>
+                    <td class="hidden md:table-cell">{% include "management/_token_bar.html" with activity=key.activity width=key.width %}</td>
                     <td class="text-right font-mono">{{ key.input }}</td>
+                    <td class="text-right font-mono">{{ key.cached }}</td>
                     <td class="text-right font-mono">{{ key.output }}</td>
-                    <td class="text-right font-mono">{{ key.activity.cache_hits }}</td>
                     <td class="text-right font-mono">{{ key.activity.requests|intcomma }}</td>
                     <td class="muted text-right font-mono">{{ key.share }}</td>
                 </tr>

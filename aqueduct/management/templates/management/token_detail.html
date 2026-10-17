@@ -63,12 +63,10 @@
                     <h2 class="text-xl font-semibold"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>Tokens</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>Requests</span> per day</h2>
                     <div class="flex flex-wrap items-center gap-4">
                         <div class="flex items-center gap-4 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
-                            <span class="flex items-center gap-2"><span class="sw c"></span>Input from cache</span>
-                            <span class="flex items-center gap-2"><span class="sw i"></span>New input</span>
-                            <span class="flex items-center gap-2"><span class="sw o"></span>Output</span>
+                            {% include "management/_token_legend.html" %}
                         </div>
                         <div class="flex items-center gap-4 text-sm" data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>
-                            <span class="flex items-center gap-2"><span class="sw i"></span>Answered</span>
+                            <span class="flex items-center gap-2"><span class="sw i"></span>OK</span>
                             <span class="flex items-center gap-2"><span class="sw f"></span>Failed</span>
                         </div>
                         <nav class="join" aria-label="Chart metric">
