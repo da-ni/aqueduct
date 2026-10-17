@@ -57,7 +57,10 @@ class TokenEditViewOwnershipTests(TestCase):
     def test_owner_can_edit_own_token(self):
         self.client.force_login(self.owner)
         token = _make_token(self.owner_profile)
-        resp = self.client.post(self._url(token.id), {"name": "renamed", "expires_at": ""})
-        self.assertRedirects(resp, reverse("tokens"))
+        resp = self.client.post(
+            self._url(token.id), {"name": "renamed", "expires_at": ""}, follow=True
+        )
+        self.assertRedirects(resp, reverse("token_detail", kwargs={"id": token.id}))
+        self.assertContains(resp, "API key &quot;renamed&quot; updated successfully.")
         token.refresh_from_db()
         self.assertEqual(token.name, "renamed")

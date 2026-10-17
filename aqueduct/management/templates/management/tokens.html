@@ -56,11 +56,11 @@
                                 <td>
                                     <a class="link-plain font-mono row-link" href="{{ row.href }}">{{ row.token.name }}</a>
                                     <div class="muted text-xs">
-                                        {% if row.team %}Service account · {{ row.team }}{% else %}Personal{% endif %}
+                                        {% if row.team %}Service account · <a class="link-plain relative z-10" href="{% url 'team' row.token.service_account.team_id %}">{{ row.team }}</a>{% else %}Personal{% endif %}
                                         · <span class="font-mono">{{ row.token.key_preview }}</span>
                                     </div>
                                 </td>
-                                <td class="muted">{{ row.activity.last_used|naturaltime|default:"Never" }}</td>
+                                <td class="muted">{% include "management/_last_used.html" with last_used=row.activity.last_used %}</td>
                                 <td>
                                     <div class="flex items-center gap-3">
                                         <div class="min-w-0 flex-1">

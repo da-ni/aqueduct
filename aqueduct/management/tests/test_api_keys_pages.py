@@ -104,8 +104,11 @@ class KeyListTest(ApiKeysPagesTestBase):
         self.assertContains(
             response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
         )
-        self.assertContains(response, f'href="{reverse("team", args=[self.team.id])}"')
-        self.assertContains(response, "Service account · keys-team")
+        team = reverse("team", args=[self.team.id])
+        self.assertContains(
+            response,
+            f'Service account · <a class="link-plain relative z-10" href="{team}">keys-team</a>',
+        )
         self.assertContains(response, "Managed by the team")
         self.assertNotContains(response, reverse("token_edit", args=[self.pipeline_key.id]))
         self.assertNotContains(response, reverse("token_delete", args=[self.pipeline_key.id]))
@@ -132,6 +135,12 @@ class KeyListTest(ApiKeysPagesTestBase):
     def test_unused_key_reads_never(self):
         response = self.get(self.owner, "tokens")
         self.assertContains(response, '<td class="muted">Never</td>', html=True)
+
+    def test_last_used_names_the_exact_utc_time(self):
+        used = self.request_log(self.key, timedelta(hours=2)).timestamp
+        response = self.get(self.owner, "tokens")
+        self.assertContains(response, f'datetime="{used.isoformat()}"')
+        self.assertContains(response, f'title="{used:%-d %b %Y, %H:%M:%S} UTC"')
 
     def test_type_tab_and_search_filter_rows(self):
         make_token(self.member, "notebook")
@@ -188,6 +197,33 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         self.assertIn("curl/8.5.0 100%", page)
         self.assertIn("/responses", page)
         self.assertIn(f"{reverse('usage')}?key={self.key.id}", page)
+
+    def test_latest_requests_match_the_request_log(self):
+        limited = self.request_log(
+            self.key,
+            timedelta(minutes=5),
+            model="gpt-4.1-nano",
+            status_code=429,
+            response_time_ms=5640,
+        )
+        response = self.get(self.owner, "token_detail", self.key.id)
+        self.assertContains(
+            response,
+            '<span class="st-warn inline-flex items-center gap-1.5" title="Too Many Requests">',
+        )
+        self.assertContains(response, '<td class="text-right">5.6 s</td>', html=True)
+        log = reverse("requests")
+        self.assertContains(
+            response,
+            f'href="{log}?key={self.key.id}&amp;request={limited.id}#request-{limited.id}"',
+        )
+        self.assertContains(
+            response,
+            f'<a class="link-plain" href="{log}?key={self.key.id}">Open the log</a>',
+            html=True,
+        )
+        opened = self.client.get(f"{log}?key={self.key.id}&request={limited.id}")
+        self.assertContains(opened, f'aria-label="Details of request {limited.id}"')
 
     def test_requests_metric_charts_failed_requests(self):
         self.request_log(self.key, timedelta(minutes=5), status_code=500)
@@ -260,6 +296,22 @@ class SecretShownOnceTest(ApiKeysPagesTestBase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "You can only have 3 API keys.")
         self.assertFalse(Token.objects.filter(name="fourth").exists())
+
+
+class KeyEditAndDeleteReturnTest(ApiKeysPagesTestBase):
+    def test_edit_and_delete_cancel_return_to_the_key(self):
+        detail = reverse("token_detail", args=[self.key.id])
+        for page in ("token_edit", "token_delete"):
+            with self.subTest(page=page):
+                response = self.get(self.owner, page, self.key.id)
+                self.assertContains(response, f'href="{detail}">Cancel</a>')
+
+    def test_delete_returns_to_the_list_with_a_message(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(reverse("token_delete", args=[self.key.id]), follow=True)
+        self.assertRedirects(response, reverse("tokens"))
+        self.assertContains(response, "API key &quot;laptop&quot; deleted successfully.")
+        self.assertFalse(Token.objects.filter(id=self.key.id).exists())
 
 
 class ExpiryTest(SimpleTestCase):
