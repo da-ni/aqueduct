@@ -201,8 +201,7 @@
                     <h2 id="limits-title" class="text-xl font-semibold">Limits</h2>
                     {% if is_org_admin %}<a class="link-plain text-sm" href="{% url 'team_edit' team.id %}" aria-label="Edit limits">Edit</a>{% endif %}
                 </div>
-                {% include "management/_limits.html" with limits=page.limits %}
-                <p class="muted text-sm">Applies to each service account key.</p>
+                {% include "management/_limits.html" with limits=page.limits note="Applies to each service account key." %}
                 {% if is_org_admin %}
                     <div class="flex items-center justify-between gap-3 border-t border-base-300 pt-4">
                         <h3 class="font-semibold">Unavailable to service accounts</h3>
