@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from gateway.config import get_router_config
-from management.models import LimitSet, Request, ServiceAccount, Token, UserProfile
+from management.models import Request, ServiceAccount, Token, UserProfile
 
 if TYPE_CHECKING:
     from management.usage_report import Period
@@ -408,15 +408,4 @@ def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> K
         models=models,
         clients=client_text,
         latest=tuple(requests.order_by("-timestamp")[:latest]),
-    )
-
-
-def limit_labels(limits: LimitSet) -> tuple[tuple[str, str], ...]:
-    return tuple(
-        (label, "no limit" if value is None else f"{value:,}")
-        for label, value in (
-            ("Requests per minute", limits.requests_per_minute),
-            ("Input tokens per minute", limits.input_tokens_per_minute),
-            ("Output tokens per minute", limits.output_tokens_per_minute),
-        )
     )

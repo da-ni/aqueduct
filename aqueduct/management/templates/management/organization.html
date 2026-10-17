@@ -24,16 +24,15 @@
                     <h2 id="limits-title" class="text-xl font-semibold">Limits</h2>
                     <a class="link-plain text-sm" href="{% url 'organization_limits' org_object.id %}" aria-label="Edit limits">Edit</a>
                 </div>
-                <dl class="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-3 text-sm">
-                    {% for label, value in page.limit_labels %}
-                        <dt class="muted">{{ label }}, per key</dt><dd class="text-right font-mono text-base font-semibold">{{ value }}</dd>
-                    {% endfor %}
+                {% include "management/_limits.html" with limits=page.limits %}
+                <p class="muted text-sm">Each key gets these limits unless its team or person has a limit of its own.</p>
+                <dl class="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-base-300 pt-4 text-sm">
                     {% for label, value in page.multipliers %}
-                        <dt class="muted">{{ label }}</dt><dd class="text-right font-mono text-base font-semibold">{{ value }}</dd>
+                        <div class="flex items-baseline gap-2"><dt class="muted">{{ label }}</dt><dd><span class="font-mono font-semibold">{{ value }}</span></dd></div>
                     {% endfor %}
-                    <dt class="muted">Personal keys per person</dt><dd class="text-right font-mono text-base font-semibold">{{ page.max_personal_keys }}</dd>
+                    <div class="flex items-baseline gap-2"><dt class="muted">Personal keys per person</dt><dd><span class="font-mono font-semibold">{{ page.max_personal_keys }}</span></dd></div>
                 </dl>
-                <p class="muted border-t border-base-300 pt-4 text-sm">Teams and people use these unless they have a limit of their own. The server configuration sets the number of personal keys.</p>
+                <p class="muted text-sm">The server configuration sets the number of personal keys.</p>
             </div>
         </section>
 

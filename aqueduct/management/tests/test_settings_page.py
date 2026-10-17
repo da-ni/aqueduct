@@ -63,8 +63,10 @@ class SettingsPageTest(TestCase):
         )
         self.assertContains(response, f'<a class="link-plain" href="{nlp}">NLP Lab</a>', html=True)
         self.assertContains(response, f'href="{teaching}"')
-        self.assertRegex(response.content.decode(), r"NLP Lab</a>\s*<span class=\"muted\">admin")
-        self.assertRegex(response.content.decode(), r"Teaching</a>\s*<span class=\"muted\">member")
+        self.assertRegex(
+            response.content.decode(), r"NLP Lab</a>\s*<span class=\"muted\">Team admin"
+        )
+        self.assertRegex(response.content.decode(), r"Teaching</a>\s*<span class=\"muted\">Member")
         self.assertNotContains(response, "Foreign")
         self.assertNotContains(response, "outsider@example.com")
 
@@ -72,19 +74,19 @@ class SettingsPageTest(TestCase):
         make_token(self.member, "laptop")
         with self.settings(MAX_USER_TOKENS=5):
             response = self.page(self.member)
-        self.assertContains(response, ">1 of 5</dd>")
+        self.assertContains(response, ">1 of 5</span></dd>")
 
     def test_limits_come_from_the_org_unless_set_for_the_account(self):
         response = self.page(self.member)
-        self.assertContains(response, ">600</dd>")
+        self.assertContains(response, ">600</span></dd>")
         self.assertContains(response, "From the organization default.")
 
         profile = self.member.profile
         profile.requests_per_minute = 30
         profile.save()
         response = self.page(self.member)
-        self.assertContains(response, ">30</dd>")
-        self.assertNotContains(response, ">600</dd>")
+        self.assertContains(response, ">30</span></dd>")
+        self.assertNotContains(response, ">600</span></dd>")
         self.assertContains(response, "An admin set limits for your account.")
 
     def test_page_has_no_write_action(self):
