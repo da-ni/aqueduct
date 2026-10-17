@@ -95,6 +95,7 @@ class SeedDemoTest(TestCase):
         self.assertEqual(
             len(personal), User.objects.filter(email__endswith="@seed.invalid").count()
         )
+        self.assertTrue(personal)
         self.assertTrue(all(row["n"] in range(1, 4) for row in personal))
 
     def test_writes_a_plausible_request_log(self):

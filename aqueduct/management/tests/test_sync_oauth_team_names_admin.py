@@ -102,8 +102,7 @@ class SyncOauthTeamNamesAdminActionTestCase(TestCase):
         with patch.object(self.modeladmin, "message_user") as mock_msg:
             sync_oauth_team_names_action(self.modeladmin, request, queryset)
 
-        team = Team.objects.get(oauth_group_name="E123-Students")
-        self.assertIsNotNone(team)
+        self.assertTrue(Team.objects.filter(oauth_group_name="E123-Students").exists())
 
         mock_msg.assert_called()
         call_args = mock_msg.call_args

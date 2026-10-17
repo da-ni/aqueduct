@@ -249,7 +249,7 @@ class UserRoleIntegrationTestCase(TestCase):
             ):
                 result_user = self.backend.create_user(claims)
 
-        self.assertIsNotNone(result_user)
+        self.assertEqual(result_user, user)
         profile = UserProfile.objects.get(user=user)
         user.refresh_from_db()
         self.assertEqual(profile.group, "admin")
@@ -269,7 +269,7 @@ class UserRoleIntegrationTestCase(TestCase):
             ):
                 result_user = self.backend.create_user(claims)
 
-        self.assertIsNotNone(result_user)
+        self.assertEqual(result_user, user)
         profile = UserProfile.objects.get(user=user)
         user.refresh_from_db()
         self.assertEqual(profile.group, "user")
