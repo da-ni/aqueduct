@@ -1,7 +1,10 @@
+import re
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -108,16 +111,32 @@ class TeamListTest(TeamsPagesTestBase):
             timestamp=now - timedelta(days=9),
             input_tokens=9_000_000,
         )
+        ServiceAccount.objects.create(name="crawler", team=self.team)
         personal = make_token(self.member, "laptop")
         Request.objects.create(
             token=personal, model="gpt-4.1-nano", timestamp=now, input_tokens=7_000_000
         )
         response = self.as_user(self.member).get(reverse("org"))
         row = response.content.decode().split("Language tech", 1)[1].split("</tr>", 1)[0]
-        self.assertIn('<td class="text-right font-mono">2</td>', row)  # members
-        self.assertIn('<td class="text-right font-mono">1</td>', row)  # service accounts
+        members_and_service_accounts = re.findall(
+            r'<td class="text-right font-mono">(\d+)</td>', row
+        )
+        self.assertEqual(members_and_service_accounts, ["2", "2"])
         self.assertIn("1,200", row)
         self.assertIn(">2.5K<", row)
+
+    def test_teams_come_fifty_a_page_and_keep_the_search(self):
+        for n in range(55):
+            Team.objects.create(name=f"Squad {n:02}", org=self.org)
+        client = self.as_user(self.org_admin)
+        first = client.get(reverse("org"), {"q": "squad"}).content.decode()
+        self.assertIn("Squad 49", first)
+        self.assertNotIn("Squad 50", first)
+        self.assertIn("1\u201350 of 55", first)
+        self.assertIn('href="?q=squad&amp;page=2"', first)
+        second = client.get(reverse("org"), {"q": "squad", "page": 2}).content.decode()
+        self.assertIn("Squad 54", second)
+        self.assertNotIn("Squad 49", second)
 
     def test_org_default_limit_links_to_its_edit_page_for_org_admins_and_admin_for_staff(self):
         self.org.requests_per_minute = 600
@@ -161,7 +180,7 @@ class TeamDetailTest(TeamsPagesTestBase):
             ("team_admins_manage", [self.team.id]),
         ]:
             self.assertNotContains(response, reverse(name, args=args))
-        self.assertNotContains(response, "user_profile_to_add_id")
+        self.assertNotContains(response, 'name="email"')
         self.assertNotContains(response, "user_profile_to_remove_id")
 
     def test_team_admin_manages_members_and_service_accounts(self):
@@ -177,10 +196,9 @@ class TeamDetailTest(TeamsPagesTestBase):
             self.assertContains(response, reverse(name, args=args))
         self.assertNotContains(response, reverse("team_delete", args=[self.team.id]))
         self.assertNotContains(response, reverse("team_admins_manage", args=[self.team.id]))
-        self.assertContains(
-            response, f'<option value="{self.outsider.profile.id}">outsider@example.com</option>'
-        )
-        self.assertNotContains(response, "other-org-admin@example.com")
+        self.assertContains(response, 'name="email"')
+        self.assertNotContains(response, "outsider@example.com")
+        self.assertNotContains(response, "<option")
 
     def test_owner_of_a_service_account_cannot_be_removed(self):
         response = self.as_user(self.team_admin).get(self.url())
@@ -226,6 +244,69 @@ class TeamDetailTest(TeamsPagesTestBase):
             html=True,
         )
 
+    def role_of(self, response, email: str) -> str:
+        page = response.content.decode()
+        row = page.split(f'<span class="font-medium">{email}</span>', 1)[1].split("</tr>", 1)[0]
+        return row.split("<span>", 1)[1].split("</span>", 1)[0]
+
+    def test_roles_follow_groups_org_and_team_admin_flag(self):
+        admin = self.user("site-admin", UserGroup.ADMIN, self.other_org)
+        for user in (admin, self.org_admin, self.other_org_admin):
+            self.join(user, self.team)
+        response = self.as_user(self.member).get(self.url())
+        for email, role in [
+            ("site-admin@example.com", "Admin"),
+            ("org-admin@example.com", "Organization admin"),
+            ("other-org-admin@example.com", "Member"),
+            ("team-admin@example.com", "Team admin"),
+            ("member@example.com", "Member"),
+        ]:
+            with self.subTest(email=email):
+                self.assertEqual(self.role_of(response, email), role)
+
+    def test_member_roles_cost_the_same_queries_for_any_team_size(self):
+        client = self.as_user(self.member)
+        with CaptureQueriesContext(connection) as small:
+            client.get(self.url())
+        for n in range(10):
+            self.join(
+                self.user(f"extra-{n}", UserGroup.ORG_ADMIN if n % 2 else UserGroup.USER), self.team
+            )
+        with CaptureQueriesContext(connection) as large:
+            client.get(self.url())
+        self.assertEqual(len(large), len(small))
+
+    def test_members_come_fifty_a_page_team_admins_first_and_can_be_searched(self):
+        for n in range(55):
+            self.join(self.user(f"a{n:02}"), self.team)
+        client = self.as_user(self.member)
+        first = client.get(self.url()).content.decode()
+        emails = re.findall(r'<span class="font-medium">([^<]+)</span>', first)
+        self.assertEqual(len(emails), 50)
+        self.assertEqual(emails[:2], ["team-admin@example.com", "a00@example.com"])
+        self.assertIn("57 members", first)
+        self.assertIn("1\u201350 of 57", first)
+        second = client.get(self.url(), {"page": 2}).content.decode()
+        self.assertEqual(
+            re.findall(r'<span class="font-medium">([^<]+)</span>', second),
+            [
+                "a49@example.com",
+                "a50@example.com",
+                "a51@example.com",
+                "a52@example.com",
+                "a53@example.com",
+                "a54@example.com",
+                "member@example.com",
+            ],
+        )
+        found = client.get(self.url(), {"q": "A1"}).content.decode()
+        self.assertEqual(
+            re.findall(r'<span class="font-medium">([^<]+)</span>', found),
+            [f"a1{n}@example.com" for n in range(10)],
+        )
+        self.assertIn("57 members", found)
+        self.assertIn("No member matches.", client.get(self.url(), {"q": "zzz"}).content.decode())
+
     def test_outsiders_are_sent_back_to_the_teams_page(self):
         for user, team in [
             (self.outsider, self.team),
@@ -246,27 +327,45 @@ class TeamMembershipTest(TeamsPagesTestBase):
 
     def test_signed_out_post_changes_nothing(self):
         before = self.members()
-        response = self.client.post(
-            self.url(), {"user_profile_to_add_id": self.outsider.profile.id}
-        )
+        response = self.client.post(self.url(), {"email": "outsider@example.com"})
         self.assert_sent_to_sign_in(response, self.url())
         self.assertEqual(self.members(), before)
 
-    def test_team_admin_adds_and_removes_a_member(self):
+    def test_team_admin_adds_by_email_ignoring_case_and_removes_a_member(self):
         client = self.as_user(self.team_admin)
-        client.post(self.url(), {"user_profile_to_add_id": self.outsider.profile.id})
+        response = client.post(self.url(), {"email": "Outsider@Example.com"})
+        self.assertRedirects(response, self.url(), fetch_redirect_response=False)
         self.assertIn("outsider", self.members())
         client.post(self.url(), {"user_profile_to_remove_id": self.outsider.profile.id})
         self.assertNotIn("outsider", self.members())
 
+    def test_adding_an_email_nobody_in_the_org_uses_explains_why(self):
+        client = self.as_user(self.team_admin)
+        before = self.members()
+        for email in ("other-org-admin@example.com", "nobody@example.com"):
+            with self.subTest(email=email):
+                response = client.post(self.url(), {"email": email})
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, f"No one in lab-org uses {email}.")
+                self.assertContains(response, f'value="{email}"')
+                self.assertEqual(self.members(), before)
+
+    def test_adding_a_member_again_explains_why(self):
+        response = self.as_user(self.team_admin).post(self.url(), {"email": "member@example.com"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "member@example.com is already in this team.")
+        self.assertEqual(TeamMembership.objects.filter(team=self.team).count(), 2)
+
     def test_member_and_outsider_cannot_change_membership(self):
         before = self.members()
         for user in (self.member, self.outsider, self.other_org_admin):
-            with self.subTest(user=user.username):
-                self.as_user(user).post(
-                    self.url(), {"user_profile_to_remove_id": self.member.profile.id}
-                )
-                self.assertEqual(self.members(), before)
+            for data in (
+                {"user_profile_to_remove_id": self.member.profile.id},
+                {"email": "outsider@example.com"},
+            ):
+                with self.subTest(user=user.username, data=data):
+                    self.as_user(user).post(self.url(), data)
+                    self.assertEqual(self.members(), before)
 
 
 class TeamFormsTest(TeamsPagesTestBase):
@@ -383,25 +482,42 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
         self.pipeline.refresh_from_db()
         self.assertEqual(self.pipeline.name, "pipeline")
 
-    def test_team_admin_transfers_the_key_to_a_member(self):
+    def test_team_admin_transfers_the_key_to_a_member_by_email(self):
         url = reverse("service_account_transfer", args=[self.pipeline.id])
         client = self.as_user(self.team_admin)
         page = client.get(url)
-        self.assertContains(
-            page, f'<option value="{self.member.profile.id}">member@example.com</option>'
-        )
-        self.assertNotContains(page, "outsider@example.com")
-        response = client.post(url, {"target_profile_id": self.member.profile.id})
+        self.assertContains(page, 'name="email"')
+        self.assertNotContains(page, "member@example.com")
+        response = client.post(url, {"email": "MEMBER@example.com"})
         self.assertRedirects(
             response, reverse("team", args=[self.team.id]), fetch_redirect_response=False
         )
         self.pipeline_key.refresh_from_db()
         self.assertEqual(self.pipeline_key.user, self.member)
 
+    def test_transfer_to_someone_outside_the_team_or_the_owner_explains_why(self):
+        url = reverse("service_account_transfer", args=[self.pipeline.id])
+        client = self.as_user(self.team_admin)
+        for email, error in [
+            ("outsider@example.com", "outsider@example.com is not a member of NLP Lab."),
+            (
+                "other-org-admin@example.com",
+                "other-org-admin@example.com is not a member of NLP Lab.",
+            ),
+            ("nobody@example.com", "nobody@example.com is not a member of NLP Lab."),
+            ("team-admin@example.com", "team-admin@example.com already owns this key."),
+        ]:
+            with self.subTest(email=email):
+                response = client.post(url, {"email": email})
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, error)
+        self.pipeline_key.refresh_from_db()
+        self.assertEqual(self.pipeline_key.user, self.team_admin)
+
     def test_member_and_outsiders_cannot_transfer_the_key(self):
         url = reverse("service_account_transfer", args=[self.pipeline.id])
         for user in (self.member, self.outsider, self.other_org_admin):
             with self.subTest(user=user.username):
-                self.as_user(user).post(url, {"target_profile_id": user.profile.id})
+                self.as_user(user).post(url, {"email": "member@example.com"})
         self.pipeline_key.refresh_from_db()
         self.assertEqual(self.pipeline_key.user, self.team_admin)

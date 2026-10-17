@@ -3,10 +3,11 @@ from typing import ClassVar
 from django import forms
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.db.models import QuerySet
 from django.utils import timezone
 
 from .admin import get_mcp_server_choices, get_model_choices
-from .models import Org, ServiceAccount, Team, Token
+from .models import Org, ServiceAccount, Team, Token, UserProfile
 
 NAME_INPUT = "input w-full max-w-md"
 DESCRIPTION_INPUT = "textarea w-full max-w-2xl"
@@ -269,3 +270,26 @@ class OrgSwitchOffsForm(forms.ModelForm):
             # Without the field the form leaves the stored list as it is.
             del self.fields["excluded_mcp_servers"]
             del self.fields["merge_mcp_server_exclusion_lists"]
+
+
+class MemberEmailForm(forms.Form):
+    """Names one of `candidates` by email, ignoring case. After validation `profile` is that
+    person. `not_found` is the error for an email none of them uses, with `{email}` in it."""
+
+    email = forms.EmailField(label="Email")
+
+    def __init__(self, *args, candidates: QuerySet[UserProfile], not_found: str, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.candidates = candidates
+        self.not_found = not_found
+        self.profile: UserProfile | None = None
+
+    def clean_email(self) -> str:
+        email = self.cleaned_data["email"]
+        matches = list(self.candidates.filter(user__email__iexact=email).select_related("user")[:2])
+        if not matches:
+            raise ValidationError(self.not_found.format(email=email))
+        if len(matches) > 1:
+            raise ValidationError(f"More than one account uses {email}.")
+        self.profile = matches[0]
+        return email

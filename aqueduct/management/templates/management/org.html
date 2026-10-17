@@ -53,7 +53,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for row in rows %}
+                        {% for row in teams.rows %}
                             <tr>
                                 <td>
                                     <a class="link-plain row-link" href="{% url 'team' row.team.id %}">{{ row.team.name }}</a>
@@ -81,6 +81,7 @@
                     </tbody>
                 </table>
             </div>
+            {% include "management/_pager.html" with pages=teams.pages %}
             <p class="muted px-3 pb-2 pt-1 text-sm">Tokens count the requests of the team's service accounts.</p>
         </div>
     </section>

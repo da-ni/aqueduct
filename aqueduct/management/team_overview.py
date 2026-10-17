@@ -1,8 +1,12 @@
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
-from django.db.models import Count, QuerySet
+from django.contrib.auth import get_user_model
+from django.core.paginator import Page, Paginator
+from django.db.models import Count, OuterRef, QuerySet, Subquery
+from django.db.models.functions import Coalesce
 
 from management.key_activity import Activity, Expiry, Window, activity_by, week, window
 from management.models import (
@@ -12,8 +16,11 @@ from management.models import (
     Team,
     TeamMembership,
     Token,
+    UserGroup,
     UserProfile,
 )
+
+PAGE_SIZE = 50
 
 
 class Role(StrEnum):
@@ -23,10 +30,15 @@ class Role(StrEnum):
     MEMBER = "Member"
 
     @classmethod
-    def of(cls, profile: UserProfile, membership: TeamMembership) -> "Role":
-        if profile.is_admin():
+    def of(cls, groups: set[str], membership: TeamMembership) -> "Role":
+        """The role `UserProfile.is_admin()` and `is_org_admin()` give a member with these
+        auth groups, without a query per member."""
+        if UserGroup.ADMIN in groups:
             return cls.ADMIN
-        if profile.is_org_admin(membership.team.org):
+        if (
+            UserGroup.ORG_ADMIN in groups
+            and membership.user_profile.org_id == membership.team.org_id
+        ):
             return cls.ORG_ADMIN
         return cls.TEAM_ADMIN if membership.is_admin else cls.MEMBER
 
@@ -47,21 +59,38 @@ class TeamRow:
     bar_width: int
 
 
+def _count_per_team(rows: QuerySet) -> Coalesce:
+    return Coalesce(
+        Subquery(
+            rows.filter(team=OuterRef("pk")).values("team").annotate(n=Count("pk")).values("n")
+        ),
+        0,
+    )
+
+
+@dataclass(frozen=True)
+class TeamList:
+    rows: tuple[TeamRow, ...]
+    pages: Page
+
+
 def team_rows(
-    teams: QuerySet[Team], viewer: UserProfile, query: str, now: datetime
-) -> tuple[TeamRow, ...]:
+    teams: QuerySet[Team], viewer: UserProfile, query: str, page: str | int, now: datetime
+) -> TeamList:
     """The teams page table: one row per team, with service account usage over seven days."""
-    found = list(
+    pages = Paginator(
         # A fresh queryset, because `teams` may come through the viewer's memberships, and
         # that join would count only the viewer as a member.
         Team.objects.filter(id__in=teams.values("id"), name__icontains=query)
         .select_related("org")
         .annotate(
-            member_count=Count("member_profiles", distinct=True),
-            service_account_count=Count("service_accounts", distinct=True),
+            member_count=_count_per_team(TeamMembership.objects.all()),
+            service_account_count=_count_per_team(ServiceAccount.objects.all()),
         )
-        .order_by("name")
-    )
+        .order_by("name", "id"),
+        PAGE_SIZE,
+    ).get_page(page)
+    found = list(pages)
     roles = {
         team_id: Role.TEAM_ADMIN if is_admin else Role.MEMBER
         for team_id, is_admin in TeamMembership.objects.filter(user_profile=viewer).values_list(
@@ -72,7 +101,7 @@ def team_rows(
         "token__service_account__team_id", (t.id for t in found), week(now).start
     )
     widths = _bar_widths(activity)
-    return tuple(
+    rows = tuple(
         TeamRow(
             team=team,
             role=roles.get(team.id),
@@ -84,6 +113,7 @@ def team_rows(
         )
         for team in found
     )
+    return TeamList(rows=rows, pages=pages)
 
 
 @dataclass(frozen=True)
@@ -110,14 +140,23 @@ class TeamPage:
     window: Window
     service_accounts: tuple[ServiceAccountRow, ...]
     members: tuple[MemberRow, ...]
-    addable: tuple[UserProfile, ...]
+    member_pages: Page
+    member_count: int
     limits: LimitSet
     excluded_models: tuple[str, ...]
     excluded_mcp_servers: tuple[str, ...]
 
 
-def team_page(team: Team, viewer: UserProfile, can_manage_admins: bool, now: datetime) -> TeamPage:
-    """Everything the team page shows. The view decides who may see it and act on it."""
+def team_page(
+    team: Team,
+    viewer: UserProfile,
+    can_manage_admins: bool,
+    member_query: str,
+    member_page: str | int,
+    now: datetime,
+) -> TeamPage:
+    """Everything the team page shows. The view decides who may see it and act on it.
+    Members come a page at a time, team admins first, filtered by `member_query` on email."""
     org = team.org
     accounts = list(team.service_accounts.select_related("token__user").order_by("name"))
     tokens = {sa.id: getattr(sa, "token", None) for sa in accounts}
@@ -137,13 +176,24 @@ def team_page(team: Team, viewer: UserProfile, can_manage_admins: bool, now: dat
     )
     owners = {t.user_id for t in tokens.values() if t is not None}
 
-    memberships = TeamMembership.objects.filter(team=team).select_related(
-        "team__org", "user_profile__user"
-    )
+    all_memberships = TeamMembership.objects.filter(team=team)
+    member_pages = Paginator(
+        all_memberships.filter(user_profile__user__email__icontains=member_query)
+        .select_related("team", "user_profile__user")
+        .order_by("-is_admin", "user_profile__user__email", "id"),
+        PAGE_SIZE,
+    ).get_page(member_page)
+    groups = defaultdict(set)
+    for user_id, name in (
+        get_user_model()
+        .groups.through.objects.filter(user_id__in=[m.user_profile.user_id for m in member_pages])
+        .values_list("user_id", "group__name")
+    ):
+        groups[user_id].add(name)
     members = []
-    for membership in sorted(memberships, key=lambda m: m.user_profile.user.email):
+    for membership in member_pages:
         profile = membership.user_profile
-        role = Role.of(profile, membership)
+        role = Role.of(groups[profile.user_id], membership)
         is_viewer = profile.id == viewer.id
         members.append(
             MemberRow(
@@ -163,9 +213,8 @@ def team_page(team: Team, viewer: UserProfile, can_manage_admins: bool, now: dat
         window=window(Request.objects.filter(token__service_account__team=team), now),
         service_accounts=service_accounts,
         members=tuple(members),
-        addable=tuple(
-            org.user_profiles.exclude(teams=team).select_related("user").order_by("user__email")
-        ),
+        member_pages=member_pages,
+        member_count=all_memberships.count() if member_query else member_pages.paginator.count,
         limits=limits,
         excluded_models=tuple(sorted(Token.exclusion_list_from_objects(team, org))),
         excluded_mcp_servers=tuple(

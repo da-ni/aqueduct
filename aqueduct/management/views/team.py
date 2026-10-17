@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, UpdateView
 
-from management.forms import TeamCreateForm
+from management.forms import MemberEmailForm, TeamCreateForm
 from management.models import ServiceAccount, Team, UserProfile
 from management.team_overview import team_page
 from management.views.base import (
@@ -200,14 +200,31 @@ class TeamDetailView(BaseTeamView, TeamViewerRequiredMixin, DetailView):
     context_object_name = "team"
     pk_url_kwarg = "id"
 
+    def add_member_form(self, data=None) -> MemberEmailForm:
+        return MemberEmailForm(
+            data,
+            candidates=self.team_org.user_profiles.all(),
+            not_found=f"No one in {self.team_org.name} uses {{email}}.",
+        )
+
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         team = self.team
         can_manage_admins = self.profile.is_org_admin(self.team_org)
-        page = team_page(team, self.profile, can_manage_admins, timezone.now())
+        member_query = self.request.GET.get("q", "").strip()
+        page = team_page(
+            team,
+            self.profile,
+            can_manage_admins,
+            member_query,
+            self.request.GET.get("page", 1),
+            timezone.now(),
+        )
         max_service_accounts = getattr(settings, "MAX_SERVICE_ACCOUNTS_PER_TEAM", 10)
+        context.setdefault("add_form", self.add_member_form())
         context.update(
             page=page,
+            member_query=member_query,
             is_team_admin=self.profile.is_team_admin(team),
             can_manage_admins=can_manage_admins,
             can_delete=self.is_org_admin(),
@@ -233,36 +250,17 @@ class TeamDetailView(BaseTeamView, TeamViewerRequiredMixin, DetailView):
             messages.error(request, "You do not have permission to modify this team's membership.")
             return redirect(redirect_url)
 
-        user_profile_id_to_add = request.POST.get("user_profile_to_add_id")
         user_profile_id_to_remove = request.POST.get("user_profile_to_remove_id")
 
-        # --- Action: Add User ---
-        if user_profile_id_to_add:
-            try:
-                # Verify the profile exists and belongs to the *same organization*
-                # as the team (which should match the admin's org unless they are superuser).
-                profile_to_add = get_object_or_404(
-                    UserProfile,
-                    id=user_profile_id_to_add,
-                    org=self.team_org,  # Ensures org consistency with the team
-                )
-                if team.member_profiles.filter(id=profile_to_add.id).exists():
-                    messages.warning(
-                        request, f"{profile_to_add.user.email} is already in the team."
-                    )
-                else:
-                    team.member_profiles.add(profile_to_add)
-                    # Note: TeamMembership object (with is_admin=False) is created automatically.
-                    messages.success(
-                        request, f"Added {profile_to_add.user.email} to team {team.name}."
-                    )
-            except UserProfile.DoesNotExist:
-                # This message covers both not found and wrong org cases due to the filter.
-                messages.error(
-                    request, "User profile to add not found or not in this team's organization."
-                )
-            except Exception:
-                messages.error(request, "An unexpected error occurred while adding the user.")
+        if "email" in request.POST:
+            form = self.add_member_form(request.POST)
+            if form.is_valid() and team.member_profiles.filter(id=form.profile.id).exists():
+                form.add_error("email", f"{form.profile.user.email} is already in this team.")
+            if not form.is_valid():
+                self.object = team
+                return self.render_to_response(self.get_context_data(add_form=form))
+            team.member_profiles.add(form.profile)
+            messages.success(request, f"Added {form.profile.user.email} to team {team.name}.")
 
         # --- Action: Remove User ---
         elif user_profile_id_to_remove:
@@ -309,7 +307,7 @@ class TeamDetailView(BaseTeamView, TeamViewerRequiredMixin, DetailView):
                 messages.error(request, "An unexpected error occurred while removing the user.")
 
         # --- No valid action ---
-        elif not user_profile_id_to_add and not user_profile_id_to_remove:
+        else:
             # Only show warning if the POST request was intended for modification
             # (e.g., check for a specific button name if necessary)
             # For simplicity, showing warning if neither ID is present.
