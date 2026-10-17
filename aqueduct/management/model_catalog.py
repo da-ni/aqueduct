@@ -11,6 +11,7 @@ from django.db.models import Model
 from django.urls import reverse
 
 from gateway.config import get_router_config, model_info_with_context
+from management.key_activity import compact
 from management.models import Token, UserProfile
 
 
@@ -106,18 +107,9 @@ def _count(value: object) -> int | None:
     return None
 
 
-_MILLION, _THOUSAND = 1_000_000, 1_000
-
-
 def _tokens(value: object) -> str:
     count = _count(value)
-    if count is None:
-        return ""
-    if count >= _MILLION:
-        return f"{count / _MILLION:.1f}".removesuffix(".0") + "M"
-    if count >= _THOUSAND:
-        return f"{round(count / _THOUSAND)}K"
-    return str(count)
+    return "" if count is None else compact(count)
 
 
 def _number(value: object) -> str:

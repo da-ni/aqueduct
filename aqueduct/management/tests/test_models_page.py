@@ -94,14 +94,14 @@ class ModelCardTest(SimpleTestCase):
         self.assertEqual(
             [(spec.label, spec.value) for spec in card.specs],
             [
-                ("Context window", "131K"),
-                ("Max output tokens", "16K"),
+                ("Context window", "131.1K"),
+                ("Max output tokens", "16.4K"),
                 ("Dimensions", "1,024"),
                 ("Input", "Text, image"),
                 ("Output", "Text"),
             ],
         )
-        self.assertEqual(card.context, "131K")
+        self.assertEqual(card.context, "131.1K")
         self.assertEqual(
             card.capabilities,
             (
@@ -143,7 +143,7 @@ class ModelCardTest(SimpleTestCase):
     def test_embedding_context_is_labelled_max_input_tokens(self):
         card = parse_card(entry(mode="embedding", max_tokens=8191))
         self.assertEqual(card.specs[0].label, "Max input tokens")
-        self.assertEqual(card.specs[0].value, "8K")
+        self.assertEqual(card.specs[0].value, "8.2K")
 
 
 class ModeTest(SimpleTestCase):
