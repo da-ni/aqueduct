@@ -18,6 +18,7 @@ from management.models import (
     Team,
     TeamMembership,
     Token,
+    UsageRollupState,
     UserGroup,
     UserProfile,
 )
@@ -224,8 +225,10 @@ class UsageFromRollupsTest(TestCase):
             }
 
         before = requests()
-        # Deleting sealed requests behind the rollups' back shows which figures read them.
-        Request.objects.filter(timestamp__lt=self.now - timedelta(minutes=30)).delete()
+        # Deleting sealed requests behind the rollups' back shows which figures read them. Requests
+        # after the earliest sealed hour are still read raw, so they stay.
+        sealed = min(UsageRollupState.objects.values_list("sealed_until", flat=True))
+        Request.objects.filter(timestamp__lt=sealed).delete()
         after = requests()
         self.assertEqual(after["org"], before["org"])
         for name in ("org, mine", "member"):
