@@ -43,10 +43,10 @@
   // A click on a log row follows its arrow link. Links in the row, text selection, and
   // double-clicks keep their usual effect, and a modified or middle click opens a new tab.
   function toggleRow(event) {
+    clearTimeout(pendingToggle);
     const row = event.target.closest('[data-row-toggle]');
     if (!row || event.target.closest('a, button')) return;
     const href = row.querySelector('[data-row-toggle-link]').href;
-    clearTimeout(pendingToggle);
     if (event.button === 1 || event.ctrlKey || event.metaKey || event.shiftKey) {
       window.open(href, '_blank', 'noopener');
       return;
