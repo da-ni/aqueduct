@@ -2,10 +2,12 @@ import re
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from management import usage_rollup as rollup
 from management.models import (
     Org,
     Request,
@@ -17,6 +19,7 @@ from management.models import (
     UserProfile,
 )
 from management.tests.test_api_keys_pages import PAGES, make_token
+from management.usage_report import APPROXIMATE_MEDIAN
 
 User = get_user_model()
 CHAT = "gpt-4.1-nano"
@@ -27,6 +30,7 @@ KEY_NAMES = ("solo-laptop", "member-laptop", "pipeline", "foreign-laptop")
 @PAGES
 class UsagePageTestBase(TestCase):
     def setUp(self):
+        cache.clear()  # without current rollups, the Overview heatmap is cached per org
         self.org = Org.objects.create(name="lab-org")
         self.other_org = Org.objects.create(name="other-org")
         self.team = Team.objects.create(name="NLP Lab", org=self.org)
@@ -250,7 +254,14 @@ class UsageFiguresTest(UsagePageTestBase):
         self.assertContains(response, "Activity across all organizations")
         self.assertContains(response, cell.format("3.6K"))  # 14,500 tokens
 
-    def test_heatmap_shows_new_requests_of_the_org_at_once(self):
+    def test_without_current_rollups_the_heatmap_is_cached_per_org(self):
+        heat = self.page(self.solo).context["heat"]
+        self.log(self.member_key, timedelta(minutes=1), 200, input_tokens=10**6)
+        self.assertEqual(self.page(self.org_admin).context["heat"], heat)
+        self.assertNotEqual(self.page(self.foreigner).context["heat"], heat)
+
+    def test_with_current_rollups_the_heatmap_shows_new_requests_at_once(self):
+        rollup.refresh()
         heat = self.page(self.solo).context["heat"]
         foreign_heat = self.page(self.foreigner).context["heat"]
         self.log(self.member_key, timedelta(minutes=1), 200, input_tokens=10**6)
@@ -302,7 +313,7 @@ class UsageFiguresTest(UsagePageTestBase):
                 response_time_ms=ms,
             )
         self.assertEqual([row.median for row in self.page(self.solo).context["models"]], ["300 ms"])
-        self.assertNotContains(self.page(self.solo), "Approximate, within")
+        self.assertNotContains(self.page(self.solo), APPROXIMATE_MEDIAN)
 
     def test_top_keys_rows_open_the_key(self):
         response = self.page(self.solo)

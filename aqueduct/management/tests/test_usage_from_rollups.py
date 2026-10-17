@@ -2,6 +2,7 @@ import random
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -16,6 +17,7 @@ from management.models import (
     ServiceAccount,
     Team,
     TeamMembership,
+    Token,
     UserGroup,
     UserProfile,
 )
@@ -121,7 +123,7 @@ class UsageFromRollupsTest(TestCase):
                     {name: usage.activity for name, usage in exact.items()},
                 )
                 for row in page["models"]:
-                    shown = int(row.median.removeprefix("≈ ").removesuffix(" ms"))
+                    shown = int(row.median.removesuffix(" ms"))
                     self.assertLessEqual(shown, exact[row.name].median_ms * MEDIAN_BOUND)
                     self.assertGreaterEqual(shown, exact[row.name].median_ms / MEDIAN_BOUND)
 
@@ -165,6 +167,21 @@ class UsageFromRollupsTest(TestCase):
                     .order_by()
                 }
                 self.assertEqual(page["heat"], report.heat(raw, weeks))
+
+    def test_heatmap_is_cached_while_the_rollups_lag_behind(self):
+        cache.clear()
+        rollup.refresh(self.now - timedelta(hours=3))
+        heat = self.get(self.org_admin, "usage")["heat"]
+        Request.objects.create(
+            token=Token.objects.get(name="Scripts"),
+            model=CHAT,
+            timestamp=timezone.now(),
+            status_code=200,
+            input_tokens=10**7,
+        )
+        self.assertEqual(self.get(self.org_admin, "usage")["heat"], heat)
+        rollup.refresh()
+        self.assertNotEqual(self.get(self.org_admin, "usage")["heat"], heat)
 
     def test_all_keys_gives_the_raw_figures_in_every_order(self):
         self.refresh()
@@ -226,9 +243,9 @@ class UsageFromRollupsTest(TestCase):
             with self.subTest(user=user.username, **params):
                 self.client.force_login(user)
                 response = self.client.get(reverse("usage"), params)
-                medians = [row.median for row in response.context["models"] if row.median != "n/a"]
-                self.assertTrue(medians)
-                self.assertEqual(all(m.startswith("≈ ") for m in medians), approximate)
-                self.assertEqual(
-                    "Approximate, within ±5%" in response.content.decode(), approximate
-                )
+                rows = [row for row in response.context["models"] if row.median != "n/a"]
+                self.assertTrue(rows)
+                self.assertEqual({row.approximate for row in rows}, {approximate})
+                html = response.content.decode()
+                self.assertEqual(report.APPROXIMATE_MEDIAN in html, approximate)
+                self.assertEqual("approximately </span>" in html, approximate)

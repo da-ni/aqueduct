@@ -1,6 +1,7 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.conf import settings
+from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.db.models import QuerySet
 from django.urls import reverse
@@ -13,7 +14,7 @@ from management import usage_report as report
 from management import usage_rollup as rollup
 from management.key_activity import Activity
 from management.model_catalog import mode_for
-from management.models import Token
+from management.models import Org, Token
 from management.models.token import of_org
 from management.request_log import (
     PAGE_SIZE,
@@ -40,6 +41,25 @@ def _key_windows(filters: Filters) -> dict[int, Activity] | None:
     org = filters.org
     tokens = None if org is None else Token.objects.filter(of_org(org))
     return rollup.key_window_totals(tokens, filters.model, filters.period)
+
+
+HEAT_CACHE_SECONDS = 60 * 60
+
+
+def _heat(
+    org: Org | None, now: datetime, weeks: int, sealed: rollup.Sealed
+) -> dict[tuple[int, int], int]:
+    """`rollup.org_heat` of the last `weeks` weeks. While the rollups are not current, it reads
+    weeks of requests of a whole org, so it is cached for an hour."""
+    start = now - timedelta(weeks=weeks)
+    if sealed.current(now):
+        return rollup.org_heat(org, start, now, sealed)
+    key = f"usage-heat:{org.pk if org else 'all'}:{weeks}"
+    tokens = cache.get(key)
+    if tokens is None:
+        tokens = rollup.org_heat(org, start, now, sealed)
+        cache.set(key, tokens, HEAT_CACHE_SECONDS)
+    return tokens
 
 
 def _org_tokens(filters: Filters) -> QuerySet[Token]:
@@ -69,9 +89,10 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         retention_days = getattr(settings, "REQUEST_RETENTION_DAYS", 30)
         in_period = period.of(reqs)
         org_wide = _org_wide(filters)
+        sealed = rollup.Sealed.read()
         if org_wide:
-            timeline = rollup.org_series(selected_org, filters.model, period)
-            models = rollup.org_models(selected_org, filters.model, period)
+            timeline = rollup.org_series(selected_org, filters.model, period, sealed)
+            models = rollup.org_models(selected_org, filters.model, period, sealed)
         else:
             timeline, models = report.series(reqs, period), report.model_usage(in_period)
         total = timeline.total
@@ -103,23 +124,20 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 "chart": report.columns(timeline.points, period.step, metric),
                 "statuses": report.statuses(timeline, filters.log_url),
                 "heat_org": selected_org,
-                "heat": report.heat(
-                    rollup.org_heat(selected_org, now - timedelta(weeks=heat_weeks), now),
-                    heat_weeks,
-                ),
+                "heat": report.heat(_heat(selected_org, now, heat_weeks, sealed), heat_weeks),
                 "heat_days": heat_weeks * 7,
                 "heat_legend": report.HEAT_CLASSES[1:],
                 "heat_hours": report.HEAT_HOURS,
                 "models": report.model_rows(
                     models, model_kinds, filters.log_url, approximate=org_wide
                 ),
-                "median_approximate": org_wide,
+                "approximate_tip": report.APPROXIMATE_MEDIAN if org_wide else "",
                 "keys": keys,
                 "all_keys_url": f"{reverse('usage_keys')}?{urlencode(filters.query)}",
                 "orgs_usage": ()
                 if selected_org is not None
                 else report.org_shares(
-                    rollup.org_tokens(filters.model, period)
+                    rollup.org_tokens(filters.model, period, sealed)
                     if org_wide
                     else report.org_tokens(in_period)
                 ),

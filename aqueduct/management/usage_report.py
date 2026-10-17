@@ -61,6 +61,7 @@ WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 HEAT_HOURS = tuple(f"{hour:02d}" if hour % 3 == 0 else "" for hour in range(24))
 TOKENS = F("input_tokens") + F("output_tokens")
 NO_ORG = "No organization"
+APPROXIMATE_MEDIAN = "Approximate: within about 5%, or 1 ms for very fast responses"
 ORG = Coalesce("token__service_account__team__org", "token__user__profile__org")
 """A service account's key counts for its team's org, a personal key for its owner's org."""
 TOTALS = {
@@ -380,6 +381,8 @@ class ModelRow:
     input: str
     output: str
     median: str
+    approximate: bool
+    """Whether `median` is approximate."""
     share: str
     width: int
     log_url: str
@@ -414,10 +417,6 @@ def model_rows(
     total = sum(a.tokens for a in found.values())
     busiest = max((a.tokens for a in found.values()), default=0)
 
-    def median(name: str) -> str:
-        ms = usage[name].median_ms
-        return f"≈ {duration(ms)}" if approximate and ms is not None else duration(ms)
-
     return tuple(
         ModelRow(
             name=name,
@@ -425,7 +424,8 @@ def model_rows(
             activity=activity,
             input=compact(activity.input),
             output=compact(activity.output),
-            median=median(name),
+            median=duration(usage[name].median_ms),
+            approximate=approximate and usage[name].median_ms is not None,
             share=percent(activity.tokens, total),
             width=round(100 * activity.tokens / busiest) if busiest else 0,
             log_url=link(model=name),
@@ -559,16 +559,16 @@ def top_keys(requests: QuerySet[Request]) -> list[KeyRow]:
 def ranked_totals(
     totals: Mapping[int, Activity], order: KeyOrder, tokens: QuerySet[Token]
 ) -> list[KeyRow]:
-    """`ranked_keys` of activity already counted per key. Sorting by name reads the names of
-    `tokens`, which hold the keys of `totals`."""
+    """`ranked_keys` of activity already counted per key. Sorting by name orders `tokens`, which
+    hold the keys of `totals`, in the database, so that names collate as in `ranked_keys`."""
     if order is KeyOrder.NAME:
-        names = dict(tokens.values_list("id", "name"))
-
-        def by_name(row: KeyRow) -> tuple[Any, ...]:
-            name = names.get(row[0])
-            return (name is None, (name or "").lower(), row[0])
-
-        return sorted(totals.items(), key=by_name)
+        named = [
+            token_id
+            for token_id in tokens.order_by(Lower("name"), "id").values_list("id", flat=True)
+            if token_id in totals
+        ]
+        gone = sorted(set(totals) - set(named))  # deleted since the count
+        return [(token_id, totals[token_id]) for token_id in [*named, *gone]]
     if order is KeyOrder.REQUESTS:
         return sorted(totals.items(), key=lambda r: (-r[1].requests, -r[1].tokens, r[0]))
     return sorted(totals.items(), key=lambda r: (-r[1].tokens, -r[1].requests, r[0]))
