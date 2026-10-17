@@ -84,7 +84,7 @@
                     {% if selected.deprecation_date %}
                         <div class="flex items-start gap-2 rounded-lg bg-base-100 px-3 py-2 text-sm">
                             {% icon "warning" small=True extra_class="st-warn mt-0.5" %}
-                            <span><span class="font-semibold">Deprecated.</span> Retirement date: {{ selected.deprecation_date|date:"j M Y" }}.</span>
+                            <span><span class="font-semibold">Deprecated.</span> Retirement date: {{ selected.deprecation_date|when:"date" }}.</span>
                         </div>
                     {% endif %}
 

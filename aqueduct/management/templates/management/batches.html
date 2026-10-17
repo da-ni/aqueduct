@@ -28,8 +28,8 @@
                     {% for label, file in row.results %}<a class="link-plain" href="{% url 'files' %}#{{ file.id }}">{{ label }}</a>{% if not forloop.last %} · {% endif %}{% empty %}{{ row.note }}{% endfor %}
                 </div>
             </td>
-            <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.created|date:"j M H:i" }}</td>
-            <td><span class="{{ row.expiry.tone }}">{{ row.expiry.label }}</span></td>
+            <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.created|when }}</td>
+            <td>{{ row.expiry|expiry }}</td>
             <td>
                 {% if row.cancellable %}
                     <form class="flex justify-end" action="{% url 'batch_cancel' row.batch.id %}" method="post">

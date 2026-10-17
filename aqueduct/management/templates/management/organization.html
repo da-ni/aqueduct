@@ -1,5 +1,6 @@
 {% extends "management/base.html" %}
 {% load humanize ui %}
+{% block title %}{{ org_object.name }} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
 

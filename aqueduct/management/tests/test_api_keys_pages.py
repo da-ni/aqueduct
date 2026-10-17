@@ -141,7 +141,7 @@ class KeyListTest(ApiKeysPagesTestBase):
         used = self.request_log(self.key, timedelta(hours=2)).timestamp
         response = self.get(self.owner, "tokens")
         self.assertContains(response, f'datetime="{used.isoformat()}"')
-        self.assertContains(response, f'title="{used:%-d %b %Y, %H:%M:%S} UTC"')
+        self.assertContains(response, f'title="{used:%Y-%m-%d %H:%M:%S} UTC"')
 
     def test_type_tab_and_search_filter_rows(self):
         make_token(self.member, "notebook")
@@ -249,6 +249,23 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         response = self.get(self.owner, "token_detail", self.key.id, metric="requests")
         today = f"{timezone.localdate():%-d %b}"
         self.assertContains(response, f'aria-label="{today}: 1 request (Answered 0, Failed 1)"')
+
+    def test_dates_name_the_full_utc_time_and_the_tab_names_the_key(self):
+        used = self.request_log(self.key, timedelta(minutes=5)).timestamp
+        self.key.expires_at = timezone.now() + timedelta(days=30)
+        self.key.save()
+        response = self.get(self.owner, "token_detail", self.key.id)
+        self.assertContains(response, "<title>laptop · API keys · Aqueduct AI Gateway</title>")
+        self.assertContains(
+            response, f'<time datetime="{used.isoformat()}" title="{used:%Y-%m-%d %H:%M:%S} UTC">'
+        )
+        self.assertContains(response, f">{used:%-d %b %Y %H:%M}</time></a>")
+        expires = self.key.expires_at
+        self.assertContains(
+            response,
+            f'<time datetime="{expires.isoformat()}" title="{expires:%Y-%m-%d %H:%M:%S} UTC">'
+            f"{expires:%-d %b %Y}</time>",
+        )
 
     def test_other_users_key_is_not_found(self):
         response = self.get(self.other, "token_detail", self.key.id)
@@ -362,7 +379,7 @@ class ExpiryTest(SimpleTestCase):
         ]
         for expires_at, label, tone in cases:
             with self.subTest(label=label):
-                self.assertEqual(Expiry.of(expires_at, now), Expiry(label, tone))
+                self.assertEqual(Expiry.of(expires_at, now), Expiry(label, tone, expires_at))
 
 
 class ServiceAccountKeyDetailTest(ApiKeysPagesTestBase):

@@ -9,6 +9,7 @@ from django.utils.html import format_html, format_html_join
 from django.utils.safestring import SafeString
 
 from management.icons import Icon
+from management.key_activity import Expiry
 
 register = template.Library()
 
@@ -70,6 +71,16 @@ def when(value: object, style: str = "datetime") -> SafeString | str:
         raise template.TemplateSyntaxError(
             f"unknown when style {style!r}; use date, datetime, or relative"
         )
+    return _time(value, short)
+
+
+@register.filter
+def expiry(value: Expiry) -> SafeString:
+    label = _time(value.at, value.label) if value.at else value.label
+    return format_html('<span class="{}">{}</span>', value.tone, label)
+
+
+def _time(value: date, short: str) -> SafeString:
     if isinstance(value, datetime):
         utc = value.astimezone(UTC)
         machine, full = utc.isoformat(), utc.strftime("%Y-%m-%d %H:%M:%S UTC")

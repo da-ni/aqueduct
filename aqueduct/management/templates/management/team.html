@@ -1,5 +1,6 @@
 {% extends "management/base.html" %}
-{% load humanize ui %}
+{% load ui %}
+{% block title %}{{ team.name }} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
 
@@ -81,8 +82,8 @@
                                         <span class="w-14 text-right font-mono">{{ row.activity.tokens_short }}</span>
                                     </div>
                                 </td>
-                                <td class="muted">{{ row.activity.last_used|naturaltime|default:"Never" }}</td>
-                                <td>{% if row.expiry %}<span class="{{ row.expiry.tone }}">{{ row.expiry.label }}</span>{% endif %}</td>
+                                <td class="muted">{{ row.activity.last_used|when:"relative"|default:"Never" }}</td>
+                                <td>{% if row.expiry %}{{ row.expiry|expiry }}{% endif %}</td>
                                 {% if is_team_admin %}
                                     <td>
                                         <div class="relative z-10 flex justify-end gap-1">

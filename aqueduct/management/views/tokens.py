@@ -117,10 +117,6 @@ class TokenCreateView(BaseAqueductView, CreateView):
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         context["view_title"] = "Create an API key"
-
-        now = timezone.now().replace(second=0, microsecond=0)
-        context["now"] = now.strftime("%Y-%m-%dT%H:%M")
-        context["tz"] = settings.TIME_ZONE
         return context
 
 

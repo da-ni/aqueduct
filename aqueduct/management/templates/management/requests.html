@@ -30,7 +30,7 @@
                     <thead>
                         <tr>
                             <th class="w-12"><span class="sr-only">Details</span></th>
-                            <th class="w-36">Time</th>
+                            <th class="w-40">Time</th>
                             <th class="w-[20%]">Key</th>
                             <th>Model and path</th>
                             <th class="w-20">Status</th>
@@ -50,7 +50,7 @@
                                            aria-expanded="{{ row.is_open|yesno:'true,false' }}"
                                            aria-label="{% if row.is_open %}Hide{% else %}Show{% endif %} details of request {{ request.id }}">{% if row.is_open %}{% icon "chevron" small=True extra_class="rotate-90" %}{% else %}{% icon "chevron" small=True %}{% endif %}</a>
                                     </td>
-                                    <td class="muted">{{ request.timestamp|date:"j M H:i:s" }}</td>
+                                    <td class="muted whitespace-nowrap">{{ request.timestamp|when }}</td>
                                     <td class="truncate">
                                         {% if row.key.href %}<a class="link-plain" href="{{ row.key.href }}" title="{{ row.key.name }}">{{ row.key.name }}</a>{% else %}<span title="{{ row.key.name }}">{{ row.key.name }}</span>{% endif %}
                                         <div class="muted truncate font-sans text-xs" title="{{ row.key.note }}">{{ row.key.note }}</div>
