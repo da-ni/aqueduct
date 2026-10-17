@@ -39,6 +39,17 @@ LOAD_TESTING = os.getenv("LOAD_TESTING", "False").lower() == "true"
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split()
 
+# Set only behind a proxy that terminates TLS and always sets or strips this header itself,
+# for example "HTTP_X_FORWARDED_PROTO,https". A client could otherwise claim HTTPS.
+if proxy_ssl_header := os.getenv("SECURE_PROXY_SSL_HEADER"):
+    header, _, value = (part.strip() for part in proxy_ssl_header.partition(","))
+    if not header or not value or "," in value:
+        raise ImproperlyConfigured(
+            f"SECURE_PROXY_SSL_HEADER={proxy_ssl_header!r} must be '<header>,<value>', "
+            "for example 'HTTP_X_FORWARDED_PROTO,https'."
+        )
+    SECURE_PROXY_SSL_HEADER = (header, value)
+
 TEST_RUNNER = "gateway.tests.utils.test_runner.MockServerTestRunner"
 TESTS_USE_MOCK_API = os.getenv("TESTS_USE_MOCK_API", "True").lower() == "true"
 

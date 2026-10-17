@@ -87,14 +87,7 @@ async def _validate_file_search_tool(token: Token, tool: ToolParam) -> ViewResul
     # Deduplicate to avoid false negatives in count check
     unique_vs_ids = list(set(vector_store_ids))
     # Verify ownership - users can only use their own vector stores
-    if token.service_account:
-        vs_count = await VectorStore.objects.filter(
-            id__in=unique_vs_ids, token__service_account__team=token.service_account.team
-        ).acount()
-    else:
-        vs_count = await VectorStore.objects.filter(
-            id__in=unique_vs_ids, token__user=token.user
-        ).acount()
+    vs_count = await VectorStore.objects.filter(token.reach(), id__in=unique_vs_ids).acount()
 
     if vs_count != len(unique_vs_ids):
         return error_response("One or more vector stores not found", status=404)

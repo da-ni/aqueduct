@@ -86,9 +86,9 @@ async def sync_batch_file_if_needed(
     if not remote_file_id:
         return None
 
-    # Check if we already have a local record for this upstream file
+    # Another key within reach, such as a teammate's service account key, may have synced it.
     try:
-        return await FileObject.objects.aget(id=remote_file_id, token=token)
+        return await FileObject.objects.aget(token.reach(), id=remote_file_id)
     except FileObject.DoesNotExist:
         pass
 
@@ -104,10 +104,10 @@ async def sync_batch_file_if_needed(
     # (e.g., two GET /batches/{id} requests polling the same completed batch).
     local_expires_at = calculate_expires_at(remote_file.expires_at)
 
-    file_obj, _ = await FileObject.objects.aget_or_create(
+    file_obj, created = await FileObject.objects.aget_or_create(
         id=remote_file.id,
-        token=token,
         defaults={
+            "token": token,
             "bytes": remote_file.bytes,
             "filename": remote_file.filename,
             "created_at": remote_file.created_at,
@@ -117,6 +117,9 @@ async def sync_batch_file_if_needed(
             "upstream_url": settings.AQUEDUCT_FILES_API_URL,
         },
     )
+
+    if not created and not await FileObject.objects.filter(token.reach(), id=file_obj.id).aexists():
+        return None
 
     # Update batch record with linked file if batch_obj provided
     if batch_obj:
@@ -149,18 +152,9 @@ async def files(
         return error_response("Files API not configured", status=503)
 
     if request.method == "GET":
-        if token.service_account:
-            qs = (
-                FileObject.objects.filter(token__service_account__team=token.service_account.team)
-                .order_by("-created_at")
-                .select_related("token")
-            )
-        else:
-            qs = (
-                FileObject.objects.filter(token__user=token.user)
-                .order_by("-created_at")
-                .select_related("token")
-            )
+        qs = (
+            FileObject.objects.filter(token.reach()).order_by("-created_at").select_related("token")
+        )
 
         file_models = [file.model async for file in qs]
         return RawJsonResponse(
@@ -190,14 +184,7 @@ async def files(
         )
 
     # Enforce per-token total storage limit
-    if token.service_account:
-        sum_res = await FileObject.objects.filter(
-            token__service_account__team=token.service_account.team
-        ).aaggregate(sum_bytes=Sum("bytes"))
-    else:
-        sum_res = await FileObject.objects.filter(token__user=token.user).aaggregate(
-            sum_bytes=Sum("bytes")
-        )
+    sum_res = await FileObject.objects.filter(token.reach()).aaggregate(sum_bytes=Sum("bytes"))
     current_total = sum_res.get("sum_bytes") or 0
     max_total_bytes = settings.AQUEDUCT_FILES_API_MAX_PER_TOKEN_SIZE_MB * 1024 * 1024
     if current_total + len(file_content) > max_total_bytes:
@@ -260,12 +247,7 @@ async def file(
     Returns 404 if file not found or not owned by user - NEVER falls back to upstream.
     """
     try:
-        if token.service_account:
-            file_obj = await FileObject.objects.aget(
-                id=file_id, token__service_account__team=token.service_account.team
-            )
-        else:
-            file_obj = await FileObject.objects.aget(id=file_id, token__user=token.user)
+        file_obj = await FileObject.objects.aget(token.reach(), id=file_id)
     except FileObject.DoesNotExist:
         return error_response("File not found.", param="file_id", status=404)
 
@@ -310,12 +292,7 @@ async def file_content(
     Returns 404 if file not found or not owned by user - NEVER falls back to upstream.
     """
     try:
-        if token.service_account:
-            file_obj = await FileObject.objects.aget(
-                id=file_id, token__service_account__team=token.service_account.team
-            )
-        else:
-            file_obj = await FileObject.objects.aget(id=file_id, token__user=token.user)
+        file_obj = await FileObject.objects.aget(token.reach(), id=file_id)
     except FileObject.DoesNotExist:
         return error_response("File not found.", param="file_id", status=404)
 

@@ -53,12 +53,7 @@ async def vector_stores(
 
     if request.method == "GET":
         # List user's vector stores from local DB
-        if token.service_account:
-            vector_stores_qs = VectorStore.objects.filter(
-                token__service_account__team=token.service_account.team
-            )
-        else:
-            vector_stores_qs = VectorStore.objects.filter(token__user=token.user)
+        vector_stores_qs = VectorStore.objects.filter(token.reach())
 
         vector_stores_qs = (
             vector_stores_qs.order_by("-created_at")
@@ -110,14 +105,12 @@ async def vector_stores(
         return error_response("Missing required parameter: name", param="name", status=400)
 
     # Check user/team limits before creating
-    if token.service_account:
-        limit = settings.MAX_TEAM_VECTOR_STORES
-        active_count = await VectorStore.objects.filter(
-            token__service_account__team=token.service_account.team
-        ).acount()
-    else:
-        limit = settings.MAX_USER_VECTOR_STORES
-        active_count = await VectorStore.objects.filter(token__user=token.user).acount()
+    limit = (
+        settings.MAX_TEAM_VECTOR_STORES
+        if token.service_account
+        else settings.MAX_USER_VECTOR_STORES
+    )
+    active_count = await VectorStore.objects.filter(token.reach()).acount()
 
     if active_count >= limit:
         return error_response(f"Vector store limit reached ({limit})", status=403)
@@ -178,12 +171,7 @@ async def vector_store(
     """
 
     try:
-        if token.service_account:
-            vs_obj = await VectorStore.objects.aget(
-                id=vector_store_id, token__service_account__team=token.service_account.team
-            )
-        else:
-            vs_obj = await VectorStore.objects.aget(id=vector_store_id, token__user=token.user)
+        vs_obj = await VectorStore.objects.aget(token.reach(), id=vector_store_id)
     except VectorStore.DoesNotExist:
         return error_response("Vector store not found.", param="vector_store_id", status=404)
 
@@ -270,12 +258,7 @@ async def vector_store_search(
         return error_response("Vector Store API not configured", status=503)
 
     try:
-        if token.service_account:
-            vs_obj = await VectorStore.objects.aget(
-                id=vector_store_id, token__service_account__team=token.service_account.team
-            )
-        else:
-            vs_obj = await VectorStore.objects.aget(id=vector_store_id, token__user=token.user)
+        vs_obj = await VectorStore.objects.aget(token.reach(), id=vector_store_id)
     except VectorStore.DoesNotExist:
         return error_response("Vector store not found.", param="vector_store_id", status=404)
 

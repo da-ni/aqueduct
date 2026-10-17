@@ -8,7 +8,7 @@ import litellm
 from asgiref.sync import sync_to_async
 from django.core.handlers.asgi import ASGIRequest
 
-from gateway.config import get_files_api_client, get_router, resolve_model_alias
+from gateway.config import get_files_api_client, get_router, get_router_config, resolve_model_alias
 from gateway.decorators.types import AsyncView, ViewResult
 from gateway.response_error import error_response
 
@@ -105,6 +105,31 @@ def rewrite_batch_file_models(content: bytes, excluded_models: set[str]) -> byte
             rewritten_lines.append(line)
 
     return ("\n".join(rewritten_lines) + "\n").encode("utf-8")
+
+
+def check_batch_file_models(content: bytes, excluded_models: set[str]) -> None:
+    """Reject a stored batch file, whose lines name upstream models since the upload rewrote
+    them, when a line's model is no longer one the key may use, with the upload's error."""
+    relays = {
+        entry["model_name"]: _lookup_relay_model_name(entry["model_name"])
+        for entry in get_router_config()["model_list"]
+    }
+    allowed = {relay for name, relay in relays.items() if name not in excluded_models}
+    for i, line in enumerate(content.decode("utf-8").splitlines()):
+        if not line.strip():
+            continue
+        request = json.loads(line)
+        if not isinstance(request, dict):
+            raise ValueError(f"Line {i + 1} is not a JSON object")  # noqa: TRY004
+        body = request.get("body")
+        model = body.get("model") if isinstance(body, dict) else None
+        if model is not None and model not in allowed:
+            named = [name for name, relay in relays.items() if relay == model]
+            custom_id = request.get("custom_id", "<missing custom_id>")
+            raise ValueError(
+                f"Unknown model '{named[0] if len(named) == 1 else model}' "
+                f"for custom_id '{custom_id}'"
+            )
 
 
 def extract_preview(content: bytes, num_lines: int = 10) -> str:

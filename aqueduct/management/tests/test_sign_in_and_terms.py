@@ -3,16 +3,17 @@ from datetime import UTC, datetime
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, modify_settings, override_settings
-from django.urls import include, path, reverse
+from django.urls import reverse
 from tos.models import TermsOfService
 
+from aqueduct.urls import terms_of_service
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
 from management.models import Org, UserProfile
 from management.tests.test_api_keys_pages import PAGES
 
 User = get_user_model()
 
-urlpatterns = [path("terms-of-service/", include("tos.urls")), *aqueduct_urlpatterns]
+urlpatterns = [terms_of_service, *aqueduct_urlpatterns]
 
 
 @PAGES
@@ -62,6 +63,15 @@ class TermsPromptTest(TestCase):
         )
         self.assertRedirects(response, reverse("settings"), fetch_redirect_response=False)
         self.assertEqual(self.client.get(reverse("settings")).status_code, 200)
+
+    def test_accepting_never_leaves_the_site(self):
+        for target in ("http:evil.example", "/\\evil.example"):
+            with self.subTest(target=target):
+                self.client.get(reverse("settings"))
+                response = self.client.post(
+                    reverse("tos_check_tos"), {"accept": "accept", "next": target}
+                )
+                self.assertRedirects(response, reverse("usage"), fetch_redirect_response=False)
 
     def test_declining_signs_out(self):
         page = self.client.get(reverse("tos_check_tos"), {"next": reverse("settings")})

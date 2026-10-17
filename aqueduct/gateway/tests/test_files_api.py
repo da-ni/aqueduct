@@ -374,6 +374,38 @@ class TestFilesAPI(GatewayFilesTestCase):
         self.assertEqual(resp.json()["id"], file_id)
         self.assertIsNone(FileObjectModel.objects.first())
 
+    def test_creator_s_personal_key_and_team_key_keep_their_files_apart(self):
+        """Token pk=2 is a service account key on team Whale created by user 1, whose personal
+        key is `self.headers`."""
+        team_key = Token.objects.get(pk=2)
+        team_headers = {"Authorization": f"Bearer {team_key._set_new_key()}"}
+        team_key.save(update_fields=["key_hash", "key_preview"])
+        now = int(timezone.now().timestamp())
+        for token, file_id in ((team_key, "file-team"), (Token.objects.get(pk=1), "file-own")):
+            FileObjectModel.objects.create(
+                id=file_id,
+                bytes=1,
+                created_at=now,
+                filename=f"{file_id}.txt",
+                purpose="user_data",
+                token=token,
+                upstream_url=settings.AQUEDUCT_FILES_API_URL,
+            )
+
+        for headers, own, other in (
+            (self.headers, "file-own", "file-team"),
+            (team_headers, "file-team", "file-own"),
+        ):
+            with self.subTest(own=own):
+                listed = self.client.get(self.url_files, headers=headers).json()["data"]
+                self.assertEqual([f["id"] for f in listed], [own])
+                detail = reverse("gateway:file", kwargs={"file_id": other})
+                content = reverse("gateway:file_content", kwargs={"file_id": other})
+                self.assertEqual(self.client.get(detail, headers=headers).status_code, 404)
+                self.assertEqual(self.client.get(content, headers=headers).status_code, 404)
+                self.assertEqual(self.client.delete(detail, headers=headers).status_code, 404)
+        self.assertEqual(FileObjectModel.objects.count(), 2)
+
     def test_batch_file_with_unmapped_model_returns_400_with_custom_id(self):
         model_list = get_router_config()["model_list"]
         valid_model_alias = None

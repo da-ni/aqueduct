@@ -291,6 +291,10 @@ class BatchesPageTest(ResourcePagesTestBase):
         self.assertNotContains(response, reverse("batch_cancel", args=[self.team_batch.id]))
         self.assertContains(response, "Running: you 1/10 · NLP Lab 1/25")
 
+    def test_team_batches_count_against_the_team_not_the_key_s_creator(self):
+        response = self.as_user(self.teammate).get(reverse("batches"))
+        self.assertContains(response, "Running: you 0/10 · NLP Lab 1/25")
+
     def test_cancel_asks_with_a_dismiss_button_that_does_not_say_cancel(self):
         response = self.as_user(self.owner).get(reverse("batches"))
         self.assertContains(

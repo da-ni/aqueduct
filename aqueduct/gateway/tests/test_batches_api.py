@@ -9,7 +9,7 @@ from gateway.tests.utils import _build_chat_headers, _build_chat_payload
 from gateway.tests.utils.base import GatewayBatchesTestCase
 from management.models import Batch as BatchModel
 from management.models import BatchStatus, FileObject, Org, ServiceAccount, Team, Token, UserProfile
-from mock_api.mock_configs import MockConfig
+from mock_api.mock_configs import MockConfig, MockPlainTextConfig, batch_detail_response
 
 User = get_user_model()
 
@@ -58,7 +58,8 @@ class TestBatchesAPI(GatewayBatchesTestCase):
         self.assertEqual(data.get("data"), [])
 
     def test_list_batches_different_tokens(self):
-        """Personal token sees user-scoped batches; SA token sees team-scoped batches."""
+        """A personal key sees its owner's personal batches, a service account key its team's,
+        even though user 1 created both keys."""
 
         # Create batch under token1 (personal token, self.headers)
         fid1 = self._create_jsonl_file()
@@ -93,10 +94,9 @@ class TestBatchesAPI(GatewayBatchesTestCase):
             token=token2,
         )
 
-        # Personal token (token1) sees all batches from user=1 (both tokens have user=1)
         resp = self.client.get("/batches", headers=self.headers)
         ids1 = [b["id"] for b in resp.json().get("data", [])]
-        self.assertCountEqual(ids1, [b1.id, b2.id])
+        self.assertCountEqual(ids1, [b1.id])
 
         # SA token (token2) only sees team-scoped batches (only b2, not the personal b1)
         resp = self.client.get("/batches", headers=headers2)
@@ -275,6 +275,42 @@ class TestBatchesAPI(GatewayBatchesTestCase):
         batch.refresh_from_db()
         self.assertEqual(batch.status, BatchStatus.CANCELLED)
 
+    def test_session_cancel_acts_through_the_user_s_personal_key(self):
+        """A UI session names no key. A service account key the user created earlier, for a
+        team they may since have left, must not stand in for their personal key."""
+        user = User.objects.create_user(username="leaver", email="leaver@example.com")
+        UserProfile.objects.create(user=user, org=Org.objects.get(name="E060"))
+        old_team = Team.objects.create(name="Old team", org=Org.objects.get(name="E060"))
+        sa = ServiceAccount.objects.create(name="old", team=old_team)
+        sa_token = Token(name="old team key", user=user, service_account=sa)
+        sa_token._set_new_key()
+        sa_token.save()
+        personal = Token(name="laptop", user=user)
+        personal._set_new_key()
+        personal.save()
+        batch = BatchModel.objects.create(
+            completion_window="24h",
+            created_at=1773058900,
+            endpoint=self.url_chat,
+            id="batch-personal",
+            input_file=FileObject.objects.create(
+                id="file-personal",
+                bytes=1,
+                created_at=1773058900,
+                filename="in.jsonl",
+                purpose="batch",
+                token=personal,
+                upstream_url=settings.AQUEDUCT_FILES_API_URL,
+            ),
+            status=BatchStatus.IN_PROGRESS,
+            token=personal,
+        )
+
+        self.client.force_login(user)
+        resp = self.client.post(f"/batches/{batch.id}/cancel")
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+
 
 class TestBatchesServiceAccountAPI(GatewayBatchesTestCase):
     """Tests for service account team-scoped access control on the batches API."""
@@ -446,6 +482,35 @@ class TestBatchesServiceAccountAPI(GatewayBatchesTestCase):
         batch = BatchModel.objects.get(id=batch_id)
         self.assertEqual(batch.token, token1)
 
+    def test_two_team_keys_open_a_finished_batch_and_share_its_output_file(self):
+        headers1, headers2, *_ = self._setup_two_sa_tokens_same_team()
+        file_id = self._create_jsonl_file(name="sa1", headers=headers1)
+        resp = self.client.post(
+            "/batches",
+            data=json.dumps(
+                {"input_file_id": file_id, "completion_window": "24h", "endpoint": self.url_chat}
+            ),
+            headers=headers1,
+            content_type="application/json",
+        )
+        batch_id = resp.json()["id"]
+        finished = {
+            **batch_detail_response((batch_id,)),
+            "status": "completed",
+            "output_file_id": "file-output",
+        }
+
+        with self.mock_server.patch_external_api(
+            f"batches/{batch_id}", MockConfig(response_data=finished)
+        ):
+            for headers in (headers1, headers2):
+                resp = self.client.get(f"/batches/{batch_id}", headers=headers)
+                self.assertEqual(resp.status_code, 200, resp.content)
+                self.assertEqual(resp.json()["output_file_id"], "file-output")
+
+        self.assertEqual(FileObject.objects.filter(id="file-output").count(), 1)
+        self.assertEqual(BatchModel.objects.get(id=batch_id).output_file_id, "file-output")
+
     def test_cancel_batch_sa_team_scope(self):
         """SA token can cancel a batch created by another SA token on the same team."""
 
@@ -511,6 +576,76 @@ class TestBatchesServiceAccountAPI(GatewayBatchesTestCase):
         # Personal token should not be able to cancel the SA batch
         resp = self.client.post(f"/batches/{sa_batch_id}/cancel", headers=personal_headers)
         self.assertEqual(resp.status_code, 404)
+
+    def test_creator_s_personal_key_cannot_reach_the_team_s_batches(self):
+        """Token pk=2 is a service account key on team Whale created by user 1, whose personal
+        key is `self.headers`."""
+        sa_token = Token.objects.get(pk=2)
+        sa_headers = {"Authorization": f"Bearer {sa_token._set_new_key()}"}
+        sa_token.save(update_fields=["key_hash", "key_preview"])
+        team_file = self._create_jsonl_file(name="team", headers=sa_headers)
+        own_file = self._create_jsonl_file(name="own")
+        batch_ids = {}
+        for headers, file_id in ((sa_headers, team_file), (self.headers, own_file)):
+            resp = self.client.post(
+                "/batches",
+                data=json.dumps(
+                    {
+                        "input_file_id": file_id,
+                        "completion_window": "24h",
+                        "endpoint": self.url_chat,
+                    }
+                ),
+                headers=headers,
+                content_type="application/json",
+            )
+            self.assertEqual(resp.status_code, 200)
+            batch_ids[file_id] = resp.json()["id"]
+
+        for headers, other_file in ((self.headers, team_file), (sa_headers, own_file)):
+            with self.subTest(other_file=other_file):
+                other_batch = batch_ids[other_file]
+                listed = self.client.get("/batches", headers=headers).json()["data"]
+                self.assertNotIn(other_batch, [b["id"] for b in listed])
+                resp = self.client.get(f"/batches/{other_batch}", headers=headers)
+                self.assertEqual(resp.status_code, 404)
+                resp = self.client.post(f"/batches/{other_batch}/cancel", headers=headers)
+                self.assertEqual(resp.status_code, 404)
+                resp = self.client.post(
+                    "/batches",
+                    data=json.dumps(
+                        {
+                            "input_file_id": other_file,
+                            "completion_window": "24h",
+                            "endpoint": self.url_chat,
+                        }
+                    ),
+                    headers=headers,
+                    content_type="application/json",
+                )
+                self.assertEqual(resp.status_code, 404)
+        self.assertEqual(BatchModel.objects.count(), 2)
+
+    def test_team_batches_do_not_count_against_the_creator_s_personal_limit(self):
+        sa_token = Token.objects.get(pk=2)
+        sa_headers = {"Authorization": f"Bearer {sa_token._set_new_key()}"}
+        sa_token.save(update_fields=["key_hash", "key_preview"])
+        team_file = self._create_jsonl_file(name="team", headers=sa_headers)
+        body = {"input_file_id": team_file, "completion_window": "24h", "endpoint": self.url_chat}
+        resp = self.client.post(
+            "/batches", data=json.dumps(body), headers=sa_headers, content_type="application/json"
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        body["input_file_id"] = self._create_jsonl_file(name="own")
+        with self.settings(MAX_USER_BATCHES=1):
+            resp = self.client.post(
+                "/batches",
+                data=json.dumps(body),
+                headers=self.headers,
+                content_type="application/json",
+            )
+        self.assertEqual(resp.status_code, 200, resp.content)
 
 
 class TestCatchRouterExceptionsIntegration(GatewayBatchesTestCase):
@@ -704,6 +839,79 @@ class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
         resp = self._upload_batch_file(self.model, headers=self._sa_headers())
 
         self._assert_upload_rejected(resp, self.model)
+
+    def _create_batch_after_switch_off(self, exclude) -> tuple:
+        """Upload a batch file for `self.model`, switch the model off with `exclude`, then start
+        a batch from the file. The mock upstream serves the file as the upload stored it."""
+        resp = self._upload_batch_file(self.model)
+        self.assertEqual(resp.status_code, 200, resp.content)
+        file_id = resp.json()["id"]
+        line = {
+            "custom_id": "1",
+            "method": "POST",
+            "url": self.url_chat,
+            "body": {"model": self.model},
+        }
+        exclude()
+        stored = MockPlainTextConfig(response_data=json.dumps(line) + "\n")
+        with self.mock_server.patch_external_api(f"files/{file_id}/content", stored):
+            return self.client.post(
+                "/batches",
+                data=json.dumps(
+                    {
+                        "input_file_id": file_id,
+                        "completion_window": "24h",
+                        "endpoint": self.url_chat,
+                    }
+                ),
+                headers=self.headers,
+                content_type="application/json",
+            )
+
+    def test_batch_from_a_file_whose_model_was_switched_off_since_upload_is_rejected(self):
+        resp = self._create_batch_after_switch_off(
+            lambda: UserProfile.objects.get(user_id=1).add_excluded_model(self.model)
+        )
+
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertEqual(
+            resp.json()["error"]["message"],
+            f"Batch file validation failed: Unknown model '{self.model}' for custom_id '1'",
+        )
+        self.assertFalse(BatchModel.objects.exists())
+
+    def test_batch_from_a_file_with_a_line_that_is_not_an_object_is_rejected(self):
+        resp = self._upload_batch_file(self.model)
+        file_id = resp.json()["id"]
+        stored = MockPlainTextConfig(response_data="[1, 2]\n")
+        with self.mock_server.patch_external_api(f"files/{file_id}/content", stored):
+            resp = self.client.post(
+                "/batches",
+                data=json.dumps(
+                    {
+                        "input_file_id": file_id,
+                        "completion_window": "24h",
+                        "endpoint": self.url_chat,
+                    }
+                ),
+                headers=self.headers,
+                content_type="application/json",
+            )
+
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertEqual(
+            resp.json()["error"]["message"],
+            "Batch file validation failed: Line 1 is not a JSON object",
+        )
+        self.assertFalse(BatchModel.objects.exists())
+
+    def test_batch_from_a_file_whose_model_is_still_on_starts(self):
+        resp = self._create_batch_after_switch_off(
+            lambda: UserProfile.objects.get(user_id=1).add_excluded_model("dall-e-2")
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertTrue(BatchModel.objects.exists())
 
     def test_switch_off_of_another_model_keeps_upload(self):
         UserProfile.objects.get(user_id=1).add_excluded_model("dall-e-2")

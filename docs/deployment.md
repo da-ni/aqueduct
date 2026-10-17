@@ -172,6 +172,24 @@ valkey:
 The app auto-derives the Valkey connection (no `celery.brokerUrl` override
 needed).
 
+## HTTPS behind a reverse proxy
+
+When a proxy or ingress terminates TLS and forwards plain HTTP to Aqueduct,
+Django sees every request as HTTP. Secure-cookie and redirect checks then treat
+the site as insecure. Set `SECURE_PROXY_SSL_HEADER` to the header and value
+that your proxy sends for HTTPS requests:
+
+```yaml
+env:
+  - name: SECURE_PROXY_SSL_HEADER
+    value: "HTTP_X_FORWARDED_PROTO,https"
+```
+
+The setting is off by default. Set it only when the proxy always overwrites
+the header. If a client can send the header through the proxy unchanged, the
+client can make any request look like HTTPS. See Django's
+[`SECURE_PROXY_SSL_HEADER`](https://docs.djangoproject.com/en/5.2/ref/settings/#secure-proxy-ssl-header).
+
 ## Notes
 
 - User and admin management will be covered in the User Guide.

@@ -67,7 +67,8 @@ def token_authenticated(token_auth_only: bool) -> Decorator:
                     await Token.objects.select_related(
                         "user__profile__org", "service_account__team__org"
                     )
-                    .filter(user=request.user)
+                    .filter(user=request.user, service_account__isnull=True)
+                    .order_by("pk")
                     .afirst()
                 )
 
