@@ -14,6 +14,7 @@ from django.db import connection
 from django.test import TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 from httpx import Request as HttpxRequest
 from httpx import Response
 from litellm.types.utils import (
@@ -1615,6 +1616,11 @@ class TokenLimitTest(ChatCompletionsBase):
         # bucket counts from a previous test in the same minute/hour/day don't
         # bleed into this one (DB transaction rollback no longer resets them).
         cache.clear()
+        # The limits count per calendar minute, hour, and day. A frozen clock keeps every
+        # request of a test in the same window.
+        clock = patch("django.utils.timezone.now", return_value=timezone.now())
+        clock.start()
+        self.addCleanup(clock.stop)
 
     def tearDown(self):
         cache.clear()
