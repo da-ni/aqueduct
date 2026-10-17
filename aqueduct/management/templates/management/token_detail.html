@@ -163,8 +163,8 @@
                 {% include "management/_rate_usage.html" with usage=usage limits=limits %}
             {% endif %}
             <p class="muted text-sm">
-                {% if excluded_models %}Switched off models: <span class="font-mono">{{ excluded_models|join:", " }}</span>{% else %}Can call every model{% endif %}
-                · {% if excluded_mcp_servers %}Switched off MCP servers: <span class="font-mono">{{ excluded_mcp_servers|join:", " }}</span>{% else %}Can call every MCP server{% endif %}
+                {% if models.every %}Can call every model{% else %}Can call {{ models.usable }} model{{ models.usable|pluralize }}{% endif %}
+                {% if mcp_servers.configured %}· {% if mcp_servers.every %}Can call every MCP server{% else %}Can call {{ mcp_servers.usable }} MCP server{{ mcp_servers.usable|pluralize }}{% endif %}{% endif %}
             </p>
         </div>
     </section>

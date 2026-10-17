@@ -3,7 +3,13 @@ from .batches import BatchCancelView, UserBatchesView
 from .files import FileDeleteView, UserFilesView
 from .mcp_servers import MCPServersView
 from .models import ModelListView
-from .org import OrganizationView, OrgLimitsEditView, OrgSwitchOffsEditView, OrgSwitchView, OrgView
+from .org import (
+    OrganizationView,
+    OrgAvailabilityEditView,
+    OrgLimitsEditView,
+    OrgSwitchView,
+    OrgView,
+)
 from .privacy import PrivacyView
 from .requests import RequestLogView
 from .service_account import (
@@ -15,6 +21,7 @@ from .service_account import (
 from .settings import SettingsView
 from .team import (
     TeamAdminManagementView,
+    TeamAvailabilityEditView,
     TeamCreateView,
     TeamDeleteView,
     TeamDetailView,

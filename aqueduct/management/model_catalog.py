@@ -8,13 +8,11 @@ from enum import StrEnum, auto
 from typing import Any
 from urllib.parse import urlsplit
 
-from django.contrib.auth.models import AbstractUser
-from django.db.models import Model
 from django.urls import reverse
 from litellm.types.utils import LlmProviders
 
 from gateway.config import get_router_config, model_info_with_context
-from management.key_activity import compact
+from management.key_activity import compact, router_models
 from management.models import Token, UserProfile
 
 
@@ -237,9 +235,10 @@ class Spec:
 
 @dataclass(frozen=True)
 class Scope:
+    """Keys of the viewer that share one exclusion list: their personal keys, or one team's."""
+
     team: str | None
     excluded: frozenset[str]
-    admin_url: str | None = None
 
     @property
     def name(self) -> str:
@@ -264,25 +263,14 @@ class Availability:
     on_for: tuple[Scope, ...]
 
     @property
-    def off_for_all(self) -> bool:
-        return bool(self.off_for) and not self.on_for
+    def usable(self) -> bool:
+        """Whether one of the viewer's keys may use it. Without scopes nothing is excluded."""
+        return bool(self.on_for) or not self.off_for
 
     @property
-    def off_badge(self) -> str:
-        if not self.off_for:
-            return ""
-        if self.off_for_all:
-            return "Off for you"
-        first, more = self.off_for[0], len(self.off_for) - 1
-        return f"Off for {first.team or 'you'}" + (f" +{more}" if more else "")
-
-    @property
-    def off_names(self) -> str:
-        return _and_join([scope.name for scope in self.off_for])
-
-    @property
-    def on_names(self) -> str:
-        return _and_join([scope.name for scope in self.on_for])
+    def available_with(self) -> str:
+        """The keys that may use it, when only some of the viewer's keys may."""
+        return _and_join([scope.name for scope in self.on_for]) if self.off_for else ""
 
 
 @dataclass(frozen=True)
@@ -396,31 +384,25 @@ def parse_card(entry: Mapping[str, Any], scopes: Sequence[Scope] = ()) -> ModelC
     )
 
 
-def _admin_url(viewer: AbstractUser, obj: Model) -> str | None:
-    meta = obj._meta
-    if not (viewer.is_staff and viewer.has_perm(f"{meta.app_label}.change_{meta.model_name}")):
-        return None
-    return reverse(f"admin:{meta.app_label}_{meta.model_name}_change", args=[obj.pk])
-
-
 Exclusions = Callable[[Any, Any], list[str]]
 
 
 def scopes_for(
     profile: UserProfile, exclusions: Exclusions = Token.exclusion_list_from_objects
 ) -> tuple[Scope, ...]:
-    viewer = profile.user
-    personal = Scope(None, frozenset(exclusions(profile, profile.org)), _admin_url(viewer, viewer))
+    personal = Scope(None, frozenset(exclusions(profile, profile.org)))
     teams = profile.teams.select_related("org").order_by("name")
-    return (
-        personal,
-        *(
-            Scope(team.name, frozenset(exclusions(team, team.org)), _admin_url(viewer, team))
-            for team in teams
-        ),
-    )
+    return (personal, *(Scope(team.name, frozenset(exclusions(team, team.org))) for team in teams))
+
+
+def usable_models(scopes: Sequence[Scope]) -> list[str]:
+    """The router's models that one of the viewer's keys may use, as the gateway decides."""
+    return [name for name in router_models() if Availability(*split_scopes(name, scopes)).usable]
 
 
 def load_catalog(scopes: Sequence[Scope]) -> Catalog:
+    """The router's models that one of the viewer's keys may use. A model none of them may use
+    does not appear, as `/v1/models` leaves it out for a key."""
     entries = get_router_config().get("model_list") or ()
-    return Catalog(tuple(parse_card(entry, scopes) for entry in entries))
+    cards = (parse_card(entry, scopes) for entry in entries)
+    return Catalog(tuple(card for card in cards if card.usable))

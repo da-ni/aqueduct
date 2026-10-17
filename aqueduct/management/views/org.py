@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import TemplateView, UpdateView, View
 
-from management.forms import OrgLimitsForm, OrgSwitchOffsForm
+from management.forms import OrgAvailabilityForm, OrgLimitsForm
 from management.models import LimitSet, Org
 from management.org_overview import org_page
 from management.request_log import ORG_BOUND_PARAMS, parse_id, remember_org
@@ -43,7 +43,7 @@ class OrgView(BaseAqueductView, TemplateView):
 
 
 class OrganizationView(BaseAqueductView, OrgAdminRequiredMixin, TemplateView):
-    """The organization page: its size, default limits, and switch-offs."""
+    """The organization page: its size, default limits, and what is unavailable in it."""
 
     template_name = "management/organization.html"
 
@@ -85,9 +85,9 @@ class OrgLimitsEditView(OrgEditView):
     view_title = "Limits"
 
 
-class OrgSwitchOffsEditView(OrgEditView):
-    form_class = OrgSwitchOffsForm
-    view_title = "Switch-offs"
+class OrgAvailabilityEditView(OrgEditView):
+    form_class = OrgAvailabilityForm
+    view_title = "Availability"
 
 
 class OrgSwitchView(BaseAqueductView, View):

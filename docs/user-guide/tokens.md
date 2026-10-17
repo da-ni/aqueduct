@@ -60,7 +60,7 @@ Choose a key's name to open its page. The page shows the key's last seven days:
 - **Models it calls**, with the tokens per model.
 - **Clients**, the user agents that used the key.
 - **Latest requests**.
-- **Limits**, the rate limits of the key and the models and MCP servers that are switched off for it.
+- **Limits**, the rate limits of the key and how many models and MCP servers it can call.
 
 **Open in Overview** opens the [Overview](usage.md) for this key alone.
 

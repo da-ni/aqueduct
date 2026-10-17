@@ -24,7 +24,7 @@ The URL has this form:
 https://your-aqueduct-domain.com/mcp-servers/<server-name>/mcp
 ```
 
-A server that is switched off for some of your keys shows a badge such as `Off for Verify Team`, as on the [Models](models.md#check-where-a-model-is-available) page. A request to a switched-off server returns `404`.
+The page lists only the servers that at least one of your keys can use. When only some of your keys can use a server, its card names them, as on the [Models](models.md#check-which-keys-can-use-a-model) page. A request with another key returns `404`.
 
 ## Connect a client
 

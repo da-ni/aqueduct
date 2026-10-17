@@ -19,8 +19,9 @@ from django.urls import path, reverse
 from django.urls.resolvers import URLPattern
 from django.utils.html import format_html
 
-from gateway.config import get_files_api_client, get_router_config
+from gateway.config import get_files_api_client
 from gateway.rate_limiting import get_per_token_usage
+from management.availability import INHERIT_HELP, INHERIT_LABELS, AvailabilityForm
 from management.models import (
     Batch,
     FileObject,
@@ -64,74 +65,8 @@ def format_unix_timestamp(timestamp: int | None) -> str:
         return str(timestamp)
 
 
-def get_model_choices() -> list[str]:
-    config = get_router_config()
-    return [m["model_name"] for m in config.get("model_list", [])]
-
-
-def get_mcp_server_choices() -> list[str]:
-    from gateway.config import get_mcp_config
-
-    try:
-        config = get_mcp_config()
-        return list(config.keys())
-    except RuntimeError:
-        return []
-
-
-class ExcludedModelsAdminForm(forms.ModelForm):
+class UserProfileAdminForm(AvailabilityForm):
     class Meta:
-        model = None  # To be specified by subclass
-        fields: ClassVar[list[str]] = []
-
-    excluded_models = forms.MultipleChoiceField(
-        choices=[],
-        required=False,
-        widget=forms.CheckboxSelectMultiple(),
-        label="Excluded Models",
-        help_text="Choose models to be excluded.",
-    )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Dynamically provide choices using get_model_choices
-        from .admin import get_model_choices
-
-        self.fields["excluded_models"].choices = [(m, m) for m in get_model_choices()]
-        if self.instance and getattr(self.instance, "excluded_models", None):
-            self.initial["excluded_models"] = self.instance.excluded_models
-
-    def clean_excluded_models(self) -> list[str]:
-        # Store as list/JSON, not string
-        return self.cleaned_data["excluded_models"]
-
-
-class ExcludedMCPServersAdminForm(forms.ModelForm):
-    class Meta:
-        model = None  # To be specified by subclass
-        fields: ClassVar[list[str]] = []
-
-    excluded_mcp_servers = forms.MultipleChoiceField(
-        choices=[],
-        required=False,
-        widget=forms.CheckboxSelectMultiple(),
-        label="Excluded MCP Servers",
-        help_text="Choose MCP servers to be excluded.",
-    )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["excluded_mcp_servers"].choices = [(s, s) for s in get_mcp_server_choices()]
-        if self.instance and getattr(self.instance, "excluded_mcp_servers", None):
-            self.initial["excluded_mcp_servers"] = self.instance.excluded_mcp_servers
-
-    def clean_excluded_mcp_servers(self) -> list[str]:
-        # Store as list/JSON, not string
-        return self.cleaned_data["excluded_mcp_servers"]
-
-
-class UserProfileAdminForm(ExcludedModelsAdminForm, ExcludedMCPServersAdminForm):
-    class Meta(ExcludedModelsAdminForm.Meta):
         model = UserProfile
         fields: ClassVar[list[str]] = [
             "user",
@@ -142,11 +77,11 @@ class UserProfileAdminForm(ExcludedModelsAdminForm, ExcludedMCPServersAdminForm)
             "output_tokens_per_minute",
             "hourly_limit_multiplier",
             "daily_limit_multiplier",
-            "excluded_models",
             "merge_exclusion_lists",
-            "excluded_mcp_servers",
             "merge_mcp_server_exclusion_lists",
         ]
+        labels: ClassVar[dict[str, str]] = INHERIT_LABELS
+        help_texts: ClassVar[dict[str, str]] = INHERIT_HELP
 
 
 # Define an inline admin descriptor for UserProfile model
@@ -406,8 +341,8 @@ class TeamMembershipInline(admin.TabularInline):
     readonly_fields = ("date_added",)  # Make date_joined read-only as it's auto-set
 
 
-class TeamAdminForm(ExcludedModelsAdminForm, ExcludedMCPServersAdminForm):
-    class Meta(ExcludedModelsAdminForm.Meta):
+class TeamAdminForm(AvailabilityForm):
+    class Meta:
         model = Team
         fields: ClassVar[list[str]] = [
             "name",
@@ -418,14 +353,11 @@ class TeamAdminForm(ExcludedModelsAdminForm, ExcludedMCPServersAdminForm):
             "output_tokens_per_minute",
             "hourly_limit_multiplier",
             "daily_limit_multiplier",
-            "excluded_models",
             "merge_exclusion_lists",
-            "excluded_mcp_servers",
             "merge_mcp_server_exclusion_lists",
         ]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        labels: ClassVar[dict[str, str]] = INHERIT_LABELS
+        help_texts: ClassVar[dict[str, str]] = INHERIT_HELP
 
 
 # Customize Team Admin
@@ -462,12 +394,12 @@ class TeamAdmin(admin.ModelAdmin):
             },
         ),
         (
-            "Exclusions",
+            "Availability",
             {
                 "fields": (
-                    "excluded_models",
+                    "available_models",
                     "merge_exclusion_lists",
-                    "excluded_mcp_servers",
+                    "available_mcp_servers",
                     "merge_mcp_server_exclusion_lists",
                 )
             },
@@ -528,12 +460,12 @@ class TeamAdmin(admin.ModelAdmin):
                     },
                 ),
                 (
-                    "Exclusions",
+                    "Availability",
                     {
                         "fields": (
-                            "excluded_models",
+                            "available_models",
                             "merge_exclusion_lists",
-                            "excluded_mcp_servers",
+                            "available_mcp_servers",
                             "merge_mcp_server_exclusion_lists",
                         )
                     },
@@ -554,8 +486,8 @@ class TeamAdmin(admin.ModelAdmin):
         return super().get_inline_instances(request, obj)
 
 
-class OrgAdminForm(ExcludedModelsAdminForm, ExcludedMCPServersAdminForm):
-    class Meta(ExcludedModelsAdminForm.Meta):
+class OrgAdminForm(AvailabilityForm):
+    class Meta:
         model = Org
         fields: ClassVar[list[str]] = [
             "name",
@@ -564,14 +496,14 @@ class OrgAdminForm(ExcludedModelsAdminForm, ExcludedMCPServersAdminForm):
             "output_tokens_per_minute",
             "hourly_limit_multiplier",
             "daily_limit_multiplier",
-            "excluded_models",
             "merge_exclusion_lists",
-            "excluded_mcp_servers",
             "merge_mcp_server_exclusion_lists",
         ]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        labels: ClassVar[dict[str, str]] = {
+            "merge_exclusion_lists": "Also apply the server's default unavailable models",
+            "merge_mcp_server_exclusion_lists": "Also apply the server's default unavailable "
+            "MCP servers",
+        }
 
 
 @admin.register(Org)

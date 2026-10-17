@@ -33,13 +33,13 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 
 - [API keys](./api-keys.md) covers the key table, the key detail page, creating, editing, rotating, and deleting personal keys, and the per-user limit.
 - [Organization switch](./org-switch.md) covers the admin's org select in the sidebar, which every org-scoped page follows.
-- [Organization](./organization.md) covers the organization page, editing the org's limits and switch-offs, and who may do it.
+- [Organization](./organization.md) covers the organization page, editing the org's limits and available models and MCP servers, and who may do it.
 - [Teams](./teams.md) covers the team list, team members, team admins, and service accounts, and who may see or change each.
 - [Overview](./usage.md) covers the usage dashboard, the All keys page, their filters, and their role scoping.
 - [Requests](./requests.md) covers the request log, its status, key, and model filters, the row details, and the pages.
-- [Models](./models.md) covers the model table, its type tabs and search, the detail panel, and the notice for a switched-off model.
+- [Models](./models.md) covers the model table, its type tabs and search, the detail panel, and which keys may use a model.
 - [Settings](./settings.md) covers the account details, team roles, terms acceptance, the light and dark switch, and the personal key limits.
 - [Terms of service](./terms-of-service.md) covers the prompt a user sees before accepting the terms.
 - [Privacy](./privacy.md) covers the public privacy page, the per-organization notice, and when its links appear.
 - [Files, batches, and vector stores](./resources.md) covers the three resource lists, the file preview, file delete, batch cancel, and the vector store detail page.
-- [MCP servers](./mcp-servers.md) covers the server cards, their URLs, their switched-off badges, and the client configuration.
+- [MCP servers](./mcp-servers.md) covers the server cards, their URLs, which keys may use them, and the client configuration.

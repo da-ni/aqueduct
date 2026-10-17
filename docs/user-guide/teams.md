@@ -49,7 +49,7 @@ Choose a team's name to open its page. The page shows:
 - Totals of the team's service accounts over the last seven days.
 - **Service accounts**, with each owner, tokens, last use, and expiry.
 - **Members**, with each member's role. Team admins come first, then the other members by email, 50 per page. The search box next to **Members** filters by email.
-- **Limits**, with the rate limits of each service account key and the models and MCP servers that are switched off for the team.
+- **Limits**, with the rate limits of each service account key. Org admins also see the models and MCP servers that are unavailable to the team.
 
 ![Team page](../assets/user_guide/team_detail.png)
 
@@ -85,6 +85,8 @@ Team admins and org admins manage members:
 
 Org admins and admins also appoint team admins. Choose **Make team admin** in a member's row. **Remove team admin** takes the role away. Team admins cannot appoint other team admins.
 
-## Limits and switched-off models
+## Limits and model availability
 
-Team limits and switched-off models are set in the Admin panel. Admins get an **Edit** link next to **Limits** on the team page. See [Admin](admin.md).
+Team limits are set in the Admin panel. Admins get an **Edit** link next to **Limits** on the team page. See [Admin](admin.md).
+
+Org admins and admins choose the models and MCP servers that the team's service accounts can use. Choose **Edit** under **Unavailable to service accounts** on the team page. Every box starts checked. Clear a box to make the model or server unavailable to the team's service account keys. Members' personal keys are not affected. **Also apply the organization's unavailable models** adds the organization's list. Clear it to use only the team's boxes.
