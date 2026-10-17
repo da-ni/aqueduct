@@ -37,6 +37,6 @@ Preconditions:
 ## Gotchas
 
 - Files and Batches show the teams the viewer is a member of. Vector stores also shows every team of the org to an org admin, so `org-admin` sees `group-papers` there but not the team's files or batches.
-- The personal limits count everything the viewer's keys created, including service account keys they own. `team-admin` therefore counts `batch-team-running` under `Personal keys` and under `Verify Team`.
+- The personal limits count everything the viewer's keys created, including service account keys they own. `team-admin` therefore counts `batch-team-running` under `Your keys` and under `Verify Team`.
 - A deleted output file leaves its batch with `No output file`.
 - The browser accepts the `confirm()` dialog of Cancel.

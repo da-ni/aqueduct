@@ -251,7 +251,7 @@ def batch_list(user: AbstractBaseUser, teams: QuerySet[Team], now: datetime) -> 
     active = Batch.objects.filter(ACTIVE_BATCH)
     quotas = (
         Quota(
-            "Personal keys",
+            "Your keys",
             active.filter(token__user=user).count(),
             settings.MAX_USER_BATCHES,
             "running",
@@ -326,7 +326,7 @@ def store_list(user: AbstractBaseUser, teams: QuerySet[Team], now: datetime) -> 
     stores = stores_visible_to(user, teams).order_by("-created_at")
     quotas = (
         Quota(
-            "Personal keys",
+            "Your keys",
             VectorStore.objects.filter(token__user=user).count(),
             settings.MAX_USER_VECTOR_STORES,
             "vector stores",
@@ -351,6 +351,7 @@ class StoreFileRow:
     entry: VectorStoreFile
     status: Status
     added: datetime | None
+    listed: bool
 
 
 @dataclass(frozen=True)
@@ -372,14 +373,27 @@ class StoreDetail:
     last_active: datetime | None
 
 
-def store_detail(store: VectorStore, now: datetime) -> StoreDetail:
+def store_detail(
+    store: VectorStore, user: AbstractBaseUser, file_teams: QuerySet[Team], now: datetime
+) -> StoreDetail:
+    """`file_teams` are the teams whose files the Files page lists, so a file links there only
+    when its row exists."""
+    entries = store.files.all()
+    listed = set(
+        FileObject.objects.filter(
+            visible_to(user, file_teams), id__in=[entry.file_obj_id for entry in entries]
+        ).values_list("id", flat=True)
+    )
     return StoreDetail(
         row=store_row(store, now),
         files=tuple(
             StoreFileRow(
-                entry, Status.of(entry.status, STORE_FILE_STATUSES), moment(entry.created_at)
+                entry,
+                Status.of(entry.status, STORE_FILE_STATUSES),
+                moment(entry.created_at),
+                entry.file_obj_id in listed,
             )
-            for entry in store.files.all()
+            for entry in entries
         ),
         batches=tuple(
             StoreBatchRow(

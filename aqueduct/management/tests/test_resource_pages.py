@@ -246,7 +246,7 @@ class BatchesPageTest(ResourcePagesTestBase):
         self.assertContains(response, reverse("batch_cancel", args=[self.running.id]))
         self.assertNotContains(response, reverse("batch_cancel", args=[self.team_batch.id]))
         self.assertContains(
-            response, "2 batches · Personal keys: 1 of 10 running · NLP Lab: 1 of 25 running"
+            response, "2 batches · Your keys: 1 of 10 running · NLP Lab: 1 of 25 running"
         )
 
 
@@ -341,7 +341,7 @@ class VectorStoresPageTest(ResourcePagesTestBase):
         self.assertContains(response, "1 of 1,000")
         self.assertNotContains(response, "outsider-notes")
         self.assertContains(
-            response, "Personal keys: 1 of 10 vector stores · NLP Lab: 1 of 50 vector stores"
+            response, "Your keys: 1 of 10 vector stores · NLP Lab: 1 of 50 vector stores"
         )
 
     def test_org_admin_sees_the_team_stores_of_their_org_only(self):
@@ -358,6 +358,25 @@ class VectorStoresPageTest(ResourcePagesTestBase):
         self.assertContains(response, "thesis.pdf")
         self.assertContains(response, f'href="{reverse("files")}#{self.thesis.id}"')
         self.assertContains(response, "Ready")
+
+    def test_detail_links_a_file_only_when_the_files_page_lists_it(self):
+        team_file = self.file(self.team_key, "papers.pdf", purpose="user_data")
+        VectorStoreFile.objects.create(
+            id="vsf-2",
+            vector_store=self.team_store,
+            file_obj=team_file,
+            status="completed",
+            created_at=NOW,
+        )
+        url = reverse("vector_store_detail", args=[self.team_store.id])
+        link = f'href="{reverse("files")}#{team_file.id}"'
+        member = self.as_user(self.teammate).get(url)
+        self.assertContains(member, link)
+        # An org admin sees the team's store but not the team's files.
+        admin = self.as_user(self.org_admin).get(url)
+        self.assertContains(admin, "papers.pdf")
+        self.assertNotContains(admin, link)
+        self.assertNotContains(self.as_user(self.org_admin).get(reverse("files")), "papers.pdf")
 
     def test_detail_of_a_store_outside_scope_shows_not_found(self):
         url = reverse("vector_store_detail", args=[self.own_store.id])

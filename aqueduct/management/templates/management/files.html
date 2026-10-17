@@ -17,7 +17,7 @@
         <tr id="{{ row.file.id }}" class="file-row">
             <td>
                 <span class="font-semibold">{{ row.file.filename }}</span>
-                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.file.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.file.id }}" aria-label="Copy file ID" title="Copy file ID">{% icon "copy" small=True %}</button>{% if row.team %} · {{ row.team }}{% endif %}</div>
+                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.file.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.file.id }}" aria-label="Copy ID of {{ row.file.filename }}" title="Copy file ID">{% icon "copy" small=True %}</button>{% if row.team %} · {{ row.team }}{% endif %}</div>
             </td>
             <td><span class="badge badge-sm bg-base-100 font-mono">{{ row.purpose }}</span></td>
             <td class="text-right font-mono">{{ row.file.bytes|filesizeformat }}</td>
@@ -47,7 +47,3 @@
     {% endfor %}
 {% endblock %}
 
-{% block after %}
-    {# Batches and vector stores link here by file ID; mark the row they point at. #}
-    <style>.file-row { scroll-margin-top: 6rem; } .file-row:target { background: var(--aq-hover); }</style>
-{% endblock %}

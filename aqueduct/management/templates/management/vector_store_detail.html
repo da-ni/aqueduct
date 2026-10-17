@@ -16,7 +16,7 @@
                     <h1 class="break-all text-3xl font-semibold">{{ row.store.name }}</h1>
                     <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
                         {% include "management/_status.html" with status=row.status %}
-                        <span class="flex items-center gap-1 font-mono">{{ row.store.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.store.id }}" aria-label="Copy vector store ID" title="Copy vector store ID">{% icon "copy" small=True %}</button></span>
+                        <span class="flex items-center gap-1 font-mono">{{ row.store.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.store.id }}" aria-label="Copy ID of {{ row.store.name }}" title="Copy vector store ID">{% icon "copy" small=True %}</button></span>
                         <span>{{ row.team|default:"Yours" }}</span>
                         <span>Created {{ detail.created|date:"j M Y" }}</span>
                         {% if detail.last_active %}<span>Last active {{ detail.last_active|date:"j M Y" }}</span>{% endif %}
@@ -55,12 +55,12 @@
                             {% for file in detail.files %}
                                 <tr>
                                     <td>
-                                        {% if file.entry.file_obj %}
+                                        {% if file.listed %}
                                             <a class="link-plain row-link font-semibold" href="{% url 'files' %}#{{ file.entry.file_obj.id }}">{{ file.entry.file_obj.filename }}</a>
                                         {% else %}
-                                            <span class="font-semibold">Deleted file</span>
+                                            <span class="font-semibold">{{ file.entry.file_obj.filename }}</span>
                                         {% endif %}
-                                        <div class="muted flex items-center gap-1 font-mono text-xs">{{ file.entry.id }}<button type="button" class="btn btn-ghost btn-xs btn-square relative z-10" data-copy="{{ file.entry.id }}" aria-label="Copy vector store file ID" title="Copy vector store file ID">{% icon "copy" small=True %}</button></div>
+                                        <div class="muted flex items-center gap-1 font-mono text-xs">{{ file.entry.id }}<button type="button" class="btn btn-ghost btn-xs btn-square relative z-10" data-copy="{{ file.entry.id }}" aria-label="Copy ID of {{ file.entry.file_obj.filename }}" title="Copy vector store file ID">{% icon "copy" small=True %}</button></div>
                                     </td>
                                     <td>{% include "management/_status.html" with status=file.status %}</td>
                                     <td class="text-right font-mono">{{ file.entry.usage_bytes|filesizeformat }}</td>
@@ -85,7 +85,7 @@
                             <tbody>
                                 {% for batch in detail.batches %}
                                     <tr>
-                                        <td><div class="flex items-center gap-1 font-mono font-semibold">{{ batch.batch.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ batch.batch.id }}" aria-label="Copy file batch ID" title="Copy file batch ID">{% icon "copy" small=True %}</button></div></td>
+                                        <td><div class="flex items-center gap-1 font-mono font-semibold">{{ batch.batch.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ batch.batch.id }}" aria-label="Copy ID of file batch {{ batch.batch.id }}" title="Copy file batch ID">{% icon "copy" small=True %}</button></div></td>
                                         <td>{% include "management/_status.html" with status=batch.status %}</td>
                                         <td>
                                             {% include "management/_progress.html" with progress=batch.progress %}
