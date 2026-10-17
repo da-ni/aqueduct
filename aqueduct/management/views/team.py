@@ -11,7 +11,7 @@ from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, UpdateView
 
 from management.deletion import deletion
-from management.forms import MemberEmailForm, TeamAvailabilityForm, TeamCreateForm
+from management.forms import MemberEmailForm, TeamAvailabilityForm, TeamCreateForm, TeamLimitsForm
 from management.models import Org, ServiceAccount, Team, UserProfile
 from management.request_log import parse_id
 from management.team_overview import team_page
@@ -60,21 +60,24 @@ class TeamCreateView(BaseAqueductView, OrgAdminRequiredMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context["view_title"] = "Create a team"
         context["target_org"] = self.target_org
+        context["names_target_org"] = self.is_admin()
         return context
 
 
 class TeamUpdateView(BaseTeamView, TeamAdminRequiredMixin, UpdateView):
-    """
-    Handles editing an existing Team (name, description).
-    Requires Team Admin privileges, checked by TeamAdminRequiredMixin.
-    Uses TeamCreateForm for validation.
-    """
+    """Edits a team's name and description, for its team admins. An admin of the team's org
+    also edits its limits there, and finds the team's Delete."""
 
     model = Team
-    form_class = TeamCreateForm
     template_name = "management/edit/team.html"
     pk_url_kwarg = "id"
     context_object_name = "team"  # Match DetailView/template usage
+
+    def manages_team(self) -> bool:
+        return self.profile.is_org_admin(self.team.org)
+
+    def get_form_class(self) -> type[TeamCreateForm]:
+        return TeamLimitsForm if self.manages_team() else TeamCreateForm
 
     def get_form_kwargs(self) -> dict:
         """Pass the team's organization to the form for validation."""
@@ -98,7 +101,7 @@ class TeamUpdateView(BaseTeamView, TeamAdminRequiredMixin, UpdateView):
         context = super().get_context_data(**kwargs)
         context["view_title"] = "Edit team"
         context["cancel_url"] = self.get_success_url()  # Add cancel URL
-        # context['team'] is set automatically by UpdateView
+        context["can_delete"] = self.manages_team()
         return context
 
 
@@ -235,6 +238,15 @@ class TeamDetailView(BaseTeamView, DetailView):
             timezone.now(),
         )
         max_service_accounts = getattr(settings, "MAX_SERVICE_ACCOUNTS_PER_TEAM", 10)
+        limits = page.limits
+        has_limits = any(
+            value is not None
+            for value in (
+                limits.requests_per_minute,
+                limits.input_tokens_per_minute,
+                limits.output_tokens_per_minute,
+            )
+        )
         context.setdefault("add_form", self.add_member_form())
         context.update(
             page=page,
@@ -242,8 +254,7 @@ class TeamDetailView(BaseTeamView, DetailView):
             is_team_admin=self.profile.is_team_admin(team),
             can_manage_admins=can_manage_admins,
             is_org_admin=can_manage_admins,
-            can_delete=self.is_org_admin(),
-            can_edit_in_admin=self.request.user.is_staff,
+            shows_limits=can_manage_admins or has_limits,
             max_service_accounts=max_service_accounts,
             can_add_service_account=len(page.service_accounts) < max_service_accounts,
         )

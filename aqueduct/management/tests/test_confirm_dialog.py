@@ -63,11 +63,11 @@ class ConfirmDialogTest(TeamsPagesTestBase):
             "batches, and vector stores. Members keep their personal keys."
         )
         self.assertContains(
-            client.get(reverse("team", args=[self.team.id])),
+            client.get(reverse("team_edit", args=[self.team.id])),
             f'href="{delete}" {asks("Delete NLP Lab?", one)}',
         )
         self.assertContains(
-            client.get(reverse("team", args=[self.side_team.id])),
+            client.get(reverse("team_edit", args=[self.side_team.id])),
             asks("Delete Robotics?", "Members keep their personal keys."),
         )
         self.assertContains(client.get(delete), f"<p>{one}</p>")

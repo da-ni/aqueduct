@@ -10,7 +10,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import TemplateView, UpdateView, View
 
 from management.forms import OrgAvailabilityForm, OrgLimitsForm
-from management.models import LimitSet, Org
+from management.models import Org, Team
 from management.org_overview import org_page
 from management.request_log import ORG_BOUND_PARAMS, parse_id, remember_org
 from management.team_overview import team_rows
@@ -18,27 +18,25 @@ from management.views.base import BaseAqueductView, OrgAdminRequiredMixin
 
 
 class OrgView(BaseAqueductView, TemplateView):
-    """The teams page: the teams the user may open, with their size, limit, and usage."""
+    """The teams page: the teams the user may open, with their size, limit, and usage. An admin
+    viewing every org sees the teams of every org."""
 
     template_name = "management/org.html"
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         query = self.request.GET.get("q", "").strip()
+        all_orgs = self.viewed_org is None
+        teams = Team.objects.all() if all_orgs else self.get_teams_for_user()
         context.update(
             is_org_admin=self.is_org_admin(),
+            all_orgs=all_orgs,
+            in_no_team=not self.is_org_admin() and not teams.exists(),
             query=query,
             teams=team_rows(
-                self.get_teams_for_user(),
-                self.profile,
-                query,
-                self.request.GET.get("page", 1),
-                timezone.now(),
+                teams, self.profile, query, self.request.GET.get("page", 1), timezone.now()
             ),
             org_object=self.org,
-            org_limits=LimitSet.from_objects(self.org, None),
-            can_edit_in_admin=self.request.user.is_staff,
-            org_fallback=self.viewed_org is None,
         )
         return context
 

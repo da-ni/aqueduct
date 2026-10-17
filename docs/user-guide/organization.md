@@ -38,8 +38,6 @@ Admins see the organization they chose in the sidebar. See [Choose an organizati
     - **Hourly cap**, from 1 to 60, and **Daily cap**, from 1 to 1,440, in minutes at the full per-minute rate. For example, an hourly cap of 30 allows 30 times the per-minute limit in one hour. 60 and 1,440 add no extra cap. Leave a field empty for the server default.
 3. Choose **Save changes**.
 
-The **Edit** link next to the default limit on the Teams page opens the same form.
-
 If a request goes over a limit, the API answers with HTTP status `429 Too Many Requests`.
 
 ## Choose the available models and MCP servers

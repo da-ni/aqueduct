@@ -30,7 +30,7 @@ class OrgSwitchTest(OrgSwitchTestBase):
         teams = self.client.get(reverse("org"))
         self.assertContains(teams, "NLP Lab")
         self.assertNotContains(teams, "Foreign")
-        self.assertNotContains(teams, FALLBACK_NOTE)
+        self.assertNotContains(teams, "Organization</th>")
         organization = self.client.get(reverse("organization"))
         self.assertContains(
             organization, '<h1 class="text-3xl font-semibold">lab-org</h1>', html=True
@@ -38,16 +38,23 @@ class OrgSwitchTest(OrgSwitchTestBase):
         self.admin.profile.refresh_from_db()
         self.assertEqual(self.admin.profile.org, self.other_org)
 
-    def test_all_organizations_falls_back_to_the_own_org_on_single_org_pages(self):
+    def test_all_organizations_lists_every_team_with_its_org(self):
         self.as_user(self.admin)
         self.switch("all")
         for url_name in ORG_SCOPED:
             with self.subTest(page=url_name):
                 self.assertIsNone(self.viewed(url_name))
         teams = self.client.get(reverse("org"))
-        self.assertContains(teams, "Foreign")
-        self.assertNotContains(teams, "NLP Lab")
-        self.assertContains(teams, FALLBACK_NOTE)
+        self.assertContains(teams, "<th>Organization</th>", html=True)
+        for team in ("Foreign", "NLP Lab", "Robotics"):
+            row = teams.content.decode().split(f">{team}</a>", 1)[1].split("</tr>", 1)[0]
+            with self.subTest(team=team):
+                org = "other-org" if team == "Foreign" else "lab-org"
+                self.assertIn(f'<td class="truncate max-lg:hidden">{org}</td>', row)
+        self.assertContains(
+            teams, '<span class="muted text-sm">All organizations</span>', html=True
+        )
+        self.assertNotContains(teams, FALLBACK_NOTE)
 
     def test_all_organizations_lists_every_org_to_pick_one(self):
         self.as_user(self.admin)

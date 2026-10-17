@@ -16,7 +16,9 @@
             {% if team.description %}<p class="text-sm">{{ team.description }}</p>{% endif %}
             <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
                 <span>{{ page.member_count }} member{{ page.member_count|pluralize }}</span>
-                <span>{{ page.service_accounts|length }} of {{ max_service_accounts }} service accounts</span>
+                {% with count=page.service_accounts|length %}
+                    <span>{% if is_team_admin %}{{ count }} of {{ max_service_accounts }} service accounts{% else %}{{ count }} service account{{ count|pluralize }}{% endif %}</span>
+                {% endwith %}
             </div>
         </div>
         {% if is_team_admin %}
@@ -29,90 +31,85 @@
                         <button type="button" class="btn btn-primary" disabled>{% icon "plus" small=True %}Add service account</button>
                     </div>
                 {% endif %}
-                {% if can_delete %}
-                    <a class="btn btn-ghost st-err" href="{% url 'team_delete' team.id %}" {% confirm_delete team %}>{% icon "delete" small=True %}Delete</a>
-                {% endif %}
             </div>
         {% endif %}
     </header>
 
-    <section aria-label="Service account totals, last 7 days" class="grid grid-cols-2 gap-4 md:grid-cols-5">
-        {% for stat in page.window.stats %}
-            <div class="card bg-base-200">
-                <div class="card-body gap-1 p-4">
-                    <span class="muted text-sm">{{ stat.label }}</span>
-                    <span class="text-2xl font-semibold">{{ stat.value }}</span>
-                    {% include "management/_spark.html" with bars=stat.spark %}
+    <section class="flex flex-col gap-3" aria-labelledby="totals-title">
+        <h2 id="totals-title" class="text-xl font-semibold">Service accounts, last 7 days</h2>
+        <div class="grid grid-cols-3 gap-2 sm:gap-4">
+            {% for stat in page.stats %}
+                <div class="card min-w-0 bg-base-200">
+                    <div class="card-body gap-1 p-3 sm:p-4">
+                        <span class="muted text-sm">{{ stat.label }}</span>
+                        <span class="text-xl font-semibold sm:text-2xl">{{ stat.value }}</span>
+                        {% include "management/_spark.html" with bars=stat.spark %}
+                    </div>
                 </div>
-            </div>
-        {% endfor %}
+            {% endfor %}
+        </div>
     </section>
 
     <section class="card bg-base-200" aria-labelledby="service-accounts-title">
         <div class="card-body gap-2 p-5">
             <h2 id="service-accounts-title" class="text-xl font-semibold">Service accounts</h2>
-            <div class="overflow-x-auto">
-                <table class="table table-fixed key-table min-w-[760px]">
-                    <thead>
-                        <tr>
-                            <th>Service account</th>
-                            <th class="w-44">Tokens, 7 days</th>
-                            <th class="w-32">Last used</th>
-                            <th class="w-28">Expires</th>
-                            {% if is_team_admin %}<th class="w-44"><span class="sr-only">Actions</span></th>{% endif %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in page.service_accounts %}
-                            {% with sa=row.service_account %}
-                            <tr>
-                                <td>
-                                    {% if row.token %}<a class="link-plain row-link break-words font-mono" href="{% url 'token_detail' row.token.id %}">{{ sa.name }}</a>{% else %}<span class="break-words font-mono">{{ sa.name }}</span>{% endif %}
-                                    <div class="muted truncate text-xs"><span class="relative z-10" title="{{ row.token.user.email }}">{{ row.token.user.email|default:"No owner" }}</span> · <span class="font-mono">{{ row.token.key_preview|default:"No key" }}</span></div>
-                                </td>
-                                <td>
-                                    <div class="flex items-center gap-3">
-                                        <div class="min-w-0 flex-1">
-                                            {% if row.activity.tokens %}
-                                                <div class="tbar" style="width: {{ row.bar_width }}%">
-                                                    {% for css, count in row.activity.segments %}{% if count %}<i class="{{ css }}" style="flex: {{ count }} 1 0%"></i>{% endif %}{% endfor %}
-                                                </div>
-                                            {% endif %}
-                                        </div>
-                                        <span class="w-14 text-right font-mono">{{ row.activity.tokens_short }}</span>
+            <table class="table key-table lg:table-fixed max-lg:block">
+                <thead class="max-lg:hidden">
+                    <tr>
+                        <th>Service account</th>
+                        <th class="w-44">Tokens, 7 days</th>
+                        <th class="w-32">Last used</th>
+                        <th class="w-28">Expires</th>
+                        {% if is_team_admin %}<th class="w-40"><span class="sr-only">Actions</span></th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody class="max-lg:block">
+                    {% for row in page.service_accounts %}
+                        {% with sa=row.service_account %}
+                        <tr class="max-lg:flex max-lg:flex-wrap max-lg:items-center">
+                            <td class="min-w-0 max-lg:w-full">
+                                {% if row.token %}<a class="link-plain row-link break-words font-mono" href="{% url 'token_detail' row.token.id %}">{{ sa.name }}</a>{% else %}<span class="break-words font-mono">{{ sa.name }}</span>{% endif %}
+                                <div class="muted truncate text-xs"><span class="relative z-10" title="{{ row.token.user.email }}">{{ row.token.user.email|default:"No owner" }}</span> · <span class="font-mono">{{ row.token.key_preview|default:"No key" }}</span></div>
+                                <div class="muted text-xs lg:hidden">{{ row.activity.tokens_short }} tokens · {% if row.activity.last_used %}used {{ row.activity.last_used|when:"relative" }}{% else %}never used{% endif %}{% if row.expiry.at %} · {% if "st-err" in row.expiry.tone %}{{ row.expiry|expiry }}{% else %}expires {{ row.expiry|expiry }}{% endif %}{% endif %}</div>
+                            </td>
+                            <td class="max-lg:hidden">
+                                <div class="flex items-center gap-3">
+                                    <div class="min-w-0 flex-1">
+                                        {% if row.activity.tokens %}
+                                            <span class="aq-tip-host relative z-10 block min-w-3" style="width: {{ row.bar_width }}%" role="img" aria-label="{{ row.tip }}">
+                                                <span class="tbar">{% for css, count in row.activity.segments %}{% if count %}<i class="{{ css }}" style="flex: {{ count }} 1 0%"></i>{% endif %}{% endfor %}</span>
+                                                {% include "management/_tip.html" with tip=row.tip %}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                    <span class="w-14 text-right font-mono">{{ row.activity.tokens_short }}</span>
+                                </div>
+                            </td>
+                            <td class="muted max-lg:hidden">{{ row.activity.last_used|when:"relative"|default:"Never" }}</td>
+                            <td class="max-lg:hidden">{% if row.expiry %}{{ row.expiry|expiry }}{% endif %}</td>
+                            {% if is_team_admin %}
+                                <td class="max-lg:pt-0">
+                                    <div class="relative z-10 flex gap-1 lg:justify-end">
+                                        {% if row.token %}
+                                            <form action="{% url 'token_regenerate' row.token.id %}" method="post">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Rotate {{ sa.name }}" title="Rotate"
+                                                        {% confirm "Rotate the key of "|add:sa.name|add:"?" "The current key stops working immediately." "Rotate" %}>{% icon "rotate" small=True %}</button>
+                                            </form>
+                                        {% endif %}
+                                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_edit' sa.id %}" aria-label="Edit {{ sa.name }}" title="Edit">{% icon "admin" small=True %}</a>
+                                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_transfer' sa.id %}" aria-label="Transfer {{ sa.name }}" title="Transfer ownership">{% icon "transfer" small=True %}</a>
+                                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_delete' sa.id %}" {% confirm_delete sa %} aria-label="Delete {{ sa.name }}" title="Delete">{% icon "delete" small=True %}</a>
                                     </div>
                                 </td>
-                                <td class="muted">{{ row.activity.last_used|when:"relative"|default:"Never" }}</td>
-                                <td>{% if row.expiry %}{{ row.expiry|expiry }}{% endif %}</td>
-                                {% if is_team_admin %}
-                                    <td>
-                                        <div class="relative z-10 flex justify-end gap-1">
-                                            {% if row.token %}
-                                                <form action="{% url 'token_regenerate' row.token.id %}" method="post">
-                                                    {% csrf_token %}
-                                                    <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Rotate {{ sa.name }}" title="Rotate"
-                                                            {% confirm "Rotate the key of "|add:sa.name|add:"?" "The current key stops working immediately." "Rotate" %}>{% icon "rotate" small=True %}</button>
-                                                </form>
-                                            {% endif %}
-                                            <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_edit' sa.id %}" aria-label="Edit {{ sa.name }}" title="Edit">{% icon "admin" small=True %}</a>
-                                            <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_transfer' sa.id %}" aria-label="Transfer {{ sa.name }}" title="Transfer ownership">{% icon "transfer" small=True %}</a>
-                                            <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_delete' sa.id %}" {% confirm_delete sa %} aria-label="Delete {{ sa.name }}" title="Delete">{% icon "delete" small=True %}</a>
-                                        </div>
-                                    </td>
-                                {% endif %}
-                            </tr>
-                            {% endwith %}
-                        {% empty %}
-                            <tr><td colspan="{% if is_team_admin %}5{% else %}4{% endif %}" class="muted">This team has no service accounts.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% if page.service_accounts %}
-                <div class="flex flex-wrap items-center gap-4 px-3 pt-1 text-sm">
-                    {% include "management/_token_legend.html" %}
-                </div>
-            {% endif %}
+                            {% endif %}
+                        </tr>
+                        {% endwith %}
+                    {% empty %}
+                        <tr class="max-lg:block"><td colspan="{% if is_team_admin %}5{% else %}4{% endif %}" class="muted max-lg:block">This team has no service accounts.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </section>
 
@@ -129,99 +126,105 @@
                     </form>
                 </div>
                 {% if is_team_admin %}
-                    <form method="post" class="flex w-full flex-col gap-1 sm:w-auto">
-                        {% csrf_token %}
-                        <div class="flex flex-wrap items-center gap-2">
-                            <input type="email" name="email" value="{{ add_form.email.value|default:'' }}" required
-                                   class="input input-sm w-full sm:w-72{% if add_form.email.errors %} input-error{% endif %}"
-                                   placeholder="Email of someone in {{ team.org.name }}" aria-label="Email of someone in {{ team.org.name }} to add"
-                                   {% if add_form.email.errors %}aria-invalid="true" aria-describedby="add-member-error"{% endif %}>
-                            <button type="submit" class="btn btn-sm btn-primary">{% icon "plus" small=True %}Add member</button>
-                        </div>
-                        {% if add_form.email.errors %}<span id="add-member-error" class="text-sm text-error">{{ add_form.email.errors|striptags }}</span>{% endif %}
-                    </form>
+                    <details class="group flex w-full flex-col items-end sm:w-auto"{% if add_form.errors %} open{% endif %}>
+                        <summary class="btn btn-sm btn-primary group-open:[--btn-bg:transparent] group-open:[--btn-fg:var(--color-primary)] group-open:[--btn-border:var(--color-primary)] group-open:[--btn-shadow:none]">{% icon "plus" small=True extra_class="group-open:hidden" %}<span class="group-open:hidden">Add member</span><span class="hidden group-open:inline">Cancel</span></summary>
+                        <form method="post" class="mt-2 flex flex-col gap-1">
+                            {% csrf_token %}
+                            <div class="flex items-center gap-2">
+                                <input type="email" name="email" value="{{ add_form.email.value|default:'' }}" required
+                                       class="input input-sm w-full sm:w-72{% if add_form.email.errors %} input-error{% endif %}"
+                                       placeholder="name@example.org" aria-label="Email of the new member"
+                                       {% if add_form.email.errors %}aria-invalid="true" aria-describedby="add-member-error"{% endif %}>
+                                <button type="submit" class="btn btn-sm btn-primary">Add</button>
+                            </div>
+                            {% if add_form.email.errors %}<span id="add-member-error" class="text-sm text-error">{{ add_form.email.errors|striptags }}</span>{% endif %}
+                        </form>
+                    </details>
                 {% endif %}
             </div>
-            <div class="overflow-x-auto">
-                <table class="table table-fixed key-table min-w-[560px]">
-                    <thead>
-                        <tr>
-                            <th>Member</th>
-                            <th class="w-72">Role</th>
-                            {% if is_team_admin %}<th class="w-16"><span class="sr-only">Remove</span></th>{% endif %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for member in page.members %}
-                            <tr>
-                                <td class="truncate" title="{{ member.profile.user.email }}"><span class="font-medium">{{ member.profile.user.email }}</span>{% if member.is_viewer %} <span class="muted">(you)</span>{% endif %}</td>
-                                <td>
-                                    <div class="flex flex-wrap items-center gap-3">
-                                        <span>{{ member.role }}</span>
-                                        {% if member.can_change_admin %}
-                                            <form action="{% url 'team_admins_manage' team.id %}" method="post">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="profile_id" value="{{ member.profile.id }}">
-                                                {% if member.is_team_admin %}
-                                                    <input type="hidden" name="action" value="remove">
-                                                    <button type="submit" class="btn btn-ghost btn-xs whitespace-nowrap"
-                                                            onclick="return confirm('Remove team admin rights from {{ member.profile.user.email|escapejs }}?');">Remove team admin</button>
-                                                {% else %}
-                                                    <input type="hidden" name="action" value="add">
-                                                    <button type="submit" class="btn btn-ghost btn-xs whitespace-nowrap"
-                                                            onclick="return confirm('Make {{ member.profile.user.email|escapejs }} a team admin?');">Make team admin</button>
-                                                {% endif %}
-                                            </form>
-                                        {% endif %}
-                                    </div>
+            <table class="table key-table md:table-fixed max-md:block">
+                <thead class="max-md:hidden">
+                    <tr>
+                        <th>Member</th>
+                        <th class="w-56">Role</th>
+                        {% if is_team_admin %}<th class="w-64"><span class="sr-only">Remove</span></th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody class="max-md:block">
+                    {% for member in page.members %}
+                        <tr class="max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-x-3">
+                            <td class="truncate max-md:w-full max-md:pb-0" title="{{ member.profile.user.email }}"><span class="font-medium">{{ member.profile.user.email }}</span>{% if member.is_viewer %} <span class="muted">(you)</span>{% endif %}</td>
+                            <td class="max-md:py-1">
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <span>{{ member.role }}</span>
+                                    {% if member.can_change_admin %}
+                                        <form action="{% url 'team_admins_manage' team.id %}" method="post">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="profile_id" value="{{ member.profile.id }}">
+                                            {% if member.is_team_admin %}
+                                                <button type="submit" name="action" value="remove" class="btn btn-ghost btn-xs whitespace-nowrap" aria-label="Remove admin rights of {{ member.profile.user.email }}">Remove admin</button>
+                                            {% else %}
+                                                <button type="submit" name="action" value="add" class="btn btn-ghost btn-xs whitespace-nowrap" aria-label="Make {{ member.profile.user.email }} a team admin">Make admin</button>
+                                            {% endif %}
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            {% if is_team_admin %}
+                                <td class="max-md:py-1 md:text-right">
+                                    {% for sa in member.owned %}
+                                        <div class="muted text-sm">Owns <span class="font-mono">{{ sa.name }}</span> · <a class="link" href="{% url 'service_account_transfer' sa.id %}">Transfer</a></div>
+                                    {% empty %}
+                                        <form method="post">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="user_profile_to_remove_id" value="{{ member.profile.id }}">
+                                            <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Remove {{ member.profile.user.email }} from the team" title="Remove from the team"
+                                                    {% confirm "Remove "|add:member.profile.user.email|add:"?" "They lose access to the team and its service accounts." "Remove" %}>{% icon "delete" small=True %}</button>
+                                        </form>
+                                    {% endfor %}
                                 </td>
-                                {% if is_team_admin %}
-                                    <td>
-                                        {% if member.owns_service_account %}
-                                            <button type="button" class="btn btn-ghost btn-sm btn-square" disabled
-                                                    aria-label="Remove {{ member.profile.user.email }} from the team" title="Owns a service account, so cannot be removed">{% icon "delete" small=True %}</button>
-                                        {% else %}
-                                            <form method="post">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="user_profile_to_remove_id" value="{{ member.profile.id }}">
-                                                <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Remove {{ member.profile.user.email }} from the team" title="Remove from the team"
-                                                        {% confirm "Remove "|add:member.profile.user.email|add:"?" "They lose access to the team and its service accounts." "Remove" %}>{% icon "delete" small=True %}</button>
-                                            </form>
-                                        {% endif %}
-                                    </td>
-                                {% endif %}
-                            </tr>
-                        {% empty %}
-                            <tr><td colspan="{% if is_team_admin %}3{% else %}2{% endif %}" class="muted">{% if member_query %}No member matches.{% else %}This team has no members.{% endif %}</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                            {% endif %}
+                        </tr>
+                    {% empty %}
+                        <tr class="max-md:block"><td colspan="{% if is_team_admin %}3{% else %}2{% endif %}" class="muted max-md:block">{% if member_query %}No member matches.{% else %}This team has no members.{% endif %}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% include "management/_pager.html" with pages=page.member_pages %}
         </div>
     </section>
 
-    <section class="card bg-base-200" aria-labelledby="limits-title">
-        <div class="card-body gap-3 p-5">
-            <div class="flex items-center justify-between gap-3">
-                <h2 id="limits-title" class="text-xl font-semibold">Limits</h2>
-                {% if can_edit_in_admin %}<a class="link-plain text-sm" href="{% url 'admin:management_team_change' team.id %}">Edit</a>{% endif %}
+    {% if shows_limits %}
+        <section class="card bg-base-200" aria-labelledby="limits-title">
+            <div class="card-body gap-3 p-5">
+                <div class="flex items-center justify-between gap-3">
+                    <h2 id="limits-title" class="text-xl font-semibold">Limits</h2>
+                    {% if is_org_admin %}<a class="link-plain text-sm" href="{% url 'team_edit' team.id %}" aria-label="Edit limits">Edit</a>{% endif %}
+                </div>
+                {% include "management/_limits.html" with limits=page.limits %}
+                <p class="muted text-sm">Applies to each service account key.</p>
+                {% if is_org_admin %}
+                    <div class="flex items-center justify-between gap-3 border-t border-base-300 pt-4">
+                        <h3 class="font-semibold">Unavailable to service accounts</h3>
+                        <a class="link-plain text-sm" href="{% url 'team_availability' team.id %}" aria-label="Edit availability">Edit</a>
+                    </div>
+                    {% if page.excluded_models or page.excluded_mcp_servers %}
+                        <dl class="grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center">
+                            {% if page.excluded_models %}
+                                <dt class="muted">Models</dt>
+                                <dd class="flex flex-wrap gap-1.5">{% for model in page.excluded_models %}<span class="badge badge-sm bg-base-100 font-mono">{{ model }}</span>{% endfor %}</dd>
+                            {% endif %}
+                            {% if page.excluded_mcp_servers %}
+                                <dt class="muted">MCP servers</dt>
+                                <dd class="flex flex-wrap gap-1.5">{% for server in page.excluded_mcp_servers %}<span class="badge badge-sm bg-base-100 font-mono">{{ server }}</span>{% endfor %}</dd>
+                            {% endif %}
+                        </dl>
+                    {% else %}
+                        <p class="muted text-sm">None</p>
+                    {% endif %}
+                {% endif %}
             </div>
-            {% include "management/_limits.html" with limits=page.limits %}
-            <p class="muted text-sm">Each service account key gets these limits. Team members' personal keys follow their own limits.</p>
-            {% if is_org_admin %}
-            <div class="flex items-center justify-between gap-3 border-t border-base-300 pt-4">
-                <h3 class="font-semibold">Unavailable to service accounts</h3>
-                <a class="link-plain text-sm" href="{% url 'team_availability' team.id %}" aria-label="Edit availability">Edit</a>
-            </div>
-            <dl class="grid grid-cols-[12rem_minmax(0,1fr)] items-center gap-x-4 gap-y-3 text-sm">
-                <dt class="muted">Unavailable models</dt>
-                <dd class="flex flex-wrap gap-1.5">{% for model in page.excluded_models %}<span class="badge badge-sm bg-base-100 font-mono">{{ model }}</span>{% empty %}None{% endfor %}</dd>
-                <dt class="muted">Unavailable MCP servers</dt>
-                <dd class="flex flex-wrap gap-1.5">{% for server in page.excluded_mcp_servers %}<span class="badge badge-sm bg-base-100 font-mono">{{ server }}</span>{% empty %}None{% endfor %}</dd>
-            </dl>
-            {% endif %}
-        </div>
-    </section>
+        </section>
+    {% endif %}
 </div>
 {% endblock %}

@@ -1,4 +1,5 @@
 {% extends "management/base.html" %}
+{% load ui %}
 {% block title %}Edit {{ team.name }} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
@@ -22,5 +23,17 @@
             </div>
         </div>
     </form>
+
+    {% if can_delete %}
+        <section class="card max-w-2xl border border-error/40 bg-base-200" aria-labelledby="danger-title">
+            <div class="card-body flex-row flex-wrap items-center justify-between gap-4 p-6">
+                <div class="flex flex-col gap-1">
+                    <h2 id="danger-title" class="font-semibold">Delete team</h2>
+                    <p class="muted text-sm">This can't be undone.</p>
+                </div>
+                <a class="btn btn-outline btn-error" href="{% url 'team_delete' team.id %}" {% confirm_delete team %}>{% icon "delete" small=True %}Delete team</a>
+            </div>
+        </section>
+    {% endif %}
 </div>
 {% endblock %}

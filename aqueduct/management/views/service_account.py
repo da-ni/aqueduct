@@ -21,6 +21,9 @@ from management.views.base import BaseServiceAccountView, BaseTeamView, TeamAdmi
 
 User = get_user_model()
 
+OWNER_CHOICES = 50
+"""Up to this many team members, the new owner is chosen from a list. Above it, by email."""
+
 
 # --- Create View ---
 # Uses TeamAdminRequiredMixin to ensure the user has admin rights on that team.
@@ -191,8 +194,9 @@ class ServiceAccountUpdateView(BaseServiceAccountView, UpdateView):
 
 
 class ServiceAccountTransferOwnershipView(BaseServiceAccountView, View):
-    """Hands a service account's key to another member of its team, named by email.
-    Requires the requesting user to be an admin of the service account's team."""
+    """Hands a service account's key to another member of its team, picked from a list or, in a
+    team of more than `OWNER_CHOICES` members, named by email. Requires the requesting user to be
+    an admin of the service account's team."""
 
     template_name = "management/transfer_service_account.html"
     pk_url_kwarg = "service_account_id"
@@ -211,12 +215,17 @@ class ServiceAccountTransferOwnershipView(BaseServiceAccountView, View):
     def render_form(self, form: MemberEmailForm, token: Token | None) -> HttpResponse:
         team = self.team_object
         owner = token.user if token else None
+        others = team.member_profiles.exclude(user=owner)
+        choices = None
+        if team.member_profiles.count() <= OWNER_CHOICES:
+            choices = list(others.order_by("user__email").values_list("user__email", flat=True))
         context = {
             "service_account": self.get_object(),
             "team": team,
             "form": form,
             "current_owner_email": owner.email if owner else None,
-            "has_other_members": team.member_profiles.exclude(user=owner).exists(),
+            "has_other_members": others.exists(),
+            "owner_choices": choices,
             "cancel_url": self.get_success_url(),
             "view_title": "Transfer ownership",
         }

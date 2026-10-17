@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -8,11 +9,19 @@ from django.db.models import Count, OuterRef, QuerySet, Subquery
 from django.db.models.functions import Coalesce
 
 from management.key_activity import (
+    TOKEN_SERIES,
     Activity,
     Expiry,
+    Stat,
+    Tip,
     Window,
     activity_by,
+    as_failed,
+    as_requests,
+    as_tokens,
+    compact,
     key_activity,
+    spark,
     week,
     window,
 )
@@ -49,7 +58,8 @@ def _bar_widths(activity: dict[int, Activity]) -> dict[int, int]:
 @dataclass(frozen=True)
 class TeamRow:
     team: Team
-    role: Role | None
+    is_team_admin: bool
+    """The viewer is an admin of the team by its membership, not by their org role."""
     members: int
     service_accounts: int
     limit: int | None
@@ -89,18 +99,17 @@ def team_rows(
         PAGE_SIZE,
     ).get_page(page)
     found = list(pages)
-    roles = {
-        team_id: Role.TEAM_ADMIN if is_admin else Role.MEMBER
-        for team_id, is_admin in TeamMembership.objects.filter(user_profile=viewer).values_list(
-            "team_id", "is_admin"
+    admin_of = set(
+        TeamMembership.objects.filter(user_profile=viewer, is_admin=True).values_list(
+            "team_id", flat=True
         )
-    }
+    )
     activity = activity_by("token__service_account__team_id", (t.id for t in found), week(now))
     widths = _bar_widths(activity)
     rows = tuple(
         TeamRow(
             team=team,
-            role=roles.get(team.id),
+            is_team_admin=team.id in admin_of,
             members=team.member_count,
             service_accounts=team.service_account_count,
             limit=LimitSet.from_objects(team, team.org).requests_per_minute,
@@ -117,7 +126,8 @@ class MemberRow:
     profile: UserProfile
     role: Role
     is_viewer: bool
-    owns_service_account: bool
+    owned: tuple[ServiceAccount, ...]
+    """The team's service accounts whose key this member owns. They block removing the member."""
     is_team_admin: bool
     can_change_admin: bool
 
@@ -130,10 +140,33 @@ class ServiceAccountRow:
     expiry: Expiry | None
     bar_width: int
 
+    @property
+    def tip(self) -> Tip:
+        """The token mix the row's bar shows, for its tooltip."""
+        return Tip(
+            "Tokens, 7 days",
+            as_tokens(self.activity.tokens),
+            tuple((css, TOKEN_SERIES[css], f"{n:,}") for css, n in self.activity.segments),
+        )
+
+
+def team_stats(week_window: Window) -> tuple[Stat, ...]:
+    """The team page's cards: tokens, requests, and failed requests of the service accounts."""
+    totals = week_window.totals
+
+    def daily(count: Callable[[Activity], int]) -> list[tuple[str, float]]:
+        return [(f"{d.day:%-d %b}", count(d.activity)) for d in week_window.days]
+
+    return (
+        Stat("Tokens", compact(totals.tokens), spark(daily(lambda a: a.tokens), as_tokens)),
+        Stat("Requests", f"{totals.requests:,}", spark(daily(lambda a: a.requests), as_requests)),
+        Stat("Failed", totals.failed_share, spark(daily(lambda a: a.failed), as_failed)),
+    )
+
 
 @dataclass(frozen=True)
 class TeamPage:
-    window: Window
+    stats: tuple[Stat, ...]
     service_accounts: tuple[ServiceAccountRow, ...]
     members: tuple[MemberRow, ...]
     member_pages: Page
@@ -168,7 +201,10 @@ def team_page(
         )
         for sa, token in ((sa, tokens[sa.id]) for sa in accounts)
     )
-    owners = {t.user_id for t in tokens.values() if t is not None}
+    owned = defaultdict(list)
+    for sa in accounts:
+        if tokens[sa.id] is not None:
+            owned[tokens[sa.id].user_id].append(sa)
 
     all_memberships = TeamMembership.objects.filter(team=team)
     member_pages = Paginator(
@@ -194,7 +230,7 @@ def team_page(
                 profile=profile,
                 role=role,
                 is_viewer=is_viewer,
-                owns_service_account=profile.user_id in owners,
+                owned=tuple(owned[profile.user_id]),
                 is_team_admin=membership.is_admin,
                 can_change_admin=can_manage_admins
                 and role in (Role.TEAM_ADMIN, Role.MEMBER)
@@ -204,7 +240,7 @@ def team_page(
 
     limits = LimitSet.from_objects(team, org)
     return TeamPage(
-        window=window(Request.objects.filter(token__service_account__team=team), now),
+        stats=team_stats(window(Request.objects.filter(token__service_account__team=team), now)),
         service_accounts=service_accounts,
         members=tuple(members),
         member_pages=member_pages,

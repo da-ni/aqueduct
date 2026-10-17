@@ -8,60 +8,59 @@
     <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
         <div class="flex flex-col gap-1">
             <h1 class="text-3xl font-semibold">Teams</h1>
-            <span class="muted text-sm">{{ org_object.name }}</span>
-            {% include "management/_org_fallback.html" %}
+            <span class="muted text-sm">{% if all_orgs %}All organizations{% else %}{{ org_object.name }}{% endif %}</span>
         </div>
         {% if is_org_admin %}
             <a class="btn btn-primary" href="{% url 'team_create' %}">{% icon "plus" small=True %}Create team</a>
         {% endif %}
     </header>
 
-    <div class="flex flex-wrap items-center gap-3">
+    {% if in_no_team %}
+        <section class="card bg-base-200">
+            <div class="card-body p-5">
+                <p>You're not in a team. Ask your org admin to add you.</p>
+            </div>
+        </section>
+    {% else %}
         <form method="get" role="search">
-            <label class="input input-sm w-64">
+            <label class="input input-sm w-full sm:w-64">
                 {% icon "search" small=True %}
                 <input type="search" name="q" value="{{ query }}" placeholder="Search teams" aria-label="Search teams">
             </label>
         </form>
-        <div class="ml-auto flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span class="text-sm font-medium">Default limits</span>
-            {% include "management/_limits.html" with limits=org_limits %}
-        </div>
-        {% if is_org_admin %}
-            <a class="link-plain text-sm" href="{% url 'organization_limits' org_object.id %}">Edit</a>
-        {% endif %}
-        {% if can_edit_in_admin %}
-            <a class="link-plain text-sm" href="{% url 'admin:management_org_change' org_object.id %}">Edit in admin</a>
-        {% endif %}
-    </div>
 
-    <section class="card bg-base-200">
-        <div class="card-body p-3">
-            <div class="overflow-x-auto">
-                <table class="table table-fixed key-table min-w-[900px]">
-                    <thead>
+        <section class="card bg-base-200">
+            <div class="card-body p-3">
+                <table class="table key-table lg:table-fixed max-lg:block">
+                    <colgroup>
+                        <col>{% if all_orgs %}<col class="w-40">{% elif not is_org_admin %}<col class="w-28">{% endif %}<col class="w-24"><col class="w-36"><col class="w-32"><col class="w-48"><col class="w-14">
+                    </colgroup>
+                    <thead class="max-lg:hidden">
                         <tr>
                             <th>Team</th>
-                            {% if not is_org_admin %}<th class="w-32">Your role</th>{% endif %}
-                            <th class="w-24 text-right">Members</th>
-                            <th class="w-40 text-right">Service accounts</th>
-                            <th class="w-36 text-right">Limit per minute</th>
-                            <th class="w-44">Tokens, 7 days</th>
-                            <th class="w-14"><span class="sr-only">Open</span></th>
+                            {% if all_orgs %}<th>Organization</th>{% elif not is_org_admin %}<th>Your role</th>{% endif %}
+                            <th class="text-right">Members</th>
+                            <th class="text-right">Service accounts</th>
+                            <th class="text-right">Requests/min</th>
+                            <th class="whitespace-normal" colspan="2"><span class="tooltip">Service account tokens, 7 days<span class="tooltip-content font-sans text-sm font-normal normal-case tracking-normal"><span class="sr-only">. </span>Members' personal keys don't count.</span></span></th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody class="max-lg:block">
                         {% for row in teams.rows %}
-                            <tr>
-                                <td>
-                                    <a class="link-plain row-link" href="{% url 'team' row.team.id %}">{{ row.team.name }}</a>
-                                    {% if row.team.description %}<div class="muted truncate text-xs">{{ row.team.description }}</div>{% endif %}
+                            <tr class="max-lg:flex max-lg:items-center">
+                                <td class="min-w-0 max-lg:flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <a class="link-plain row-link truncate" href="{% url 'team' row.team.id %}">{{ row.team.name }}</a>
+                                        {% if row.is_team_admin %}<span class="badge badge-sm bg-base-100 shrink-0 lg:hidden">Team admin</span>{% endif %}
+                                    </div>
+                                    {% if row.team.description %}<div class="muted truncate text-xs max-lg:hidden">{{ row.team.description }}</div>{% endif %}
+                                    <div class="muted text-sm lg:hidden">{% if all_orgs %}{{ row.team.org.name }} · {% endif %}{{ row.members }} member{{ row.members|pluralize }} · {{ row.service_accounts }} service account{{ row.service_accounts|pluralize }} · {{ row.activity.tokens_short }} tokens</div>
                                 </td>
-                                {% if not is_org_admin %}<td>{{ row.role|default:"" }}</td>{% endif %}
-                                <td class="text-right font-mono">{{ row.members }}</td>
-                                <td class="text-right font-mono">{{ row.service_accounts }}</td>
-                                <td class="text-right">{% if row.limit is None %}No limit{% else %}<span class="font-mono">{{ row.limit|intcomma }}</span>{% endif %}</td>
-                                <td>
+                                {% if all_orgs %}<td class="truncate max-lg:hidden">{{ row.team.org.name }}</td>{% elif not is_org_admin %}<td class="max-lg:hidden">{% if row.is_team_admin %}<span class="badge badge-sm bg-base-100">Team admin</span>{% endif %}</td>{% endif %}
+                                <td class="text-right font-mono max-lg:hidden">{{ row.members }}</td>
+                                <td class="text-right font-mono max-lg:hidden">{{ row.service_accounts }}</td>
+                                <td class="text-right max-lg:hidden">{% if row.limit is None %}No limit{% else %}<span class="font-mono">{{ row.limit|intcomma }}</span>{% endif %}</td>
+                                <td class="max-lg:hidden">
                                     <div class="flex items-center gap-3">
                                         <div class="min-w-0 flex-1">
                                             {% if row.activity.tokens %}<div class="onebar" style="width: {{ row.bar_width }}%"></div>{% endif %}
@@ -69,19 +68,18 @@
                                         <span class="w-14 text-right font-mono">{{ row.activity.tokens_short }}</span>
                                     </div>
                                 </td>
-                                <td>
+                                <td class="max-lg:px-1">
                                     <a class="btn btn-ghost btn-sm btn-square relative z-10" href="{% url 'team' row.team.id %}" aria-label="Open {{ row.team.name }}">{% icon "chevron" small=True %}</a>
                                 </td>
                             </tr>
                         {% empty %}
-                            <tr><td colspan="7" class="muted">{% if query %}No team matches.{% elif is_org_admin %}This organization has no teams yet.{% else %}You are not in a team yet.{% endif %}</td></tr>
+                            <tr class="max-lg:block"><td colspan="7" class="muted max-lg:block">{% if query %}No team matches.{% else %}This organization has no teams yet.{% endif %}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
+                {% include "management/_pager.html" with pages=teams.pages %}
             </div>
-            {% include "management/_pager.html" with pages=teams.pages %}
-            <p class="muted px-3 pb-2 pt-1 text-sm">Tokens count the requests of the team's service accounts.</p>
-        </div>
-    </section>
+        </section>
+    {% endif %}
 </div>
 {% endblock %}
