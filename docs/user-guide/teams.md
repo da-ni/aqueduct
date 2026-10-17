@@ -39,7 +39,7 @@ Org admins and admins manage teams:
 2. Enter a **Name** and, optionally, a **Description**.
 3. Choose **Create team**.
 
-To delete a team, open it and choose **Delete**, then confirm. Its service accounts and their keys stop working. Members keep their personal keys.
+To delete a team, open it and choose **Delete**, then confirm. Its service accounts are deleted with their keys and everything the keys created. Members keep their personal keys.
 
 ## Open a team
 

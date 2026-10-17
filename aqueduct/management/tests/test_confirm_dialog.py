@@ -58,7 +58,10 @@ class ConfirmDialogTest(TeamsPagesTestBase):
     def test_team_delete_counts_the_service_accounts_that_stop_working(self):
         delete = reverse("team_delete", args=[self.team.id])
         client = self.as_user(self.org_admin)
-        one = "Its 1 service account and their keys stop working. Members keep their personal keys."
+        one = (
+            "Its 1 service account is deleted with its key and the key&#x27;s requests, files, "
+            "batches, and vector stores. Members keep their personal keys."
+        )
         self.assertContains(
             client.get(reverse("team", args=[self.team.id])),
             f'href="{delete}" {asks("Delete NLP Lab?", one)}',

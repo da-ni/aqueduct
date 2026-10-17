@@ -88,12 +88,14 @@ AGO_UNITS = (
 
 
 def ago(value: datetime, now: datetime) -> str:
-    """How long ago, or how soon, `value` is, in the largest whole unit and rounded: "2 days
-    ago" for 1 day and 18 hours, "in 3 hours"."""
+    """How long ago, or how soon, `value` is, in one unit rounded half up: "2 days ago" for 1
+    day and 18 hours, "1 day ago" for 23 hours and 40 minutes, "in 3 hours"."""
     seconds = (now - value).total_seconds()
-    for unit, size in AGO_UNITS:
+    for index, (name, size) in enumerate(AGO_UNITS):
         if abs(seconds) >= size:
-            count = round(abs(seconds) / size)
+            unit, count = name, int(abs(seconds) / size + 0.5)
+            if index and count >= round(AGO_UNITS[index - 1][1] / size):
+                unit, count = AGO_UNITS[index - 1][0], 1
             label = f"{count}\xa0{unit}{'' if count == 1 else 's'}"
             return f"{label} ago" if seconds > 0 else f"in {label}"
     return "just now"

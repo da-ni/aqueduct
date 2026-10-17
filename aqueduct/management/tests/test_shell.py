@@ -342,6 +342,9 @@ class WhenFilterTest(TestCase):
             (now - timedelta(hours=3), "3\xa0hours ago"),
             (now - timedelta(days=1, hours=18), "2\xa0days ago"),
             (now - timedelta(days=1, hours=2), "1\xa0day ago"),
+            (now - timedelta(hours=23, minutes=40), "1\xa0day ago"),
+            (now - timedelta(minutes=2, seconds=30), "3\xa0minutes ago"),
+            (now - timedelta(days=6, hours=14), "1\xa0week ago"),
             (now + timedelta(hours=3, minutes=1), "in 3\xa0hours"),
         ]:
             with self.subTest(label=label):

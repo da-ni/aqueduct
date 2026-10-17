@@ -5,7 +5,7 @@ the attributes of {% confirm title detail action %} or {% confirm_delete obj %} 
     <a href="{% url 'token_delete' token.id %}" {% confirm_delete token %}>Delete</a>
     <button type="submit" name="remove" value="7" {% confirm "Remove ana@example.com?" "She loses access." "Remove" %}>Remove</button>
 
-A confirmed link posts to its own address, so it must point at a page whose POST does the
+Only an `<a href>` or a `<button type="submit">` asks. A confirmed link posts to its own address, so it must point at a page whose POST does the
 action, such as a DeleteView. Without JavaScript the link opens that page, which asks the same
 question. A confirmed button submits its own form.
 {% endcomment %}

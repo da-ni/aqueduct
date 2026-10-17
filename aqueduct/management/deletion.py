@@ -28,10 +28,15 @@ def deletion(obj: Token | ServiceAccount | Team | FileObject) -> Confirmation:
         case Team():
             name, count = obj.name, obj.service_accounts.count()
             detail = "Members keep their personal keys."
-            if count:
-                accounts = "service account" if count == 1 else "service accounts"
-                detail = f"Its {count} {accounts} and their keys stop working. {detail}"
+            if count == 1:
+                gone = f"Its 1 service account is deleted with its key and the key's {KEY_DATA}."
+                detail = f"{gone} {detail}"
+            elif count:
+                gone = f"Its {count} service accounts are deleted with their keys and the keys'"
+                detail = f"{gone} {KEY_DATA}. {detail}"
         case FileObject():
             name = obj.filename
             detail = "Batches that use it as input are deleted with it, and vector stores drop it."
+        case _:
+            raise TypeError(f"no deletion text for {type(obj).__name__}")
     return Confirmation(f"Delete {name}?", detail)

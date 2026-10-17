@@ -590,8 +590,9 @@ class TeamScopeTest(TeamsPagesTestBase):
 
     def test_admin_of_another_org_and_outsiders_get_404_on_every_url(self):
         before = self.state()
+        availability = reverse("team_availability", args=[self.team.id])
         for user in (self.other_org_admin, self.outsider):
-            for method, url, data in self.requests():
+            for method, url, data in [*self.requests(), ("get", availability, {})]:
                 with self.subTest(user=user.username, method=method, url=url, data=data):
                     response = getattr(self.as_user(user), method)(url, data)
                     self.assertEqual(response.status_code, 404)

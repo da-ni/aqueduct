@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, datetime
 
 from django.contrib.auth import get_user_model
@@ -63,7 +64,9 @@ class TermsPromptTest(TestCase):
         self.assertEqual(self.client.get(reverse("settings")).status_code, 200)
 
     def test_declining_signs_out(self):
-        self.client.post(reverse("oidc_logout"))
+        page = self.client.get(reverse("tos_check_tos"), {"next": reverse("settings")})
+        decline = re.search(r'formaction="([^"]+)">Decline and sign out', page.content.decode())
+        self.client.post(decline.group(1), {"next": reverse("settings")})
         response = self.client.get(reverse("settings"))
         self.assertRedirects(
             response, f"{reverse('sso')}?next={reverse('settings')}", fetch_redirect_response=False
