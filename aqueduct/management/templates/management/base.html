@@ -5,7 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% if shell.current %}{{ shell.current.label }} · {% endif %}Aqueduct AI Gateway</title>
+    <title>{% block title %}{% if shell.current %}{{ shell.current.label }} · {% endif %}Aqueduct AI Gateway{% endblock %}</title>
     <link rel="shortcut icon" type="image/png" href="{% static 'images/Aqueduct_Icon_80x80.png' %}">
     {% include "management/_cdn.html" %}
 </head>
@@ -52,39 +52,21 @@
     </div>
 </div>
 
-<div class="fixed bottom-4 right-4 w-auto max-w-xl z-50">
-    {% if messages %}
-        <div class="space-y-2">
-            {% for message in messages %}{% if message.extra_tags != "token-regenerated-key" %}
-                <div role="alert"
-                     class="alert
-        {% if message.tags == 'success' %}alert-success
-        {% elif message.tags == 'error' %}alert-error
-        {% elif message.tags == 'warning' %}alert-warning
-        {% else %}alert-info
-        {% endif %}
-        shadow-lg">
-
-                    {% if message.tags == 'success' %}
-                        <img src="{% static 'icons/check.svg' %}" alt="Success Icon" class="h-6 w-6 shrink-0">
-
-                    {% elif message.tags == 'error' %}
-                        <img src="{% static 'icons/error.svg' %}" alt="Error Icon" class="h-6 w-6 shrink-0">
-
-                    {% elif message.tags == 'warning' %}
-                        <img src="{% static 'icons/warning.svg' %}" alt="Warning Icon" class="h-6 w-6 shrink-0">
-
-                    {% else %}
-                        <img src="{% static 'icons/info.svg' %}" alt="Info Icon" class="h-6 w-6 shrink-0">
-                    {% endif %}
-
-                    <span>{{ message }}</span>
-
-                </div>
-            {% endif %}{% endfor %}
-        </div>
-    {% endif %}
-</div>
+{% if messages %}
+    <div class="fixed bottom-4 right-4 z-50 flex w-auto max-w-xl flex-col gap-2">
+        {% for message in messages %}{% if message.extra_tags != "token-regenerated-key" %}
+            <div class="alert alert-{{ message.level_tag }} shadow-lg"
+                 {% if message.level >= DEFAULT_MESSAGE_LEVELS.WARNING %}role="alert"{% else %}role="status" data-autodismiss{% endif %}>
+                {% if message.level_tag == "success" %}{% icon "ok" %}
+                {% elif message.level_tag == "error" %}{% icon "failed" %}
+                {% elif message.level_tag == "warning" %}{% icon "warning" %}
+                {% else %}{% icon "info" %}{% endif %}
+                <span>{{ message }}</span>
+                <button type="button" class="btn btn-ghost btn-sm btn-square" data-dismiss aria-label="Dismiss">{% icon "close" small=True %}</button>
+            </div>
+        {% endif %}{% endfor %}
+    </div>
+{% endif %}
 
 </body>
 </html>

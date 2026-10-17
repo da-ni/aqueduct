@@ -1,9 +1,18 @@
 {% extends "management/base.html" %}
 
+{% block title %}Delete {{ object_name }} · {{ block.super }}{% endblock %}
+
 {% block page_background %}{% endblock %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
+    <div class="breadcrumbs p-0 text-sm">
+        <ul>
+            {% if shell.current %}<li><a href="{{ shell.current.href }}">{{ shell.current.label }}</a></li>{% endif %}
+            <li class="font-mono">{{ object_name }}</li>
+            <li>Delete</li>
+        </ul>
+    </div>
     <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
         <h1 class="text-3xl font-semibold">Delete {{ object_type_name }}</h1>
     </header>

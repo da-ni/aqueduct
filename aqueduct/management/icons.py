@@ -73,6 +73,8 @@ class Icon(Enum):
     OK = (_el("circle", cx="12", cy="12", r="8.5"), _el("path", d="M8.5 12.5l2.5 2.5 4.5-5"))
     PENDING = (_el("circle", cx="12", cy="12", r="8.5"), _el("path", d="M12 7.5V12l3 2"))
     FAILED = (_el("circle", cx="12", cy="12", r="8.5"), _el("path", d="M9 9l6 6M15 9l-6 6"))
+    INFO = (_el("circle", cx="12", cy="12", r="8.5"), _el("path", d="M12 11v5M12 8v.01"))
+    CLOSE = (_el("path", d="M6 6l12 12M18 6L6 18"),)
     MENU = (_el("path", d="M4 7h16M4 12h16M4 17h16"),)
     COPY = (
         _el("rect", x="9", y="9", width="11", height="11", rx="2"),
