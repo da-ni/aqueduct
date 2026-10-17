@@ -85,6 +85,7 @@ html[data-theme] {
 :root { scrollbar-color: color-mix(in oklab, var(--color-base-content) 35%, var(--color-base-200)) var(--color-base-200); }
 
 .skip-link { position: fixed; top: 1rem; left: 1rem; z-index: 50; translate: 0 calc(-100% - 2rem); }
+.skip-link:not(:focus) { clip-path: inset(50%); }
 .skip-link:focus { translate: 0; }
 
 .font-mono, code, pre, kbd { font-variant-numeric: tabular-nums; }
