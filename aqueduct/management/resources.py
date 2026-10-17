@@ -114,12 +114,13 @@ PURPOSES: Mapping[str, str] = {
 
 @dataclass(frozen=True)
 class Quota:
-    scope: str
+    owner: str
     used: int
     limit: int
+    noun: str
 
     def __str__(self) -> str:
-        return f"{self.used} of {self.limit} {self.scope}"
+        return f"{self.owner}: {self.used} of {self.limit} {self.noun}"
 
 
 @dataclass(frozen=True)
@@ -249,12 +250,18 @@ def batch_list(user: AbstractBaseUser, teams: QuerySet[Team], now: datetime) -> 
     )
     active = Batch.objects.filter(ACTIVE_BATCH)
     quotas = (
-        Quota("running yours", active.filter(token__user=user).count(), settings.MAX_USER_BATCHES),
+        Quota(
+            "Personal keys",
+            active.filter(token__user=user).count(),
+            settings.MAX_USER_BATCHES,
+            "running",
+        ),
         *(
             Quota(
-                f"running in {team.name}",
+                team.name,
                 active.filter(token__service_account__team=team).count(),
                 settings.MAX_TEAM_BATCHES,
+                "running",
             )
             for team in teams.order_by("name")
         ),
@@ -319,15 +326,17 @@ def store_list(user: AbstractBaseUser, teams: QuerySet[Team], now: datetime) -> 
     stores = stores_visible_to(user, teams).order_by("-created_at")
     quotas = (
         Quota(
-            "yours",
+            "Personal keys",
             VectorStore.objects.filter(token__user=user).count(),
             settings.MAX_USER_VECTOR_STORES,
+            "vector stores",
         ),
         *(
             Quota(
-                f"in {team.name}",
+                team.name,
                 VectorStore.objects.filter(token__service_account__team=team).count(),
                 settings.MAX_TEAM_VECTOR_STORES,
+                "vector stores",
             )
             for team in teams.order_by("name")
         ),

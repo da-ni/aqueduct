@@ -6,7 +6,7 @@
 {% block content %}
 <div class="flex flex-col gap-6">
     <div class="breadcrumbs p-0 text-sm">
-        <ul><li><a href="{% url 'vector_stores' %}">Vector stores</a></li>{% if detail %}<li>{{ detail.row.store.name }}</li>{% endif %}</ul>
+        <ul><li><a href="{% url 'vector_stores' %}">Vector stores</a></li><li>{% if detail %}{{ detail.row.store.name }}{% else %}Not found{% endif %}</li></ul>
     </div>
 
     {% if detail %}
@@ -16,7 +16,7 @@
                     <h1 class="break-all text-3xl font-semibold">{{ row.store.name }}</h1>
                     <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
                         {% include "management/_status.html" with status=row.status %}
-                        <span class="font-mono">{{ row.store.id }}</span>
+                        <span class="flex items-center gap-1 font-mono">{{ row.store.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.store.id }}" aria-label="Copy vector store ID" title="Copy vector store ID">{% icon "copy" small=True %}</button></span>
                         <span>{{ row.team|default:"Yours" }}</span>
                         <span>Created {{ detail.created|date:"j M Y" }}</span>
                         {% if detail.last_active %}<span>Last active {{ detail.last_active|date:"j M Y" }}</span>{% endif %}
@@ -55,8 +55,12 @@
                             {% for file in detail.files %}
                                 <tr>
                                     <td>
-                                        <span class="font-semibold">{{ file.entry.file_obj.filename|default:"Deleted file" }}</span>
-                                        <div class="muted font-mono text-xs">{{ file.entry.id }}</div>
+                                        {% if file.entry.file_obj %}
+                                            <a class="link-plain row-link font-semibold" href="{% url 'files' %}#{{ file.entry.file_obj.id }}">{{ file.entry.file_obj.filename }}</a>
+                                        {% else %}
+                                            <span class="font-semibold">Deleted file</span>
+                                        {% endif %}
+                                        <div class="muted flex items-center gap-1 font-mono text-xs">{{ file.entry.id }}<button type="button" class="btn btn-ghost btn-xs btn-square relative z-10" data-copy="{{ file.entry.id }}" aria-label="Copy vector store file ID" title="Copy vector store file ID">{% icon "copy" small=True %}</button></div>
                                     </td>
                                     <td>{% include "management/_status.html" with status=file.status %}</td>
                                     <td class="text-right font-mono">{{ file.entry.usage_bytes|filesizeformat }}</td>
@@ -81,7 +85,7 @@
                             <tbody>
                                 {% for batch in detail.batches %}
                                     <tr>
-                                        <td class="font-mono font-semibold">{{ batch.batch.id }}</td>
+                                        <td><div class="flex items-center gap-1 font-mono font-semibold">{{ batch.batch.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ batch.batch.id }}" aria-label="Copy file batch ID" title="Copy file batch ID">{% icon "copy" small=True %}</button></div></td>
                                         <td>{% include "management/_status.html" with status=batch.status %}</td>
                                         <td>
                                             {% include "management/_progress.html" with progress=batch.progress %}
@@ -97,10 +101,15 @@
             </section>
         {% endif %}
     {% else %}
-        <div role="alert" class="alert alert-error">
-            {% icon "warning" small=True %}
-            <span>Vector store not found or you do not have access.</span>
-        </div>
+        <header class="flex min-h-12 items-center">
+            <h1 class="text-3xl font-semibold">Vector store not found</h1>
+        </header>
+        <section class="card bg-base-200">
+            <div class="card-body items-start gap-4">
+                <p>This vector store does not exist, or none of your keys or your teams' keys created it.</p>
+                <a class="btn btn-outline btn-primary" href="{% url 'vector_stores' %}">Back to vector stores</a>
+            </div>
+        </section>
     {% endif %}
 </div>
 {% endblock %}

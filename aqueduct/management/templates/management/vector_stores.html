@@ -18,7 +18,7 @@
         <tr>
             <td>
                 <a class="link-plain row-link" href="{% url 'vector_store_detail' id=row.store.id %}">{{ row.store.name }}</a>
-                <div class="muted font-mono text-xs">{{ row.store.id }}</div>
+                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.store.id }}<button type="button" class="btn btn-ghost btn-xs btn-square relative z-10" data-copy="{{ row.store.id }}" aria-label="Copy vector store ID" title="Copy vector store ID">{% icon "copy" small=True %}</button></div>
             </td>
             <td>{{ row.team|default:"Yours" }}</td>
             <td>{% include "management/_status.html" with status=row.status %}</td>

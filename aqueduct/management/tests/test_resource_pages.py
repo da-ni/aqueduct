@@ -246,7 +246,7 @@ class BatchesPageTest(ResourcePagesTestBase):
         self.assertContains(response, reverse("batch_cancel", args=[self.running.id]))
         self.assertNotContains(response, reverse("batch_cancel", args=[self.team_batch.id]))
         self.assertContains(
-            response, "2 batches · 1 of 10 running yours · 1 of 25 running in NLP Lab"
+            response, "2 batches · Personal keys: 1 of 10 running · NLP Lab: 1 of 25 running"
         )
 
 
@@ -313,10 +313,11 @@ class VectorStoresPageTest(ResourcePagesTestBase):
     def setUp(self):
         super().setUp()
         self.own_store = self.store(self.owner_key, "thesis-corpus")
+        self.thesis = self.file(self.owner_key, "thesis.pdf", purpose="user_data")
         VectorStoreFile.objects.create(
             id="vsf-1",
             vector_store=self.own_store,
-            file_obj=self.file(self.owner_key, "thesis.pdf", purpose="user_data"),
+            file_obj=self.thesis,
             status="completed",
             created_at=NOW,
         )
@@ -339,7 +340,9 @@ class VectorStoresPageTest(ResourcePagesTestBase):
         self.assertContains(response, "Yours")
         self.assertContains(response, "1 of 1,000")
         self.assertNotContains(response, "outsider-notes")
-        self.assertContains(response, "1 of 10 yours · 1 of 50 in NLP Lab")
+        self.assertContains(
+            response, "Personal keys: 1 of 10 vector stores · NLP Lab: 1 of 50 vector stores"
+        )
 
     def test_org_admin_sees_the_team_stores_of_their_org_only(self):
         response = self.as_user(self.org_admin).get(reverse("vector_stores"))
@@ -353,6 +356,7 @@ class VectorStoresPageTest(ResourcePagesTestBase):
         response = self.as_user(self.owner).get(url)
         self.assertContains(response, "thesis-corpus")
         self.assertContains(response, "thesis.pdf")
+        self.assertContains(response, f'href="{reverse("files")}#{self.thesis.id}"')
         self.assertContains(response, "Ready")
 
     def test_detail_of_a_store_outside_scope_shows_not_found(self):

@@ -1,4 +1,5 @@
 {% extends "management/_resource_list.html" %}
+{% load ui %}
 
 {% block heading %}Batches{% endblock %}
 
@@ -16,7 +17,7 @@
     {% for row in listing.rows %}
         <tr>
             <td>
-                <span class="font-mono font-semibold">{{ row.batch.id }}</span>
+                <div class="flex items-center gap-1"><span class="font-mono font-semibold">{{ row.batch.id }}</span><button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.batch.id }}" aria-label="Copy batch ID" title="Copy batch ID">{% icon "copy" small=True %}</button></div>
                 <div class="muted font-mono text-xs">{{ row.batch.endpoint }}{% if row.team %} · {{ row.team }}{% endif %}</div>
             </td>
             <td>{% include "management/_status.html" with status=row.status %}</td>
