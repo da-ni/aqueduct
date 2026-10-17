@@ -378,6 +378,9 @@ def window(requests: QuerySet[Request], now: datetime) -> Window:
 
 
 def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> KeyReport:
+    """`latest` covers the 30 days the request log opens on, so each row's link shows it."""
+    from management.usage_report import Period, Span  # usage_report imports this module
+
     every = Request.objects.filter(token=token)
     requests = served(every)
     recent = requests.filter(timestamp__gte=week(now).start)
@@ -407,5 +410,5 @@ def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> K
         days=base.days,
         models=models,
         clients=client_text,
-        latest=tuple(requests.order_by("-timestamp")[:latest]),
+        latest=tuple(Period.last(Span.MONTH, now).of(requests).order_by("-timestamp")[:latest]),
     )
