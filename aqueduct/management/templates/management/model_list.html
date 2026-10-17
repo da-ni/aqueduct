@@ -75,6 +75,10 @@
                             <button type="button" class="btn btn-ghost btn-sm btn-square" data-copy="{{ selected.name }}"
                                     aria-label="Copy model name" title="Copy model name">{% icon "copy" small=True %}</button>
                         </div>
+                        <div class="flex flex-wrap gap-4 text-sm">
+                            <a class="link-plain" href="{% url 'usage' %}?model={{ selected.name|urlencode }}">Open in Overview</a>
+                            <a class="link-plain" href="{% url 'requests' %}?model={{ selected.name|urlencode }}">Open the log</a>
+                        </div>
                     </div>
 
                     {% if selected.deprecation_date %}

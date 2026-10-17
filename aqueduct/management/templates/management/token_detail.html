@@ -156,9 +156,7 @@
     <section class="card bg-base-200" aria-labelledby="limits-title">
         <div class="card-body gap-3 p-5">
             <h2 id="limits-title" class="text-xl font-semibold">Limits</h2>
-            <p class="text-sm">
-                {% for label, value in limit_labels %}{% if not forloop.first %} · {% endif %}{{ label }}: <span class="font-mono">{{ value }}</span>{% endfor %}
-            </p>
+            {% include "management/_limits.html" %}
             {% if limits.requests_per_minute is not None %}
                 {% include "management/_rate_usage.html" with usage=usage limits=limits %}
             {% endif %}

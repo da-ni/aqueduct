@@ -4,7 +4,7 @@ Every signed-in user has a Settings page. It shows the account the user signed i
 
 ## Sub-features
 
-- `settings-account` shows the e-mail address, the sign-in provider name, the organization, the role, and each team with `admin` or `member`. A team name links to the team page.
+- `settings-account` shows the e-mail address, the sign-in provider name, the organization, the role, and each team with `Team admin` or `Member`, the labels the team page uses. A team name links to the team page.
 - `settings-terms` shows the date the user accepted the current terms, or that the user has not. It appears only when the terms of service are switched on.
 - `settings-appearance` switches between light and dark. The browser stores the choice, not the server.
 - `settings-limits` shows the requests, input tokens, and output tokens per minute for personal keys, the count of personal keys against the maximum, and whether an admin set limits for the account.
@@ -19,8 +19,8 @@ Preconditions:
 
 - A fresh launch.
 
-- **Account as a member.** Run `aqv login team-member --next /aqueduct/management/settings/`. The page shows `team-member@verify.invalid`, `Verify Org`, the role `User`, and `Verify Team` followed by `member`. Run `aqv shot settings/team-member`.
-- **Team role.** Run `aqv login team-admin --next /aqueduct/management/settings/`. `Verify Team` is followed by `admin`. Run `aqv click --role link --name "Verify Team" --exact`. The browser lands on `/aqueduct/management/team/1`.
+- **Account as a member.** Run `aqv login team-member --next /aqueduct/management/settings/`. The page shows `team-member@verify.invalid`, `Verify Org`, the role `User`, and `Verify Team` followed by `Member`. Run `aqv shot settings/team-member`.
+- **Team role.** Run `aqv login team-admin --next /aqueduct/management/settings/`. `Verify Team` is followed by `Team admin`. Run `aqv click --role link --name "Verify Team" --exact`. The browser lands on `/aqueduct/management/team/1`.
 - **No team.** Run `aqv login user --next /aqueduct/management/settings/`. The page shows `You are in no team.` and `Personal keys` `1 of 3`.
 - **Roles.** `org-admin` shows `Org Admin`. `admin` shows `Admin` and `0 of 3` personal keys.
 - **Appearance.** Run `aqv click --role button --name Dark --exact`, then `aqv open /aqueduct/management/settings/` and `aqv aria --selector 'section[aria-labelledby=appearance-title]'`. The snapshot shows `button "Dark" [pressed]`. Choose `Light` the same way to switch back.
@@ -29,7 +29,7 @@ Preconditions:
 
 ## Gotchas
 
-- The seed sets no limits, so every limit reads `no limit` until you set one.
+- The seed sets no limits, so every limit reads `No limit` until you set one.
 - `Sign-in` shows the configured provider name, which is `SSO` on a verification instance.
 - The sidebar also has a button named `Switch between light and dark`. Pass `--exact` when you name `Dark` or `Light`.
 - The theme lives in the browser's local storage, so it survives `aqv login` as another account.

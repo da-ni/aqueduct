@@ -413,7 +413,12 @@ class ServiceAccountKeyDetailTest(ApiKeysPagesTestBase):
         profile.requests_per_minute = 999
         profile.save()
         response = self.detail(self.member)
-        self.assertContains(response, 'Requests per minute: <span class="font-mono">7</span>')
+        self.assertContains(
+            response,
+            '<div class="flex items-baseline gap-2"><dt class="muted">Requests per minute</dt>'
+            '<dd><span class="font-mono font-semibold">7</span></dd></div>',
+            html=True,
+        )
         self.assertNotContains(response, "999</span>")
 
     def test_plain_team_member_cannot_rotate_the_key(self):

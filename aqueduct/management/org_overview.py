@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 from django.conf import settings
 
-from management.key_activity import limit_labels
 from management.models import LimitSet, Org, ServiceAccount, Team, Token
 
 
@@ -18,7 +17,7 @@ class OrgPage:
     people: int
     teams: int
     service_accounts: int
-    limit_labels: tuple[tuple[str, str], ...]
+    limits: LimitSet
     multipliers: tuple[tuple[str, str], ...]
     max_personal_keys: int
     switch_offs: tuple[SwitchOffRow, ...]
@@ -50,7 +49,7 @@ def org_page(org: Org) -> OrgPage:
         people=org.user_profiles.count(),
         teams=len(teams),
         service_accounts=ServiceAccount.objects.filter(team__org=org).count(),
-        limit_labels=limit_labels(LimitSet.from_objects(org, None)),
+        limits=LimitSet.from_objects(org, None),
         multipliers=(
             (
                 "Hourly limit, in per-minute limits",

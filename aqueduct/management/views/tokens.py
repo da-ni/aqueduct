@@ -16,14 +16,7 @@ from django.views.generic import CreateView, DeleteView, DetailView, TemplateVie
 
 from gateway.rate_limiting import get_per_token_usage
 from management.forms import TokenCreateForm
-from management.key_activity import (
-    Expiry,
-    KeyKind,
-    key_list,
-    key_report,
-    limit_labels,
-    personal_tokens,
-)
+from management.key_activity import Expiry, KeyKind, key_list, key_report, personal_tokens
 from management.models import Token
 from management.request_log import Key, Row
 from management.views.base import BaseAqueductView
@@ -77,7 +70,6 @@ class TokenDetailView(BaseAqueductView, DetailView):
             chart=report.chart(metric),
             expiry=Expiry.of(token.expires_at, now),
             limits=limits,
-            limit_labels=limit_labels(limits),
             usage=get_per_token_usage([token.id])[token.id],
             excluded_models=token.model_exclusion_list(),
             excluded_mcp_servers=token.mcp_server_exclusion_list(),

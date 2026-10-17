@@ -5,7 +5,7 @@ from django.contrib.auth.models import AbstractBaseUser
 from django.views.generic import TemplateView
 from tos.models import UserAgreement
 
-from management.key_activity import limit_labels, personal_tokens
+from management.key_activity import personal_tokens
 from management.models import LimitSet
 from management.nav import terms_of_service
 from management.views.base import BaseAqueductView
@@ -28,7 +28,7 @@ class SettingsView(BaseAqueductView, TemplateView):
         context.update(
             sign_in_provider=settings.OIDC_PROVIDER,
             memberships=profile.teammembership_set.select_related("team").order_by("team__name"),
-            limit_labels=limit_labels(LimitSet.from_objects(profile, profile.org)),
+            limits=LimitSet.from_objects(profile, profile.org),
             limits_set_for_account=any(getattr(profile, f) is not None for f in SHOWN_LIMITS),
             personal_keys=personal_tokens(self.request.user).count(),
             max_tokens=settings.MAX_USER_TOKENS,

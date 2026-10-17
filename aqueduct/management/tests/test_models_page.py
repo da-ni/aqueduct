@@ -352,6 +352,11 @@ class ModelsPageTest(TestCase):
         self.assertEqual(rows(response), [])
         self.assertContains(response, "No model matches.")
 
+    def test_detail_links_to_the_models_usage_and_requests(self):
+        response = self.page(model="tts")
+        self.assertContains(response, f'href="{reverse("usage")}?model=gpt-4o-mini-tts"')
+        self.assertContains(response, f'href="{reverse("requests")}?model=gpt-4o-mini-tts"')
+
     def test_model_accepts_an_alias(self):
         self.assertEqual(selected(self.page(model="tts")), "gpt-4o-mini-tts")
 

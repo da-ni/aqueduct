@@ -1,6 +1,6 @@
 # Models
 
-The Models page lists every model in the router config in a table with its type, plus a Context column when any model has a context window. Type tabs and a search over names and aliases filter the table. A detail panel shows the selected model: its type, its name with a copy button, the spec cells the config has, the served model, its aliases, its capabilities, and a `curl` example for its endpoint. A model that is switched off for one of the viewer's scopes, their personal keys or the service accounts of a team they belong to, carries an `OFF FOR <scope>` badge, and its panel says where it is off and where it is still available. The gateway URL has a copy button.
+The Models page lists every model in the router config in a table with its type, plus a Context column when any model has a context window. Type tabs and a search over names and aliases filter the table. A detail panel shows the selected model: its type, its name with a copy button, the spec cells the config has, the served model, its aliases, its capabilities, a `curl` example for its endpoint, and links to its usage in the Overview and its requests in the log. A model that is switched off for one of the viewer's scopes, their personal keys or the service accounts of a team they belong to, carries an `OFF FOR <scope>` badge, and its panel says where it is off and where it is still available. The gateway URL has a copy button.
 
 ## Sub-features
 
@@ -9,6 +9,7 @@ The Models page lists every model in the router config in a table with its type,
 - `models-search` matches the search text against model names and aliases. The field submits on Enter.
 - `models-detail` shows the selected model. A row link or `?model=<name or alias>` selects it, and the first listed model is selected otherwise.
 - `models-switch-off` shows the badge and the notice for a model that is switched off in one of the viewer's scopes. Staff also get an `Edit <scope> in admin` link per scope.
+- `models-usage` links the selected model to the Overview and the request log, both filtered by `?model=<name>`.
 - `models-copy` copies the gateway URL, the model name, and the `curl` example.
 
 ## How to get to it (user POV)
@@ -23,7 +24,7 @@ Preconditions:
 - A fresh launch. The router config is `example_router_config.yaml` from the main checkout. It gives every model aliases and a mode and gives `text-embedding-ada-002` a request limit multiplier of 2. It has no context windows, so the table has no Context column.
 
 - **List.** Run `aqv login user --next /aqueduct/management/models/`. The table lists `gpt-4.1-nano`, `text-embedding-ada-002`, `gpt-4o-mini-tts`, `whisper-1`, `dall-e-2`, and `gpt-image-1`. The panel shows `gpt-4.1-nano` with a `curl` example for `<base>/v1/chat/completions`. Run `aqv shot models/list-user`.
-- **Detail.** Run `aqv click --role link --name text-embedding-ada-002`. The panel shows `EMBEDDINGS`, the served model `openai/text-embedding-ada-002`, the aliases `embedding` and `embed`, the capability `2x request limit`, and a `curl` example for `/v1/embeddings`. Run `aqv shot models/detail-embedding-user`.
+- **Detail.** Run `aqv click --role link --name text-embedding-ada-002`. The panel shows `EMBEDDINGS`, the served model `openai/text-embedding-ada-002`, the aliases `embedding` and `embed`, the capability `2x request limit`, and a `curl` example for `/v1/embeddings`. Under the name, `Open in Overview` and `Open the log` link to `/aqueduct/management/usage/?model=text-embedding-ada-002` and `/aqueduct/management/requests/?model=text-embedding-ada-002`. Run `aqv shot models/detail-embedding-user`.
 - **Filter.** Run `aqv click --role link --name Images --exact`. The URL ends in `?type=images`, and the table lists only `dall-e-2` and `gpt-image-1`.
 - **Search.** aqv cannot press Enter, so open the search by its URL: `aqv open "/aqueduct/management/models/?q=stt"`. The table lists only `whisper-1`, which matches by its alias `stt`.
 - **Switch-off.** Team switch-offs are edited in the Django admin. Org switch-offs are edited on the Organization page, as [organization.md](./organization.md) shows. For a quick precondition, run `aqv shell -c "from management.models import Team; t = Team.objects.get(name='Verify Team'); t.excluded_models = ['gpt-image-1']; t.save()"`. Then run `aqv login team-member --next "/aqueduct/management/models/?model=gpt-image-1"`. The row shows `OFF FOR VERIFY TEAM`, and the panel says `Switched off for Verify Team service accounts.` and `Still available for your personal keys.` It has no admin link. Run `aqv shot models/switch-off-team-member`. As `user`, who is in no team, the same page shows no badge and no notice.
