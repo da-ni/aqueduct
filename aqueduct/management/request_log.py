@@ -264,7 +264,7 @@ def read_filters(
         requests = requests.filter(token=key.token)
 
     key_q = params.get("key_q", "").strip()
-    matches = ()
+    matches: tuple[Key, ...] = ()
     if key_q:
         found = tokens.filter(key_search(key_q, by_owner=sees_others))
         matches = tuple(describe(token) for token in found[:KEY_MATCHES])
