@@ -2,7 +2,7 @@
 
 import math
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
@@ -24,6 +24,7 @@ from django.utils import timezone
 
 from management.key_activity import (
     FAILED,
+    MISSING,
     Activity,
     Column,
     Share,
@@ -50,19 +51,12 @@ SECOND_MS = 1000
 AXIS_LABELS = 8
 TOP_KEYS = 10
 TOP_USER_IDS = 25
-HEAT_CLASSES = (
-    "bg-base-300",
-    "bg-primary/20",
-    "bg-primary/40",
-    "bg-primary/60",
-    "bg-primary/80",
-    "bg-primary",
-)
+HEAT_CLASSES = tuple(f"heat-{level}" for level in range(6))
 WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 HEAT_HOURS = tuple(f"{hour:02d}" if hour % 3 == 0 else "" for hour in range(24))
 TOKENS = F("input_tokens") + F("output_tokens")
 NO_ORG = "No organization"
-APPROXIMATE_MEDIAN = "Approximate: within about 5%, or 1 ms for very fast responses"
+APPROXIMATE_MEDIAN = "Approximate"
 ORG = Coalesce("token__service_account__team__org", "token__user__profile__org")
 """A service account's key counts for its team's org, a personal key for its owner's org."""
 TOTALS = {
@@ -80,6 +74,8 @@ class Step:
     size: timedelta
     label_format: str
     zeroed: tuple[str, ...]
+    short_format: str
+    """The axis label below the `sm` breakpoint."""
 
     def floor(self, moment: datetime) -> datetime:
         local = timezone.localtime(moment)
@@ -87,9 +83,9 @@ class Step:
         return local.replace(microsecond=0, **zeroed)
 
 
-MINUTE = Step("minute", timedelta(minutes=1), "%H:%M", ("second",))
-HOUR = Step("hour", timedelta(hours=1), "%H:00", ("second", "minute"))
-DAY = Step("day", timedelta(days=1), "%-d %b", ("second", "minute", "hour"))
+MINUTE = Step("minute", timedelta(minutes=1), "%H:%M", ("second",), "%H:%M")
+HOUR = Step("hour", timedelta(hours=1), "%H:00", ("second", "minute"), "%H")
+DAY = Step("day", timedelta(days=1), "%-d %b", ("second", "minute", "hour"), "%-d")
 
 
 class Span(StrEnum):
@@ -110,7 +106,7 @@ class Span(StrEnum):
             return None
 
 
-DEFAULT_SPAN = Span.WEEK
+DEFAULT_SPAN = Span.DAY
 SPANS: Mapping[Span, tuple[str, Step, int]] = {
     Span.HOUR: ("1 hour", MINUTE, 60),
     Span.DAY: ("24 hours", HOUR, 24),
@@ -159,17 +155,13 @@ class StatusRow:
 
 
 STATUSES = (
-    ("Answered", "2xx", "ok", "st-ok", Q(status_code__lt=400)),
+    ("OK", "2xx", "ok", "st-ok", Q(status_code__lt=400)),
     ("Rate-limited", "429", "warning", "st-warn", Q(status_code=429)),
-    (
-        "Other client errors",
-        "4xx",
-        "off",
-        "st-off",
-        FAILED & Q(status_code__lt=500) & ~Q(status_code=429),
-    ),
-    ("Model or provider error", "5xx", "failed", "st-err", Q(status_code__gte=500)),
+    ("Client error", "4xx", "off", "st-off", FAILED & Q(status_code__lt=500) & ~Q(status_code=429)),
+    ("Server error", "5xx", "failed", "st-err", Q(status_code__gte=500)),
 )
+"""Label, status codes, icon, tone, and match of each status group, as the Overview and the
+request log name them. "Failed" is every group but the first."""
 
 
 class Median(Aggregate):
@@ -243,8 +235,16 @@ def series(requests: QuerySet[Request], period: Period) -> Series:
 def columns(
     points: Sequence[tuple[datetime, Activity]], step: Step, metric: str
 ) -> tuple[Column, ...]:
-    labelled = [(timezone.localtime(moment).strftime(step.label_format), a) for moment, a in points]
-    return chart(labelled, metric, every=math.ceil(len(points) / AXIS_LABELS) or 1)
+    local = [timezone.localtime(moment) for moment, _ in points]
+    labelled = [
+        (moment.strftime(step.label_format), a)
+        for moment, (_, a) in zip(local, points, strict=True)
+    ]
+    found = chart(labelled, metric, every=math.ceil(len(points) / AXIS_LABELS) or 1)
+    return tuple(
+        replace(column, short=moment.strftime(step.short_format) if column.label else "")
+        for column, moment in zip(found, local, strict=True)
+    )
 
 
 def duration(ms: int | None) -> str:
@@ -305,19 +305,17 @@ def kpis(spark_slots: Sequence[Slot]) -> tuple[Kpi, ...]:
         return spark([(s.label, value(s.activity)) for s in spark_slots], show)
 
     return (
-        Kpi("Input from cache", compact(now.cached), bars_of(lambda a: a.cached, as_cached)),
         Kpi(
-            "New input",
-            compact(now.input - now.cached),
-            bars_of(
-                lambda a: a.input - a.cached, lambda n: f"{compact(round(n))} new input tokens"
-            ),
+            "Input",
+            compact(now.input),
+            bars_of(lambda a: a.input, lambda n: f"{compact(round(n))} input tokens"),
         ),
         Kpi(
             "Output",
             compact(now.output),
             bars_of(lambda a: a.output, lambda n: f"{compact(round(n))} output tokens"),
         ),
+        Kpi("Cached", compact(now.cached), bars_of(lambda a: a.cached, as_cached)),
         Kpi("Requests", f"{now.requests:,}", bars_of(lambda a: a.requests, as_requests)),
         Kpi("Failed", now.failed_share, bars_of(lambda a: _ratio(a.failed, a.requests), _share)),
     )
@@ -373,13 +371,32 @@ def heat(tokens: Mapping[tuple[int, int], int], weeks: int) -> tuple[HeatRow, ..
     )
 
 
+class Figures:
+    """The token columns of a usage table row, `MISSING` for a row without tokens."""
+
+    activity: Activity
+
+    def _metered(self, value: str) -> str:
+        return value if self.activity.tokens else MISSING
+
+    @property
+    def input(self) -> str:
+        return self._metered(compact(self.activity.input))
+
+    @property
+    def cached(self) -> str:
+        return self._metered(self.activity.cache_hits)
+
+    @property
+    def output(self) -> str:
+        return self._metered(compact(self.activity.output))
+
+
 @dataclass(frozen=True)
-class ModelRow:
+class ModelRow(Figures):
     name: str
     kind: str
     activity: Activity
-    input: str
-    output: str
     median: str
     approximate: bool
     """Whether `median` is approximate."""
@@ -410,7 +427,8 @@ def model_rows(
     *,
     approximate: bool = False,
 ) -> tuple[ModelRow, ...]:
-    """Every model with requests, busiest first. `link(model=name)` opens the log on one.
+    """Every model with requests, busiest first, then the models not metered in tokens by
+    requests. `link(model=name)` opens the log on one.
     `approximate` marks the medians as such."""
     found = {name: u.activity for name, u in usage.items()}
     ranked = sorted(found.items(), key=lambda item: (-item[1].tokens, -item[1].requests, item[0]))
@@ -422,11 +440,9 @@ def model_rows(
             name=name,
             kind=kinds.get(name, ""),
             activity=activity,
-            input=compact(activity.input),
-            output=compact(activity.output),
-            median=duration(usage[name].median_ms),
+            median=MISSING if usage[name].median_ms is None else duration(usage[name].median_ms),
             approximate=approximate and usage[name].median_ms is not None,
-            share=percent(activity.tokens, total),
+            share=percent(activity.tokens, total) if activity.tokens else MISSING,
             width=round(100 * activity.tokens / busiest) if busiest else 0,
             log_url=link(model=name),
         )
@@ -435,7 +451,7 @@ def model_rows(
 
 
 @dataclass(frozen=True)
-class KeyShare:
+class KeyShare(Figures):
     """One row of the Overview's Top keys or By user ID table, laid out like `ModelRow`."""
 
     name: str
@@ -444,14 +460,6 @@ class KeyShare:
     activity: Activity
     share: str
     width: int
-
-    @property
-    def input(self) -> str:
-        return compact(self.activity.input)
-
-    @property
-    def output(self) -> str:
-        return compact(self.activity.output)
 
 
 def _widths(values: Iterable[int], top: int | None = None) -> list[int]:
@@ -468,7 +476,7 @@ def _figures(
     the period's token count, and `busiest` the token count of a full-width bar, by default the
     first row's."""
     return [
-        (activity, percent(activity.tokens, total), width)
+        (activity, percent(activity.tokens, total) if activity.tokens else MISSING, width)
         for activity, width in zip(
             activities, _widths((a.tokens for a in activities), busiest), strict=True
         )
@@ -487,8 +495,9 @@ class KeyOrder(StrEnum):
     NAME = "name"
 
     @property
-    def label(self) -> str:
-        return self.value.capitalize()
+    def ascending(self) -> bool:
+        """Names sort A-Z, figures largest first."""
+        return self is KeyOrder.NAME
 
     @property
     def ordering(self) -> tuple[str | Subquery, ...]:

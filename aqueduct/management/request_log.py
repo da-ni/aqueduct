@@ -152,6 +152,8 @@ class Key:
     token: Token
     href: str | None
     note: str
+    own: bool = False
+    """Whether it is the viewer's personal key."""
 
     @property
     def name(self) -> str:
@@ -163,18 +165,18 @@ def describe_key(
 ) -> Key:
     """How the log names a key: a link when the viewer may open it, whose key it is, and, with
     `with_org`, its org."""
-    account = token.service_account
+    account, own = token.service_account, False
     if account is not None:
         href = reverse("token_detail", args=[token.id]) if account.team_id in team_ids else None
         note = f"Service account · {account.team.name}"
     elif token.user_id == profile.user_id:
-        href, note = reverse("token_detail", args=[token.id]), "Personal"
+        href, note, own = reverse("token_detail", args=[token.id]), "Personal", True
     else:
         href, note = None, token.user.email
     if with_org:
         owner = account.team if account is not None else getattr(token.user, "profile", None)
         note += f" · {owner.org.name if owner is not None else NO_ORG}"
-    return Key(token, href, note)
+    return Key(token, href, note, own)
 
 
 @dataclass(frozen=True)
@@ -184,14 +186,16 @@ class Filters:
     `visibility` names everything that decides which requests `requests` holds, for cache keys.
 
     The key picker lists `keys`, the viewer's own keys, and `matches`, the visible keys that
-    match the search `key_q`. `page_params` holds the page's own parameters, such as the
-    log's status tab, which the key search keeps."""
+    match the search `key_q`. `only_key` is the one key the viewer may see, when they see just
+    one, so that there is no key to choose. `page_params` holds the page's own parameters, such
+    as the log's status tab, which the key search keeps."""
 
     can_pick_org: bool
     org: Org | None
     can_pick_scope: bool
     mine: bool
     keys: tuple[Key, ...]
+    only_key: Key | None
     key: Key | None
     key_q: str
     matches: tuple[Key, ...]
@@ -259,11 +263,12 @@ def read_filters(
     sees_others = org is None or profile.is_org_admin(org)
     requests = visible_requests(profile, org, teams)
     if sees_others:
-        models = tuple(sorted(router_models()))
+        names = set(router_models())
     else:
         # A user's list: what their keys may use, and what their requests used.
         used = requests.order_by().values_list("model", flat=True).distinct()
-        models = tuple(sorted({*usable_models(scopes_for(profile)), *used}))
+        names = {*usable_models(scopes_for(profile)), *used}
+    models = tuple(sorted(names, key=lambda name: (name.casefold(), name)))
     team_ids = set(teams.values_list("id", flat=True))
     tokens = (
         visible_tokens(profile, org, teams)
@@ -278,6 +283,8 @@ def read_filters(
         service_account__team__in=profile.teams.all()
     )
     keys = tuple(describe(token) for token in tokens.filter(own))
+    first_two = list(tokens[:2])
+    only_key = describe(first_two[0]) if len(first_two) == 1 else None
     mine = sees_others and params.get("scope") == "mine"
     if mine:
         requests = requests.filter(token_id__in=[key.token.id for key in keys])
@@ -320,6 +327,7 @@ def read_filters(
         can_pick_scope=sees_others,
         mine=mine,
         keys=keys,
+        only_key=only_key,
         key=key,
         key_q=key_q,
         matches=matches,

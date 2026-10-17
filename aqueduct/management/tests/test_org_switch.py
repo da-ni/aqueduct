@@ -80,7 +80,8 @@ class OrgSwitchTest(OrgSwitchTestBase):
         for user in (self.org_admin, self.member):
             with self.subTest(user=user.username):
                 for url_name in (*ORG_SCOPED, "org"):
-                    self.assertNotContains(self.as_user(user).get(reverse(url_name)), "org-switch")
+                    page = self.as_user(user).get(reverse(url_name), follow=True)
+                    self.assertNotContains(page, "org-switch")
 
     def test_non_admins_cannot_choose_another_org(self):
         for user in (self.org_admin, self.member):

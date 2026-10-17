@@ -264,7 +264,7 @@ def cmd_launch(args) -> None:
         fail(f"server not ready after 90s, see {run / 'server.log'}")
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(CookieJar()))
     status, body = http_get(state["base"] + "/verify-login/?username=user", opener)
-    if status != 200 or "Top keys" not in body:
+    if status != 200 or "Activity across" not in body:
         fail(f"signed-in Overview not usable (status {status}), see {run / 'server.log'}")
     deadline = time.time() + 30
     while http_get(f"http://127.0.0.1:{state['cdp_port']}/json/version")[0] != 200:
@@ -444,6 +444,9 @@ def cmd_aria(b: Browser, args) -> None:
 def cmd_shot(b: Browser, args) -> None:
     path = Path(b.state["evidence"]) / f"{args.name}.png"
     path.parent.mkdir(parents=True, exist_ok=True)
+    if args.width:
+        b.page.set_viewport_size({**VIEWPORT, "width": args.width})
+        b.page.wait_for_timeout(300)
     b.page.screenshot(path=str(path), full_page=not args.viewport)
     print(path)
 
@@ -566,6 +569,7 @@ def main() -> None:
     p = command("shot", cmd_shot, "save a full-page screenshot under evidence")
     p.add_argument("name", help="file name without .png; may include subfolders")
     p.add_argument("--viewport", action="store_true", help="capture only the viewport")
+    p.add_argument("--width", type=int, help="window width in pixels for this shot, such as 390")
     p = command("tour", cmd_tour, "screenshot every page as every role")
     p.add_argument("--users", nargs="+", default=TOUR_USERS)
     p.add_argument("--pages", nargs="+", default=TOUR_PAGES)

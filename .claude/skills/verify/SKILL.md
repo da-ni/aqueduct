@@ -75,7 +75,7 @@ Feature recipes with the real button names live in [`features/README.md`](featur
 
 Evidence goes to `/tmp/aqueduct-verify/evidence/<run-id>/`, outside the run directory, so `stop` keeps it.
 
-- `aqv shot <name> [--viewport]` saves a full-page screenshot as `<name>.png`. The name may contain subfolders.
+- `aqv shot <name> [--viewport] [--width <px>]` saves a full-page screenshot as `<name>.png`. The name may contain subfolders. `--width 390` takes it at a phone width; every other command uses 1440. For dark mode, run `aqv click --selector "[data-toggle-theme]"` once: the browser keeps the theme for later commands and sign-ins.
 - A proof follows the user's path through the UI, never a direct database write or a test-only endpoint other than `/verify-login/`.
 - Capture the action and the resulting state. For a change that saves data, also read the stored value with `aqv shell`.
 - For a permission check, prove both sides: the allowed role succeeds, and an out-of-scope role is refused and the database is unchanged.

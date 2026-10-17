@@ -26,11 +26,16 @@ class KeyUsageAccessTest(KeyUsagePageTestBase):
             self.client.get(url), f"{reverse('sso')}?next={url}", fetch_redirect_response=False
         )
 
-    def test_user_sees_only_their_own_key(self):
+    def test_a_user_with_one_key_goes_to_its_page(self):
+        response = self.keys_page(self.solo, span="1w")
+        self.assertRedirects(response, reverse("token_detail", args=[self.solo_key.id]))
+
+    def test_user_with_several_keys_sees_only_their_own(self):
+        make_token(self.solo, "solo-desktop")
         response = self.keys_page(self.solo)
         self.assert_keys(response, "solo-laptop")
         self.assertContains(response, f'href="{reverse("token_detail", args=[self.solo_key.id])}"')
-        self.assertNotContains(response, "My keys")
+        self.assertNotContains(response, '<span class="sr-only">Key: </span>')
 
     def test_team_member_sees_their_key_and_the_team_service_account(self):
         self.assert_keys(self.keys_page(self.member), "member-laptop", "pipeline")
@@ -55,7 +60,9 @@ class KeyUsageAccessTest(KeyUsagePageTestBase):
         self.assertEqual(self.names(self.other_org_admin, org=self.org.id), ["foreign-laptop"])
 
     def test_a_key_parameter_does_not_narrow_or_widen_the_list(self):
-        self.assertEqual(self.names(self.solo, key=self.foreign_key.id), ["solo-laptop"])
+        self.assertEqual(
+            self.names(self.member, key=self.foreign_key.id), ["pipeline", "member-laptop"]
+        )
         self.assertEqual(
             self.names(self.org_admin, key=self.solo_key.id),
             ["pipeline", "member-laptop", "solo-laptop"],
@@ -64,7 +71,6 @@ class KeyUsageAccessTest(KeyUsagePageTestBase):
 
 class KeyUsageSearchTest(KeyUsagePageTestBase):
     def test_search_matches_key_names_within_what_the_viewer_sees(self):
-        self.assertEqual(self.names(self.solo, q="laptop"), ["solo-laptop"])
         self.assertEqual(self.names(self.member, q="LAPTOP"), ["member-laptop"])
         self.assertEqual(self.names(self.org_admin, q="laptop"), ["member-laptop", "solo-laptop"])
         self.assertEqual(self.names(self.other_org_admin, q="solo"), [])
@@ -89,7 +95,7 @@ class KeyUsageSearchTest(KeyUsagePageTestBase):
         self.assertNotContains(response, f"key={self.solo_key.id}")
 
     def test_search_without_a_match_says_so(self):
-        self.assertContains(self.keys_page(self.solo, q="nothing"), "No key that matches")
+        self.assertContains(self.keys_page(self.member, q="nothing"), "No key that matches")
 
 
 class KeyUsageOrderTest(KeyUsagePageTestBase):
@@ -187,3 +193,17 @@ class KeyUsageMatchesOverviewTest(KeyUsagePageTestBase):
         response = self.keys_page(self.org_admin, scope="mine", span="1d", q="lap")
         self.assertContains(response, f'href="{reverse("usage")}?scope=mine&amp;span=1d">Overview')
         self.assertNotContains(response, 'aria-label="Usage"')
+
+
+class KeyUsageHeadingsTest(KeyUsagePageTestBase):
+    def test_column_headings_sort_the_list(self):
+        response = self.keys_page(self.org_admin, span="1w")
+        self.assertContains(response, "3 keys</span>")
+        self.assertNotContains(response, 'aria-label="Sort by"')
+        html = response.content.decode()
+        self.assertIn('aria-sort="descending"><a class="inline-flex', html)
+        self.assertIn('href="?span=1w&amp;sort=name"', html)
+        self.assertIn('href="?span=1w&amp;sort=requests"', html)
+        response = self.keys_page(self.org_admin, span="1w", sort="name", page="2")
+        self.assertContains(response, 'aria-sort="ascending"')
+        self.assertContains(response, 'href="?span=1w"')  # tokens, the default order

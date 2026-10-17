@@ -3,5 +3,5 @@
         {% for css, height in column.segments %}<i class="{{ css }}" style="height: {{ height }}%"></i>{% endfor %}
         {% include "management/_tip.html" with tip=column.tip %}
     </div>
-    <span class="muted h-4 whitespace-nowrap font-mono text-xs">{{ column.label }}</span>
+    <span class="muted h-4 whitespace-nowrap font-mono text-xs">{% if column.short %}<span class="sm:hidden">{{ column.short }}</span><span class="hidden sm:inline">{{ column.label }}</span>{% else %}{{ column.label }}{% endif %}</span>
 </div>

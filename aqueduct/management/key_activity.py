@@ -55,8 +55,8 @@ def as_failed(count: float) -> str:
     return f"{round(count):,} failed"
 
 
-TOKEN_SERIES = {"c": "Input from cache", "i": "New input", "o": "Output"}
-REQUEST_SERIES = {"i": "Answered", "f": "Failed"}
+TOKEN_SERIES = {"c": "Cached", "n": "New input", "o": "Output"}
+REQUEST_SERIES = {"i": "OK", "f": "Failed"}
 
 
 class KeyKind(StrEnum):
@@ -125,7 +125,7 @@ class Activity:
     @property
     def segments(self) -> tuple[tuple[str, int], ...]:
         """Cached input, new input and output, as CSS class and token count."""
-        return (("c", self.cached), ("i", self.input - self.cached), ("o", self.output))
+        return (("c", self.cached), ("n", self.input - self.cached), ("o", self.output))
 
 
 def week(now: datetime) -> "Period":
@@ -312,6 +312,8 @@ class Column:
     label: str
     tip: Tip
     segments: tuple[tuple[str, int], ...]
+    short: str = ""
+    """The axis label below the `sm` breakpoint, when it differs from `label`."""
 
     @property
     def height(self) -> int:
