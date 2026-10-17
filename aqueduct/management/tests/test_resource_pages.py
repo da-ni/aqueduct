@@ -3,6 +3,7 @@ import time
 from datetime import UTC, datetime
 from html import unescape
 from pathlib import Path
+from unittest import mock
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -592,6 +593,16 @@ class VectorStoreSyncTest(ResourcePagesTestBase):
 
     def test_owner_syncs_their_store(self):
         self.assertIn('aria-label="Sync status of outsider-notes"', self.list_page(self.outsider))
+
+    def test_creator_of_a_team_key_cannot_sync_its_store_after_leaving_the_team(self):
+        TeamMembership.objects.filter(user_profile=self.teammate.profile).delete()
+        client = self.as_user(self.teammate)
+        with mock.patch("management.views.vector_stores._refresh_vector_store") as refresh:
+            for name in ("vector_store_card_refresh", "vector_store_detail_refresh"):
+                with self.subTest(view=name):
+                    url = reverse(name, args=[self.team_store.id])
+                    self.assertContains(client.post(url, follow=True), "Vector store not found.")
+        refresh.assert_not_called()
 
 
 class MCPServersPageTest(ResourcePagesTestBase):

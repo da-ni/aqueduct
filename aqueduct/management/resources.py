@@ -65,10 +65,13 @@ def scope(profile: UserProfile, org: Org | None) -> Scope:
     return Scope(keys, " from your keys or your teams' keys")
 
 
-def syncable(user: AbstractBaseUser, teams: Iterable[Team]) -> Q:
-    """The vector stores the viewer may sync from upstream: those of keys they created and of
-    `teams`, every team of the org for an org admin."""
-    return Q(token__user=user) | Q(token__service_account__team__in=teams)
+def syncable(user: AbstractBaseUser, teams: Iterable[Team], seen: Scope) -> Q:
+    """The vector stores the viewer may sync from upstream: those of the keys of `seen` that they
+    created or that belong to `teams`, every team of the org for an org admin. A service account
+    key the viewer created for a team they have left is out of `seen`."""
+    return Q(token__in=seen.keys) & (
+        Q(token__user=user) | Q(token__service_account__team__in=teams)
+    )
 
 
 def own(user: AbstractBaseUser) -> Q:
