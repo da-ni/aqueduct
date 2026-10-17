@@ -86,9 +86,9 @@ async def sync_batch_file_if_needed(
     if not remote_file_id:
         return None
 
-    # Check if we already have a local record for this upstream file
+    # Another key within reach, such as a teammate's service account key, may have synced it.
     try:
-        return await FileObject.objects.aget(id=remote_file_id, token=token)
+        return await FileObject.objects.aget(token.reach(), id=remote_file_id)
     except FileObject.DoesNotExist:
         pass
 
@@ -104,10 +104,10 @@ async def sync_batch_file_if_needed(
     # (e.g., two GET /batches/{id} requests polling the same completed batch).
     local_expires_at = calculate_expires_at(remote_file.expires_at)
 
-    file_obj, _ = await FileObject.objects.aget_or_create(
+    file_obj, created = await FileObject.objects.aget_or_create(
         id=remote_file.id,
-        token=token,
         defaults={
+            "token": token,
             "bytes": remote_file.bytes,
             "filename": remote_file.filename,
             "created_at": remote_file.created_at,
@@ -117,6 +117,9 @@ async def sync_batch_file_if_needed(
             "upstream_url": settings.AQUEDUCT_FILES_API_URL,
         },
     )
+
+    if not created and not await FileObject.objects.filter(token.reach(), id=file_obj.id).aexists():
+        return None
 
     # Update batch record with linked file if batch_obj provided
     if batch_obj:
