@@ -79,18 +79,14 @@ class TokensPageTest(TestCase):
         self.assertNotContains(resp, "6/10")
 
     def test_page_says_no_limit_when_no_request_limit(self):
-        """No request limit -> no progress bar, and the limits read "No limit"."""
+        """No limit at all -> no progress bar, and the limits read "No limits"."""
         user = User.objects.get(pk=1)
         self.client.force_login(user)
         resp = self.client.get(reverse("token_detail", args=[1]))
 
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(
-            resp,
-            '<div class="flex items-baseline gap-2">'
-            '<dt class="muted">Requests per minute</dt><dd>No limit</dd></div>',
-            html=True,
-        )
+        self.assertContains(resp, '<p class="muted text-sm">No limits</p>', html=True)
+        self.assertNotContains(resp, "Requests per minute")
         self.assertNotContains(resp, "None")
         # No progress bar is rendered at all (every window has no request cap).
         self.assertNotContains(resp, "progress-primary")

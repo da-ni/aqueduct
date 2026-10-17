@@ -1,15 +1,16 @@
 {% load humanize %}
-<dl class="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
-    <div class="flex items-baseline gap-2">
-        <dt class="muted">Requests per minute</dt>
-        <dd>{% if limits.requests_per_minute is None %}No limit{% else %}<span class="font-mono font-semibold">{{ limits.requests_per_minute|intcomma }}</span>{% endif %}</dd>
-    </div>
-    <div class="flex items-baseline gap-2">
-        <dt class="muted">Input tokens per minute</dt>
-        <dd>{% if limits.input_tokens_per_minute is None %}No limit{% else %}<span class="font-mono font-semibold">{{ limits.input_tokens_per_minute|intcomma }}</span>{% endif %}</dd>
-    </div>
-    <div class="flex items-baseline gap-2">
-        <dt class="muted">Output tokens per minute</dt>
-        <dd>{% if limits.output_tokens_per_minute is None %}No limit{% else %}<span class="font-mono font-semibold">{{ limits.output_tokens_per_minute|intcomma }}</span>{% endif %}</dd>
-    </div>
-</dl>
+{% if limits.requests_per_minute is None and limits.input_tokens_per_minute is None and limits.output_tokens_per_minute is None %}
+    <p class="muted text-sm">No limits</p>
+{% else %}
+    <dl class="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
+        {% if limits.requests_per_minute is not None %}
+            <div class="flex items-baseline gap-2"><dt class="muted">Requests per minute</dt><dd><span class="font-mono font-semibold">{{ limits.requests_per_minute|intcomma }}</span></dd></div>
+        {% endif %}
+        {% if limits.input_tokens_per_minute is not None %}
+            <div class="flex items-baseline gap-2"><dt class="muted">Input tokens per minute</dt><dd><span class="font-mono font-semibold">{{ limits.input_tokens_per_minute|intcomma }}</span></dd></div>
+        {% endif %}
+        {% if limits.output_tokens_per_minute is not None %}
+            <div class="flex items-baseline gap-2"><dt class="muted">Output tokens per minute</dt><dd><span class="font-mono font-semibold">{{ limits.output_tokens_per_minute|intcomma }}</span></dd></div>
+        {% endif %}
+    </dl>
+{% endif %}

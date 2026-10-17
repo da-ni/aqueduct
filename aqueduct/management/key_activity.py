@@ -11,7 +11,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from gateway.config import get_router_config
-from management.models import Request, ServiceAccount, Token, UserProfile
+from management.models import Org, Request, ServiceAccount, Token, UserProfile
+from management.models.token import of_org
 
 if TYPE_CHECKING:
     from management.usage_report import Period
@@ -84,7 +85,7 @@ class Expiry:
     @classmethod
     def of(cls, expires_at: datetime | None, now: datetime) -> "Expiry":
         if expires_at is None:
-            return cls("Never")
+            return cls("No expiry")
         if expires_at <= now:
             return cls("Expired", "st-err font-semibold", expires_at)
         if expires_at - now <= EXPIRY_WARNING:
@@ -201,16 +202,61 @@ class KeyRow:
     activity: Activity
     expiry: Expiry
     bar_width: int
-
-    @property
-    def manageable(self) -> bool:
-        return self.kind is KeyKind.PERSONAL
+    manageable: bool
+    """Whether the viewer may rotate, edit and delete the key: their own personal key, or a
+    service account of a team they administer."""
 
 
 def personal_tokens(user: AbstractBaseUser | AnonymousUser) -> QuerySet[Token]:
     if user.pk is None:
         return Token.objects.none()
     return Token.objects.filter(user_id=user.pk, service_account__isnull=True)
+
+
+@dataclass(frozen=True)
+class KeyAccess:
+    """Whose key pages a viewer may open: an admin every key, an org admin every key of their
+    org, anyone else their personal keys and their teams' service accounts. Opening a key shows
+    its usage; changing it takes ownership or team admin rights, as the key's views check."""
+
+    user_id: int
+    every_org: bool
+    org: Org | None
+    """The org whose every key an org admin may open."""
+    team_ids: frozenset[int]
+
+    @classmethod
+    def of(cls, profile: UserProfile) -> "KeyAccess":
+        org = profile.org
+        return cls(
+            user_id=profile.user_id,
+            every_org=profile.is_admin(),
+            org=org if org is not None and profile.is_org_admin(org) else None,
+            team_ids=frozenset(profile.teams.values_list("id", flat=True)),
+        )
+
+    def tokens(self) -> QuerySet[Token]:
+        if self.every_org:
+            return Token.objects.all()
+        found = Q(user_id=self.user_id, service_account__isnull=True) | Q(
+            service_account__team_id__in=self.team_ids
+        )
+        return Token.objects.filter(found | of_org(self.org) if self.org else found)
+
+    def can_open(self, token: Token) -> bool:
+        """`token` in `tokens()`, without a query when its service account's team, or for a
+        personal key its owner's profile, is already loaded."""
+        if self.every_org:
+            return True
+        account = token.service_account
+        if account is not None:
+            return account.team_id in self.team_ids or (
+                self.org is not None and account.team.org_id == self.org.id
+            )
+        if token.user_id == self.user_id:
+            return True
+        owner = getattr(token.user, "profile", None)
+        return self.org is not None and owner is not None and owner.org_id == self.org.id
 
 
 @dataclass(frozen=True)
@@ -224,9 +270,13 @@ def key_list(profile: UserProfile, kind: KeyKind | None, query: str, now: dateti
     personal = list(personal_tokens(profile.user).order_by("-created_at"))
     service = list(
         ServiceAccount.objects.filter(team__in=profile.teams.all())
-        .select_related("team", "token")
+        .select_related("team__org", "token")
         .order_by("team__name", "name")
     )
+    administered_teams = {
+        team.id for team in {sa.team for sa in service} if profile.is_team_admin(team)
+    }
+    administered = {sa.id for sa in service if sa.team_id in administered_teams}
     entries: list[tuple[Token, KeyKind, str | None, str]] = [
         (token, KeyKind.PERSONAL, None, reverse("token_detail", kwargs={"id": token.id}))
         for token in personal
@@ -258,6 +308,7 @@ def key_list(profile: UserProfile, kind: KeyKind | None, query: str, now: dateti
             activity=(found := activity.get(token.id, Activity())),
             expiry=Expiry.of(token.expires_at, now),
             bar_width=round(100 * found.tokens / busiest) if busiest else 0,
+            manageable=entry_kind is KeyKind.PERSONAL or token.service_account_id in administered,
         )
         for token, entry_kind, team, href in entries
     )

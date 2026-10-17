@@ -9,8 +9,10 @@
     <div class="breadcrumbs p-0 text-sm">
         {% if team %}
             <ul><li><a href="{% url 'org' %}">Teams</a></li><li><a href="{% url 'team' team.id %}">{{ team.name }}</a></li><li class="font-mono">{{ token.name }}</li></ul>
-        {% else %}
+        {% elif own %}
             <ul><li><a href="{% url 'tokens' %}">API keys</a></li><li class="font-mono">{{ token.name }}</li></ul>
+        {% else %}
+            <ul><li><a href="{% url 'usage_keys' %}">All keys</a></li><li class="font-mono">{{ token.name }}</li></ul>
         {% endif %}
     </div>
 
@@ -18,11 +20,11 @@
         <div class="flex flex-col gap-2">
             <h1 class="break-all font-mono text-3xl font-semibold">{{ token.name }}</h1>
             <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-                <span>{% if team %}Service account · <a class="link-plain" href="{% url 'team' team.id %}">{{ team.name }}</a>{% else %}Personal{% endif %}</span>
+                <span>{% if team %}Service account · <a class="link-plain" href="{% url 'team' team.id %}">{{ team.name }}</a>{% elif own %}Personal{% else %}Personal · {{ token.user.email }}{% endif %}</span>
                 <span class="font-mono">{{ token.key_preview }}</span>
                 <span>Created: {{ token.created_at|when:"date" }}</span>
                 <span>Expires: {{ expiry|expiry }}</span>
-                <span>Last used: {{ report.totals.last_used|when:"relative"|default:"Never" }}</span>
+                <span>Last used: {{ report.totals.last_used|when:"relative"|default:"—" }}</span>
             </div>
         </div>
         {% if can_manage %}
@@ -44,16 +46,19 @@
         {% endif %}
     </header>
 
-    <section aria-label="Totals, last 7 days" class="grid grid-cols-2 gap-4 md:grid-cols-5">
-        {% for stat in report.stats %}
-            <div class="card bg-base-200">
-                <div class="card-body gap-1 p-4">
-                    <span class="muted text-sm">{{ stat.label }}</span>
-                    <span class="text-2xl font-semibold">{{ stat.value }}</span>
-                    {% include "management/_spark.html" with bars=stat.spark %}
+    <section aria-labelledby="totals-title" class="flex flex-col gap-3">
+        <h2 id="totals-title" class="muted text-sm font-medium">Last 7 days</h2>
+        <div class="grid grid-cols-2 gap-4 md:grid-cols-5">
+            {% for stat in report.stats %}
+                <div class="card bg-base-200">
+                    <div class="card-body gap-1 p-4">
+                        <span class="muted text-sm">{{ stat.label }}</span>
+                        <span class="text-2xl font-semibold">{{ stat.value }}</span>
+                        {% include "management/_spark.html" with bars=stat.spark %}
+                    </div>
                 </div>
-            </div>
-        {% endfor %}
+            {% endfor %}
+        </div>
     </section>
 
     <section class="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -89,7 +94,7 @@
 
         <div class="card bg-base-200">
             <div class="card-body gap-4 p-5">
-                <h2 class="text-xl font-semibold">Models it calls</h2>
+                <h2 class="text-xl font-semibold">Models</h2>
                 <div class="-mx-2 flex flex-col gap-1">
                     {% for model in report.models %}
                         <div class="hover-row flex flex-col gap-1.5 rounded-lg px-2 py-1">
@@ -116,10 +121,7 @@
         <div class="card-body gap-3 p-5">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-xl font-semibold">Latest requests</h2>
-                <div class="flex flex-wrap gap-4 text-sm">
-                    <a class="link-plain" href="{% url 'usage' %}?key={{ token.id }}">Open in Overview</a>
-                    <a class="link-plain" href="{% url 'requests' %}?key={{ token.id }}&amp;span=1m">Open the log</a>
-                </div>
+                <a class="link-plain text-sm" href="{% url 'requests' %}?key={{ token.id }}&amp;span=1m">All requests</a>
             </div>
             <div class="overflow-x-auto">
                 <table class="table table-sm">
@@ -157,8 +159,10 @@
 
     <section class="card bg-base-200" aria-labelledby="limits-title">
         <div class="card-body gap-3 p-5">
-            <h2 id="limits-title" class="text-xl font-semibold">Limits</h2>
-            {% include "management/_limits.html" %}
+            <div class="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+                <h2 id="limits-title" class="text-xl font-semibold">Limits</h2>
+                {% include "management/_limits.html" %}
+            </div>
             {% if limits.requests_per_minute is not None %}
                 {% include "management/_rate_usage.html" with usage=usage limits=limits %}
             {% endif %}

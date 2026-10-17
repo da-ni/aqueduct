@@ -1,0 +1,20 @@
+{% load ui %}
+{% comment %}
+Rotate, Edit and Delete of a row of the API keys list, each a `button`-styled control.
+`labelled` spells the action out, for the overflow menu; otherwise each is an icon.
+{% endcomment %}
+{% with token=row.token account=row.token.service_account %}
+<form action="{% url 'token_regenerate' token.id %}" method="post" class="flex flex-col">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{% url 'tokens' %}">
+    <button type="submit" class="{{ button }}" aria-label="Rotate {{ token.name }}" title="Rotate"
+            {% confirm "Rotate "|add:token.name|add:"?" "The current key stops working immediately." "Rotate" %}>{% icon "rotate" small=True %}{% if labelled %}Rotate{% endif %}</button>
+</form>
+{% if account %}
+    <a class="{{ button }}" href="{% url 'service_account_edit' account.id %}" aria-label="Edit {{ token.name }}" title="Edit">{% icon "admin" small=True %}{% if labelled %}Edit{% endif %}</a>
+    <a class="{{ button }}" href="{% url 'service_account_delete' account.id %}" {% confirm_delete account %} aria-label="Delete {{ token.name }}" title="Delete">{% icon "delete" small=True %}{% if labelled %}Delete{% endif %}</a>
+{% else %}
+    <a class="{{ button }}" href="{% url 'token_edit' token.id %}" aria-label="Edit {{ token.name }}" title="Edit">{% icon "admin" small=True %}{% if labelled %}Edit{% endif %}</a>
+    <a class="{{ button }}" href="{% url 'token_delete' token.id %}" {% confirm_delete token %} aria-label="Delete {{ token.name }}" title="Delete">{% icon "delete" small=True %}{% if labelled %}Delete{% endif %}</a>
+{% endif %}
+{% endwith %}

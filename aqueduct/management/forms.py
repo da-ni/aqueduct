@@ -146,18 +146,12 @@ class TokenCreateForm(forms.ModelForm):
         model = Token
         fields: ClassVar[list] = ["name", "expires_at"]
         widgets: ClassVar[dict] = {
-            "name": forms.TextInput(
-                attrs={"placeholder": "For example thesis-eval", "class": NAME_INPUT}
-            ),
+            "name": forms.TextInput(attrs={"placeholder": "e.g. thesis-eval", "class": NAME_INPUT}),
             "expires_at": forms.DateTimeInput(
                 attrs={"type": "datetime-local", "class": EXPIRY_INPUT}, format="%Y-%m-%dT%H:%M"
             ),
         }
-        labels: ClassVar[dict] = {"name": "Name", "expires_at": "Expiry in UTC (optional)"}
-        help_texts: ClassVar[dict] = {
-            "expires_at": "Leave it empty and the key never expires. "
-            "Rotate it yourself from time to time."
-        }
+        labels: ClassVar[dict] = {"name": "Name", "expires_at": "Expires (UTC, optional)"}
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
