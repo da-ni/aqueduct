@@ -7,7 +7,7 @@ from django.views.generic import TemplateView
 from gateway.config import get_router_config, model_info_with_context
 from management import usage_report as report
 from management.model_catalog import mode_for
-from management.request_log import Outcome, read_filters
+from management.request_log import read_filters
 from management.views.base import BaseAqueductView
 
 
@@ -50,26 +50,25 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 with_org=selected_org is None,
             )
         spark_slots = report.slots(points, period.step)
+        requests_in_period = sum(a.requests for _, a in points)
+        kpis = report.kpis(
+            spark_slots,
+            report.median_ms(in_period),
+            report.slot_medians(in_period, spark_slots),
+            report.totals(previous.of(reqs)) if knows_previous else None,
+            report.median_ms(previous.of(reqs)) if knows_previous else None,
+        )
 
         context.update(
             {
                 "filters": filters,
                 "period": period,
-                "kpis": report.kpis(
-                    spark_slots,
-                    report.median_ms(in_period),
-                    report.slot_medians(in_period, spark_slots),
-                    report.totals(previous.of(reqs)) if knows_previous else None,
-                    report.median_ms(previous.of(reqs)) if knows_previous else None,
-                    filters.log_url(),
-                    filters.log_url(status=Outcome.ERRORS.value),
-                ),
-                "compares_previous": knows_previous,
+                "kpis": kpis,
+                "compares_previous": any(kpi.change for kpi in kpis),
+                "requests_in_period": requests_in_period,
                 "metric": metric,
                 "chart": report.columns(points, period.step, metric),
-                "statuses": report.statuses(
-                    in_period, sum(a.requests for _, a in points), filters.log_url
-                ),
+                "statuses": report.statuses(in_period, requests_in_period, filters.log_url),
                 "heat": report.heat(reqs, now, heat_weeks),
                 "heat_days": heat_weeks * 7,
                 "heat_legend": report.HEAT_CLASSES[1:],

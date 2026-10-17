@@ -1,4 +1,3 @@
-import datetime as dt
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -11,7 +10,6 @@ from django.db.models import Count, Min, Q, QuerySet
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
-from django.utils import timezone
 from django.utils.http import urlencode
 
 from management.key_activity import FAILED, router_models, served
@@ -79,6 +77,11 @@ class Outcome(StrEnum):
     @property
     def label(self) -> str:
         return {Outcome.ERRORS: "Failed", Outcome.REFUSED: "Other 4xx"}.get(self, self.value)
+
+    @property
+    def codes(self) -> str | None:
+        """The status codes of a group whose label does not name them."""
+        return "4xx and 5xx" if self is Outcome.ERRORS else None
 
     @property
     def matches(self) -> Q:
@@ -152,10 +155,6 @@ def describe_key(
     return Key(token, href, note)
 
 
-FILTER_PARAMS = frozenset({"org", "scope", "key", "model", "span", "start", "end"})
-RESET_PARAMS = frozenset({"page", "request"})
-
-
 @dataclass(frozen=True)
 class Filters:
     """The selection the Overview page and the request log share: org, whose keys, key, model,
@@ -169,14 +168,8 @@ class Filters:
     key: Key | None
     models: tuple[str, ...]
     model: str | None
-    span: Span | None
+    span: Span
     period: Period
-    custom_start: str
-    custom_end: str
-    custom_error: str | None
-    page_params: tuple[tuple[str, str], ...]
-    """The page's own query parameters, such as the status tab, without the filters."""
-    now_utc_iso: str
     requests: QuerySet[Request]
 
     @property
@@ -194,20 +187,8 @@ class Filters:
             found["key"] = str(self.key.token.id)
         if self.model:
             found["model"] = self.model
-        if self.span:
-            found["span"] = self.span.value
-        else:
-            found |= {"start": self.custom_start, "end": self.custom_end}
+        found["span"] = self.span.value
         return found
-
-    @property
-    def kept(self) -> tuple[tuple[str, str], ...]:
-        """What the custom range form passes on besides the range."""
-        ranged = {"span", "start", "end"}
-        return (
-            *((name, value) for name, value in self.query.items() if name not in ranged),
-            *self.page_params,
-        )
 
     def log_url(self, **narrower: str) -> str:
         """The request log with this selection, narrowed or overridden by `narrower`."""
@@ -259,18 +240,13 @@ def read_filters(
     if model is not None:
         requests = requests.filter(model=model)
 
-    custom_start, custom_end = params.get("start", ""), params.get("end", "")
-    start, end, custom_error = _custom_range(custom_start, custom_end, now)
     span = Span.parse(params.get("span", "")) or default_span
-    if start and end and not custom_error:
-        period, span = Period.between(start, end), None
-    else:
-        oldest = now
-        if span is Span.ALL:
-            retained = now - timedelta(days=getattr(settings, "REQUEST_RETENTION_DAYS", 30))
-            first = requests.aggregate(first=Min("timestamp"))["first"]
-            oldest = min(first or retained, retained)
-        period = Period.last(span, now, oldest)
+    oldest = now
+    if span is Span.ALL:
+        retained = now - timedelta(days=getattr(settings, "REQUEST_RETENTION_DAYS", 30))
+        first = requests.aggregate(first=Min("timestamp"))["first"]
+        oldest = min(first or retained, retained)
+    period = Period.last(span, now, oldest)
 
     return Filters(
         orgs=tuple(Org.objects.order_by("name")) if profile.is_admin() else (),
@@ -283,43 +259,8 @@ def read_filters(
         model=model,
         span=span,
         period=period,
-        custom_start=custom_start,
-        custom_end=custom_end,
-        custom_error=custom_error,
-        page_params=tuple(
-            (name, value)
-            for name, value in params.items()
-            if name not in FILTER_PARAMS | RESET_PARAMS
-        ),
-        now_utc_iso=now.strftime("%Y-%m-%dT%H:%M"),
         requests=requests,
     )
-
-
-def _custom_range(
-    start_raw: str, end_raw: str, now: datetime
-) -> tuple[datetime | None, datetime | None, str | None]:
-    """The custom range as UTC datetimes, and the first problem with it, if any."""
-    if not start_raw and not end_raw:
-        return None, None, None
-    try:
-        start = dt.datetime.fromisoformat(start_raw) if start_raw else None
-        end = dt.datetime.fromisoformat(end_raw) if end_raw else None
-    except ValueError:
-        return None, None, "Invalid date format."
-    if start is not None and timezone.is_naive(start):
-        start = timezone.make_aware(start, dt.UTC)
-    if end is not None and timezone.is_naive(end):
-        end = timezone.make_aware(end, dt.UTC)
-    if not (start and end):
-        return start, end, None
-    if end > now:
-        return start, end, "End time is in the future."
-    if start >= end:
-        return start, end, "Start must be before end."
-    if end - start < timedelta(minutes=1):
-        return start, end, "Range must be at least 1 minute."
-    return start, end, None
 
 
 @dataclass(frozen=True)

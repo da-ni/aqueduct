@@ -166,8 +166,6 @@ class RequestsScopeTest(RequestsPageTestBase):
         self.log(self.team_key, "/invalid", status_code=400, model=OTHER_MODEL)
         self.log(self.side_key, "/broken", status_code=502)
         self.log(self.key, "/last-week", ago=timedelta(days=3))
-        start = (timezone.now() - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M")
-        end = timezone.now().strftime("%Y-%m-%dT%H:%M")
         viewers = (
             (self.owner, {}),
             (self.member, {"span": "1d"}),
@@ -175,7 +173,6 @@ class RequestsScopeTest(RequestsPageTestBase):
             (self.org_admin, {"scope": "mine"}),
             (self.org_admin, {"key": self.team_key.id, "span": "1m"}),
             (self.admin, {"org": "all", "model": MODEL}),
-            (self.admin, {"start": start, "end": end}),
         )
         for user, params in viewers:
             with self.subTest(user=user.username, **params):
@@ -188,7 +185,7 @@ class RequestsScopeTest(RequestsPageTestBase):
                 failed = sum(row.count for row in usage["statuses"] if row.codes != "2xx")
                 if total:
                     self.assertEqual(kpis["Failed"].value, f"{round(100 * failed / total)}%")
-                figures += [(kpis["Requests"].href, total), (kpis["Failed"].href, failed)]
+                figures.append((usage["filters"].log_url(), total))
                 for href, count in figures:
                     log = self.client.get(href).context["log"]
                     self.assertEqual(log.page.paginator.count, count, href)
@@ -200,9 +197,20 @@ class RequestsScopeTest(RequestsPageTestBase):
         self.assertContains(response, 'aria-current="page">All retained</a>')
         self.assertNotContains(self.get(self.owner, span="1m"), ">/overdue</div>")
 
-    def test_invalid_custom_range_shows_an_error(self):
+    def test_start_and_end_parameters_are_ignored(self):
         response = self.get(self.owner, start="2020-01-02T00:00", end="2020-01-01T00:00")
-        self.assertContains(response, "Start must be before end.")
+        self.assertEqual(self.paths_on(response), {"/own", "/sent-as-owner"})
+
+    def test_empty_log_says_whether_filters_hide_requests(self):
+        self.assertContains(
+            self.get(self.owner, model=OTHER_MODEL), "No request matches these filters."
+        )
+        self.assertContains(
+            self.get(self.foreigner, key=self.foreign_key.id, status="5xx"),
+            "No request matches these filters.",
+        )
+        Request.objects.all().delete()
+        self.assertContains(self.get(self.owner), "No requests in the last 30 days.")
 
     def test_time_frame_limits_the_log(self):
         self.log(self.key, "/last-week", ago=timedelta(days=3))
@@ -270,6 +278,12 @@ class RequestsFilterTest(RequestsPageTestBase):
         self.assertNotContains(response, "foreign-laptop", status_code=404)
         self.assertEqual(self.get(self.owner, key="abc").status_code, 404)
 
+    def test_model_cell_filters_the_log_on_its_model(self):
+        response = self.get(self.owner, status="2xx")
+        self.assertContains(
+            response, f'href="?status=2xx&amp;model={MODEL}" title="Show only {MODEL}"', count=2
+        )
+
     def test_model_filter(self):
         self.log(self.key, "/embed", model=OTHER_MODEL)
         response = self.get(self.owner, model=OTHER_MODEL)
@@ -290,6 +304,7 @@ class RequestsFilterTest(RequestsPageTestBase):
         self.assertContains(opened, "openai-python/1.51")
         self.assertContains(opened, "150 tok/s")
         self.assertContains(opened, "200 OK. The request succeeded.")
+        self.assertContains(opened, f'data-copy="{own.id}"')
         foreign = Request.objects.get(path="/foreign")
         foreign.user_agent = "foreign-agent/9"
         foreign.save()

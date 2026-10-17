@@ -35,6 +35,9 @@ class RequestLogView(BaseAqueductView, TemplateView):
             ),
             filters=filters,
             outcome=outcome,
+            narrowed=outcome is not None
+            or filters.span is not Span.ALL
+            or bool(filters.mine or filters.key or filters.model),
             retention_days=int(getattr(settings, "REQUEST_RETENTION_DAYS", 30)),
         )
         return context
