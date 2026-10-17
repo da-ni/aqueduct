@@ -1,3 +1,5 @@
+from functools import cached_property
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ImproperlyConfigured
@@ -11,6 +13,7 @@ from django.urls import reverse, reverse_lazy
 from django.views import View
 
 from management.models import Org, ServiceAccount, Team, UserProfile
+from management.request_log import chosen_org
 
 
 class BaseAqueductView(LoginRequiredMixin, View):
@@ -40,12 +43,16 @@ class BaseAqueductView(LoginRequiredMixin, View):
             self._profile = self.request.user.profile
         return self._profile
 
+    @cached_property
+    def viewed_org(self) -> Org | None:
+        """The org the viewer chose to look at, `None` for every org. See `chosen_org`."""
+        return chosen_org(self.profile, self.request)
+
     @property
     def org(self) -> Org:
-        """
-        Returns the Organization associated with the user's profile.
-        """
-        return self.profile.org
+        """The org a page about one org shows: the viewed org, or the viewer's own while an
+        admin views every org."""
+        return self.viewed_org or self.profile.org
 
     def is_admin(self) -> bool:
         """Checks if the current user is a global admin."""

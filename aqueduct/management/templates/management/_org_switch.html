@@ -1,11 +1,14 @@
-<form method="post" action="{% url 'org_switch' %}" class="flex items-center gap-2 text-sm">
+{% load ui %}
+<form method="post" action="{% url 'org_switch' %}" class="flex flex-col gap-1 px-2">
     {% csrf_token %}
-    <input type="hidden" name="next" value="{{ request.path }}">
-    <label for="org-switch" class="muted whitespace-nowrap">Switch organization</label>
-    <select id="org-switch" name="org_id" class="select select-sm w-56" aria-describedby="org-switch-hint" onchange="this.form.submit()">
-        {% for org in all_orgs %}
-            <option value="{{ org.id }}"{% if org.id == org_object.id %} selected{% endif %}>{{ org.name }}</option>
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <label for="org-switch" class="label-mono muted flex items-center gap-1.5">{% icon "organization" small=True %}Organization</label>
+    <select id="org-switch" name="org_id" class="select select-sm w-full" aria-describedby="org-switch-hint" onchange="this.form.submit()">
+        <option value="all"{% if not shell.org_switch.chosen %} selected{% endif %}>All organizations</option>
+        {% for org in shell.org_switch.orgs %}
+            <option value="{{ org.id }}"{% if org == shell.org_switch.chosen %} selected{% endif %}>{{ org.name }}</option>
         {% endfor %}
     </select>
-    <span id="org-switch-hint" class="sr-only">Changes your organization on every page.</span>
+    <span id="org-switch-hint" class="sr-only">Changes the organization on every page.</span>
+    <noscript><button type="submit" class="btn btn-sm w-full">Switch</button></noscript>
 </form>

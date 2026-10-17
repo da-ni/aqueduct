@@ -88,7 +88,12 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         profile = self.profile
         now = timezone.now()
         filters = read_filters(
-            profile, self.get_teams_for_user(), params, default_span=report.DEFAULT_SPAN, now=now
+            profile,
+            self.get_teams_for_user(),
+            params,
+            org=self.viewed_org,
+            default_span=report.DEFAULT_SPAN,
+            now=now,
         )
         selected_org, selected_key, period = filters.org, filters.key, filters.period
         reqs = filters.requests
@@ -177,7 +182,12 @@ class KeyUsageView(BaseAqueductView, TemplateView):
         params.pop("key", None)
         teams = self.get_teams_for_user()
         filters = read_filters(
-            self.profile, teams, params, default_span=report.DEFAULT_SPAN, now=timezone.now()
+            self.profile,
+            teams,
+            params,
+            org=self.viewed_org,
+            default_span=report.DEFAULT_SPAN,
+            now=timezone.now(),
         )
         q = params.get("q", "").strip()
         search = key_search(q, by_owner=filters.can_pick_scope)

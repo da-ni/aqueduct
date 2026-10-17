@@ -8,6 +8,8 @@
         </span>
     </a>
 
+    {% if shell.org_switch %}{% include "management/_org_switch.html" %}{% endif %}
+
     <nav aria-label="Main">
         <ul class="menu w-full gap-1 p-0">
             {% for section in shell.sections %}

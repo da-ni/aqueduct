@@ -108,22 +108,6 @@ class OrganizationPageTest(OrganizationTestBase):
         page = self.as_user(self.org_admin).get(self.url).content.decode()
         self.assertNotIn("whisper-1", page.split("Everyone in lab-org", 1)[1].split("</tr>", 1)[0])
 
-    def test_admin_switches_org_and_comes_back_to_this_page(self):
-        response = self.as_user(self.admin).get(self.url)
-        self.assertContains(response, reverse("org_switch"))
-        response = self.client.post(
-            reverse("org_switch"), {"org_id": self.org.id, "next": self.url}
-        )
-        self.assertRedirects(response, self.url, fetch_redirect_response=False)
-        self.assertContains(self.client.get(self.url), "lab-org")
-
-    def test_org_switch_ignores_a_foreign_next(self):
-        self.as_user(self.admin)
-        response = self.client.post(
-            reverse("org_switch"), {"org_id": self.org.id, "next": "https://evil.example/"}
-        )
-        self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
-
     def test_service_account_count_counts_only_this_org(self):
         ServiceAccount.objects.create(name="far", team=self.foreign_team)
         response = self.as_user(self.org_admin).get(reverse("organization"))

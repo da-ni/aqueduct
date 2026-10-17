@@ -1,4 +1,4 @@
-# management/views/org.py
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from django.contrib import messages
 from django.http import Http404, HttpResponse
@@ -11,6 +11,7 @@ from django.views.generic import TemplateView, UpdateView, View
 from management.forms import OrgLimitsForm, OrgSwitchOffsForm
 from management.models import LimitSet, Org
 from management.org_overview import org_page
+from management.request_log import ORG_BOUND_PARAMS, parse_id, remember_org
 from management.team_overview import team_rows
 from management.views.base import BaseAqueductView, OrgAdminRequiredMixin
 
@@ -36,9 +37,8 @@ class OrgView(BaseAqueductView, TemplateView):
             org_object=self.org,
             org_limits=LimitSet.from_objects(self.org, None),
             can_edit_in_admin=self.request.user.is_staff,
+            org_fallback=self.viewed_org is None,
         )
-        if self.profile.group == "admin":
-            context["all_orgs"] = Org.objects.order_by("name")
         return context
 
 
@@ -49,9 +49,9 @@ class OrganizationView(BaseAqueductView, OrgAdminRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context.update(org_object=self.org, page=org_page(self.org))
-        if self.is_admin():
-            context["all_orgs"] = Org.objects.order_by("name")
+        context.update(
+            org_object=self.org, page=org_page(self.org), org_fallback=self.viewed_org is None
+        )
         return context
 
 
@@ -91,26 +91,29 @@ class OrgSwitchOffsEditView(OrgEditView):
 
 
 class OrgSwitchView(BaseAqueductView, View):
-    """
-    Allows admin users to switch their current organization.
-    """
+    """Sets the org an admin looks at, one org or every org, for every page of their session."""
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
-        # Only allow if user is a global admin
-        if self.profile.group != "admin":
+        if not self.is_admin():
             messages.error(request, "Only admin users can switch organizations.")
             return redirect(reverse("org"))
 
-        org_id = request.POST.get("org_id")
-        if not org_id:
-            messages.error(request, "No organization selected.")
-            return redirect(reverse("org"))
-
-        org = get_object_or_404(Org, pk=org_id)
-        self.profile.org = org
-        self.profile.save(update_fields=["org"])
-        messages.success(request, f"Switched to organization: {org.name}")
+        raw = request.POST.get("org_id", "")
+        org = None if raw == "all" else get_object_or_404(Org, pk=parse_id(raw))
+        remember_org(request.session, org)
+        messages.success(request, f"Switched to {org.name if org else 'all organizations'}.")
         back = request.POST.get("next", "")
         if url_has_allowed_host_and_scheme(back, {request.get_host()}, request.is_secure()):
-            return redirect(back)
+            return redirect(_without_org_params(back))
         return redirect(reverse("org"))
+
+
+def _without_org_params(url: str) -> str:
+    """`url` without the parameters that name something of the org the viewer leaves."""
+    parts = urlsplit(url)
+    query = [
+        (name, value)
+        for name, value in parse_qsl(parts.query, keep_blank_values=True)
+        if name not in ORG_BOUND_PARAMS
+    ]
+    return urlunsplit(parts._replace(query=urlencode(query)))

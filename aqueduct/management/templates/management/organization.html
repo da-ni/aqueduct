@@ -14,8 +14,8 @@
                 <span><a class="link-plain" href="{% url 'org' %}">{{ page.teams|intcomma }} team{{ page.teams|pluralize }}</a></span>
                 <span>{{ page.service_accounts|intcomma }} service account{{ page.service_accounts|pluralize }}</span>
             </div>
+            {% include "management/_org_fallback.html" %}
         </div>
-        {% if all_orgs %}{% include "management/_org_switch.html" %}{% endif %}
     </header>
 
     <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-5">

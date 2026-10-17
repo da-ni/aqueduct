@@ -1,15 +1,4 @@
 {% load ui %}
-{% if filters.orgs %}
-    <details class="dropdown">
-        <summary class="btn btn-sm">{% icon "organization" small=True %}<span class="sr-only">Organization: </span>{% if filters.org %}{{ filters.org.name }}{% else %}All organizations{% endif %}</summary>
-        <ul class="menu dropdown-content z-10 mt-1 max-h-80 w-64 flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow">
-            <li><a href="{% querystring key_q=None org='all' key=None before=None after=None request=None page=None %}"{% if not filters.org %} aria-current="true" class="menu-active"{% endif %}>All organizations</a></li>
-            {% for org in filters.orgs %}
-                <li><a href="{% querystring key_q=None org=org.id key=None before=None after=None request=None page=None %}"{% if org == filters.org %} aria-current="true" class="menu-active"{% endif %}>{{ org.name }}</a></li>
-            {% endfor %}
-        </ul>
-    </details>
-{% endif %}
 {% if not scope_only or filters.can_pick_scope %}
 <details class="dropdown"{% if filters.key_q and not scope_only %} open{% endif %}>
     <summary class="btn btn-sm max-w-72">{% icon "key" small=True %}<span class="sr-only">Key: </span><span class="truncate"{% if filters.key %} title="{{ filters.key.name }}"{% endif %}>{% if filters.key %}{{ filters.key.name }}{% elif filters.mine %}My keys{% elif filters.can_pick_scope %}All keys{% else %}All my keys{% endif %}</span></summary>
