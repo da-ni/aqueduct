@@ -79,8 +79,7 @@ class ServiceAccountCreateView(BaseTeamView, TeamAdminRequiredMixin, CreateView)
             # Save the token (hash and preview are now set)
             new_token.save()
 
-            messages.success(self.request, f"Service account {self.object.name} created.")
-            # Display the original secret key
+            # The "Your key is ready" panel says it all, as for a personal key.
             messages.info(self.request, f"{secret_key}", extra_tags="token-regenerated-key")
 
         except Exception as e:

@@ -581,6 +581,8 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
         )
         self.assertEqual(response.redirect_chain, [(reverse("team", args=[self.team.id]), 302)])
         self.assertContains(response, "Your key is ready")
+        self.assertNotContains(response, "created.")
+        self.assertNotContains(response, 'class="alert ')
         sa = ServiceAccount.objects.get(name="rag", team=self.team)
         self.assertEqual(Token.find_by_key(secret_on(response)), sa.token)
 
