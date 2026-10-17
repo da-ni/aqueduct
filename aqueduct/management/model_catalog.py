@@ -46,11 +46,6 @@ class Mode:
     output: str | None = None
     context_label: str = "Context length"
     """The panel label of `max_input_tokens`. A chat model's `max_tokens` holds input and output."""
-    expected: tuple[str, ...] = ()
-    """The `_SPECS` keys the detail panel lists as "Not configured" when the config lacks them."""
-
-
-_CHAT_SPECS = ("quantization", "max_input_tokens", "max_output_tokens")
 
 
 MODES: tuple[Mode, ...] = (
@@ -60,24 +55,11 @@ MODES: tuple[Mode, ...] = (
         ("chat",),
         "gateway:chat_completions",
         (("messages", [{"role": "user", "content": "Hello"}]),),
-        expected=_CHAT_SPECS,
     ),
     Mode(
-        Category.CHAT,
-        "Completion",
-        ("completion",),
-        "gateway:completions",
-        (("prompt", "Hello"),),
-        expected=_CHAT_SPECS,
+        Category.CHAT, "Completion", ("completion",), "gateway:completions", (("prompt", "Hello"),)
     ),
-    Mode(
-        Category.CHAT,
-        "Responses",
-        ("responses",),
-        "gateway:responses",
-        (("input", "Hello"),),
-        expected=_CHAT_SPECS,
-    ),
+    Mode(Category.CHAT, "Responses", ("responses",), "gateway:responses", (("input", "Hello"),)),
     Mode(
         Category.EMBEDDINGS,
         "Embeddings",
@@ -85,7 +67,6 @@ MODES: tuple[Mode, ...] = (
         "gateway:embeddings",
         (("input", "Hello"),),
         context_label="Max input tokens",
-        expected=("quantization", "max_input_tokens"),
     ),
     Mode(
         Category.AUDIO,
@@ -229,8 +210,7 @@ def _web_url(value: object) -> str | None:
 @dataclass(frozen=True)
 class Spec:
     label: str
-    value: str | None
-    """None means the config does not say, which the page shows as "Not configured"."""
+    value: str
 
 
 @dataclass(frozen=True)
@@ -298,7 +278,7 @@ class ModelCard(Availability):
         fields = {"model": self.name, **dict(mode.fields)}
         lines = [
             f"curl {base_url}{reverse(mode.endpoint)}",
-            '-H "Authorization: Bearer $AQUEDUCT_API_KEY"',
+            '-H "Authorization: Bearer $OPENAI_API_KEY"',
         ]
         if mode.form:
             lines += [f"-F {shlex.quote(f'{key}={value}')}" for key, value in fields.items()]
@@ -329,12 +309,8 @@ class Catalog:
         return any(card.aliases for card in self.cards)
 
     @property
-    def has_quantization(self) -> bool:
-        return any(card.quantization for card in self.cards)
-
-    @property
     def columns(self) -> int:
-        return 1 + self.has_aliases + self.has_quantization + self.has_context
+        return 1 + self.has_aliases + self.has_context
 
     def search(self, category: Category | None, text: str) -> tuple[ModelCard, ...]:
         return tuple(
@@ -357,9 +333,9 @@ def parse_card(entry: Mapping[str, Any], scopes: Sequence[Scope] = ()) -> ModelC
     quantization = _text(info.get("quantization")) or quantization_in(repo or served or name)
     info["quantization"] = quantization
     specs = tuple(
-        Spec(label or mode.context_label, value or None)
+        Spec(label or mode.context_label, value)
         for label, key, format_value in _SPECS
-        if (value := format_value(info.get(key))) or key in mode.expected
+        if (value := format_value(info.get(key)))
     )
     capabilities = tuple(label for key, label in _CAPABILITIES if info.get(key) is True)
     multiplier = info.get("request_limit_multiplier")

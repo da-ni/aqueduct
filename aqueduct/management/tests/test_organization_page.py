@@ -88,13 +88,27 @@ class OrganizationPageTest(OrganizationTestBase):
         response = self.as_user(self.org_admin).get(self.url)
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertContains(response, '<h1 class="text-3xl font-semibold">lab-org</h1>', html=True)
-        self.assertContains(response, "4 people")
+        self.assertNotContains(response, "people")
         self.assertContains(response, "2 teams")
         self.assertContains(response, "1 service account")
         self.assertContains(response, "600")
         self.assertContains(response, reverse("organization_limits", args=[self.org.id]))
         self.assertContains(response, reverse("organization_availability", args=[self.org.id]))
         self.assertNotContains(response, reverse("org_switch"))
+
+    def test_caps_read_as_minutes_of_full_rate_and_the_key_count_as_a_server_setting(self):
+        self.org.hourly_limit_multiplier = 30
+        self.org.save()
+        response = self.as_user(self.org_admin).get(self.url)
+        self.assertContains(
+            response,
+            'Hourly cap</dt><dd><span class="font-mono font-semibold">30 min of full rate</span>',
+        )
+        self.assertContains(response, "1,440 min of full rate (default)")
+        self.assertContains(response, '<span class="muted">(server setting)</span>')
+        form = self.as_user(self.org_admin).get(reverse("organization_limits", args=[self.org.id]))
+        self.assertContains(form, "1–1,440. 1,440 = no extra daily cap.")  # noqa: RUF001
+        self.assertContains(form, "Requests per minute</label>")
 
     def test_org_admin_of_another_org_sees_only_their_own(self):
         response = self.as_user(self.other_org_admin).get(self.url)

@@ -25,11 +25,6 @@
                 <input type="search" name="q" value="{{ query }}" placeholder="Search models and aliases" aria-label="Search models and aliases">
             </label>
         </form>
-        <div class="copy-field sm ml-auto">
-            <span>{{ shell.gateway_url }}</span>
-            <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ shell.gateway_url }}"
-                    aria-label="Copy gateway URL" title="Copy gateway URL">{% icon "copy" small=True %}</button>
-        </div>
     </div>
 
     {% if selected %}
@@ -40,8 +35,7 @@
                         <thead>
                             <tr>
                                 <th>Model</th>
-                                {% if catalog.has_aliases %}<th class="hidden w-36 md:table-cell">Aliases</th>{% endif %}
-                                {% if catalog.has_quantization %}<th class="hidden w-28 sm:table-cell">Quant</th>{% endif %}
+                                {% if catalog.has_aliases %}<th class="hidden w-36 xl:table-cell">Aliases</th>{% endif %}
                                 {% if catalog.has_context %}<th class="w-20 text-right">Context</th>{% endif %}
                             </tr>
                         </thead>
@@ -52,16 +46,24 @@
                                         <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                                             <a class="min-w-0 font-mono font-semibold [overflow-wrap:anywhere] row-link"
                                                href="{% querystring model=card.name %}#model-detail"{% if card == selected %} aria-current="true"{% endif %}>{{ card.name }}</a>
-                                            {% if card.quantization %}<span class="badge badge-outline badge-sm max-w-full font-mono sm:hidden" title="{{ card.quantization }}"><span class="truncate">{{ card.quantization }}</span></span>{% endif %}
+                                            {% if card.quantization %}<span class="badge badge-outline badge-sm max-w-full font-mono" title="{{ card.quantization }}"><span class="truncate">{{ card.quantization }}</span></span>{% endif %}
                                             {% if card.deprecation_date %}<span class="badge badge-outline badge-deprecated badge-sm flex-none font-mono uppercase">Deprecated</span>{% endif %}
                                         </div>
                                         <p class="muted mt-0.5 truncate text-xs"{% if card.description %} title="{{ card.description }}"{% endif %}>{{ card.mode.label }}{% if card.description %} · {{ card.description }}{% endif %}</p>
-                                        {% if card.aliases %}<p class="muted mt-0.5 truncate font-mono text-xs md:hidden" title="{{ card.aliases|join:', ' }}">{{ card.aliases|join:", " }}</p>{% endif %}
+                                        {% if card.aliases %}<p class="muted mt-0.5 truncate font-mono text-xs xl:hidden" title="{{ card.aliases|join:', ' }}">{{ card.aliases|join:", " }}</p>{% endif %}
                                     </td>
-                                    {% if catalog.has_aliases %}<td class="muted hidden truncate font-mono text-xs md:table-cell" title="{{ card.aliases|join:', ' }}">{{ card.aliases|join:", " }}</td>{% endif %}
-                                    {% if catalog.has_quantization %}<td class="hidden sm:table-cell">{% if card.quantization %}<span class="badge badge-outline badge-sm max-w-full font-mono" title="{{ card.quantization }}"><span class="truncate">{{ card.quantization }}</span></span>{% endif %}</td>{% endif %}
+                                    {% if catalog.has_aliases %}<td class="muted hidden truncate font-mono text-xs xl:table-cell" title="{{ card.aliases|join:', ' }}">{{ card.aliases|join:", " }}</td>{% endif %}
                                     {% if catalog.has_context %}<td class="text-right font-mono">{{ card.context|default:"n/a" }}</td>{% endif %}
                                 </tr>
+                                {% if card == selected %}
+                                    <tr id="model-detail" class="scroll-mt-20 xl:hidden">
+                                        <td colspan="{% if catalog.has_context %}2{% else %}1{% endif %}" class="p-0">
+                                            <section class="flex flex-col gap-5 rounded-box bg-base-100/60 p-4" aria-labelledby="model-detail-name-inline">
+                                                {% include "management/_model_detail.html" with place="inline" %}
+                                            </section>
+                                        </td>
+                                    </tr>
+                                {% endif %}
                             {% empty %}
                                 <tr><td colspan="{{ catalog.columns }}" class="muted">No model matches.</td></tr>
                             {% endfor %}
@@ -70,88 +72,9 @@
                 </div>
             </div>
 
-            <aside id="model-detail" class="card min-w-0 bg-base-200 xl:col-span-2" aria-labelledby="model-detail-name">
+            <aside class="card min-w-0 self-start bg-base-200 xl:sticky xl:top-4 xl:col-span-2{% if selected in cards %} max-xl:hidden{% endif %}" aria-labelledby="model-detail-name-panel">
                 <div class="card-body gap-5 p-5">
-                    <div class="flex flex-col gap-2">
-                        <p class="label-mono">{{ selected.mode.label }}</p>
-                        <div class="flex items-start justify-between gap-2">
-                            <h2 id="model-detail-name" class="break-all font-mono text-xl font-semibold">{{ selected.name }}</h2>
-                            <button type="button" class="btn btn-ghost btn-sm btn-square" data-copy="{{ selected.name }}"
-                                    aria-label="Copy model name" title="Copy model name">{% icon "copy" small=True %}</button>
-                        </div>
-                        {% if selected.description %}<p class="text-sm">{{ selected.description }}</p>{% endif %}
-                        {% if selected.available_with %}<p class="muted text-sm">Available with {{ selected.available_with }}.</p>{% endif %}
-                        <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                            {% if selected.model_card_url %}
-                                <a class="link-plain inline-flex items-center gap-1" href="{{ selected.model_card_url }}" target="_blank" rel="noopener noreferrer">Model card{% icon "external" small=True %}</a>
-                            {% endif %}
-                            <a class="link-plain" href="{% url 'usage' %}?model={{ selected.name|urlencode }}">Open in Overview</a>
-                            <a class="link-plain" href="{% url 'requests' %}?model={{ selected.name|urlencode }}">Open the log</a>
-                        </div>
-                    </div>
-
-                    {% if selected.deprecation_date %}
-                        <div class="flex items-start gap-2 rounded-lg bg-base-100 px-3 py-2 text-sm">
-                            {% icon "warning" small=True extra_class="st-warn mt-0.5" %}
-                            <span><span class="font-semibold">Deprecated.</span> Retirement date: {{ selected.deprecation_date|when:"date" }}.</span>
-                        </div>
-                    {% endif %}
-
-                    {% if selected.specs or selected.served_model %}
-                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                            {% for spec in selected.specs %}
-                                <div class="flex min-w-0 flex-col justify-between gap-0.5 rounded-lg bg-base-100 px-3 py-2">
-                                    <span class="muted text-xs">{{ spec.label }}</span>
-                                    {% if spec.value %}
-                                        <span class="break-words font-mono font-semibold">{{ spec.value }}</span>
-                                    {% else %}
-                                        <span class="muted text-sm">Not configured</span>
-                                    {% endif %}
-                                </div>
-                            {% endfor %}
-                            {% if selected.served_model %}
-                                <div class="col-span-full flex flex-col rounded-lg bg-base-100 px-3 py-2">
-                                    <span class="muted text-xs">Served model</span>
-                                    <span class="break-all font-mono text-sm font-semibold">{{ selected.served_model }}</span>
-                                </div>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-
-                    <div class="flex flex-col gap-2">
-                        <span class="text-sm font-semibold">Aliases</span>
-                        <div class="flex flex-wrap gap-1.5">
-                            {% for alias in selected.aliases %}
-                                <span class="inline-flex min-w-0 items-center gap-0.5 rounded-md bg-base-100 py-0.5 pr-0.5 pl-2 font-mono text-xs">
-                                    <span class="break-all">{{ alias }}</span>
-                                    <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ alias }}"
-                                            aria-label="Copy alias {{ alias }}" title="Copy alias">{% icon "copy" small=True %}</button>
-                                </span>
-                            {% empty %}
-                                <span class="muted text-sm">None</span>
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                    {% if selected.capabilities %}
-                        <div class="flex flex-col gap-2">
-                            <span class="text-sm font-semibold">Capabilities</span>
-                            <div class="flex flex-wrap gap-1.5">
-                                {% for capability in selected.capabilities %}<span class="badge badge-sm bg-base-100 font-mono">{{ capability }}</span>{% endfor %}
-                            </div>
-                        </div>
-                    {% endif %}
-
-                    {% if snippet %}
-                        <div class="flex flex-col gap-2">
-                            <div class="flex items-center justify-between gap-2">
-                                <span class="text-sm font-semibold">Use it</span>
-                                <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ snippet }}"
-                                        aria-label="Copy example" title="Copy example">{% icon "copy" small=True %}</button>
-                            </div>
-                            <pre class="overflow-x-auto rounded-lg bg-base-100 p-3 font-mono text-[11px] leading-relaxed">{{ snippet }}</pre>
-                        </div>
-                    {% endif %}
+                    {% include "management/_model_detail.html" with place="panel" %}
                 </div>
             </aside>
         </section>

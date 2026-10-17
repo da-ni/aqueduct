@@ -1,0 +1,67 @@
+{% load ui %}
+<div class="flex flex-col gap-2">
+    <p class="label-mono">{{ selected.mode.label }}</p>
+    <h2 id="model-detail-name-{{ place }}" class="break-all font-mono text-xl font-semibold">{{ selected.name }}</h2>
+    {% if selected.description %}<p class="text-sm">{{ selected.description }}</p>{% endif %}
+    {% if selected.available_with %}<p class="muted text-sm">Available with {{ selected.available_with }}.</p>{% endif %}
+    <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        {% if selected.model_card_url %}
+            <a class="link-plain inline-flex items-center gap-1" href="{{ selected.model_card_url }}" target="_blank" rel="noopener noreferrer">Model card{% icon "external" small=True %}</a>
+        {% endif %}
+        <a class="link-plain" href="{% url 'usage' %}?model={{ selected.name|urlencode }}">Usage</a>
+        <a class="link-plain" href="{% url 'requests' %}?model={{ selected.name|urlencode }}">Requests</a>
+    </div>
+</div>
+
+{% if selected.deprecation_date %}
+    <div class="flex items-start gap-2 rounded-lg bg-base-100 px-3 py-2 text-sm">
+        {% icon "warning" small=True extra_class="st-warn mt-0.5" %}
+        <span><span class="font-semibold">Deprecated.</span> Retirement date: {{ selected.deprecation_date|when:"date" }}.</span>
+    </div>
+{% endif %}
+
+{% if selected.specs or show_served_model and selected.served_model %}
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {% for spec in selected.specs %}
+            <div class="flex min-w-0 flex-col justify-between gap-0.5 rounded-lg bg-base-100 px-3 py-2">
+                <span class="muted text-xs">{{ spec.label }}</span>
+                <span class="break-words font-mono font-semibold">{{ spec.value }}</span>
+            </div>
+        {% endfor %}
+        {% if show_served_model and selected.served_model %}
+            <div class="col-span-full flex flex-col rounded-lg bg-base-100 px-3 py-2">
+                <span class="muted text-xs">Served model</span>
+                <span class="break-all font-mono text-sm font-semibold">{{ selected.served_model }}</span>
+            </div>
+        {% endif %}
+    </div>
+{% endif %}
+
+{% if selected.aliases %}
+    <div class="flex flex-col gap-2">
+        <span class="text-sm font-semibold">Aliases</span>
+        <div class="flex flex-wrap gap-1.5">
+            {% for alias in selected.aliases %}<span class="break-all rounded-md bg-base-100 px-2 py-0.5 font-mono text-xs">{{ alias }}</span>{% endfor %}
+        </div>
+    </div>
+{% endif %}
+
+{% if selected.capabilities %}
+    <div class="flex flex-col gap-2">
+        <span class="text-sm font-semibold">Capabilities</span>
+        <div class="flex flex-wrap gap-1.5">
+            {% for capability in selected.capabilities %}<span class="badge badge-sm bg-base-100 font-mono">{{ capability }}</span>{% endfor %}
+        </div>
+    </div>
+{% endif %}
+
+{% if snippet %}
+    <div class="flex flex-col gap-2">
+        <div class="flex items-center justify-between gap-2">
+            <span class="text-sm font-semibold">Use it</span>
+            <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ snippet }}"
+                    aria-label="Copy example" title="Copy example">{% icon "copy" small=True %}</button>
+        </div>
+        <pre class="overflow-x-auto rounded-lg bg-base-100 p-3 font-mono text-[11px] leading-relaxed">{{ snippet }}</pre>
+    </div>
+{% endif %}

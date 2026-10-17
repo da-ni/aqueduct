@@ -33,11 +33,6 @@
                                 {% if server.available_with %}<p class="muted text-sm">Available with {{ server.available_with }}.</p>{% endif %}
                             </div>
                         </div>
-                        {% if server.tags %}
-                            <div class="flex flex-wrap gap-1.5">
-                                {% for tag in server.tags %}<span class="badge badge-sm bg-base-100 font-mono">{{ tag }}</span>{% endfor %}
-                            </div>
-                        {% endif %}
                         <div class="copy-field mt-auto">
                             <span>{{ server.url }}</span>
                             <button type="button" class="btn btn-ghost btn-sm btn-square" data-copy="{{ server.url }}"
@@ -52,7 +47,7 @@
             <div class="card-body grid grid-cols-1 gap-6 p-5 lg:grid-cols-3">
                 <div class="flex flex-col gap-2">
                     <h2 class="text-xl font-semibold">Connect a client</h2>
-                    <p class="muted text-sm">Any MCP client that speaks streamable HTTP works. Put the server URL and your API key into its configuration.</p>
+                    <p class="muted text-sm">Paste into your MCP client's config and replace <code class="font-mono">sk-...</code> with your <a class="link-plain" href="{% url 'tokens' %}">API key</a>.</p>
                 </div>
                 <div class="relative lg:col-span-2">
                     <pre class="h-full overflow-x-auto rounded-lg bg-base-100 p-4 pr-12 font-mono text-xs leading-relaxed">{{ client_config }}</pre>

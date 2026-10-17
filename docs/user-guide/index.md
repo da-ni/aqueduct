@@ -25,7 +25,7 @@ The bottom of the sidebar shows the e-mail address and role you signed in with, 
 
 ## Choose an organization
 
-Admins choose the organization they look at, or **All organizations**, in the **Viewing** select at the top of the sidebar. The Overview, All keys, Requests, Teams, and Organization pages then show that organization until you change it or sign out. A page that covers one organization at a time, such as Teams or Organization, shows your own organization while you look at all of them, and says so. When you change the organization, the pages drop the key you had chosen and keep the model and time frame.
+Admins choose the organization they look at, or **All organizations**, in the **Viewing** select at the top of the sidebar. The Overview, All keys, Requests, Teams, and Organization pages then show that organization until you change it or sign out. While you look at all of them, the Teams page shows your own organization and says so, and the Organization page lists every organization so you can open one. When you change the organization, the pages drop the key you had chosen and keep the model and time frame.
 
 A link with `?org=` in its address, such as a link someone shared, shows that organization and keeps it as your choice. Org admins and users always see their own organization and get no select.
 

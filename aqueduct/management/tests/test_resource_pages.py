@@ -1,3 +1,4 @@
+import json
 import time
 from datetime import UTC, datetime
 from html import unescape
@@ -607,9 +608,30 @@ class MCPServersPageTest(ResourcePagesTestBase):
         response = self.as_user(self.owner).get(reverse("mcp_servers"))
         url = "http://testserver/mcp-servers/test-server/mcp"
         self.assertContains(response, f'data-copy="{url}"')
-        self.assertContains(response, "development")
-        self.assertContains(response, "&quot;mcpServers&quot;")
+        self.assertNotContains(response, "production")
         self.assertNotContains(response, "Off for")
+        self.assertContains(response, f'href="{reverse("tokens")}">API key</a>')
+
+    def test_client_config_lists_every_server_the_viewer_may_use(self):
+        def configured(response) -> dict:
+            return json.loads(response.context["client_config"])["mcpServers"]
+
+        servers = configured(self.as_user(self.owner).get(reverse("mcp_servers")))
+        self.assertEqual(set(servers), set(get_mcp_config()))
+        self.assertEqual(
+            servers["test-server"],
+            {
+                "url": "http://testserver/mcp-servers/test-server/mcp",
+                "headers": {"Authorization": "Bearer sk-..."},
+            },
+        )
+        self.org.excluded_mcp_servers = ["aqueduct"]
+        self.org.save()
+        profile = self.owner.profile
+        profile.merge_mcp_server_exclusion_lists = True
+        profile.save()
+        servers = configured(self.as_user(self.owner).get(reverse("mcp_servers")))
+        self.assertEqual(set(servers), set(get_mcp_config()) - {"aqueduct"})
 
     def test_server_unavailable_to_every_key_is_not_listed(self):
         self.org.excluded_mcp_servers = ["aqueduct"]

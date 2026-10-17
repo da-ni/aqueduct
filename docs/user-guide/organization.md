@@ -23,19 +23,19 @@ Only org admins of the organization and admins see this page. Other users who op
 
 ## Read the page
 
-The top of the page shows the number of people, teams, and service accounts in the organization. The team count opens the Teams page.
+The top of the page shows the number of teams and service accounts in the organization. The team count opens the Teams page.
 
-- **Limits** shows the default limits for each key in the organization. Teams and people use these limits unless they have limits of their own. **Personal keys per person** comes from the server configuration and cannot be changed here.
+- **Limits** shows the default limits for every key in the organization. Team and personal limits override them. **Hourly cap** and **Daily cap** show how many minutes at the full per-minute rate the hour and the day allow, such as `60 min of full rate`, with `(default)` when the organization uses the server default. **Personal keys per person** is a server setting and cannot be changed here.
 - **Unavailable** shows the models and MCP servers that are unavailable to everyone in the organization, and to each team that has its own list. A team name opens its team page.
 
-Admins see the organization they chose in the sidebar. See [Choose an organization](index.md#choose-an-organization).
+Admins see the organization they chose in the sidebar. See [Choose an organization](index.md#choose-an-organization). While they look at **All organizations**, the page lists every organization with its number of teams. An organization name switches to that organization and opens its page.
 
 ## Change the limits
 
 1. Choose **Edit** on the **Limits** card.
 2. Set the limits:
-    - **Requests per minute, per key**, **Input tokens per minute, per key**, and **Output tokens per minute, per key**. Leave a field empty for no limit.
-    - **Hourly limit, in per-minute limits**, from 1 to 60, and **Daily limit, in per-minute limits**, from 1 to 1440. For example, an hourly value of 30 allows 30 times the per-minute limit in one hour. Leave a field empty for the server default.
+    - **Requests per minute**, **Input tokens per minute**, and **Output tokens per minute** for each key. Leave a field empty for no limit.
+    - **Hourly cap**, from 1 to 60, and **Daily cap**, from 1 to 1,440, in minutes at the full per-minute rate. For example, an hourly cap of 30 allows 30 times the per-minute limit in one hour. 60 and 1,440 add no extra cap. Leave a field empty for the server default.
 3. Choose **Save changes**.
 
 The **Edit** link next to the default limit on the Teams page opens the same form.
