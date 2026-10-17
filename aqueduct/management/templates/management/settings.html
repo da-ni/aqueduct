@@ -15,9 +15,9 @@
                 <div class="card-body gap-4 p-5">
                     <h2 id="account-title" class="text-xl font-semibold">Account</h2>
                     <dl class="grid grid-cols-[8rem_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
-                        <dt class="muted">Signed in as</dt><dd class="break-all font-mono">{{ shell.viewer.email }}</dd>
-                        <dt class="muted">Sign-in</dt><dd>{{ sign_in_provider }}</dd>
+                        <dt class="muted">Email</dt><dd class="break-all font-mono">{{ shell.viewer.email }}</dd>
                         <dt class="muted">Organization</dt><dd>{{ view.org.name }}</dd>
+                        <dd class="muted col-start-2 -mt-2 text-xs">Set by your sign-in provider.</dd>
                         <dt class="muted">Role</dt><dd>{% if shell.viewer.role %}<span class="badge badge-sm bg-base-100">{{ shell.viewer.role }}</span>{% else %}<span class="muted">{{ shell.viewer.role|dash }}</span>{% endif %}</dd>
                         <dt class="muted">Teams</dt>
                         <dd class="flex flex-wrap gap-x-2">
@@ -26,11 +26,10 @@
                                 <a class="link-plain" href="{% url 'team' membership.team.id %}">{{ membership.team.name }}</a>
                                 <span class="muted">{{ membership.role }}</span>
                             {% empty %}
-                                <span class="muted">You are in no team.</span>
+                                <span class="muted">None</span>
                             {% endfor %}
                         </dd>
                     </dl>
-                    <p class="muted text-sm">Your sign-in provider sets your e-mail address and organization.</p>
                     <form action="{% url 'oidc_logout' %}" method="post" class="border-t border-base-300 pt-4">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-outline btn-primary">{% icon "sign_out" small=True %}Sign out</button>
@@ -43,7 +42,7 @@
                     <div class="card-body flex-row flex-wrap items-center justify-between gap-3 p-5">
                         <div class="flex flex-col gap-1">
                             <h2 class="text-xl font-semibold">Terms of service</h2>
-                            <span class="muted text-sm">{% if terms_accepted_on %}You accepted the current version on {{ terms_accepted_on|when:"date" }}.{% else %}You have not accepted the current version.{% endif %}</span>
+                            <span class="muted text-sm">{% if terms_accepted_on %}Accepted {{ terms_accepted_on|when:"date" }}{% else %}Not accepted{% endif %}</span>
                         </div>
                         <a class="link-plain" href="{% url 'tos' %}">Read the terms</a>
                     </div>
@@ -52,29 +51,14 @@
         </div>
 
         <div class="flex flex-col gap-4">
-            <section class="card bg-base-200" aria-labelledby="appearance-title">
-                <div class="card-body gap-4 p-5">
-                    <h2 id="appearance-title" class="text-xl font-semibold">Appearance</h2>
-                    <div class="only-light join" role="group" aria-labelledby="appearance-title">
-                        <button type="button" class="btn btn-sm btn-primary join-item" aria-pressed="true">{% icon "sun" small=True %}Light</button>
-                        <button type="button" class="btn btn-sm join-item" aria-pressed="false" data-toggle-theme>{% icon "moon" small=True %}Dark</button>
-                    </div>
-                    <div class="only-dark join" role="group" aria-labelledby="appearance-title">
-                        <button type="button" class="btn btn-sm join-item" aria-pressed="false" data-toggle-theme>{% icon "sun" small=True %}Light</button>
-                        <button type="button" class="btn btn-sm btn-primary join-item" aria-pressed="true">{% icon "moon" small=True %}Dark</button>
-                    </div>
-                    <p class="muted text-sm">This browser remembers your choice.</p>
-                </div>
-            </section>
-
             <section class="card bg-base-200" aria-labelledby="limits-title">
                 <div class="card-body gap-4 p-5">
-                    <h2 id="limits-title" class="text-xl font-semibold">Limits of your personal keys</h2>
+                    <h2 id="limits-title" class="text-xl font-semibold">Personal key limits</h2>
                     {% include "management/_limits.html" %}
                     <dl class="flex items-baseline gap-2 text-sm">
                         <dt class="muted">Personal keys</dt><dd><span class="font-mono font-semibold">{{ personal_keys }} of {{ max_tokens }}</span></dd>
                     </dl>
-                    <p class="muted border-t border-base-300 pt-4 text-sm">{% if limits_set_for_account %}An admin set limits for your account. Limits not set there come from the organization default.{% else %}From the organization default.{% endif %}</p>
+                    <p class="muted border-t border-base-300 pt-4 text-sm">{% if limits_set_for_account %}Set for your account. Others use the organization default.{% else %}Organization default{% endif %}</p>
                 </div>
             </section>
         </div>

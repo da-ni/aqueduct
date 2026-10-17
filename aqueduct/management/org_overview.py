@@ -14,7 +14,6 @@ class UnavailableRow:
 
 @dataclass(frozen=True)
 class OrgPage:
-    people: int
     teams: int
     service_accounts: int
     limits: LimitSet
@@ -23,8 +22,10 @@ class OrgPage:
     unavailable: tuple[UnavailableRow, ...]
 
 
-def _multiplier(value: int | None, default: int) -> str:
-    return f"{default:,} (default)" if value is None else f"{value:,}"
+def _cap(value: int | None, default: int) -> str:
+    """A multiplier as the minutes at the full per-minute rate that the window allows."""
+    minutes = f"{value if value is not None else default:,} min of full rate"
+    return f"{minutes} (default)" if value is None else minutes
 
 
 def org_page(org: Org) -> OrgPage:
@@ -46,18 +47,17 @@ def org_page(org: Org) -> OrgPage:
         if team.excluded_models or team.excluded_mcp_servers
     )
     return OrgPage(
-        people=org.user_profiles.count(),
         teams=len(teams),
         service_accounts=ServiceAccount.objects.filter(team__org=org).count(),
         limits=LimitSet.from_objects(org, None),
         multipliers=(
             (
-                "Hourly limit, in per-minute limits",
-                _multiplier(org.hourly_limit_multiplier, settings.AQUEDUCT_HOURLY_LIMIT_MULTIPLIER),
+                "Hourly cap",
+                _cap(org.hourly_limit_multiplier, settings.AQUEDUCT_HOURLY_LIMIT_MULTIPLIER),
             ),
             (
-                "Daily limit, in per-minute limits",
-                _multiplier(org.daily_limit_multiplier, settings.AQUEDUCT_DAILY_LIMIT_MULTIPLIER),
+                "Daily cap",
+                _cap(org.daily_limit_multiplier, settings.AQUEDUCT_DAILY_LIMIT_MULTIPLIER),
             ),
         ),
         max_personal_keys=settings.MAX_USER_TOKENS,

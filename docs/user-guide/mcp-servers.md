@@ -15,7 +15,7 @@ The MCP servers page lists the Model Context Protocol (MCP) servers that Aqueduc
 Each card shows:
 
 - The server name. Use this exact name in the server URL.
-- A description and tags.
+- A description.
 - The server URL on this gateway, with a copy button.
 
 The URL has this form:
@@ -31,6 +31,6 @@ The page lists only the servers that at least one of your keys can use. When onl
 1. Copy the server URL from its card.
 2. Configure your MCP client with the URL, and send your API key as a bearer token in the `Authorization` header.
 
-The **Connect a client** card shows a client configuration for the first server, with a copy button. Replace `sk-...` with your API key.
+The **Connect a client** card shows a client configuration with every server you can use, with a copy button. Paste it into your MCP client's configuration and replace `sk-...` with your API key.
 
 For the API details, see the [MCP API reference](../api/mcp.md).

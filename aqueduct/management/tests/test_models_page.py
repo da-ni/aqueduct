@@ -1,3 +1,4 @@
+import html
 import json
 import re
 import shlex
@@ -24,7 +25,7 @@ from management.model_catalog import (
     parse_card,
     quantization_in,
 )
-from management.models import Org, Team, Token, UserProfile
+from management.models import Org, Team, Token, UserGroup, UserProfile
 
 User = get_user_model()
 
@@ -99,7 +100,6 @@ class ModelCardTest(SimpleTestCase):
         self.assertEqual(
             [(spec.label, spec.value) for spec in card.specs],
             [
-                ("Quantization", None),
                 ("Context length", "131,072"),
                 ("Max output tokens", "16,384"),
                 ("Dimensions", "1,024"),
@@ -142,28 +142,23 @@ class ModelCardTest(SimpleTestCase):
                 quantization=4,
             )
         )
-        self.assertEqual(
-            [(spec.label, spec.value) for spec in card.specs],
-            [("Quantization", None), ("Context length", None), ("Max output tokens", None)],
-        )
-        self.assertEqual((card.capabilities, card.context), ((), None))
+        self.assertEqual((card.specs, card.capabilities, card.context), ((), (), None))
         self.assertEqual((card.description, card.model_card_url, card.quantization), (None,) * 3)
         self.assertIsNone(card.deprecation_date)
 
     def test_a_model_without_model_info_renders_as_unknown(self):
         card = parse_card({"model_name": "bare", "litellm_params": {"model": "openai/bare"}})
-        self.assertEqual([spec.value for spec in card.specs], [None, None, None])
+        self.assertEqual(card.specs, ())
         self.assertEqual(card.aliases, ())
 
     def test_explicit_context_wins_over_max_tokens(self):
         card = parse_card(entry(max_input_tokens=1_047_576, max_tokens=8192))
         self.assertEqual(card.context, "1M")
 
-    def test_embeddings_have_no_output_limit_and_other_modes_expect_nothing(self):
+    def test_embeddings_label_their_context_as_max_input_tokens(self):
         card = parse_card(entry(mode="embedding", max_tokens=8191))
         self.assertEqual(
-            [(spec.label, spec.value) for spec in card.specs],
-            [("Quantization", None), ("Max input tokens", "8,191")],
+            [(spec.label, spec.value) for spec in card.specs], [("Max input tokens", "8,191")]
         )
         self.assertEqual(parse_card(entry(mode="audio_speech")).specs, ())
 
@@ -324,11 +319,9 @@ class CatalogTest(SimpleTestCase):
         self.assertFalse(self.catalog.has_context)
         self.assertTrue(Catalog((parse_card(entry(max_tokens=8192)),)).has_context)
 
-    def test_alias_and_quantization_columns_only_when_some_model_has_one(self):
+    def test_alias_column_only_when_some_model_has_one(self):
         self.assertTrue(self.catalog.has_aliases)
-        self.assertFalse(self.catalog.has_quantization)
-        bare = Catalog((parse_card(entry("org/model-AWQ")),))
-        self.assertEqual((bare.has_aliases, bare.has_quantization), (False, True))
+        self.assertFalse(Catalog((parse_card(entry("org/model-AWQ")),)).has_aliases)
 
     def test_search_matches_names_and_aliases_within_a_category(self):
         names = [card.name for card in self.catalog.search(None, "STT")]
@@ -353,7 +346,11 @@ def rows(response) -> list[str]:
 
 
 def selected(response) -> str:
-    return re.search(r"<h2[^>]*>([^<]+)</h2>", response.content.decode()).group(1)
+    return selected_panel(response.content.decode())
+
+
+def selected_panel(content: str) -> str:
+    return re.search(r'<h2 id="model-detail-name-panel"[^>]*>([^<]+)</h2>', content).group(1)
 
 
 @override_settings(
@@ -503,18 +500,47 @@ class ModelsPageTest(TestCase):
         )
         self.assertContains(response, ">262,144</span>")
         self.assertContains(response, ">262.1K</td>")
-        self.assertContains(response, "Not configured", count=1)
-        for alias in ("qwen", "Qwen/Qwen3.8-27B"):
-            self.assertContains(response, f'data-copy="{alias}"')
+        self.assertContains(response, ">FP8</span>")
+        self.assertNotContains(response, "Max output tokens")
         self.assertContains(response, 'title="qwen, Qwen/Qwen3.8-27B"', count=2)
 
-    def test_model_without_metadata_says_not_configured(self):
+    def test_model_without_metadata_shows_no_empty_tiles(self):
         response = self.page_with(
             [{"model_name": "bare", "litellm_params": {"model": "openai/bare"}}]
         )
-        self.assertContains(response, "Not configured", count=3)
-        self.assertNotContains(response, "Model card")
-        self.assertNotContains(response, '<th class="hidden w-36 md:table-cell">Aliases</th>')
+        for absent in ("Not configured", "Context length", "Quantization", "Aliases", "Model card"):
+            self.assertNotContains(response, absent)
+
+    def test_served_model_shows_only_to_org_admins_and_admins(self):
+        org_admin = UserProfile.objects.get(user_id=2)
+        org_admin.group = UserGroup.ORG_ADMIN
+        for user_pk, shown in ((3, False), (2, True), (1, True)):
+            with self.subTest(user_pk=user_pk):
+                response = self.page(user_pk=user_pk, model="whisper-1")
+                self.assertEqual("Served model" in response.content.decode(), shown)
+                self.assertEqual("openai/whisper-1" in response.content.decode(), shown)
+
+    def test_the_example_is_the_only_copy_button_on_the_page(self):
+        response = self.page(model="tts")
+        copied = set(re.findall(r'data-copy="([^"]*)"', response.content.decode()))
+        snippet = html.escape(response.context["snippet"])
+        self.assertEqual(copied, {response.context["shell"].gateway_url, snippet})
+        self.assertIn('-H "Authorization: Bearer $OPENAI_API_KEY"', response.context["snippet"])
+
+    def test_detail_opens_under_the_selected_row(self):
+        content = self.page(model="whisper-1").content.decode()
+        row = content.index('aria-current="true">whisper-1</a>')
+        inline = content.index('id="model-detail"')
+        following = content.index('#model-detail"', row + 1)
+        self.assertLess(row, inline)
+        self.assertLess(inline, following)
+        self.assertIn(" max-xl:hidden", content)
+
+    def test_a_deep_linked_model_outside_the_list_shows_in_the_panel(self):
+        content = self.page(type="images", model="whisper-1").content.decode()
+        self.assertNotIn('id="model-detail"', content)
+        self.assertNotIn(" max-xl:hidden", content)
+        self.assertEqual(selected_panel(content), "whisper-1")
 
     def test_listed_models_are_those_one_of_the_keys_may_call(self):
         self.switch_off(self.org, "dall-e-2")

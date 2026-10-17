@@ -52,7 +52,10 @@ class SettingsPageTest(TestCase):
         self.assertContains(response, "boss@example.com")
         self.assertContains(response, "<dd>Informatics</dd>", html=True)
         self.assertContains(response, "Org admin</span>")
-        self.assertContains(response, "You are in no team.")
+        self.assertContains(response, '<span class="muted">None</span>', html=True)
+        self.assertContains(response, "Set by your sign-in provider.")
+        for gone in ("Sign-in</dt>", "Appearance", "e-mail"):
+            self.assertNotContains(response, gone)
 
     def test_lists_only_the_viewers_teams_with_role_and_link(self):
         response = self.page(self.member)
@@ -78,7 +81,8 @@ class SettingsPageTest(TestCase):
     def test_limits_come_from_the_org_unless_set_for_the_account(self):
         response = self.page(self.member)
         self.assertContains(response, ">600</span></dd>")
-        self.assertContains(response, "From the organization default.")
+        self.assertContains(response, "Personal key limits</h2>")
+        self.assertContains(response, ">Organization default</p>")
 
         profile = self.member.profile
         profile.requests_per_minute = 30
@@ -86,7 +90,7 @@ class SettingsPageTest(TestCase):
         response = self.page(self.member)
         self.assertContains(response, ">30</span></dd>")
         self.assertNotContains(response, ">600</span></dd>")
-        self.assertContains(response, "An admin set limits for your account.")
+        self.assertContains(response, "Set for your account. Others use the organization default.")
 
     def test_page_has_no_write_action(self):
         self.client.force_login(self.member)
@@ -103,18 +107,18 @@ class SettingsPageTest(TestCase):
         current = TermsOfService.objects.create(active=True, content="new")
         response = self.page(self.member)
         self.assertContains(response, "Terms of service</h2>")
-        self.assertContains(response, "You have not accepted the current version.")
+        self.assertContains(response, ">Not accepted</span>")
 
         UserAgreement.objects.create(terms_of_service=old, user=self.member)
-        self.assertContains(self.page(self.member), "You have not accepted the current version.")
+        self.assertContains(self.page(self.member), ">Not accepted</span>")
 
         agreement = UserAgreement.objects.create(terms_of_service=current, user=self.member)
         accepted = agreement.created
         response = self.page(self.member)
         self.assertContains(
             response,
-            "You accepted the current version on "
+            "Accepted "
             f'<time datetime="{accepted.isoformat()}" title="{accepted:%Y-%m-%d %H:%M:%S} UTC">'
-            f"{accepted.day} {accepted:%b %Y}</time>.",
+            f"{accepted.day} {accepted:%b %Y}</time></span>",
         )
         self.assertContains(response, f'href="{reverse("tos")}"')

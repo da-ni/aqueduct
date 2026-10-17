@@ -17,6 +17,13 @@ class ModelListView(BaseAqueductView, TemplateView):
         except UserProfile.DoesNotExist:
             return ()
 
+    def shows_served_model(self) -> bool:
+        """The route behind a model is operator detail, for admins of the viewer's org."""
+        try:
+            return self.profile.is_org_admin(self.profile.org)
+        except UserProfile.DoesNotExist:
+            return False
+
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
         params = self.request.GET
@@ -32,5 +39,6 @@ class ModelListView(BaseAqueductView, TemplateView):
             cards=cards,
             selected=selected,
             snippet=selected.curl(gateway_url(self.request)) if selected else None,
+            show_served_model=self.shows_served_model(),
         )
         return context

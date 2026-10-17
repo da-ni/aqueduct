@@ -1,6 +1,7 @@
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from django.contrib import messages
+from django.db.models import Count
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -43,15 +44,17 @@ class OrgView(BaseAqueductView, TemplateView):
 
 
 class OrganizationView(BaseAqueductView, OrgAdminRequiredMixin, TemplateView):
-    """The organization page: its size, default limits, and what is unavailable in it."""
+    """The organization page: its size, default limits, and what is unavailable in it. A
+    platform admin viewing every org picks one from a list instead."""
 
     template_name = "management/organization.html"
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context.update(
-            org_object=self.org, page=org_page(self.org), org_fallback=self.viewed_org is None
-        )
+        if self.viewed_org is None:
+            context["orgs"] = Org.objects.annotate(team_count=Count("teams")).order_by("name")
+        else:
+            context.update(org_object=self.org, page=org_page(self.org))
         return context
 
 

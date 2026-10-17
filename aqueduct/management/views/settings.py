@@ -26,7 +26,6 @@ class SettingsView(BaseAqueductView, TemplateView):
         profile = self.profile
         show_terms = terms_of_service(self.request)
         context.update(
-            sign_in_provider=settings.OIDC_PROVIDER,
             memberships=profile.teammembership_set.select_related("team").order_by("team__name"),
             limits=LimitSet.from_objects(profile, profile.org),
             limits_set_for_account=any(getattr(profile, f) is not None for f in SHOWN_LIMITS),

@@ -199,18 +199,18 @@ class OrgLimitsForm(forms.ModelForm):
             field: forms.NumberInput(attrs={"class": NUMBER_INPUT, "min": 0}) for field in fields
         }
         labels: ClassVar[dict] = {
-            "requests_per_minute": "Requests per minute, per key",
-            "input_tokens_per_minute": "Input tokens per minute, per key",
-            "output_tokens_per_minute": "Output tokens per minute, per key",
-            "hourly_limit_multiplier": "Hourly limit, in per-minute limits",
-            "daily_limit_multiplier": "Daily limit, in per-minute limits",
+            "requests_per_minute": "Requests per minute",
+            "input_tokens_per_minute": "Input tokens per minute",
+            "output_tokens_per_minute": "Output tokens per minute",
+            "hourly_limit_multiplier": "Hourly cap",
+            "daily_limit_multiplier": "Daily cap",
         }
         help_texts: ClassVar[dict] = {
             "requests_per_minute": "Leave it empty for no limit.",
             "input_tokens_per_minute": "Leave it empty for no limit.",
             "output_tokens_per_minute": "Leave it empty for no limit.",
-            "hourly_limit_multiplier": "From 1 to 60. Leave it empty for the server default.",
-            "daily_limit_multiplier": "From 1 to 1440. Leave it empty for the server default.",
+            "hourly_limit_multiplier": "1–60. 60 = no extra hourly cap.",  # noqa: RUF001
+            "daily_limit_multiplier": "1–1,440. 1,440 = no extra daily cap.",  # noqa: RUF001
         }
 
 

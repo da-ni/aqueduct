@@ -16,7 +16,6 @@ from management.views.base import BaseAqueductView
 class MCPServerCard(Availability):
     name: str
     description: str
-    tags: tuple[str, ...]
     icon_url: str | None
     url: str
 
@@ -36,7 +35,6 @@ def server_cards(
             on_for=on_for,
             name=name,
             description=server.get("description") or "",
-            tags=tuple(server.get("tags") or ()),
             icon_url=server.get("icon_url"),
             url=f"{base_url}{path}",
         )
@@ -45,9 +43,13 @@ def server_cards(
     return tuple(server for server in cards if server.usable)
 
 
-def client_config(card: MCPServerCard) -> str:
-    entry = {"url": card.url, "headers": {"Authorization": "Bearer sk-..."}}
-    return json.dumps({"mcpServers": {card.name: entry}}, indent=2)
+def client_config(cards: Sequence[MCPServerCard]) -> str:
+    """An MCP client config with every server in `cards`, for the viewer to paste."""
+    servers = {
+        card.name: {"url": card.url, "headers": {"Authorization": "Bearer sk-..."}}
+        for card in cards
+    }
+    return json.dumps({"mcpServers": servers}, indent=2)
 
 
 class MCPServersView(BaseAqueductView, TemplateView):
@@ -68,7 +70,5 @@ class MCPServersView(BaseAqueductView, TemplateView):
             return context
         base_url = f"{self.request.scheme}://{self.request.get_host()}"
         servers = server_cards(config, base_url, self.scopes())
-        context.update(
-            servers=servers, client_config=client_config(servers[0]) if servers else None
-        )
+        context.update(servers=servers, client_config=client_config(servers) if servers else None)
         return context

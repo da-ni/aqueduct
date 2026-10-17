@@ -1,20 +1,44 @@
 {% extends "management/base.html" %}
 {% load humanize ui %}
-{% block title %}{{ org_object.name }} · {{ block.super }}{% endblock %}
+{% block title %}{% if org_object %}{{ org_object.name }}{% else %}Organizations{% endif %} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
 
 {% block content %}
+{% if not org_object %}
+<div class="flex flex-col gap-6">
+    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
+        <h1 class="text-3xl font-semibold">Organizations</h1>
+    </header>
+    <section class="card bg-base-200">
+        <div class="card-body p-3">
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead><tr><th>Organization</th><th class="text-right">Teams</th></tr></thead>
+                    <tbody>
+                        {% for org in orgs %}
+                            <tr>
+                                <td><a class="link-plain font-semibold" href="{% url 'organization' %}?org={{ org.id }}">{{ org.name }}</a></td>
+                                <td class="text-right font-mono">{{ org.team_count|intcomma }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="2" class="muted">No organizations yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+{% else %}
 <div class="flex flex-col gap-6">
     <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
         <div class="flex flex-col gap-2">
             <h1 class="text-3xl font-semibold">{{ org_object.name }}</h1>
             <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-                <span>{{ page.people|intcomma }} {{ page.people|pluralize:"person,people" }}</span>
                 <span><a class="link-plain" href="{% url 'org' %}">{{ page.teams|intcomma }} team{{ page.teams|pluralize }}</a></span>
                 <span>{{ page.service_accounts|intcomma }} service account{{ page.service_accounts|pluralize }}</span>
             </div>
-            {% include "management/_org_fallback.html" %}
         </div>
     </header>
 
@@ -26,14 +50,13 @@
                     <a class="link-plain text-sm" href="{% url 'organization_limits' org_object.id %}" aria-label="Edit limits">Edit</a>
                 </div>
                 {% include "management/_limits.html" with limits=page.limits %}
-                <p class="muted text-sm">Each key gets these limits unless its team or person has a limit of its own.</p>
+                <p class="muted text-sm">Default for every key. Team and personal limits override it.</p>
                 <dl class="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-base-300 pt-4 text-sm">
                     {% for label, value in page.multipliers %}
                         <div class="flex items-baseline gap-2"><dt class="muted">{{ label }}</dt><dd><span class="font-mono font-semibold">{{ value }}</span></dd></div>
                     {% endfor %}
-                    <div class="flex items-baseline gap-2"><dt class="muted">Personal keys per person</dt><dd><span class="font-mono font-semibold">{{ page.max_personal_keys }}</span></dd></div>
+                    <div class="flex items-baseline gap-2"><dt class="muted">Personal keys per person</dt><dd><span class="font-mono font-semibold">{{ page.max_personal_keys }}</span> <span class="muted">(server setting)</span></dd></div>
                 </dl>
-                <p class="muted text-sm">The server configuration sets the number of personal keys.</p>
             </div>
         </section>
 
@@ -57,9 +80,9 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="muted border-t border-base-300 pt-4 text-sm">Teams and people that do not apply the organization's unavailable models and MCP servers skip the first row.</p>
             </div>
         </section>
     </div>
 </div>
+{% endif %}
 {% endblock %}
