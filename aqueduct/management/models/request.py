@@ -58,6 +58,7 @@ class Request(models.Model):
         Token,
         on_delete=models.CASCADE,  # If Token is deleted, delete its associated Requests
         related_name="requests",
+        db_index=False,  # The (token, timestamp) index serves token lookups.
     )
     model = models.CharField(
         max_length=255, blank=True, default="", help_text="Model used in request"
@@ -94,17 +95,20 @@ class Request(models.Model):
     user_id = models.CharField(
         max_length=256,
         blank=True,
-        db_index=True,
         help_text="A string (user ID, email address, username, etc.) identifying "
         "the particular user who made the request, "
         "and who may be a different user than the token owner.",
     )
 
     class Meta:
-        # Crucial for the rate limit query!
         indexes: ClassVar[list[models.Index]] = [
             models.Index(fields=["token", "timestamp"]),
             models.Index(fields=["model", "timestamp"]),
+            models.Index(
+                fields=["timestamp"],
+                condition=models.Q(status_code__gte=400),
+                name="request_failed_timestamp_idx",
+            ),
         ]
         ordering: ClassVar[list[str]] = ["-timestamp"]  # Optional: default ordering
 
