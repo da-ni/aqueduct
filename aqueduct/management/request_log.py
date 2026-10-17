@@ -14,6 +14,7 @@ from management.key_activity import FAILED, router_models, served
 from management.models import Org, Request, Team, Token, UserProfile
 from management.models.token import of_org
 from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
+from management.usage_rollup import org_series
 
 PAGE_SIZE = 50
 _MAX_ID = 2**63 - 2  # the largest bigint that `Cursor.just_before` can still add one to
@@ -413,6 +414,26 @@ class RequestLog:
     older: str | None
 
 
+def counts_whole_org(filters: Filters) -> bool:
+    """Whether the selection is every request of its org, or of every org, narrowed at most by
+    model, as the usage rollups count them."""
+    return filters.can_pick_scope and not filters.mine and filters.key is None
+
+
+def _tab_counts(filters: Filters, filtered: QuerySet[Request]) -> dict[Outcome | None, int]:
+    """The requests in each tab, `None` for All. An org-wide selection reads the rollups."""
+    if counts_whole_org(filters):
+        found = org_series(filters.org, filters.model, filters.period)
+        by_codes = zip((codes for _, codes, *_ in STATUSES), found.status_counts, strict=True)
+        return {None: found.total.requests, Outcome.ERRORS: found.total.failed} | {
+            Outcome(codes): count for codes, count in by_codes
+        }
+    counts = filtered.aggregate(
+        total=Count("id"), **{o.name: Count("id", filter=o.matches) for o in Outcome}
+    )
+    return {None: counts["total"]} | {o: counts[o.name] for o in Outcome}
+
+
 def request_log(
     profile: UserProfile,
     teams: QuerySet[Team],
@@ -428,10 +449,8 @@ def request_log(
     team_ids = set(teams.values_list("id", flat=True))
     filtered = filters.period.of(filters.requests)
 
-    counts = filtered.aggregate(
-        total=Count("id"), **{o.name: Count("id", filter=o.matches) for o in Outcome}
-    )
-    tabs = (Tab(None, "All", counts["total"]), *(Tab(o, o.label, counts[o.name]) for o in Outcome))
+    counts = _tab_counts(filters, filtered)
+    tabs = (Tab(None, "All", counts[None]), *(Tab(o, o.label, counts[o]) for o in Outcome))
 
     if outcome is not None:
         filtered = filtered.filter(outcome.matches)
@@ -466,7 +485,7 @@ def request_log(
     return RequestLog(
         rows=rows,
         tabs=tabs,
-        count=counts[outcome.name if outcome else "total"],
+        count=counts[outcome],
         here=str(here) if here else None,
         newer=str(Cursor.at(rows[0].request)) if here and rows else None,
         older=str(Cursor.at(rows[-1].request)) if has_older else None,
