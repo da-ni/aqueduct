@@ -4,7 +4,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.views.generic import TemplateView
 
-from management.request_log import Cursor, Outcome, parse_id, read_filters, request_log
+from management.request_log import read_filters, request_log
 from management.usage_report import Span
 from management.views.base import BaseAqueductView
 
@@ -24,20 +24,16 @@ class RequestLogView(BaseAqueductView, TemplateView):
             default_span=Span.MONTH,
             now=timezone.now(),
         )
-        outcome = Outcome.parse(params.get("status", ""))
+        log = request_log(self.profile, teams, filters, params)
         context.update(
-            log=request_log(
-                self.profile,
-                teams,
-                filters,
-                outcome=outcome,
-                before=Cursor.parse(params.get("before")),
-                after=Cursor.parse(params.get("after")),
-                open_id=parse_id(params.get("request")),
-            ),
+            log=log,
             filters=filters,
-            outcome=outcome,
-            narrowed=outcome is not None
+            outcome=log.outcome,
+            search_params=tuple(
+                (name, value) for name, value in filters.search_params if name != "q"
+            ),
+            narrowed=log.outcome is not None
+            or bool(log.search)
             or filters.span is not Span.MONTH
             or bool(filters.mine or filters.key or filters.model),
             retention_days=int(getattr(settings, "REQUEST_RETENTION_DAYS", 30)),

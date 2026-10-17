@@ -48,7 +48,32 @@ Choose a model name to show only that model. Choose a row, or the arrow at its s
 - The log has the same filters as the [Overview](usage.md) page: the organization, the key, **All models**, and the time frame. The log opens on **30 days**.
 - On the Overview page, **Open the log**, a status group, and a model open the log with the same filters.
 
-The log shows 50 requests per page, and the line under the table shows how many requests match. Choose **Older** and **Newer** to move between pages.
+## Search the log
+
+Type in the search field above the table and choose **Search**. The log then shows only the requests that match:
+
+- A request ID matches that one request.
+- Other text matches a request whose path, user ID sent by the client, or user agent contains the text. Upper and lower case are the same.
+
+The search applies inside the filters, the status tab, and the time frame that you chose. The tab counts and the line under the table count the matching requests. Choose **Clear** to remove the search.
+
+A search reads every request that the filters allow. Over 30 days of a large organization, it can take some seconds. To make it faster, choose a shorter time frame, a key, or a model.
+
+## Sort the log
+
+The log opens with the newest request first. To sort by a column, choose its heading: **Time**, **Model**, **Status**, **Tokens**, or **Response**. Choose the heading again to sort in the other direction. An arrow shows the column and the direction of the sort.
+
+- **Tokens** sorts by the total of input and output tokens.
+- **Status** puts the highest status codes first.
+- Requests without a response time or a status code come last.
+
+You can always sort by **Time**. The other columns sort only a selection of 7 days or less, one key, or one model. Users and team admins can sort their requests over all 30 days. Over all of an organization for 30 days, the other headings show a hint and do not sort.
+
+## Move between pages
+
+The log shows 50 requests per page. Choose **First**, **Previous**, **Next**, or **Last** to move between pages. The line under the table shows the position of the page, for example `51–100 of 2,480`. A link to one request, such as the links on a key's page, opens the page that holds it. That page shows only the number of requests until you choose **First** or **Last**, or reach the end of the log.
+
+The counts under the tabs and the table are kept for one minute. Move between pages, sort, or open a request, and the counts stay the same. Choose another filter or time frame to count again.
 
 ## How long requests are kept
 

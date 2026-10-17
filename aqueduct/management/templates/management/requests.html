@@ -17,27 +17,42 @@
         <nav class="join max-sm:flex-wrap max-sm:gap-1 max-sm:[&>.join-item]:rounded-full!" aria-label="Status">
             {% for tab in log.tabs %}
                 <a class="btn btn-sm join-item{% if tab.outcome == outcome %} btn-primary{% endif %}"
-                   href="{% querystring key_q=None status=tab.value before=None after=None request=None %}"
+                   href="{% querystring key_q=None status=tab.value before=None after=None page=None request=None %}"
                    {% if tab.outcome == outcome %}aria-current="page"{% endif %}{% if tab.outcome.codes %} title="{{ tab.outcome.codes }}"{% endif %}>{{ tab.label }} <span class="font-mono text-xs opacity-70">{{ tab.count|intcomma }}</span></a>
             {% endfor %}
         </nav>
+        <form method="get" role="search" class="flex items-center gap-2 max-sm:w-full sm:ms-auto">
+            {% for name, value in search_params %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+            <label class="input input-sm w-full sm:w-96">
+                {% icon "search" small=True %}
+                <input type="search" name="q" value="{{ log.search }}" maxlength="256" placeholder="Request ID, path, user ID or user agent" aria-label="Search requests">
+                <button type="submit" class="btn btn-ghost btn-xs -me-2">Search</button>
+            </label>
+            {% if log.search %}<a class="btn btn-ghost btn-sm" href="{% querystring q=None key_q=None before=None after=None page=None request=None %}">Clear</a>{% endif %}
+        </form>
     </div>
 
     <section class="card bg-base-200">
         <div class="card-body p-3">
             <div class="overflow-x-auto">
                 <table class="table table-sm table-fixed key-table min-w-[1020px]">
+                    <colgroup>
+                        <col class="w-12"><col class="w-40"><col class="w-[20%]"><col><col class="w-20"><col class="w-20"><col class="w-28"><col class="w-20"><col class="w-24">
+                    </colgroup>
                     <thead>
                         <tr>
-                            <th class="w-12"><span class="sr-only">Details</span></th>
-                            <th class="w-40">Time</th>
-                            <th class="w-[20%]">Key</th>
-                            <th>Model and path</th>
-                            <th class="w-20">Status</th>
-                            <th class="w-20 text-right">Input</th>
-                            <th class="w-28 text-right">From cache</th>
-                            <th class="w-20 text-right">Output</th>
-                            <th class="w-24 text-right">Response</th>
+                            <th rowspan="2"><span class="sr-only">Details</span></th>
+                            <th rowspan="2"{% if log.headers.time.aria_sort %} aria-sort="{{ log.headers.time.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.time label="Time" %}</th>
+                            <th rowspan="2">Key</th>
+                            <th rowspan="2"{% if log.headers.model.aria_sort %} aria-sort="{{ log.headers.model.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.model label="Model" %} and path</th>
+                            <th rowspan="2"{% if log.headers.status.aria_sort %} aria-sort="{{ log.headers.status.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.status label="Status" %}</th>
+                            <th colspan="3" class="text-center"{% if log.headers.tokens.aria_sort %} aria-sort="{{ log.headers.tokens.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.tokens label="Tokens" %}<span class="muted font-normal"> (input + output)</span></th>
+                            <th rowspan="2" class="text-right"{% if log.headers.response.aria_sort %} aria-sort="{{ log.headers.response.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.response label="Response" %}</th>
+                        </tr>
+                        <tr>
+                            <th class="text-right">Input</th>
+                            <th class="text-right">From cache</th>
+                            <th class="text-right">Output</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -46,7 +61,7 @@
                                 <tr id="request-{{ request.id }}" class="cursor-pointer font-mono text-[13px]" data-row-toggle>
                                     <td>
                                         <a class="btn btn-ghost btn-xs btn-square" data-row-toggle-link
-                                           href="{% if row.is_open %}{% querystring key_q=None request=None before=log.here after=None %}{% else %}{% querystring key_q=None request=request.id before=log.here after=None %}#request-{{ request.id }}{% endif %}"
+                                           href="{% with here=log.pager.here %}{% if row.is_open %}{% querystring key_q=None request=None before=here.before after=here.after page=here.page %}{% else %}{% querystring key_q=None request=request.id before=here.before after=here.after page=here.page %}#request-{{ request.id }}{% endif %}{% endwith %}"
                                            aria-expanded="{{ row.is_open|yesno:'true,false' }}"
                                            aria-label="{% if row.is_open %}Hide{% else %}Show{% endif %} details of request {{ request.id }}">{% if row.is_open %}{% icon "chevron" small=True extra_class="rotate-90" %}{% else %}{% icon "chevron" small=True %}{% endif %}</a>
                                     </td>
@@ -56,7 +71,7 @@
                                         <div class="muted truncate font-sans text-xs" title="{{ row.key.note }}">{{ row.key.note }}</div>
                                     </td>
                                     <td class="truncate">
-                                        {% if request.model %}<a class="link-plain" href="{% querystring key_q=None model=request.model before=None after=None request=None %}" title="Show only {{ request.model }}">{{ request.model }}</a>{% else %}n/a{% endif %}
+                                        {% if request.model %}<a class="link-plain" href="{% querystring key_q=None model=request.model before=None after=None page=None request=None %}" title="Show only {{ request.model }}">{{ request.model }}</a>{% else %}n/a{% endif %}
                                         <div class="muted truncate text-xs" title="{{ request.path }}">{{ request.path }}</div>
                                     </td>
                                     <td>
@@ -91,23 +106,20 @@
             </div>
             <div class="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-1">
                 <span class="muted font-mono text-xs">
-                    {{ log.count|intcomma }} request{{ log.count|pluralize }}
+                    {% if log.pager.start and log.rows %}{{ log.pager.start|intcomma }}–{{ log.end|intcomma }} of {{ log.count|intcomma }}{% else %}{{ log.count|intcomma }} request{{ log.count|pluralize }}{% endif %}
                     · Requests are kept for {{ retention_days }} days
                 </span>
-                <nav class="join" aria-label="Pages">
-                    {% if log.newer %}
-                        <a class="btn btn-sm join-item" href="{% querystring key_q=None after=log.newer before=None request=None %}">Newer</a>
-                    {% elif log.here %}
-                        <a class="btn btn-sm join-item" href="{% querystring key_q=None after=None before=None request=None %}">Newer</a>
-                    {% else %}
-                        <button type="button" class="btn btn-sm join-item" disabled>Newer</button>
-                    {% endif %}
-                    {% if log.older %}
-                        <a class="btn btn-sm join-item" href="{% querystring key_q=None before=log.older after=None request=None %}">Older</a>
-                    {% else %}
-                        <button type="button" class="btn btn-sm join-item" disabled>Older</button>
-                    {% endif %}
-                </nav>
+                {% if log.pager.previous or log.pager.next %}
+                    <nav class="join" aria-label="Pages">
+                        {% for label, place in log.pager.links %}
+                            {% if place %}
+                                <a class="btn btn-sm join-item" href="{% querystring key_q=None request=None before=place.before after=place.after page=place.page %}">{{ label }}</a>
+                            {% else %}
+                                <button type="button" class="btn btn-sm join-item" disabled>{{ label }}</button>
+                            {% endif %}
+                        {% endfor %}
+                    </nav>
+                {% endif %}
             </div>
         </div>
     </section>
