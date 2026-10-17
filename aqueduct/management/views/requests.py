@@ -4,7 +4,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.views.generic import TemplateView
 
-from management.request_log import Outcome, read_filters, request_log
+from management.request_log import Cursor, Outcome, read_filters, request_log
 from management.usage_report import Span
 from management.views.base import BaseAqueductView
 
@@ -30,7 +30,8 @@ class RequestLogView(BaseAqueductView, TemplateView):
                 teams,
                 filters,
                 outcome=outcome,
-                page_number=params.get("page"),
+                before=Cursor.parse(params.get("before")),
+                after=Cursor.parse(params.get("after")),
                 open_id=_id(params.get("request", "")),
             ),
             filters=filters,

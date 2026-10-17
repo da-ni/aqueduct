@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import urlencode
 
 from management.models import (
     Org,
@@ -87,14 +88,16 @@ class RequestsScopeTest(RequestsPageTestBase):
             response, f"{reverse('sso')}?next={url}", fetch_redirect_response=False
         )
 
-    def test_user_sees_own_key_and_requests_sent_in_their_name(self):
+    def test_user_sees_their_own_keys_only_even_where_a_request_names_them(self):
         response = self.get(self.owner)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.paths_on(response), {"/own", "/sent-as-owner"})
+        self.assertEqual(self.paths_on(response), {"/own"})
         self.assertContains(
             response, f'href="{reverse("token_detail", args=[self.key.id])}"', count=1
         )
-        self.assertNotContains(response, reverse("token_detail", args=[self.others_key.id]))
+        self.assertNotContains(response, "other-laptop")
+        self.assertNotContains(response, "other@example.com")
+        self.assertEqual(self.get(self.owner, key=self.others_key.id).status_code, 404)
 
     def test_other_user_does_not_see_the_owners_requests(self):
         response = self.get(self.other)
@@ -118,7 +121,7 @@ class RequestsScopeTest(RequestsPageTestBase):
 
     def test_non_admin_cannot_pick_another_org(self):
         response = self.get(self.owner, org=self.other_org.id)
-        self.assertEqual(self.paths_on(response), {"/own", "/sent-as-owner"})
+        self.assertEqual(self.paths_on(response), {"/own"})
         response = self.get(self.other_org_admin, org="all")
         self.assertEqual(self.paths_on(response), {"/foreign"})
         self.assertNotContains(response, 'name="org"')
@@ -150,7 +153,7 @@ class RequestsScopeTest(RequestsPageTestBase):
                 log = self.get(user, **params).context["log"]
                 groups = {tab.value: tab.count for tab in log.tabs if tab.value in overview}
                 self.assertEqual(groups, overview)
-                self.assertEqual(log.page.paginator.count, sum(overview.values()))
+                self.assertEqual(log.count, sum(overview.values()))
 
     def test_overview_links_to_the_log_with_its_filters(self):
         self.client.force_login(self.admin)
@@ -188,7 +191,7 @@ class RequestsScopeTest(RequestsPageTestBase):
                 figures.append((usage["filters"].log_url(), total))
                 for href, count in figures:
                     log = self.client.get(href).context["log"]
-                    self.assertEqual(log.page.paginator.count, count, href)
+                    self.assertEqual(log.count, count, href)
 
     def test_log_opens_on_30_days_and_an_unknown_time_frame_falls_back_to_it(self):
         self.log(self.key, "/month-old", ago=timedelta(days=29))
@@ -203,7 +206,7 @@ class RequestsScopeTest(RequestsPageTestBase):
 
     def test_start_and_end_parameters_are_ignored(self):
         response = self.get(self.owner, start="2020-01-02T00:00", end="2020-01-01T00:00")
-        self.assertEqual(self.paths_on(response), {"/own", "/sent-as-owner"})
+        self.assertEqual(self.paths_on(response), {"/own"})
 
     def test_empty_log_says_whether_filters_hide_requests(self):
         self.assertContains(
@@ -221,7 +224,7 @@ class RequestsScopeTest(RequestsPageTestBase):
         self.assertContains(self.get(self.owner), ">/last-week</div>")
         recent = self.get(self.owner, span="1d")
         self.assertNotContains(recent, ">/last-week</div>")
-        self.assertEqual(self.paths_on(recent), {"/own", "/sent-as-owner"})
+        self.assertEqual(self.paths_on(recent), {"/own"})
 
     def test_my_keys_narrows_the_log_for_an_org_admin(self):
         self.log(make_token(self.org_admin, "admin-laptop"), "/admin-own")
@@ -244,7 +247,7 @@ class RequestsFilterTest(RequestsPageTestBase):
         response = self.get(self.owner, status="429")
         tabs = {tab.label: tab.count for tab in response.context["log"].tabs}
         self.assertEqual(
-            tabs, {"All": 5, "Failed": 3, "2xx": 2, "429": 1, "Other 4xx": 1, "5xx": 1}
+            tabs, {"All": 4, "Failed": 3, "2xx": 1, "429": 1, "Other 4xx": 1, "5xx": 1}
         )
         content = response.content.decode()
         self.assertIn(">/limited</div>", content)
@@ -255,26 +258,66 @@ class RequestsFilterTest(RequestsPageTestBase):
         response = self.get(self.owner, key=self.key.id)
         self.assertEqual(self.paths_on(response), {"/own"})
 
-    def test_key_filter_names_the_org_of_each_key_across_all_orgs(self):
-        options = self.key_options(self.get(self.admin, org="all"))
-        self.assertIn("owner-laptop · owner@example.com · lab-org", options)
-        self.assertIn("team-sa · Service account · NLP Lab · lab-org", options)
-        self.assertIn("foreign-laptop · foreigner@example.com · other-org", options)
-        options = self.key_options(self.get(self.admin, org=self.org.id))
-        self.assertIn("owner-laptop · owner@example.com", options)
-        self.assertNotIn("lab-org", " ".join(options))
+    def test_key_search_names_the_org_of_each_key_across_all_orgs(self):
+        matches = self.matches(self.admin, "laptop", org="all")
+        self.assertIn("owner-laptop · owner@example.com · lab-org", matches)
+        self.assertIn("foreign-laptop · foreigner@example.com · other-org", matches)
+        self.assertIn(
+            "team-sa · Service account · NLP Lab · lab-org",
+            self.matches(self.admin, "team", org="all"),
+        )
+        matches = self.matches(self.admin, "laptop", org=self.org.id)
+        self.assertIn("owner-laptop · owner@example.com", matches)
+        self.assertNotIn("lab-org", " ".join(matches))
 
-    def test_all_orgs_shows_a_key_whose_owner_has_no_profile(self):
+    def test_all_orgs_finds_a_key_whose_owner_has_no_profile(self):
         root = User.objects.create_superuser("root", "root@example.com", "pw")
         self.log(make_token(root, "root-laptop"), "/profileless")
-        response = self.get(self.admin, org="all")
-        self.assertIn("/profileless", response.content.decode())
-        self.assertIn(
-            "root-laptop · root@example.com · No organization", self.key_options(response)
+        self.assertIn("/profileless", self.get(self.admin, org="all").content.decode())
+        self.assertEqual(
+            self.matches(self.admin, "root", org="all"),
+            ["root-laptop · root@example.com · No organization"],
         )
 
-    def key_options(self, response) -> list[str]:
-        return [key.name + " · " + key.note for key in response.context["filters"].keys]
+    def test_key_search_finds_only_keys_the_viewer_may_see(self):
+        make_token(self.owner, "owner-spare")
+        cases = (
+            (self.owner, "laptop", ["owner-laptop · Personal"]),
+            (self.owner, "other@example", []),
+            (self.member, "sa", ["team-sa · Service account · NLP Lab"]),
+            (self.sa_creator, "sa", []),
+            (self.other_org_admin, "laptop", ["foreign-laptop · foreigner@example.com"]),
+            (self.other_org_admin, "owner", []),
+            (self.org_admin, "OTHER@", ["other-laptop · other@example.com"]),
+        )
+        for user, query, expected in cases:
+            with self.subTest(user=user.username, query=query):
+                self.assertEqual(self.matches(user, query), expected)
+
+    def test_key_search_opens_the_picker_and_keeps_the_other_filters(self):
+        response = self.get(self.org_admin, key_q="laptop", model=MODEL, span="1d", before="1,1")
+        self.assertContains(response, '<details class="dropdown" open>', count=1)
+        self.assertContains(response, '<input type="hidden" name="model" value="gpt-4.1-nano">')
+        self.assertContains(response, '<input type="hidden" name="span" value="1d">')
+        self.assertNotContains(response, 'type="hidden" name="before"')
+        self.assertContains(response, f'href="?model={MODEL}&amp;span=1d&amp;key={self.key.id}"')
+
+    def test_picker_lists_the_scopes_and_the_viewers_own_keys(self):
+        admin_key = make_token(self.org_admin, "admin-laptop")
+        TeamMembership.objects.create(user_profile=self.org_admin.profile, team=self.side_team)
+        filters = self.get(self.org_admin).context["filters"]
+        self.assertEqual([key.name for key in filters.keys], ["admin-laptop", "side-sa"])
+        response = self.get(self.org_admin, key=admin_key.id)
+        self.assertContains(response, ">All keys in lab-org</a>")
+        self.assertContains(response, ">My keys</a>")
+        self.assertNotContains(response, ">Everyone</a>")
+        response = self.get(self.owner)
+        self.assertContains(response, 'aria-current="true" class="menu-active">All my keys</a>')
+        self.assertNotContains(response, ">My keys</a>")
+
+    def matches(self, user, query: str, **params) -> list[str]:
+        filters = self.get(user, key_q=query, **params).context["filters"]
+        return [key.name + " · " + key.note for key in filters.matches]
 
     def test_key_outside_the_scope_is_not_found(self):
         response = self.get(self.owner, key=self.foreign_key.id)
@@ -285,7 +328,7 @@ class RequestsFilterTest(RequestsPageTestBase):
     def test_model_cell_filters_the_log_on_its_model(self):
         response = self.get(self.owner, status="2xx")
         self.assertContains(
-            response, f'href="?status=2xx&amp;model={MODEL}" title="Show only {MODEL}"', count=2
+            response, f'href="?status=2xx&amp;model={MODEL}" title="Show only {MODEL}"', count=1
         )
 
     def test_model_filter(self):
@@ -317,18 +360,69 @@ class RequestsFilterTest(RequestsPageTestBase):
 
 class RequestsPaginationTest(RequestsPageTestBase):
     def test_pages_hold_page_size_rows_newest_first(self):
-        for minutes in range(PAGE_SIZE):
-            self.log(self.key, f"/bulk-{minutes}", ago=timedelta(minutes=minutes))
+        now = timezone.now()
+        for n in range(PAGE_SIZE + 1):
+            tied = timedelta(minutes=min(n, PAGE_SIZE - 1))
+            Request.objects.create(
+                token=self.key,
+                path=f"/bulk-{n}",
+                model=MODEL,
+                status_code=200,
+                timestamp=now - tied,
+            )
         first = self.get(self.owner)
         content = first.content.decode()
         self.assertEqual(len(first.context["log"].rows), PAGE_SIZE)
         self.assertLess(content.index(">/bulk-0</div>"), content.index(">/bulk-1</div>"))
-        self.assertIn(f"Showing 1\N{EN DASH}{PAGE_SIZE} of {PAGE_SIZE + 2}", content)
-        self.assertIn('href="?page=2">Older</a>', content)
+        self.assertIn(f"{PAGE_SIZE + 2} requests", content)
+        self.assertNotIn(">Newer</a>", content)
 
-        second = self.get(self.owner, page=2)
-        self.assertEqual(self.paths_on(second), {"/own", "/sent-as-owner"})
-        self.assertIn('href="?page=1">Newer</a>', second.content.decode())
+        second = self.client.get(self.pager_link(content, "Older"))
+        self.assertEqual(self.paths_on(second), {"/own"})
+        self.assertIn(f">/bulk-{PAGE_SIZE}</div>", content)
+        self.assertIn(f">/bulk-{PAGE_SIZE - 1}</div>", second.content.decode())
+        self.assertNotIn(">Older</a>", second.content.decode())
+
+        back = self.client.get(self.pager_link(second.content.decode(), "Newer"))
+        self.assertEqual(
+            [row.request.path for row in back.context["log"].rows],
+            [row.request.path for row in first.context["log"].rows],
+        )
+
+    def test_a_linked_request_opens_on_a_page_that_holds_it(self):
+        for minutes in range(PAGE_SIZE + 5):
+            self.log(self.key, f"/bulk-{minutes}", ago=timedelta(minutes=minutes))
+        own = Request.objects.get(path="/own")
+        response = self.get(self.owner, key=self.key.id, request=own.id)
+        log = response.context["log"]
+        self.assertEqual([row.request.id for row in log.rows if row.is_open], [own.id])
+        content = response.content.decode()
+        self.assertIn(">Newer</a>", content)
+        self.assertIn(urlencode({"before": log.here}), content)
+        closed = self.client.get(self.pager_link(content, f"Hide details of request {own.id}"))
+        self.assertEqual(
+            closed.context["log"].rows,
+            tuple(type(row)(row.request, row.key, False) for row in log.rows),
+        )
+
+    def test_a_linked_request_outside_the_viewers_scope_stays_closed(self):
+        foreign = Request.objects.get(path="/foreign")
+        log = self.get(self.owner, request=foreign.id).context["log"]
+        self.assertEqual(log.here, None)
+        self.assertFalse(any(row.is_open for row in log.rows))
+
+    def test_a_malformed_cursor_shows_the_newest_page(self):
+        for cursor in ("abc", "1,", ",1", "-5,3"):
+            response = self.get(self.owner, before=cursor, after=cursor)
+            self.assertEqual(self.paths_on(response), {"/own"})
+
+    def pager_link(self, content: str, label: str) -> str:
+        if label.startswith("Hide"):
+            anchor = content.split(f'aria-label="{label}"', maxsplit=1)[0].rsplit("<a ", 1)[1]
+        else:
+            anchor = content.split(f">{label}</a>", maxsplit=1)[0].rsplit("<a ", 1)[1]
+        href = anchor.split('href="', 1)[1].split('"', 1)[0].replace("&amp;", "&")
+        return reverse("requests") + href
 
     def test_paginator_reuses_the_tab_counts(self):
         self.log(self.key, "/limited", status_code=429)
@@ -337,7 +431,7 @@ class RequestsPaginationTest(RequestsPageTestBase):
             with self.subTest(**params), CaptureQueriesContext(connection) as queries:
                 log = self.client.get(reverse("requests"), params).context["log"]
             tab = next(tab for tab in log.tabs if tab.value == params.get("status"))
-            self.assertEqual(log.page.paginator.count, tab.count)
+            self.assertEqual(log.count, tab.count)
             counts = [q["sql"] for q in queries if "COUNT(" in q["sql"].upper()]
             self.assertEqual(len(counts), 1, counts)
 

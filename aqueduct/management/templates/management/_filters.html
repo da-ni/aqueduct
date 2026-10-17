@@ -3,39 +3,60 @@
     <details class="dropdown">
         <summary class="btn btn-sm">{% icon "organization" small=True %}<span class="sr-only">Organization: </span>{% if filters.org %}{{ filters.org.name }}{% else %}All organizations{% endif %}</summary>
         <ul class="menu dropdown-content z-10 mt-1 max-h-80 w-64 flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow">
-            <li><a href="{% querystring org='all' key=None page=None request=None %}"{% if not filters.org %} aria-current="true" class="menu-active"{% endif %}>All organizations</a></li>
+            <li><a href="{% querystring key_q=None org='all' key=None before=None after=None request=None %}"{% if not filters.org %} aria-current="true" class="menu-active"{% endif %}>All organizations</a></li>
             {% for org in filters.orgs %}
-                <li><a href="{% querystring org=org.id key=None page=None request=None %}"{% if org == filters.org %} aria-current="true" class="menu-active"{% endif %}>{{ org.name }}</a></li>
+                <li><a href="{% querystring key_q=None org=org.id key=None before=None after=None request=None %}"{% if org == filters.org %} aria-current="true" class="menu-active"{% endif %}>{{ org.name }}</a></li>
             {% endfor %}
         </ul>
     </details>
 {% endif %}
-{% if filters.can_pick_scope %}
-    <nav class="join" aria-label="Keys">
-        <a class="btn btn-sm join-item{% if not filters.mine %} btn-primary{% endif %}" href="{% querystring scope=None page=None request=None %}"{% if not filters.mine %} aria-current="page"{% endif %}>Everyone</a>
-        <a class="btn btn-sm join-item{% if filters.mine %} btn-primary{% endif %}" href="{% querystring scope='mine' page=None request=None %}"{% if filters.mine %} aria-current="page"{% endif %}>My keys</a>
-    </nav>
-{% endif %}
-<details class="dropdown">
-    <summary class="btn btn-sm max-w-72">{% icon "key" small=True %}<span class="sr-only">Key: </span><span class="truncate"{% if filters.key %} title="{{ filters.key.name }}"{% endif %}>{% if filters.key %}{{ filters.key.name }}{% else %}All keys{% endif %}</span></summary>
-    <ul class="menu dropdown-content z-10 mt-1 max-h-80 w-80 flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow">
-        <li><a href="{% querystring key=None page=None request=None %}"{% if not filters.key %} aria-current="true" class="menu-active"{% endif %}>All keys</a></li>
-        {% for key in filters.keys %}
-            <li><a{% if key == filters.key %} class="menu-active" aria-current="true"{% endif %} href="{% querystring key=key.token.id page=None request=None %}"><span class="flex flex-col"><span class="font-mono">{{ key.name }}</span><span class="text-xs opacity-70">{{ key.note }}</span></span></a></li>
-        {% endfor %}
-    </ul>
+<details class="dropdown"{% if filters.key_q %} open{% endif %}>
+    <summary class="btn btn-sm max-w-72">{% icon "key" small=True %}<span class="sr-only">Key: </span><span class="truncate"{% if filters.key %} title="{{ filters.key.name }}"{% endif %}>{% if filters.key %}{{ filters.key.name }}{% elif filters.mine %}My keys{% elif filters.can_pick_scope %}All keys{% else %}All my keys{% endif %}</span></summary>
+    <div class="dropdown-content z-10 mt-1 flex w-80 flex-col gap-1 rounded-box bg-base-100 p-2 shadow">
+        <form method="get" role="search" class="px-1 pt-1">
+            {% for name, value in filters.search_params %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+            <label class="input input-sm w-full">
+                {% icon "search" small=True %}
+                <input type="search" name="key_q" value="{{ filters.key_q }}" placeholder="{% if filters.can_pick_scope %}Key name or owner email{% else %}Key name{% endif %}" aria-label="Search keys"{% if filters.key_q %} autofocus{% endif %}>
+            </label>
+        </form>
+        <ul class="menu max-h-80 w-full flex-nowrap overflow-y-auto p-0">
+            {% if filters.key_q %}
+                <li class="menu-title">Matching keys</li>
+                {% for key in filters.matches %}
+                    <li><a{% if key == filters.key %} class="menu-active" aria-current="true"{% endif %} href="{% querystring key_q=None key=key.token.id scope=None before=None after=None request=None %}"><span class="flex flex-col"><span class="font-mono">{{ key.name }}</span><span class="text-xs opacity-70">{{ key.note }}</span></span></a></li>
+                {% empty %}
+                    <li class="menu-disabled"><span>No key matches “{{ filters.key_q }}”</span></li>
+                {% endfor %}
+                <li></li>
+            {% endif %}
+            {% if filters.can_pick_scope %}
+                <li><a href="{% querystring key_q=None key=None scope=None before=None after=None request=None %}"{% if not filters.key and not filters.mine %} aria-current="true" class="menu-active"{% endif %}>All keys in {% if filters.org %}{{ filters.org.name }}{% else %}all organizations{% endif %}</a></li>
+                <li><a href="{% querystring key_q=None key=None scope='mine' before=None after=None request=None %}"{% if not filters.key and filters.mine %} aria-current="true" class="menu-active"{% endif %}>My keys</a></li>
+            {% else %}
+                <li><a href="{% querystring key_q=None key=None before=None after=None request=None %}"{% if not filters.key %} aria-current="true" class="menu-active"{% endif %}>All my keys</a></li>
+            {% endif %}
+            {% if filters.key and filters.key not in filters.keys %}
+                <li><a class="menu-active" aria-current="true" href="{% querystring key_q=None key=filters.key.token.id scope=None before=None after=None request=None %}"><span class="flex flex-col"><span class="font-mono">{{ filters.key.name }}</span><span class="text-xs opacity-70">{{ filters.key.note }}</span></span></a></li>
+            {% endif %}
+            {% if filters.keys %}<li class="menu-title">Your keys</li>{% endif %}
+            {% for key in filters.keys %}
+                <li><a{% if key == filters.key %} class="menu-active" aria-current="true"{% endif %} href="{% querystring key_q=None key=key.token.id scope=None before=None after=None request=None %}"><span class="flex flex-col"><span class="font-mono">{{ key.name }}</span><span class="text-xs opacity-70">{{ key.note }}</span></span></a></li>
+            {% endfor %}
+        </ul>
+    </div>
 </details>
 <details class="dropdown">
     <summary class="btn btn-sm">{% icon "models" small=True %}<span class="sr-only">Model: </span>{{ filters.model|default:"All models" }}</summary>
     <ul class="menu dropdown-content z-10 mt-1 max-h-80 w-64 flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow">
-        <li><a href="{% querystring model=None page=None request=None %}"{% if not filters.model %} aria-current="true" class="menu-active"{% endif %}>All models</a></li>
+        <li><a href="{% querystring key_q=None model=None before=None after=None request=None %}"{% if not filters.model %} aria-current="true" class="menu-active"{% endif %}>All models</a></li>
         {% for name in filters.models %}
-            <li><a class="font-mono{% if name == filters.model %} menu-active{% endif %}" href="{% querystring model=name page=None request=None %}"{% if name == filters.model %} aria-current="true"{% endif %}>{{ name }}</a></li>
+            <li><a class="font-mono{% if name == filters.model %} menu-active{% endif %}" href="{% querystring key_q=None model=name before=None after=None request=None %}"{% if name == filters.model %} aria-current="true"{% endif %}>{{ name }}</a></li>
         {% endfor %}
     </ul>
 </details>
 <nav class="join" aria-label="Time frame">
     {% for span in filters.spans %}
-        <a class="btn btn-sm join-item{% if span == filters.span %} btn-primary{% endif %}" href="{% querystring span=span.value page=None request=None %}"{% if span == filters.span %} aria-current="page"{% endif %}>{{ span.label }}</a>
+        <a class="btn btn-sm join-item{% if span == filters.span %} btn-primary{% endif %}" href="{% querystring key_q=None span=span.value before=None after=None request=None %}"{% if span == filters.span %} aria-current="page"{% endif %}>{{ span.label }}</a>
     {% endfor %}
 </nav>
