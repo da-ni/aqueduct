@@ -90,6 +90,14 @@ class TokenAuthenticationBackend(BaseBackend):
             )
             return None
 
+        if not token_instance.service_account_id and not token_instance.user.is_active:
+            logger.warning(
+                "Authentication failed: Token %s (%s) belongs to a deactivated user.",
+                token_instance.name,
+                token_instance.key_preview,
+            )
+            return None
+
         logger.info(
             "Authentication successful via token: %s (%s) for user %s",
             token_instance.name,
@@ -104,11 +112,5 @@ class TokenAuthenticationBackend(BaseBackend):
         return token_instance.user
 
     def get_user(self, user_id: int) -> "AuthUser | None":
-        """
-        Retrieves a user instance given the user_id (primary key).
-        Required by Django's authentication framework.
-        """
-        try:
-            return User.objects.get(pk=user_id)
-        except User.DoesNotExist:
-            return None
+        """The signed-in user of a session, or `None` once an admin has deactivated them."""
+        return User.objects.filter(pk=user_id, is_active=True).first()

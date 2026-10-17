@@ -1549,6 +1549,29 @@ class ListModelsIntegrationTest(GatewayIntegrationTestCase):
         requests = list(Request.objects.all())
         self.assertEqual(len(requests), 0, "There should be no request recorded for invalid token.")
 
+    def test_list_models_with_the_key_of_a_deactivated_user(self):
+        user = Token.find_by_key(self.AQUEDUCT_ACCESS_TOKEN).user
+        self.assertEqual(self._send_model_list_request().status_code, 200)
+
+        user.is_active = False
+        user.save()
+        self.assertEqual(self._send_model_list_request().status_code, 401)
+
+    def test_service_account_key_outlives_its_creator_s_deactivation(self):
+        team = Team.objects.create(name="Lab", org=Org.objects.get(name="E060"))
+        creator = Token.find_by_key(self.AQUEDUCT_ACCESS_TOKEN).user
+        key = Token(
+            name="Lab key",
+            user=creator,
+            service_account=ServiceAccount.objects.create(name="Lab", team=team),
+        )
+        headers = {"Authorization": f"Bearer {key._set_new_key()}"}
+        key.save()
+
+        creator.is_active = False
+        creator.save()
+        self.assertEqual(self.client.get("/models", headers=headers).status_code, 200)
+
     def test_list_excluded_model(self):
         org = Org.objects.get(name="E060")
         org.add_excluded_model(self.model)
