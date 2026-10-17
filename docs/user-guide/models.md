@@ -21,7 +21,11 @@ The Models page lists every model of the gateway and shows how to call it. Choos
 
 ## Find a model
 
-The table lists each model with its type, such as **Chat**, **Embeddings**, **Text to speech**, **Speech to text**, or **Images**. When a model has a context window, the table also shows it.
+The table lists each model with its type, such as **Chat**, **Embeddings**, **Text to speech**, **Speech to text**, or **Images**. A short description is under the model name when the admin wrote one. When the gateway knows them, the table also shows:
+
+- **Aliases**, other names that you can send for the model. On a narrow screen, they are under the model name.
+- **Quant**, the quantization of the model weights, such as `FP8` or `AWQ`.
+- **Context**, the maximum input tokens, such as `262.1K`.
 
 - To show one type, choose its tab above the table.
 - To find a model by name or alias, type in **Search models and aliases** and press Enter.
@@ -33,9 +37,12 @@ The gateway URL with a copy button is at the top right.
 Choose a model to show its details in the panel on the right. The panel shows:
 
 - The model name with a copy button. Use this name in the `model` parameter of your requests.
-- The specs the gateway knows, such as the context window, the maximum output tokens, and the input and output types.
+- The description of the model, when the admin wrote one.
+- **Model card**, a link to the model's page, usually on Hugging Face. It opens in a new tab.
+- **Quantization**, **Max input tokens**, and **Max output tokens**. A value that the admin did not configure shows as **Not configured**.
+- Other specs the gateway knows, such as the embedding dimensions and the input and output types.
 - **Served model**, the upstream model that answers the requests.
-- **Aliases**, other names for the same model.
+- **Aliases**, other names for the same model, each with a copy button.
 - **Capabilities**, such as vision, tools, or reasoning, and a higher request limit when the model has one.
 - **Use it**, a `curl` command for the model's endpoint, with a copy button.
 

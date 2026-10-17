@@ -185,6 +185,45 @@ You can also change the request usage limits for individual users within the
 UserProfile inline model. The management UI cannot edit these limits. Users see
 them on their [Settings](settings.md) page.
 
+## Describing Models
+
+The [Models](models.md) page reads each model's `model_info` in the router
+config. The keys below are optional. The page shows **Not configured** for a
+quantization or token limit that the config does not give, and it never takes a
+token limit from another source.
+
+| Key | The page shows | When the key is absent |
+|:----|:---------------|:-----------------------|
+| `description` | One line under the model name, and the full text in the panel. | Nothing. |
+| `model_card_url` | A **Model card** link in the panel. Only `http` and `https` URLs. | A link to `https://huggingface.co/<org>/<name>` when `model_name`, or `litellm_params.model` without its provider prefix, is a Hugging Face repo ID. |
+| `quantization` | A badge in the table, and **Quantization** in the panel. | The quantization in the repo name, such as `AWQ`, `GPTQ`, `GGUF`, `FP8`, `NVFP4`, `INT4`, or `W8A8`. |
+| `max_tokens` | The **Context** column, and **Max input tokens** in the panel. | **Not configured**. |
+| `max_output_tokens` | **Max output tokens** in the panel. | **Not configured**. |
+| `aliases` | An **Aliases** column, and the aliases with copy buttons in the panel. | Nothing. |
+
+Put the context length in `max_tokens`. The gateway gives it to clients as
+`max_input_tokens`. Do not put `max_input_tokens` in the router config itself:
+`model_info_with_context` in `aqueduct/gateway/config.py` explains why.
+
+```yaml
+- model_name: Qwen/Qwen3.8-27B-FP8
+  litellm_params:
+    model: openai/Qwen/Qwen3.8-27B-FP8
+    api_base: https://vllm.example.org/v1
+  model_info:
+    mode: chat
+    description: General chat and coding with a long context.
+    model_card_url: https://huggingface.co/Qwen/Qwen3.8-27B-FP8
+    quantization: FP8
+    max_tokens: 262144
+    max_output_tokens: 32768
+    aliases: ["qwen"]
+```
+
+The token limits must match the serving engine, for example the
+`--max-model-len` of vLLM. A quantized deployment can serve less than the model
+card states.
+
 ## Excluding Models
 
 To exclude models for Orgs, Teams or specific UserProfiles, select the models to
