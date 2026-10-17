@@ -68,7 +68,7 @@
                             {% with sa=row.service_account %}
                             <tr>
                                 <td>
-                                    <span class="break-all font-mono">{{ sa.name }}</span>
+                                    {% if row.token %}<a class="link-plain break-all font-mono" href="{% url 'token_detail' row.token.id %}">{{ sa.name }}</a>{% else %}<span class="break-all font-mono">{{ sa.name }}</span>{% endif %}
                                     <div class="muted font-mono text-xs">{{ row.token.key_preview|default:"No key" }}</div>
                                 </td>
                                 <td class="truncate">{{ row.token.user.email|default:"No owner" }}</td>

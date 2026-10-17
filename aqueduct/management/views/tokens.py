@@ -24,7 +24,7 @@ from management.key_activity import (
     limit_labels,
     personal_tokens,
 )
-from management.models import LimitSet, Token
+from management.models import Token
 from management.views.base import BaseAqueductView
 
 
@@ -55,14 +55,19 @@ class TokenDetailView(BaseAqueductView, DetailView):
     context_object_name = "token"
 
     def get_queryset(self) -> QuerySet:
-        return personal_tokens(self.request.user)
+        """The viewer's personal keys and the service account keys of every team they may see."""
+        service = Token.objects.filter(service_account__team__in=self.get_teams_for_user())
+        return (personal_tokens(self.request.user) | service).select_related(
+            "service_account__team"
+        )
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         token = self.object
         now = timezone.now()
         report = key_report(token, now)
-        limits = LimitSet.from_objects(self.profile, self.profile.org)
+        limits = token.get_limit()
+        team = token.service_account.team if token.service_account else None
         metric = "requests" if self.request.GET.get("metric") == "requests" else "tokens"
         context.update(
             report=report,
@@ -74,6 +79,8 @@ class TokenDetailView(BaseAqueductView, DetailView):
             usage=get_per_token_usage([token.id])[token.id],
             excluded_models=token.model_exclusion_list(),
             excluded_mcp_servers=token.mcp_server_exclusion_list(),
+            team=team,
+            can_manage=team is None or self.profile.is_team_admin(team),
         )
         return context
 

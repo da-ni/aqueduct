@@ -135,7 +135,7 @@ def describe_key(
     `with_org`, its org."""
     account = token.service_account
     if account is not None:
-        href = reverse("team", args=[account.team_id]) if account.team_id in team_ids else None
+        href = reverse("token_detail", args=[token.id]) if account.team_id in team_ids else None
         note = f"Service account · {account.team.name}"
     elif token.user_id == profile.user_id:
         href, note = reverse("token_detail", args=[token.id]), "Personal"

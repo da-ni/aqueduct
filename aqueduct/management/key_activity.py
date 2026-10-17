@@ -173,7 +173,12 @@ def key_list(profile: UserProfile, kind: KeyKind | None, query: str, now: dateti
         (token, KeyKind.PERSONAL, None, reverse("token_detail", kwargs={"id": token.id}))
         for token in personal
     ] + [
-        (sa.token, KeyKind.SERVICE, sa.team.name, reverse("team", kwargs={"id": sa.team_id}))
+        (
+            sa.token,
+            KeyKind.SERVICE,
+            sa.team.name,
+            reverse("token_detail", kwargs={"id": sa.token.id}),
+        )
         for sa in service
         if hasattr(sa, "token")
     ]

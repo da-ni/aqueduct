@@ -424,7 +424,8 @@ def key_shares(
         team_id = row["token__service_account__team_id"]
         if team_id is not None:
             detail = f"Service account · {row['token__service_account__team__name']}"
-            href = reverse("team", kwargs={"id": team_id}) if team_id in team_ids else None
+            visible = team_id in team_ids
+            href = reverse("token_detail", kwargs={"id": row["token_id"]}) if visible else None
         else:
             detail = f"Personal · {row['token__user__email']}"
             own = row["token__user_id"] == viewer_id

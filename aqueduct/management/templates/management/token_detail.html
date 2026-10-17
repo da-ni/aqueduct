@@ -6,29 +6,40 @@
 {% block content %}
 <div class="flex flex-col gap-6">
     <div class="breadcrumbs p-0 text-sm">
-        <ul><li><a href="{% url 'tokens' %}">API keys</a></li><li class="font-mono">{{ token.name }}</li></ul>
+        {% if team %}
+            <ul><li><a href="{% url 'org' %}">Teams</a></li><li><a href="{% url 'team' team.id %}">{{ team.name }}</a></li><li class="font-mono">{{ token.name }}</li></ul>
+        {% else %}
+            <ul><li><a href="{% url 'tokens' %}">API keys</a></li><li class="font-mono">{{ token.name }}</li></ul>
+        {% endif %}
     </div>
 
     <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
         <div class="flex flex-col gap-2">
             <h1 class="break-all font-mono text-3xl font-semibold">{{ token.name }}</h1>
             <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-                <span>Personal</span>
+                <span>{% if team %}Service account · <a class="link-plain" href="{% url 'team' team.id %}">{{ team.name }}</a>{% else %}Personal{% endif %}</span>
                 <span class="font-mono">{{ token.key_preview }}</span>
                 <span>Created {{ token.created_at|date:"j M Y" }}</span>
                 <span>Expires: <span class="{{ expiry.tone }}">{{ expiry.label }}</span></span>
                 <span>Last used {{ report.totals.last_used|naturaltime|default:"never" }}</span>
             </div>
         </div>
-        <div class="flex flex-wrap gap-2">
-            <form action="{% url 'token_regenerate' token.id %}" method="post">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-outline btn-primary"
-                        onclick="return confirm('Rotate the API key {{ token.name|escapejs }}? The current key stops working immediately.');">{% icon "rotate" small=True %}Rotate</button>
-            </form>
-            <a class="btn btn-outline btn-primary" href="{% url 'token_edit' token.id %}">{% icon "admin" small=True %}Edit</a>
-            <a class="btn btn-ghost st-err" href="{% url 'token_delete' token.id %}">{% icon "delete" small=True %}Delete</a>
-        </div>
+        {% if can_manage %}
+            <div class="flex flex-wrap gap-2">
+                <form action="{% url 'token_regenerate' token.id %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline btn-primary"
+                            onclick="return confirm('Rotate the API key {{ token.name|escapejs }}? The current key stops working immediately.');">{% icon "rotate" small=True %}Rotate</button>
+                </form>
+                {% if team %}
+                    <a class="btn btn-outline btn-primary" href="{% url 'service_account_edit' token.service_account.id %}">{% icon "admin" small=True %}Edit</a>
+                    <a class="btn btn-ghost st-err" href="{% url 'service_account_delete' token.service_account.id %}">{% icon "delete" small=True %}Delete</a>
+                {% else %}
+                    <a class="btn btn-outline btn-primary" href="{% url 'token_edit' token.id %}">{% icon "admin" small=True %}Edit</a>
+                    <a class="btn btn-ghost st-err" href="{% url 'token_delete' token.id %}">{% icon "delete" small=True %}Delete</a>
+                {% endif %}
+            </div>
+        {% endif %}
     </header>
 
     <section aria-label="Totals, last 7 days" class="grid grid-cols-2 gap-4 md:grid-cols-5">

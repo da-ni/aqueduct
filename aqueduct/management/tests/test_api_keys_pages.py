@@ -9,7 +9,16 @@ from django.urls import reverse
 from django.utils import timezone
 
 from management.key_activity import Expiry
-from management.models import Org, Request, ServiceAccount, Team, TeamMembership, Token, UserProfile
+from management.models import (
+    Org,
+    Request,
+    ServiceAccount,
+    Team,
+    TeamMembership,
+    Token,
+    UserGroup,
+    UserProfile,
+)
 
 User = get_user_model()
 
@@ -91,6 +100,9 @@ class KeyListTest(ApiKeysPagesTestBase):
 
     def test_team_member_sees_team_service_account_managed_from_the_team_page(self):
         response = self.get(self.member, "tokens")
+        self.assertContains(
+            response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
+        )
         self.assertContains(response, f'href="{reverse("team", args=[self.team.id])}"')
         self.assertContains(response, "Service account · keys-team")
         self.assertContains(response, "Managed by the team")
@@ -192,10 +204,6 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         response = self.get(self.other, "token_detail", self.key.id)
         self.assertEqual(response.status_code, 404)
 
-    def test_service_account_key_is_not_found_even_for_its_team_admin(self):
-        response = self.get(self.member, "token_detail", self.pipeline_key.id)
-        self.assertEqual(response.status_code, 404)
-
     def test_unknown_key_is_not_found(self):
         response = self.get(self.owner, "token_detail", 999_999)
         self.assertEqual(response.status_code, 404)
@@ -249,3 +257,57 @@ class ExpiryTest(SimpleTestCase):
         for expires_at, label, tone in cases:
             with self.subTest(label=label):
                 self.assertEqual(Expiry.of(expires_at, now), Expiry(label, tone))
+
+
+class ServiceAccountKeyDetailTest(ApiKeysPagesTestBase):
+    """Whoever may see a team sees its service account keys' usage page, and nobody else."""
+
+    def setUp(self):
+        super().setUp()
+        self.plain_member = self.user("plain-member")
+        TeamMembership.objects.create(user_profile=self.plain_member.profile, team=self.team)
+        self.org_admin = self.user("org-admin")
+        self.org_admin.profile.group = UserGroup.ORG_ADMIN
+        other_org = Org.objects.create(name="elsewhere")
+        self.other_org_admin = User.objects.create_user(username="far", email="far@example.com")
+        UserProfile.objects.create(
+            user=self.other_org_admin, org=other_org
+        ).group = UserGroup.ORG_ADMIN
+        self.request_log(self.pipeline_key, timedelta(hours=1), input_tokens=4200, model="m")
+
+    def detail(self, user):
+        return self.get(user, "token_detail", self.pipeline_key.id)
+
+    def test_team_admin_and_org_admin_see_usage_and_can_manage_the_account(self):
+        edit = reverse("service_account_edit", args=[self.pipeline.id])
+        for user in (self.member, self.org_admin):
+            with self.subTest(user=user.username):
+                response = self.detail(user)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "Service account · ")
+                self.assertContains(response, "4.2K")
+                self.assertContains(response, f"?token={self.pipeline_key.id}")
+                self.assertContains(response, f'href="{edit}"')
+                self.assertContains(
+                    response, reverse("token_regenerate", args=[self.pipeline_key.id])
+                )
+                self.assertNotContains(response, reverse("token_edit", args=[self.pipeline_key.id]))
+
+    def test_plain_team_member_sees_usage_without_management_actions(self):
+        response = self.detail(self.plain_member)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "4.2K")
+        self.assertNotContains(response, reverse("token_regenerate", args=[self.pipeline_key.id]))
+        self.assertNotContains(response, reverse("service_account_edit", args=[self.pipeline.id]))
+        self.assertNotContains(response, reverse("service_account_delete", args=[self.pipeline.id]))
+
+    def test_users_outside_the_team_get_not_found(self):
+        for user in (self.other, self.owner, self.other_org_admin):
+            with self.subTest(user=user.username):
+                self.assertEqual(self.detail(user).status_code, 404)
+
+    def test_team_page_links_each_service_account_to_its_key(self):
+        response = self.get(self.plain_member, "team", self.team.id)
+        self.assertContains(
+            response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
+        )
