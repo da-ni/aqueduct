@@ -87,7 +87,7 @@
                                             <a class="btn btn-ghost btn-sm btn-square" href="{% url 'token_edit' row.token.id %}" aria-label="Edit {{ row.token.name }}" title="Edit">{% icon "admin" small=True %}</a>
                                             <a class="btn btn-ghost btn-sm btn-square" href="{% url 'token_delete' row.token.id %}" aria-label="Delete {{ row.token.name }}" title="Delete">{% icon "delete" small=True %}</a>
                                         {% else %}
-                                            <span class="muted whitespace-nowrap text-sm">Managed by the team</span>
+                                            <a class="link-plain muted whitespace-nowrap text-sm" href="{% url 'team' row.token.service_account.team_id %}">Managed by the team</a>
                                         {% endif %}
                                     </div>
                                 </td>

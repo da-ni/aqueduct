@@ -104,7 +104,7 @@ class RequestsScopeTest(RequestsPageTestBase):
     def test_team_member_sees_their_teams_service_account_only(self):
         response = self.get(self.member)
         self.assertEqual(self.paths_on(response), {"/team-sa"})
-        self.assertContains(response, f'href="{reverse("team", args=[self.team.id])}"')
+        self.assertContains(response, f'href="{reverse("token_detail", args=[self.team_key.id])}"')
         self.assertNotContains(response, "side-sa")
 
     def test_org_admin_sees_the_whole_org_and_nothing_outside(self):

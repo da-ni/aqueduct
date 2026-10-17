@@ -125,14 +125,18 @@ class UsageAccessTest(UsagePageTestBase):
     def test_team_member_sees_their_key_and_the_team_service_account(self):
         response = self.page(self.member)
         self.assert_keys(response, "member-laptop", "pipeline")
-        self.assertContains(response, f'href="{reverse("team", args=[self.team.id])}"')
+        self.assertContains(
+            response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
+        )
         self.assertNotContains(response, f"token={self.solo_key.id}")
 
     def test_org_admin_sees_their_org_but_links_no_other_users_key(self):
         response = self.page(self.org_admin)
         self.assert_keys(response, "solo-laptop", "member-laptop", "pipeline")
         self.assertEqual(self.kpi(response, "Requests")[0], "3")
-        self.assertContains(response, f'href="{reverse("team", args=[self.team.id])}"')
+        self.assertContains(
+            response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
+        )
         for key in (self.solo_key, self.member_key):
             self.assertNotContains(response, reverse("token_detail", args=[key.id]))
             self.assertNotContains(response, f"token={key.id}")
@@ -180,6 +184,15 @@ class UsageAccessTest(UsagePageTestBase):
             self.assertNotContains(response, token.name, status_code=404)
         self.assertEqual(self.page(self.other_org_admin, token=self.solo_key.id).status_code, 404)
         self.assertEqual(self.page(self.solo, token="abc").status_code, 404)
+
+    def test_key_filter_accepts_a_service_account_key_for_its_team_only(self):
+        response = self.page(self.member, token=self.pipeline_key.id)
+        self.assertContains(response, "for the key")
+        self.assertEqual(self.kpi(response, "Requests")[0], "1")
+        self.assertEqual(self.page(self.solo, token=self.pipeline_key.id).status_code, 404)
+        self.assertEqual(
+            self.page(self.other_org_admin, token=self.pipeline_key.id).status_code, 404
+        )
 
     def test_key_filter_lets_an_org_admin_name_any_key_of_their_org(self):
         response = self.page(self.org_admin, token=self.member_key.id)
