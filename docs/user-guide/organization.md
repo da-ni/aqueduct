@@ -28,7 +28,7 @@ The top of the page shows the number of people, teams, and service accounts in t
 - **Limits** shows the default limits for each key in the organization. Teams and people use these limits unless they have limits of their own. **Personal keys per person** comes from the server configuration and cannot be changed here.
 - **Switched off** shows the models and MCP servers that are switched off for everyone in the organization, and for each team that switches off something of its own. A team name opens its team page.
 
-Admins choose another organization in the organization select.
+Admins see the organization they chose in the sidebar. See [Choose an organization](index.md#choose-an-organization).
 
 ## Change the limits
 

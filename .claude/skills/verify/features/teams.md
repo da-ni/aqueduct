@@ -4,7 +4,7 @@ Users see the teams they may open on the Teams page, with members, service accou
 
 ## Sub-features
 
-- `teams-list` lists the teams a user may see: their own with their role, or every team in the org for an org admin. A search box filters by team name. The list shows 50 teams per page. Admins switch the org there.
+- `teams-list` lists the teams a user may see: their own with their role, or every team in the org for an org admin. A search box filters by team name. The list shows 50 teams per page. Admins see the org they chose in the sidebar, as [org-switch.md](./org-switch.md) shows.
 - `team-detail` shows a team's totals, service accounts with owner, tokens, last use, and expiry, its members with their role (team admins first, 50 per page, `?q=` searches emails), and its limits and switched-off models.
 - `team-members` adds and removes members.
 - `team-admins` makes a member a team admin or removes the role.

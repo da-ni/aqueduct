@@ -23,7 +23,7 @@ Choose **Teams** in the sidebar.
 
 ![Teams page](../assets/user_guide/teams.png)
 
-Users see the teams they are a member of, with their role in each. Org admins see every team of their organization. Admins also choose the organization in a select above the table.
+Users see the teams they are a member of, with their role in each. Org admins see every team of their organization. Admins see the organization they chose in the sidebar. See [Choose an organization](index.md#choose-an-organization).
 
 Each row shows the number of members and service accounts, the request limit per minute of the team, and the tokens of the team's service accounts over the last seven days. The search box filters by team name. The list shows 50 teams per page. Choose **Next** and **Previous** below the table to see the others.
 

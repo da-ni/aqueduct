@@ -9,7 +9,7 @@ The Aqueduct web UI lets you create API keys, see which models and MCP servers y
 
 ## Find your way around
 
-The sidebar on the left holds every page:
+The sidebar on the left holds every page. Admins also get the **Organization** select at its top. See [Choose an organization](#choose-an-organization).
 
 - [Overview](usage.md) shows the token and request usage of the keys you can see.
 - [Models](models.md) lists the models of the gateway and where each one is available to you.
@@ -24,6 +24,12 @@ The sidebar on the left holds every page:
 Your deployment can add more links above **Settings**, such as a bug report form or this documentation.
 
 The bottom of the sidebar shows the e-mail address and role you signed in with, a light and dark switch, and the **Sign out** button.
+
+## Choose an organization
+
+Admins choose the organization they look at, or **All organizations**, in the **Organization** select at the top of the sidebar. The Overview, All keys, Requests, Teams, and Organization pages then show that organization until you change it or sign out. A page that covers one organization at a time, such as Teams or Organization, shows your own organization while you look at all of them, and says so. When you change the organization, the pages drop the key you had chosen and keep the model and time frame.
+
+A link with `?org=` in its address, such as a link someone shared, shows that organization and keeps it as your choice. Org admins and users always see their own organization and get no select.
 
 The footer of every page shows the gateway URL with a copy button. Use this URL as the base URL in OpenAI-compatible clients. The footer also links to the terms of service, when your deployment uses them.
 
