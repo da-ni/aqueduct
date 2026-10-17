@@ -5,7 +5,6 @@ from unittest import mock
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -48,7 +47,6 @@ def secret_on(response) -> str | None:
 @PAGES
 class ApiKeysPagesTestBase(TestCase):
     def setUp(self):
-        cache.clear()  # the Overview heatmap is cached per org id
         self.org = Org.objects.create(name="keys-org")
         self.team = Team.objects.create(name="keys-team", org=self.org)
         self.other_team = Team.objects.create(name="other-team", org=self.org)

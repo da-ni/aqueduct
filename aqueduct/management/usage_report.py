@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from django.core.cache import cache
 from django.db.models import (
     Aggregate,
     Count,
@@ -20,7 +19,7 @@ from django.db.models import (
     Subquery,
     Sum,
 )
-from django.db.models.functions import Coalesce, ExtractHour, ExtractIsoWeekDay, Trunc
+from django.db.models.functions import Coalesce, Lower, Trunc
 from django.utils import timezone
 
 from management.key_activity import (
@@ -50,7 +49,6 @@ SECOND_MS = 1000
 AXIS_LABELS = 8
 TOP_KEYS = 10
 TOP_USER_IDS = 25
-HEAT_CACHE_SECONDS = 60 * 60
 HEAT_CLASSES = (
     "bg-base-300",
     "bg-primary/20",
@@ -63,6 +61,8 @@ WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 HEAT_HOURS = tuple(f"{hour:02d}" if hour % 3 == 0 else "" for hour in range(24))
 TOKENS = F("input_tokens") + F("output_tokens")
 NO_ORG = "No organization"
+ORG = Coalesce("token__service_account__team__org", "token__user__profile__org")
+"""A service account's key counts for its team's org, a personal key for its owner's org."""
 TOTALS = {
     "requests": Count("id"),
     "failed": Count("id", filter=FAILED),
@@ -353,22 +353,10 @@ def org_requests(org: Org | None) -> QuerySet[Request]:
     return served(Request.objects.filter(token__in=tokens))
 
 
-def heat(org: Org | None, now: datetime, weeks: int) -> tuple[HeatRow, ...]:
-    """Average tokens per hour for each weekday and hour over the last `weeks` weeks, across
-    `org`. Cached for an hour, because it reads weeks of requests of a whole org."""
-    cache_key = f"usage-heat:{org.pk if org else 'all'}:{weeks}"
-    average = cache.get(cache_key)
-    if average is None:
-        rows = (
-            org_requests(org)
-            .filter(timestamp__gte=now - timedelta(weeks=weeks))
-            .annotate(weekday=ExtractIsoWeekDay("timestamp"), hour=ExtractHour("timestamp"))
-            .values("weekday", "hour")
-            .annotate(tokens=Sum(TOKENS, default=0))
-            .order_by()
-        )
-        average = {(row["weekday"], row["hour"]): row["tokens"] / weeks for row in rows}
-        cache.set(cache_key, average, HEAT_CACHE_SECONDS)
+def heat(tokens: Mapping[tuple[int, int], int], weeks: int) -> tuple[HeatRow, ...]:
+    """Average tokens per hour for each weekday and hour, from the `tokens` per ISO weekday and
+    hour of day over `weeks` weeks."""
+    average = {slot: count / weeks for slot, count in tokens.items()}
     top = max(average.values(), default=0)
     levels = len(HEAT_CLASSES) - 1
 
@@ -397,18 +385,39 @@ class ModelRow:
     log_url: str
 
 
-def model_rows(
-    requests: QuerySet[Request], kinds: Mapping[str, str], link: Callable[..., str]
-) -> tuple[ModelRow, ...]:
-    """Every model with requests, busiest first. `link(model=name)` opens the log on one."""
-    medians, found = {}, {}
+@dataclass(frozen=True)
+class ModelUsage:
+    activity: Activity
+    median_ms: int | None
+
+
+def model_usage(requests: QuerySet[Request]) -> dict[str, ModelUsage]:
+    """Activity and lower median response time per model, for the models with requests."""
+    found = {}
     for row in requests.values("model").annotate(**TOTALS, median=MEDIAN).order_by():
-        model = row.pop("model")
-        medians[model] = row.pop("median")
-        found[model] = Activity(**row)
+        model, median = row.pop("model"), row.pop("median")
+        found[model] = ModelUsage(Activity(**row), median)
+    return found
+
+
+def model_rows(
+    usage: Mapping[str, ModelUsage],
+    kinds: Mapping[str, str],
+    link: Callable[..., str],
+    *,
+    approximate: bool = False,
+) -> tuple[ModelRow, ...]:
+    """Every model with requests, busiest first. `link(model=name)` opens the log on one.
+    `approximate` marks the medians as such."""
+    found = {name: u.activity for name, u in usage.items()}
     ranked = sorted(found.items(), key=lambda item: (-item[1].tokens, -item[1].requests, item[0]))
     total = sum(a.tokens for a in found.values())
     busiest = max((a.tokens for a in found.values()), default=0)
+
+    def median(name: str) -> str:
+        ms = usage[name].median_ms
+        return f"≈ {duration(ms)}" if approximate and ms is not None else duration(ms)
+
     return tuple(
         ModelRow(
             name=name,
@@ -416,7 +425,7 @@ def model_rows(
             activity=activity,
             input=compact(activity.input),
             output=compact(activity.output),
-            median=duration(medians[name]),
+            median=median(name),
             share=percent(activity.tokens, total),
             width=round(100 * activity.tokens / busiest) if busiest else 0,
             log_url=link(model=name),
@@ -433,7 +442,6 @@ class KeyShare:
     detail: str
     href: str | None
     activity: Activity
-    median: str
     share: str
     width: int
 
@@ -454,20 +462,21 @@ def _widths(values: Iterable[int], top: int | None = None) -> list[int]:
 
 
 def _figures(
-    rows: Sequence[dict[str, Any]], total: int, busiest: int | None = None
-) -> list[tuple[Activity, str, str, int]]:
-    """Activity, median response, token share, and bar width of each grouped row, as
-    `model_rows` shows them. `total` is the period's token count, and `busiest` the token count
-    of a full-width bar, by default the first row's."""
+    activities: Sequence[Activity], total: int, busiest: int | None = None
+) -> list[tuple[Activity, str, int]]:
+    """Activity, token share, and bar width of each row, as `model_rows` shows them. `total` is
+    the period's token count, and `busiest` the token count of a full-width bar, by default the
+    first row's."""
     return [
-        (
-            Activity(**{name: row[name] for name in TOTALS}),
-            duration(row["median"]),
-            percent(row["tokens"], total),
-            width,
+        (activity, percent(activity.tokens, total), width)
+        for activity, width in zip(
+            activities, _widths((a.tokens for a in activities), busiest), strict=True
         )
-        for row, width in zip(rows, _widths((r["tokens"] for r in rows), busiest), strict=True)
     ]
+
+
+def _activity(row: Mapping[str, Any]) -> Activity:
+    return Activity(**{name: row[name] for name in TOTALS})
 
 
 class KeyOrder(StrEnum):
@@ -486,7 +495,7 @@ class KeyOrder(StrEnum):
         if self is KeyOrder.NAME:
             # A join on the token would sort every request by name before grouping. The
             # subquery runs once per key, after grouping by `token_id`.
-            name = Token.objects.filter(pk=OuterRef("token_id")).values("name")
+            name = Token.objects.filter(pk=OuterRef("token_id")).values(lower=Lower("name"))
             return (Subquery(name), "token_id")
         if self is KeyOrder.REQUESTS:
             return ("-requests", "-tokens", "token_id")
@@ -498,6 +507,14 @@ class KeyOrder(StrEnum):
             return cls(raw)
         except ValueError:
             return None
+
+
+KeyRow = tuple[int, Activity]
+"""A key's id and its activity in a period."""
+
+
+def _key_row(row: Mapping[str, Any]) -> KeyRow:
+    return row["token_id"], _activity(row)
 
 
 def _by_key(requests: QuerySet[Request]) -> QuerySet[Request, dict[str, Any]]:
@@ -512,6 +529,11 @@ class KeyTotals:
     keys: int
     busiest: int
     tokens: int
+
+    @classmethod
+    def of(cls, totals: Mapping[int, Activity]) -> "KeyTotals":
+        tokens = [a.tokens for a in totals.values()]
+        return cls(len(tokens), max(tokens, default=0), sum(tokens))
 
 
 def key_totals(requests: QuerySet[Request]) -> KeyTotals:
@@ -530,6 +552,28 @@ def ranked_keys(
     return _by_key(requests).order_by(*order.ordering)
 
 
+def top_keys(requests: QuerySet[Request]) -> list[KeyRow]:
+    return [_key_row(row) for row in ranked_keys(requests)[:TOP_KEYS]]
+
+
+def ranked_totals(
+    totals: Mapping[int, Activity], order: KeyOrder, tokens: QuerySet[Token]
+) -> list[KeyRow]:
+    """`ranked_keys` of activity already counted per key. Sorting by name reads the names of
+    `tokens`, which hold the keys of `totals`."""
+    if order is KeyOrder.NAME:
+        names = dict(tokens.values_list("id", "name"))
+
+        def by_name(row: KeyRow) -> tuple[Any, ...]:
+            name = names.get(row[0])
+            return (name is None, (name or "").lower(), row[0])
+
+        return sorted(totals.items(), key=by_name)
+    if order is KeyOrder.REQUESTS:
+        return sorted(totals.items(), key=lambda r: (-r[1].requests, -r[1].tokens, r[0]))
+    return sorted(totals.items(), key=lambda r: (-r[1].tokens, -r[1].requests, r[0]))
+
+
 @dataclass(frozen=True)
 class CountedKeys:
     """`ranked_keys` whose number is already known, so that a `Paginator` slices them without
@@ -541,36 +585,24 @@ class CountedKeys:
     def __len__(self) -> int:
         return self.size
 
-    def __getitem__(self, page: slice) -> list[dict[str, Any]]:
-        return list(self.rows[page])
+    def __getitem__(self, page: slice) -> list[KeyRow]:
+        return [_key_row(row) for row in self.rows[page]]
 
 
 def key_shares(
-    rows: Sequence[dict[str, Any]],
-    requests: QuerySet[Request],
+    rows: Sequence[KeyRow],
     total: int,
     describe: Callable[[Token], "Key"],
     busiest: int | None = None,
 ) -> tuple[KeyShare, ...]:
-    """The `ranked_keys` `rows` as table rows, with the median response of each key over
-    `requests`. `describe` names a key and links it where the viewer may open it. Bars are as
-    wide as `busiest` tokens, by default the first row's."""
-    ids = [row["token_id"] for row in rows]
-    medians = {
-        row["token_id"]: row["median"]
-        for row in requests.filter(token_id__in=ids)
-        .values("token_id")
-        .annotate(median=MEDIAN)
-        .order_by()
-    }
+    """The ranked `rows` as table rows. `describe` names a key and links it where the viewer may
+    open it. Bars are as wide as `busiest` tokens, by default the first row's."""
     tokens = Token.objects.select_related(
         "user__profile__org", "service_account__team__org"
-    ).in_bulk(ids)
-    rows = [row for row in rows if row["token_id"] in tokens]  # deleted since the grouping
-    keys = [describe(tokens[row["token_id"]]) for row in rows]
-    figures = _figures(
-        [row | {"median": medians.get(row["token_id"])} for row in rows], total, busiest
-    )
+    ).in_bulk([token_id for token_id, _ in rows])
+    rows = [row for row in rows if row[0] in tokens]  # deleted since the grouping
+    keys = [describe(tokens[token_id]) for token_id, _ in rows]
+    figures = _figures([activity for _, activity in rows], total, busiest)
     return tuple(
         KeyShare(key.name, key.note, key.href, *figure)
         for key, figure in zip(keys, figures, strict=True)
@@ -581,26 +613,35 @@ def user_id_shares(requests: QuerySet[Request], total: int) -> tuple[KeyShare, .
     """Tokens per `user` value the client sent, for one key."""
     rows = list(
         requests.values("user_id")
-        .annotate(**TOTALS, tokens=Sum(TOKENS, default=0), median=MEDIAN)
+        .annotate(**TOTALS, tokens=Sum(TOKENS, default=0))
         .order_by("-tokens", "-requests", "user_id")[:TOP_USER_IDS]
     )
+    figures = _figures([_activity(row) for row in rows], total)
     return tuple(
         KeyShare(row["user_id"] or "Not sent", "", None, *figure)
-        for row, figure in zip(rows, _figures(rows, total), strict=True)
+        for row, figure in zip(rows, figures, strict=True)
     )
 
 
-def org_shares(requests: QuerySet[Request]) -> tuple[Share, ...]:
-    rows = list(
-        requests.values(
-            name=Coalesce(
-                "token__service_account__team__org__name", "token__user__profile__org__name"
-            )
-        )
-        .annotate(tokens=Sum(TOKENS, default=0))
-        .order_by("-tokens", "name")
+def org_tokens(requests: QuerySet[Request]) -> dict[int | None, int]:
+    """Tokens per org id, `None` for keys of no org."""
+    return {
+        row["org_id"]: row["tokens"]
+        for row in requests.values(org_id=ORG).annotate(tokens=Sum(TOKENS, default=0)).order_by()
+    }
+
+
+def org_shares(tokens: Mapping[int | None, int]) -> tuple[Share, ...]:
+    """The `tokens` of each org, busiest first."""
+    orgs = Org.objects.in_bulk([org_id for org_id in tokens if org_id is not None])
+    rows = sorted(
+        (
+            (orgs[org_id].name if org_id in orgs else NO_ORG, count)
+            for org_id, count in tokens.items()
+        ),
+        key=lambda row: (-row[1], row[0] == NO_ORG, row[0]),
     )
     return tuple(
-        Share(row["name"] or NO_ORG, compact(row["tokens"]), width)
-        for row, width in zip(rows, _widths(r["tokens"] for r in rows), strict=True)
+        Share(name, compact(count), width)
+        for (name, count), width in zip(rows, _widths(count for _, count in rows), strict=True)
     )

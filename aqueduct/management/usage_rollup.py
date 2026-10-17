@@ -9,7 +9,6 @@ approximate. Without rollups they read the raw requests only."""
 import math
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import cache
 from itertools import accumulate
@@ -19,15 +18,7 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.db import connection, models, transaction
 from django.db.models import Case, Count, Expression, F, IntegerField, Q, QuerySet, Sum, Value, When
-from django.db.models.functions import (
-    Cast,
-    Coalesce,
-    ExtractHour,
-    ExtractIsoWeekDay,
-    Floor,
-    Ln,
-    Trunc,
-)
+from django.db.models.functions import Cast, ExtractHour, ExtractIsoWeekDay, Floor, Ln, Trunc
 from django.utils import timezone
 
 from management.key_activity import FAILED, Activity, router_models, served
@@ -43,10 +34,12 @@ from management.models import (
 from management.models.usage_rollup import HOURLY
 from management.usage_report import (
     HOUR,
+    ORG,
     STATUS_COUNTS,
     STATUSES,
     TOKENS,
     TOTALS,
+    ModelUsage,
     Period,
     Series,
     Span,
@@ -68,9 +61,6 @@ BUCKET = Case(
     ),
 )
 """Bucket `b` holds response times in [2^(b/8), 2^((b+1)/8)) ms, and `ZERO_BUCKET` those of 0 ms."""
-
-ORG = Coalesce("token__service_account__team__org", "token__user__profile__org")
-"""A service account's key counts for its team's org, a personal key for its owner's org."""
 
 STATUS_COLUMNS = ("ok", "rate_limited", "client_error", "server_error")
 _COUNT_STATUSES = {
@@ -229,13 +219,6 @@ def _insert(table: type[models.Model], rows: QuerySet[Any, Row], **fixed: int) -
 # Reading ----------------------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class ModelUsage:
-    activity: Activity
-    median_ms: int | None
-    """Within 4.5% of the lower median response time, or 1 ms below 12 ms."""
-
-
 def org_series(org: Org | None, model: str | None, period: Period) -> Series:
     """`usage_report.series` of the requests of `org`, every org when `None`, and of `model`,
     every served model when `None`."""
@@ -261,7 +244,8 @@ def org_series(org: Org | None, model: str | None, period: Period) -> Series:
 
 
 def org_models(org: Org | None, model: str | None, period: Period) -> dict[str, ModelUsage]:
-    """Activity and approximate median response time per model, for the models with requests."""
+    """Activity and approximate median response time per model, for the models with requests.
+    Each median is within 4.5% of the lower median response time, or 1 ms below 12 ms."""
     args = (org, model, period.start, period.end)
     totals = _gather(
         *args,
@@ -288,6 +272,23 @@ def org_models(org: Org | None, model: str | None, period: Period) -> dict[str, 
         name: ModelUsage(_activity(counts), approximate_median(buckets[name]))
         for (name,), counts in totals.items()
     }
+
+
+def org_tokens(model: str | None, period: Period) -> dict[int | None, int]:
+    """Tokens per org id, `None` for keys of no org, as `usage_report.org_tokens` sums them."""
+    found = _gather(
+        None,
+        model,
+        period.start,
+        period.end,
+        ("org_id",),
+        OrgUsageHour,
+        lambda rows: rows.values("org_id").annotate(
+            tokens=Sum(F("input_tokens") + F("output_tokens"))
+        ),
+        lambda rows: rows.values(org_id=ORG).annotate(tokens=Sum(TOKENS)),
+    )
+    return {org_id: counts["tokens"] for (org_id,), counts in found.items()}
 
 
 def org_heat(org: Org | None, start: datetime, end: datetime) -> dict[tuple[int, int], int]:
