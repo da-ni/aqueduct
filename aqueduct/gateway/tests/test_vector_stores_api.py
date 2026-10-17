@@ -243,6 +243,17 @@ class TestVectorStores(TestVectorStoresBase):
         data = resp.json()
         self.assertEqual(len(data["data"]), 1)
 
+    def test_creator_s_personal_key_cannot_reach_the_team_s_vector_store(self):
+        """Token pk=2 is a service account key on team Whale created by the owner of
+        `self.headers`."""
+        self.vs_obj.token = Token.objects.get(pk=2)
+        self.vs_obj.save()
+
+        vs_url = reverse("gateway:vector_store", kwargs={"vector_store_id": self.vs_id})
+        self.assertEqual(self.client.get(vs_url, headers=self.headers).status_code, 404)
+        listed = self.client.get(self.url_vector_stores, headers=self.headers).json()["data"]
+        self.assertEqual(listed, [])
+
     def test_upstream_failure_create(self):
         """Test vector_stores list view catches Bad Request (400) from upstream."""
         bad_request = MockConfig(

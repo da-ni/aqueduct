@@ -48,16 +48,10 @@ async def file_to_bytes(token: Token | None, file: FileFile) -> bytes:
     elif file_id:
         # file is given as an id of a file object
         try:
-            if token and token.service_account:
-                file_obj = await FileObject.objects.select_related("token__user").aget(
-                    id=file_id, token__service_account__team=token.service_account.team
-                )
-            elif token:
-                file_obj = await FileObject.objects.select_related("token__user").aget(
-                    id=file_id, token__user=token.user
-                )
-            else:
-                file_obj = await FileObject.objects.select_related("token__user").aget(id=file_id)
+            files = FileObject.objects.select_related("token__user")
+            if token:
+                files = files.filter(token.reach())
+            file_obj = await files.aget(id=file_id)
 
             try:
                 client = get_files_api_client()

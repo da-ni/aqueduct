@@ -87,12 +87,7 @@ async def vector_store_file_batches(
 
     # Check vector store ownership
     try:
-        if token.service_account:
-            vs_obj = await VectorStore.objects.aget(
-                id=vector_store_id, token__service_account__team=token.service_account.team
-            )
-        else:
-            vs_obj = await VectorStore.objects.aget(id=vector_store_id, token__user=token.user)
+        vs_obj = await VectorStore.objects.aget(token.reach(), id=vector_store_id)
     except VectorStore.DoesNotExist:
         return error_response("Vector store not found.", param="vector_store_id", status=404)
 
@@ -115,12 +110,7 @@ async def vector_store_file_batches(
     file_objs = []
     for file_id in file_ids:
         try:
-            if token.service_account:
-                file_obj = await FileObject.objects.aget(
-                    id=file_id, token__service_account__team=token.service_account.team
-                )
-            else:
-                file_obj = await FileObject.objects.aget(id=file_id, token__user=token.user)
+            file_obj = await FileObject.objects.aget(token.reach(), id=file_id)
         except FileObject.DoesNotExist:
             return error_response(f"File not found: {file_id}", param="file_ids", status=404)
         file_objs.append(file_obj)
@@ -214,12 +204,7 @@ async def vector_store_file_batch(
 
     # Check vector store ownership
     try:
-        if token.service_account:
-            vs_obj = await VectorStore.objects.aget(
-                id=vector_store_id, token__service_account__team=token.service_account.team
-            )
-        else:
-            vs_obj = await VectorStore.objects.aget(id=vector_store_id, token__user=token.user)
+        vs_obj = await VectorStore.objects.aget(token.reach(), id=vector_store_id)
     except VectorStore.DoesNotExist:
         return error_response("Vector store not found.", param="vector_store_id", status=404)
 
@@ -276,12 +261,7 @@ async def vector_store_file_batch_cancel(
 
     # Check vector store ownership
     try:
-        if token.service_account:
-            vs_obj = await VectorStore.objects.aget(
-                id=vector_store_id, token__service_account__team=token.service_account.team
-            )
-        else:
-            vs_obj = await VectorStore.objects.aget(id=vector_store_id, token__user=token.user)
+        vs_obj = await VectorStore.objects.aget(token.reach(), id=vector_store_id)
     except VectorStore.DoesNotExist:
         return error_response("Vector store not found.", param="vector_store_id", status=404)
 
@@ -339,12 +319,7 @@ async def vector_store_file_batch_files(
 
     # Check vector store ownership
     try:
-        if token.service_account:
-            vs_obj = await VectorStore.objects.aget(
-                id=vector_store_id, token__service_account__team=token.service_account.team
-            )
-        else:
-            vs_obj = await VectorStore.objects.aget(id=vector_store_id, token__user=token.user)
+        vs_obj = await VectorStore.objects.aget(token.reach(), id=vector_store_id)
     except VectorStore.DoesNotExist:
         return error_response("Vector store not found.", param="vector_store_id", status=404)
 

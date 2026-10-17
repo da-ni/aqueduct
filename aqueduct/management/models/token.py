@@ -77,6 +77,14 @@ class Token(models.Model):
             )
         super().save(*args, **kwargs)
 
+    def reach(self) -> models.Q:
+        """The files, batches, and vector stores this key may use: those of its team's keys for
+        a service account's key, those of its owner's personal keys otherwise. A service account
+        key's `user` is only who created it."""
+        if self.service_account:
+            return models.Q(token__service_account__team_id=self.service_account.team_id)
+        return models.Q(token__user_id=self.user_id, token__service_account__isnull=True)
+
     @property
     def is_expired(self) -> bool:
         return self.expires_at is not None and self.expires_at <= timezone.now()

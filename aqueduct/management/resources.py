@@ -211,7 +211,7 @@ def quotas(
         .values_list("token__service_account__team", "n")
     )
     used = (
-        Quota("you", rows.filter(token__user=user).count(), user_limit),
+        Quota("you", rows.filter(own(user)).count(), user_limit),
         *(
             Quota(team.name, per_team.get(team.id, 0), team_limit)
             for team in teams.order_by("name")

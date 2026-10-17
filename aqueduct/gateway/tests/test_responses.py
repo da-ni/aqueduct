@@ -735,7 +735,7 @@ class CheckToolAvailabilityTest(GatewayIntegrationTestCase):
         self.assertEqual(tool["vector_store_ids"], ["vs_remote_abc"])
         mock_vector_store_class.objects.filter.assert_called_once()
         call_kwargs = mock_vector_store_class.objects.filter.call_args.kwargs
-        self.assertEqual(call_kwargs["token__service_account__team"], mock_team)
+        self.assertEqual(mock_vector_store_class.objects.filter.call_args.args, (token.reach(),))
         self.assertEqual(call_kwargs["id__in"], ["vs_remote_abc"])
 
     @patch("gateway.decorators.responses.VectorStore")

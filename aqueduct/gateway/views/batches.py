@@ -42,10 +42,7 @@ async def batches(
     POST /batches - create a new batch on upstream
     """
     if request.method == "GET":
-        if token.service_account:
-            batch_qs = Batch.objects.filter(token__service_account__team=token.service_account.team)
-        else:
-            batch_qs = Batch.objects.filter(token__user=token.user)
+        batch_qs = Batch.objects.filter(token.reach())
 
         batch_objects = [
             b.model.model_dump()
@@ -64,19 +61,11 @@ async def batches(
         return error_response("Invalid request body", status=400)
 
     # Check batch limit before creating batch (for upstream quota management)
-    max_batches = settings.MAX_USER_BATCHES
-    if token.service_account:
-        active_count = await Batch.objects.filter(
-            token__service_account__team=token.service_account.team,
-            status__in=[BatchStatus.VALIDATING, BatchStatus.IN_PROGRESS, BatchStatus.CANCELLING],
-        ).acount()
-        limit = settings.MAX_TEAM_BATCHES
-    else:
-        active_count = await Batch.objects.filter(
-            token__user=token.user,
-            status__in=[BatchStatus.VALIDATING, BatchStatus.IN_PROGRESS, BatchStatus.CANCELLING],
-        ).acount()
-        limit = max_batches
+    limit = settings.MAX_TEAM_BATCHES if token.service_account else settings.MAX_USER_BATCHES
+    active_count = await Batch.objects.filter(
+        token.reach(),
+        status__in=[BatchStatus.VALIDATING, BatchStatus.IN_PROGRESS, BatchStatus.CANCELLING],
+    ).acount()
 
     if active_count >= limit:
         return error_response(f"Batch limit reached ({limit})", status=403)
@@ -88,15 +77,7 @@ async def batches(
 
     # Get the input file's remote ID
     try:
-        if token.service_account:
-            file_obj = await FileObject.objects.aget(
-                id=pydantic_model["input_file_id"],
-                token__service_account__team=token.service_account.team,
-            )
-        else:
-            file_obj = await FileObject.objects.aget(
-                id=pydantic_model["input_file_id"], token__user=token.user
-            )
+        file_obj = await FileObject.objects.aget(token.reach(), id=pydantic_model["input_file_id"])
     except FileObject.DoesNotExist:
         return error_response("Input file not found.", param="input_file_id", status=404)
 
@@ -148,14 +129,9 @@ async def batch(
     response but don't have local FileObject records, create them lazily.
     """
     try:
-        if token.service_account:
-            batch_obj = await Batch.objects.select_related("input_file").aget(
-                id=batch_id, token__service_account__team=token.service_account.team
-            )
-        else:
-            batch_obj = await Batch.objects.select_related("input_file").aget(
-                id=batch_id, token__user=token.user
-            )
+        batch_obj = await Batch.objects.select_related("input_file").aget(
+            token.reach(), id=batch_id
+        )
     except Batch.DoesNotExist:
         return error_response("Batch not found.", param="batch_id", status=404)
 
@@ -204,14 +180,9 @@ async def batch_cancel(
     Returns 404 if batch not found or not owned by user - NEVER falls back to upstream.
     """
     try:
-        if token.service_account:
-            batch_obj = await Batch.objects.select_related("input_file").aget(
-                id=batch_id, token__service_account__team=token.service_account.team
-            )
-        else:
-            batch_obj = await Batch.objects.select_related("input_file").aget(
-                id=batch_id, token__user=token.user
-            )
+        batch_obj = await Batch.objects.select_related("input_file").aget(
+            token.reach(), id=batch_id
+        )
     except Batch.DoesNotExist:
         return error_response("Batch not found.", param="batch_id", status=404)
 
