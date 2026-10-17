@@ -2,7 +2,7 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
 from django.db.models import Count, F, Max, Q, QuerySet, Sum
@@ -12,7 +12,9 @@ from django.utils import timezone
 
 from management.models import LimitSet, Request, ServiceAccount, Token, UserProfile
 
-WINDOW_DAYS = 7
+if TYPE_CHECKING:
+    from management.usage_report import Period
+
 EXPIRY_WARNING = timedelta(days=7)
 FAILED = Q(status_code__gte=400)
 _MILLION, _THOUSAND = 1_000_000, 1_000
@@ -115,6 +117,13 @@ class Activity:
         return (("c", self.cached), ("i", self.input - self.cached), ("o", self.output))
 
 
+def week(now: datetime) -> "Period":
+    """The "7 days" every page shows: today and the six days before, as on the Overview."""
+    from management.usage_report import Period, Span  # usage_report imports this module
+
+    return Period.last(Span.WEEK, now, now)
+
+
 def _sums(since: datetime) -> dict[str, Any]:
     recent = Q(timestamp__gte=since)
     return {
@@ -189,8 +198,7 @@ def key_list(profile: UserProfile, kind: KeyKind | None, query: str, now: dateti
         if (kind is None or entry_kind is kind)
         and (needle in token.name.casefold() or needle in (team or "").casefold())
     ]
-    since = now - timedelta(days=WINDOW_DAYS)
-    activity = activity_by("token_id", (token.id for token, *_ in entries), since)
+    activity = activity_by("token_id", (token.id for token, *_ in entries), week(now).start)
     busiest = max((a.tokens for a in activity.values()), default=0)
     rows = tuple(
         KeyRow(
@@ -275,7 +283,7 @@ def heights(values: Sequence[float]) -> tuple[int, ...]:
 
 @dataclass(frozen=True)
 class Window:
-    """Totals over the last WINDOW_DAYS days and one entry per day."""
+    """Totals over the `week` and one entry per day."""
 
     totals: Activity
     days: tuple[Day, ...]
@@ -336,7 +344,8 @@ def chart(
 
 
 def window(requests: QuerySet[Request], now: datetime) -> Window:
-    since = now - timedelta(days=WINDOW_DAYS)
+    period = week(now)
+    since = period.start
     totals = Activity(**requests.aggregate(last_used=Max("timestamp"), **_sums(since)))
 
     per_day = {
@@ -347,18 +356,16 @@ def window(requests: QuerySet[Request], now: datetime) -> Window:
         .annotate(**_sums(since))
         .order_by()
     }
-    today = timezone.localdate(now)
     days = tuple(
         Day(day, per_day.get(day, Activity()))
-        for day in (today - timedelta(days=n) for n in reversed(range(WINDOW_DAYS)))
+        for day in (timezone.localdate(bucket) for bucket in period.buckets)
     )
     return Window(totals, days)
 
 
 def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> KeyReport:
-    since = now - timedelta(days=WINDOW_DAYS)
     requests = Request.objects.filter(token=token)
-    recent = requests.filter(timestamp__gte=since)
+    recent = requests.filter(timestamp__gte=week(now).start)
     base = window(requests, now)
 
     by_model = list(

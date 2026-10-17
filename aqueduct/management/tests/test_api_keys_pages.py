@@ -1,6 +1,7 @@
 import re
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest import mock
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -207,6 +208,23 @@ class KeyDetailTest(ApiKeysPagesTestBase):
     def test_unknown_key_is_not_found(self):
         response = self.get(self.owner, "token_detail", 999_999)
         self.assertEqual(response.status_code, 404)
+
+
+class SevenDaysTest(ApiKeysPagesTestBase):
+    def test_key_pages_count_the_same_seven_days_as_the_overview(self):
+        now = datetime(2026, 10, 14, 8, 0, tzinfo=UTC)
+        for ago in (timedelta(days=6, hours=12), timedelta(days=6, hours=7), timedelta(hours=1)):
+            Request.objects.create(
+                token=self.key, timestamp=now - ago, model="gpt-4.1-nano", status_code=200
+            )
+        with mock.patch("django.utils.timezone.now", return_value=now):
+            listed = self.get(self.owner, "tokens").context["keys"].rows[0].activity.requests
+            detail = self.get(self.owner, "token_detail", self.key.id).context["report"]
+            overview = self.get(self.owner, "usage", key=self.key.id).context["kpis"]
+        requests = next(kpi.value for kpi in overview if kpi.label == "Requests")
+        # 20:00 seven days back falls before the window; 01:00 six days back falls inside.
+        self.assertEqual((listed, detail.totals.requests, requests), (2, 2, "2"))
+        self.assertEqual(sum(day.activity.requests for day in detail.days), 2)
 
 
 class SecretShownOnceTest(ApiKeysPagesTestBase):
