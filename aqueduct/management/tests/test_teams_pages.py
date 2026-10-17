@@ -210,7 +210,10 @@ class TeamDetailTest(TeamsPagesTestBase):
         response = self.as_user(self.member).get(self.url())
         self.assertContains(response, "gpt-image-1")
         self.assertContains(
-            response, 'Input tokens per minute: <span class="font-mono">5,000</span>'
+            response,
+            '<div class="flex items-baseline gap-2"><dt class="muted">Input tokens per minute</dt>'
+            '<dd><span class="font-mono font-semibold">5,000</span></dd></div>',
+            html=True,
         )
 
     def test_outsiders_are_sent_back_to_the_teams_page(self):

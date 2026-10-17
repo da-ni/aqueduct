@@ -4,15 +4,7 @@ from enum import StrEnum
 
 from django.db.models import Count, QuerySet
 
-from management.key_activity import (
-    Activity,
-    Expiry,
-    Window,
-    activity_by,
-    limit_labels,
-    week,
-    window,
-)
+from management.key_activity import Activity, Expiry, Window, activity_by, week, window
 from management.models import (
     LimitSet,
     Request,
@@ -39,10 +31,6 @@ class Role(StrEnum):
         return cls.TEAM_ADMIN if membership.is_admin else cls.MEMBER
 
 
-def _per_minute(limit: int | None) -> str:
-    return "no limit" if limit is None else f"{limit:,}"
-
-
 def _bar_widths(activity: dict[int, Activity]) -> dict[int, int]:
     busiest = max((a.tokens for a in activity.values()), default=0)
     return {key: round(100 * a.tokens / busiest) if busiest else 0 for key, a in activity.items()}
@@ -54,7 +42,7 @@ class TeamRow:
     role: Role | None
     members: int
     service_accounts: int
-    limit: str
+    limit: int | None
     activity: Activity
     bar_width: int
 
@@ -90,7 +78,7 @@ def team_rows(
             role=roles.get(team.id),
             members=team.member_count,
             service_accounts=team.service_account_count,
-            limit=_per_minute(LimitSet.from_objects(team, team.org).requests_per_minute),
+            limit=LimitSet.from_objects(team, team.org).requests_per_minute,
             activity=activity.get(team.id, Activity()),
             bar_width=widths.get(team.id, 0),
         )
@@ -124,7 +112,6 @@ class TeamPage:
     members: tuple[MemberRow, ...]
     addable: tuple[UserProfile, ...]
     limits: LimitSet
-    limit_labels: tuple[tuple[str, str], ...]
     excluded_models: tuple[str, ...]
     excluded_mcp_servers: tuple[str, ...]
 
@@ -180,7 +167,6 @@ def team_page(team: Team, viewer: UserProfile, can_manage_admins: bool, now: dat
             org.user_profiles.exclude(teams=team).select_related("user").order_by("user__email")
         ),
         limits=limits,
-        limit_labels=limit_labels(limits),
         excluded_models=tuple(sorted(Token.exclusion_list_from_objects(team, org))),
         excluded_mcp_servers=tuple(
             sorted(Token._mcp_server_exclusion_list_from_objects(team, org))

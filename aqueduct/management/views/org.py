@@ -9,7 +9,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.generic import TemplateView, UpdateView, View
 
 from management.forms import OrgLimitsForm, OrgSwitchOffsForm
-from management.models import Org
+from management.models import LimitSet, Org
 from management.org_overview import org_page
 from management.team_overview import team_rows
 from management.views.base import BaseAqueductView, OrgAdminRequiredMixin
@@ -28,7 +28,7 @@ class OrgView(BaseAqueductView, TemplateView):
             query=query,
             rows=team_rows(self.get_teams_for_user(), self.profile, query, timezone.now()),
             org_object=self.org,
-            org_limit=self.org.requests_per_minute,
+            org_limits=LimitSet.from_objects(self.org, None),
             can_edit_in_admin=self.request.user.is_staff,
         )
         if self.profile.group == "admin":
