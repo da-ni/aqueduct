@@ -8,7 +8,15 @@ from django.core.paginator import Page, Paginator
 from django.db.models import Count, OuterRef, QuerySet, Subquery
 from django.db.models.functions import Coalesce
 
-from management.key_activity import Activity, Expiry, Window, activity_by, key_activity, window
+from management.key_activity import (
+    Activity,
+    Expiry,
+    Window,
+    activity_by,
+    key_activity,
+    week,
+    window,
+)
 from management.models import (
     LimitSet,
     Request,
@@ -97,7 +105,7 @@ def team_rows(
             "team_id", "is_admin"
         )
     }
-    activity = activity_by("token__service_account__team_id", (t.id for t in found), now)
+    activity = activity_by("token__service_account__team_id", (t.id for t in found), week(now))
     widths = _bar_widths(activity)
     rows = tuple(
         TeamRow(

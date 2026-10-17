@@ -17,7 +17,8 @@ from django.views.generic import CreateView, DeleteView, DetailView, TemplateVie
 from gateway.rate_limiting import get_per_token_usage
 from management.forms import TokenCreateForm
 from management.key_activity import Expiry, KeyKind, key_list, key_report, personal_tokens
-from management.models import LimitSet, Token
+from management.models import Token
+from management.models.token import HIERARCHY
 from management.request_log import Key, Row
 from management.views.base import BaseAqueductView
 
@@ -51,9 +52,7 @@ class TokenDetailView(BaseAqueductView, DetailView):
     def get_queryset(self) -> QuerySet:
         """The viewer's personal keys and the service account keys of every team they may see."""
         service = Token.objects.filter(service_account__team__in=self.get_teams_for_user())
-        return (personal_tokens(self.request.user) | service).select_related(
-            "user__profile__org", "service_account__team__org"
-        )
+        return (personal_tokens(self.request.user) | service).select_related(*HIERARCHY)
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
@@ -61,7 +60,6 @@ class TokenDetailView(BaseAqueductView, DetailView):
         now = timezone.now()
         report = key_report(token, now)
         team = token.service_account.team if token.service_account else None
-        owner = team or token.user.profile  # the hierarchy `Token.get_limit` reads, loaded once
         metric = "requests" if self.request.GET.get("metric") == "requests" else "tokens"
         context.update(
             report=report,
@@ -69,10 +67,10 @@ class TokenDetailView(BaseAqueductView, DetailView):
             metric=metric,
             chart=report.chart(metric),
             expiry=Expiry.of(token.expires_at, now),
-            limits=LimitSet.from_objects(owner, owner.org),
+            limits=token.get_limit(),
             usage=get_per_token_usage([token.id])[token.id],
-            excluded_models=Token.exclusion_list_from_objects(owner, owner.org),
-            excluded_mcp_servers=Token._mcp_server_exclusion_list_from_objects(owner, owner.org),
+            excluded_models=token.model_exclusion_list(),
+            excluded_mcp_servers=token.mcp_server_exclusion_list(),
             team=team,
             can_manage=team is None or self.profile.is_team_admin(team),
         )

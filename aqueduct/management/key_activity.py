@@ -97,7 +97,8 @@ class Activity:
     output: int = 0
     last_used: datetime | None = None
     """The newest request of any kind, so a key used only for files or batches never reads as
-    unused. The counts cover only what `served` keeps."""
+    unused. Only per-key activity (`key_activity`, `key_report`) fills it in; it stays empty on
+    team totals. The counts cover only what `served` keeps."""
 
     @property
     def tokens(self) -> int:
@@ -148,11 +149,11 @@ _SUMS = {
 """The `Activity` counts, for requests already narrowed to `served` ones in the `week`."""
 
 
-def activity_by(field: str, ids: Iterable[int], now: datetime) -> dict[int, Activity]:
-    """`week` activity grouped by `field`, a lookup that names a token or a team id. Leaves
-    `last_used` empty; `key_activity` fills it in."""
+def activity_by(field: str, ids: Iterable[int], period: "Period") -> dict[int, Activity]:
+    """Activity in `period` grouped by `field`, a lookup that names a token or a team id.
+    Leaves `last_used` empty; `key_activity` fills it in."""
     rows = (
-        served(week(now).of(Request.objects.filter(**{f"{field}__in": list(ids)})))
+        served(period.of(Request.objects.filter(**{f"{field}__in": list(ids)})))
         .values(field)
         .annotate(**_SUMS)
         .order_by()
@@ -162,7 +163,7 @@ def activity_by(field: str, ids: Iterable[int], now: datetime) -> dict[int, Acti
 
 def key_activity(token_ids: Iterable[int], now: datetime) -> dict[int, Activity]:
     ids = list(token_ids)
-    activity = activity_by("token_id", ids, now)
+    activity = activity_by("token_id", ids, week(now))
     # One probe of the (token, timestamp) index per key, however much history it has.
     newest = Request.objects.filter(token=OuterRef("pk")).order_by("-timestamp")
     used = Token.objects.filter(id__in=ids).annotate(used=Subquery(newest.values("timestamp")[:1]))
@@ -396,7 +397,7 @@ def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> K
 
     every = Request.objects.filter(token=token)
     requests = served(every)
-    recent = requests.filter(timestamp__gte=week(now).start)
+    recent = week(now).of(requests)
     base = window(every, now)
 
     by_model = list(
