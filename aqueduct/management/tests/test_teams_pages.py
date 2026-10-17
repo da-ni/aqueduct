@@ -389,20 +389,28 @@ class TeamFormsTest(TeamsPagesTestBase):
 
     def test_org_admin_creates_a_team(self):
         client = self.as_user(self.org_admin)
-        self.assertContains(client.get(reverse("team_create")), "Create a team")
-        response = client.post(reverse("team_create"), {"name": "Vision", "description": ""})
+        page = client.get(reverse("team_create"))
+        self.assertContains(page, "Create a team")
+        self.assertContains(page, "The team is created in lab-org.")
+        response = client.post(
+            reverse("team_create"), {"name": "Vision", "description": "", "org": self.org.id}
+        )
         self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
         self.assertTrue(Team.objects.filter(name="Vision", org=self.org).exists())
 
     def test_users_cannot_create_a_team(self):
         for user in (self.team_admin, self.member):
             with self.subTest(user=user.username):
-                response = self.as_user(user).post(reverse("team_create"), {"name": "Vision"})
+                response = self.as_user(user).post(
+                    reverse("team_create"), {"name": "Vision", "org": self.org.id}
+                )
                 self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
         self.assertFalse(Team.objects.filter(name="Vision").exists())
 
     def test_duplicate_team_name_rerenders_the_form(self):
-        response = self.as_user(self.org_admin).post(reverse("team_create"), {"name": "nlp lab"})
+        response = self.as_user(self.org_admin).post(
+            reverse("team_create"), {"name": "nlp lab", "org": self.org.id}
+        )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "A team with this name already exists in your organization.")
 

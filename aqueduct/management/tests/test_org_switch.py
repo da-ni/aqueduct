@@ -1,6 +1,6 @@
 from django.urls import reverse
 
-from management.models import UserGroup
+from management.models import Team, UserGroup
 from management.request_log import SESSION_ORG
 from management.tests.test_teams_pages import TeamsPagesTestBase
 
@@ -8,7 +8,7 @@ ORG_SCOPED = ("usage", "usage_keys", "requests")
 FALLBACK_NOTE = "This page shows one organization at a time, so it shows your own."
 
 
-class OrgSwitchTest(TeamsPagesTestBase):
+class OrgSwitchTestBase(TeamsPagesTestBase):
     def setUp(self):
         super().setUp()
         self.admin = self.user("admin", UserGroup.ADMIN, self.other_org)
@@ -16,6 +16,8 @@ class OrgSwitchTest(TeamsPagesTestBase):
     def switch(self, org_id: object, next_url: str = ""):
         return self.client.post(reverse("org_switch"), {"org_id": org_id, "next": next_url})
 
+
+class OrgSwitchTest(OrgSwitchTestBase):
     def viewed(self, url_name: str, **params):
         return self.client.get(reverse(url_name), params).context["filters"].org
 
@@ -30,7 +32,9 @@ class OrgSwitchTest(TeamsPagesTestBase):
         self.assertNotContains(teams, "Foreign")
         self.assertNotContains(teams, FALLBACK_NOTE)
         organization = self.client.get(reverse("organization"))
-        self.assertContains(organization, '<h1 class="text-3xl font-semibold">lab-org</h1>', html=True)
+        self.assertContains(
+            organization, '<h1 class="text-3xl font-semibold">lab-org</h1>', html=True
+        )
         self.admin.profile.refresh_from_db()
         self.assertEqual(self.admin.profile.org, self.other_org)
 
@@ -45,7 +49,9 @@ class OrgSwitchTest(TeamsPagesTestBase):
         self.assertNotContains(teams, "NLP Lab")
         self.assertContains(teams, FALLBACK_NOTE)
         organization = self.client.get(reverse("organization"))
-        self.assertContains(organization, '<h1 class="text-3xl font-semibold">other-org</h1>', html=True)
+        self.assertContains(
+            organization, '<h1 class="text-3xl font-semibold">other-org</h1>', html=True
+        )
         self.assertContains(organization, FALLBACK_NOTE)
 
     def test_org_parameter_applies_and_stays_for_later_pages(self):
@@ -115,3 +121,32 @@ class OrgSwitchTest(TeamsPagesTestBase):
         self.switch(self.org.id)
         self.assertEqual(self.switch("999999").status_code, 404)
         self.assertEqual(self.viewed("usage"), self.org)
+
+
+class TeamCreateOrgTest(OrgSwitchTestBase):
+    def create(self, org_id: object):
+        return self.client.post(reverse("team_create"), {"name": "Vision", "org": org_id})
+
+    def test_admin_on_all_organizations_sees_the_own_org_as_target(self):
+        self.as_user(self.admin)
+        self.switch("all")
+        page = self.client.get(reverse("team_create"))
+        self.assertContains(page, "The team is created in other-org.")
+        self.assertContains(page, f'name="org" value="{self.other_org.id}"')
+
+    def test_team_goes_to_the_org_the_form_was_opened_for(self):
+        self.as_user(self.admin)
+        self.switch(self.org.id)
+        self.assertContains(self.client.get(reverse("team_create")), "created in lab-org.")
+        self.switch(self.other_org.id)
+        self.assertRedirects(
+            self.create(self.org.id), reverse("org"), fetch_redirect_response=False
+        )
+        self.assertEqual(Team.objects.get(name="Vision").org, self.org)
+
+    def test_org_admin_cannot_create_in_another_org(self):
+        self.as_user(self.org_admin)
+        for org_id in (self.other_org.id, "", "999999"):
+            with self.subTest(org=org_id):
+                self.assertEqual(self.create(org_id).status_code, 404)
+        self.assertFalse(Team.objects.filter(name="Vision").exists())
