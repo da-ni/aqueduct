@@ -1,5 +1,6 @@
 import tempfile
 from collections import Counter
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from http import HTTPStatus
 from io import StringIO
@@ -7,17 +8,18 @@ from pathlib import Path
 from unittest import mock
 
 import yaml
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management import CommandError, call_command
+from django.db import connection
 from django.db.models import Count
 from django.test import TestCase, override_settings
 
+from gateway.config import get_router_config
 from management.key_activity import router_models
+from management.management.commands.seed_demo import Builder, capped
 from management.models import Org, Request, ServiceAccount, Team, Token, UserGroup, UserProfile
 
 User = get_user_model()
-ROUTER_CONFIG = Path(settings.BASE_DIR).parent / "example_router_config.yaml"
 SERVICE_ACCOUNTS = 3
 SMALL = {
     "teams": 2,
@@ -29,12 +31,39 @@ SMALL = {
 
 
 def seed(**options: object) -> None:
-    call_command("seed_demo", force=True, stdout=StringIO(), **(SMALL | options))
+    call_command("seed_demo", force=True, stdout=StringIO(), stderr=StringIO(), **(SMALL | options))
 
 
-@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG)
+def delete() -> None:
+    call_command("seed_demo", delete=True, force=True, stdout=StringIO(), stderr=StringIO())
+
+
+@contextmanager
+def router_config(path):
+    get_router_config.cache_clear()
+    try:
+        with override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=path):
+            yield
+    finally:
+        get_router_config.cache_clear()
+
+
+class CappedTest(TestCase):
+    def test_no_weight_exceeds_its_share(self):
+        weights = capped([1000.0, 50.0, *[1.0] * 98], 0.03)
+
+        self.assertLessEqual(max(weights), 0.0301 * sum(weights))
+        self.assertEqual(weights[2:], [1.0] * 98)
+
+    def test_leaves_weights_alone_when_no_cap_fits(self):
+        self.assertEqual(capped([5.0, 1.0], 0.3), [5.0, 1.0])
+
+
 class SeedDemoTest(TestCase):
     def setUp(self):
+        served = Path(self.enterContext(tempfile.TemporaryDirectory())) / "router.yaml"
+        call_command("seed_demo", write_router_config=served, stdout=StringIO())
+        self.enterContext(router_config(served))
         org = Org.objects.create(name="Real Org")
         self.user = User.objects.create_user(username="real", email="real@example.com")
         UserProfile.objects.create(user=self.user, org=org)
@@ -80,10 +109,11 @@ class SeedDemoTest(TestCase):
         seed()
 
         seeded = Request.objects.exclude(pk=self.request.pk)
-        self.assertAlmostEqual(seeded.count(), 500, delta=2)
+        self.assertAlmostEqual(seeded.count(), 500 / 0.95, delta=2)
+        self.assertAlmostEqual(seeded.exclude(model="").count(), 500, delta=25)
         self.assertLessEqual(set(seeded.values_list("model", flat=True)), {"", *router_models()})
         statuses = Counter(seeded.values_list("status_code", flat=True))
-        self.assertGreater(statuses[200] / seeded.count(), 0.85)
+        self.assertGreater(statuses[200] / seeded.count(), 0.9)
         self.assertTrue(any(code and code >= HTTPStatus.BAD_REQUEST for code in statuses))
         self.assertTrue(seeded.filter(model="").exists())
 
@@ -106,7 +136,7 @@ class SeedDemoTest(TestCase):
 
     def test_delete_removes_only_seeded_data(self):
         seed()
-        call_command("seed_demo", delete=True, force=True, stdout=StringIO())
+        delete()
 
         self.assertFalse(self.seeded_orgs().exists())
         self.assertFalse(User.objects.filter(email__endswith="@seed.invalid").exists())
@@ -146,3 +176,76 @@ class SeedDemoTest(TestCase):
             [("gpt-4.1-nano", "chat"), ("unserved-model", "embedding")],
         )
         self.assertFalse(self.seeded_orgs().exists())
+
+    def test_model_figures_shape_its_requests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            models = Path(tmp) / "models.yaml"
+            models.write_text(
+                "models:\n"
+                "  - {name: tiny, kind: chat, weight: 1, input_tokens: 2000, output_tokens: 50,\n"
+                "     cached_share: 0, latency_ms: [100, 200]}\n"
+            )
+            router = Path(tmp) / "router.yaml"
+            call_command(
+                "seed_demo", models_file=models, write_router_config=router, stdout=StringIO()
+            )
+            with router_config(router):
+                seed(models_file=models)
+
+        served = Request.objects.filter(model="tiny", status_code=HTTPStatus.OK)
+        inputs = sorted(served.values_list("input_tokens", flat=True))
+        latencies = sorted(served.values_list("response_time_ms", flat=True))
+        self.assertIn(inputs[len(inputs) // 2], range(1000, 4000))
+        self.assertIn(latencies[len(latencies) // 2], range(70, 140))
+        self.assertFalse(served.filter(cached_input_tokens__gt=0).exists())
+
+    def test_failed_reset_keeps_the_earlier_seed(self):
+        seed()
+        before = Request.objects.count()
+
+        with (
+            mock.patch.object(Builder, "storage", side_effect=RuntimeError("boom")),
+            self.assertRaises(RuntimeError),
+        ):
+            seed(reset=True)
+
+        self.assertEqual(Request.objects.count(), before)
+        self.assertEqual(self.seeded_orgs().count(), 2)
+
+    def test_delete_needs_no_router_config(self):
+        seed()
+
+        with router_config("/nonexistent/router.yaml"):
+            delete()
+
+        self.assertFalse(self.seeded_orgs().exists())
+
+    def test_empty_router_config_is_a_clear_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            empty = Path(tmp) / "router.yaml"
+            empty.write_text("model_list: []\n")
+            with (
+                router_config(empty),
+                self.assertRaisesMessage(CommandError, "Not in the router config"),
+            ):
+                seed()
+
+    def test_delete_refuses_when_a_real_user_is_in_a_seeded_org(self):
+        seed()
+        UserProfile.objects.filter(user=self.user).update(org=self.seeded_orgs().first())
+
+        with self.assertRaisesMessage(CommandError, "real@example.com"):
+            delete()
+
+        self.assertEqual(self.seeded_orgs().count(), 2)
+
+    def test_force_names_the_database_it_writes(self):
+        err = StringIO()
+        call_command("seed_demo", force=True, stdout=StringIO(), stderr=err, **SMALL)
+
+        self.assertIn("DEBUG is off", err.getvalue())
+        self.assertIn(connection.vendor, err.getvalue())
+
+    def test_unknown_time_zone_is_a_clear_error(self):
+        with self.assertRaisesMessage(CommandError, "Mars/Olympus"):
+            seed(local_time_zone="Mars/Olympus")

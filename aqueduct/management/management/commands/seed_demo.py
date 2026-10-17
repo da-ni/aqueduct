@@ -1,21 +1,21 @@
 """Fill the database with a production-sized demo: two orgs, their teams, users, keys, and a
 month of request log. Everything it creates is under `ORG_PREFIX` orgs or `@SEED_DOMAIN` users,
-so `--reset` and `--delete` remove exactly that. `seed_demo_models.example.yaml`, next to this
-file, shows the `--models-file` format."""
+so `--reset` and `--delete` remove exactly that. `seed_demo_models.datalab.yaml`, next to this
+file, is the default model mix and shows the `--models-file` format."""
 
 import math
 import random
 import secrets
 import time
 from collections.abc import Iterable, Iterator, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from enum import StrEnum
 from http import HTTPStatus
 from itertools import accumulate
 from pathlib import Path
 from typing import Any, NamedTuple
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 from django.conf import settings
@@ -28,7 +28,6 @@ from django.db import connection, transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from gateway.config import get_router_config
 from management.key_activity import router_models
 from management.models import (
     Batch,
@@ -48,6 +47,19 @@ User = get_user_model()
 
 SEED_DOMAIN = "seed.invalid"
 ORG_PREFIX = "seed-demo-"
+"""Every org whose name starts with this counts as seeded, whoever created it."""
+
+DEFAULTS: dict[str, Any] = {
+    "teams": 300,
+    "small_teams": 30,
+    "service_accounts": 25,
+    "requests_per_day": 60_000,
+    "days": 30,
+    "local_time_zone": "Europe/Vienna",
+    "models_file": Path(__file__).with_name("seed_demo_models.datalab.yaml"),
+}
+"""The size of a default run. `requests_per_day` counts calls that name a model. The defaults and
+the traffic shape below follow the datalab production figures of October 2026."""
 SQLITE_WARN_ROWS = 500_000
 INSERT_BATCH = 10_000
 
@@ -76,70 +88,53 @@ class Spread:
 
 @dataclass(frozen=True)
 class Shape:
-    """How requests of one model kind look in the log."""
+    """How requests of one model kind look in the log, unless the model's figures say otherwise."""
 
     mode: str
     path: str
-    weight: float
     input_tokens: Spread
     output_tokens: Spread
     latency_ms: Spread
-    ms_per_output_token: float = 0
-    streams: bool = False
-    caches: bool = False
+    cached_share: float = 0
 
 
+TOKEN_CONTEXT = 262_144
+MAX_OUTPUT = 32_768
+LATENCY_CAP = 600_000
 SHAPES: dict[Kind, Shape] = {
     Kind.CHAT: Shape(
         "chat",
         "/v1/chat/completions",
-        60,
-        Spread(1400, 1.3, 120_000),
-        Spread(280, 1.0, 16_000),
-        Spread(450, 0.5),
-        ms_per_output_token=14,
-        streams=True,
-        caches=True,
+        Spread(50_000, 0.6, TOKEN_CONTEXT),
+        Spread(330, 2.0, MAX_OUTPUT),
+        Spread(5000, 1.5, LATENCY_CAP),
+        cached_share=0.9,
     ),
     Kind.EMBEDDING: Shape(
-        "embedding", "/v1/embeddings", 25, Spread(350, 1.2, 8191), Spread(0, 0), Spread(110, 0.6)
+        "embedding", "/v1/embeddings", Spread(350, 1.2, 8191), Spread(0, 0), Spread(110, 0.6)
     ),
     Kind.TRANSCRIPTION: Shape(
         "audio_transcription",
         "/v1/audio/transcriptions",
-        6,
         Spread(0, 0),
         Spread(450, 0.9, 20_000),
         Spread(2800, 0.7),
     ),
     Kind.SPEECH: Shape(
-        "audio_speech",
-        "/v1/audio/speech",
-        3,
-        Spread(140, 0.8, 4096),
-        Spread(0, 0),
-        Spread(1600, 0.5),
+        "audio_speech", "/v1/audio/speech", Spread(140, 0.8, 4096), Spread(0, 0), Spread(1600, 0.5)
     ),
     Kind.IMAGE: Shape(
         "image_generation",
         "/v1/images/generations",
-        1,
         Spread(60, 0.6, 1000),
         Spread(0, 0),
         Spread(9000, 0.4),
     ),
 }
-ROUTER_MODES: dict[str, Kind] = {
-    "chat": Kind.CHAT,
-    "completion": Kind.CHAT,
-    "responses": Kind.CHAT,
-    "embedding": Kind.EMBEDDING,
-    "audio_speech": Kind.SPEECH,
-    "audio_transcription": Kind.TRANSCRIPTION,
-    "audio_transcriptions": Kind.TRANSCRIPTION,
-    "image_generation": Kind.IMAGE,
-    "image_generations": Kind.IMAGE,
-}
+"""The chat spreads reproduce the production totals: about 70,000 input and 1,900 output tokens
+per request on average, and about 1% of outputs stopped at `MAX_OUTPUT`."""
+Z90 = 1.2816
+"""The 90th percentile of the standard normal distribution."""
 MODELLESS = (
     ("GET", "/v1/models", 70),
     ("GET", "/v1/files", 8),
@@ -154,18 +149,20 @@ MODELLESS_NOT_FOUND = 0.02
 MODELLESS_MS = Spread(40, 0.8, 30_000)
 PRIMARY_MODEL_SHARE = 0.6
 """The share of a key's calls that use its favourite model; the rest follow the overall mix."""
-STREAMING_SHARE = 0.45
-FIRST_BYTE_MS = Spread(380, 0.5)
-CACHED_SHARE = 0.35
 CACHE_BLOCK = 128
+CACHE_NOISE = 0.08
 RESPONSES_API_SHARE = 0.1
 OTHER_AGENT_SHARE = 0.1
 PROCESSING_MS = Spread(6, 0.6, 5000)
 FAILED_MS = (Spread(120, 1.0, 600_000), Spread(30, 1.0, 10_000))
 """Response times of other failures and of rate-limited calls."""
-FAILURES = ((0.02, (400, 400, 401, 404, 413, 422)), (0.004, (500, 502, 503, 504)), (0.002, (499,)))
+FAILURES = (
+    (0.006, (400, 400, 401, 404, 413, 422)),
+    (0.0015, (500, 502, 503, 504)),
+    (0.001, (499,)),
+)
 """The share of calls that fail with each group of status codes, besides rate limits."""
-THROTTLED = (0.015, 0.08)
+THROTTLED = (0.01, 0.04)
 """The share of rate-limited calls of an ordinary key and of a busy one."""
 BUSY_WEIGHT = 20
 UNFINISHED_WINDOW = timedelta(seconds=90)
@@ -173,16 +170,17 @@ UNFINISHED_SHARE = 0.6
 """The share of calls younger than `UNFINISHED_WINDOW` that have no status yet."""
 
 LOCAL_HOUR_LOAD: tuple[float, ...] = (
-    *(0.06,) * 6,
-    *(0.15, 0.35, 0.75, 1.0, 1.0, 0.95, 0.7, 0.9, 1.0, 0.95, 0.8, 0.55),
-    *(0.35, 0.3, 0.25, 0.2, 0.14, 0.1),
+    *(2303, 2222, 2143, 2144, 1976, 1797, 1673, 1545, 1704, 2120, 2898, 3160),
+    *(3601, 3534, 3177, 3282, 3372, 3460, 3219, 3003, 2521, 2673, 2466, 2201),
 )
-"""Relative traffic of each local hour on a working day."""
-WEEKEND_LOAD = 0.18
-DAY_NOISE = (0.85, 1.15)
+"""Average requests in each local hour; agents and batch jobs keep the nights busy."""
+WEEKDAY_LOAD = (1, 1, 1, 1, 1, 0.8, 0.6)
+"""Relative traffic from Monday to Sunday."""
+DAY_NOISE = (0.75, 1.3)
 SERVICE_SHARE = 0.4
-"""The share of traffic from service account keys, which run day and night."""
-SERVICE_BASE_LOAD = 0.5
+"""The share of traffic from service account keys."""
+PERSONAL_KEY_CAP = 0.025
+"""The largest share of all traffic one personal key may have. Service accounts are uncapped."""
 IDLE_KEY_SHARE = 0.15
 SECOND_TEAM_SHARE = 0.1
 TEAMS_PER_ORG_ADMIN = 100
@@ -276,7 +274,11 @@ class ModelSpec:
     name: str
     kind: Kind
     weight: float
-    reasoning: bool = False
+    reasoning: bool
+    input_tokens: Spread
+    output_tokens: Spread
+    latency_ms: Spread
+    cached_share: float
 
 
 @dataclass(frozen=True)
@@ -303,36 +305,44 @@ class People:
     service: list[Key] = field(default_factory=list)
 
 
-def router_catalog() -> list[ModelSpec]:
-    """Every model in the router config, weighted by its kind's share of traffic."""
-    entries = get_router_config().get("model_list", [])
-    kinds = [
-        ROUTER_MODES.get((e.get("model_info") or {}).get("mode", "chat"), Kind.CHAT)
-        for e in entries
-    ]
-    return [
-        ModelSpec(e["model_name"], kind, SHAPES[kind].weight / kinds.count(kind))
-        for e, kind in zip(entries, kinds, strict=True)
-    ]
+def model_spec(entry: dict[str, Any]) -> ModelSpec:
+    kind = Kind(entry["kind"])
+    shape = SHAPES[kind]
+    latency = shape.latency_ms
+    if "latency_ms" in entry:
+        p50, p90 = (float(v) for v in entry["latency_ms"])
+        latency = Spread(p50, math.log(p90 / p50) / Z90, LATENCY_CAP)
+    spec = ModelSpec(
+        name=entry["name"],
+        kind=kind,
+        weight=float(entry["weight"]),
+        reasoning=bool(entry.get("reasoning")),
+        input_tokens=replace(
+            shape.input_tokens, median=entry.get("input_tokens", shape.input_tokens.median)
+        ),
+        output_tokens=replace(
+            shape.output_tokens, median=entry.get("output_tokens", shape.output_tokens.median)
+        ),
+        latency_ms=latency,
+        cached_share=float(entry.get("cached_share", shape.cached_share)),
+    )
+    if spec.weight <= 0 or latency.sigma < 0 or not 0 <= spec.cached_share <= 1:
+        msg = "weight must be positive, latency_ms rising, and cached_share between 0 and 1"
+        raise ValueError(msg)
+    return spec
 
 
 def load_catalog(path: Path) -> list[ModelSpec]:
     try:
-        data = yaml.safe_load(path.read_text())
-        specs = [
-            ModelSpec(
-                m["name"], Kind(m["kind"]), float(m.get("weight", 1)), bool(m.get("reasoning"))
-            )
-            for m in data["models"]
-        ]
-    except (OSError, yaml.YAMLError, KeyError, TypeError, ValueError) as exc:
+        specs = [model_spec(m) for m in yaml.safe_load(path.read_text())["models"]]
+    except (OSError, yaml.YAMLError, KeyError, TypeError, ValueError, ZeroDivisionError) as exc:
         msg = (
-            f"Cannot read {path}: {exc}. Expected `models:` as a list of "
-            f"{{name, kind, weight, reasoning}}, kind one of {', '.join(Kind)}."
+            f"Cannot read {path}: {exc!r}. Expected `models:` as a list like "
+            f"{DEFAULTS['models_file']}, kind one of {', '.join(Kind)}."
         )
         raise CommandError(msg) from exc
-    if not specs or any(s.weight <= 0 for s in specs):
-        msg = f"{path} must list at least one model, each with a positive weight."
+    if not specs:
+        msg = f"{path} lists no models."
         raise CommandError(msg)
     return specs
 
@@ -361,6 +371,14 @@ def delete_seeded() -> dict[str, int]:
     """Delete the seeded orgs and users and everything that hangs off them."""
     users = User.objects.filter(seed_users())
     orgs = Org.objects.filter(name__startswith=ORG_PREFIX)
+    strangers = UserProfile.objects.filter(org__in=orgs).exclude(user__in=users)
+    if strangers.exists():
+        emails = ", ".join(strangers.values_list("user__email", flat=True)[:20])
+        msg = (
+            f"Users who were not seeded belong to a {ORG_PREFIX}* org: {emails}. Move them to "
+            "another org first; nothing was deleted."
+        )
+        raise CommandError(msg)
     tokens = Token.objects.filter(Q(user__in=users) | Q(service_account__team__org__in=orgs))
     counts = {"requests": Request.objects.filter(token__in=tokens).delete()[0]}
     counts["keys"] = tokens.delete()[1].get("management.Token", 0)
@@ -565,18 +583,33 @@ class Builder:
         return {"files": len(files), "batches": len(batches), "vector stores": len(stores)}
 
 
+def capped(weights: list[float], share: float) -> list[float]:
+    """Lower the largest `weights` until none exceeds `share` of their sum, if that is
+    possible."""
+    if share * len(weights) <= 1:
+        return weights
+    for _ in range(100):
+        cap = share * sum(weights)
+        if max(weights) <= cap * 1.001:
+            break
+        weights = [min(w, cap) for w in weights]
+    return weights
+
+
 class Traffic:
     """Draws the request log: how many calls each hour gets, which key makes each, and what the
     log row for it says."""
 
-    def __init__(self, rng: random.Random, models: Sequence[ModelSpec], now: datetime) -> None:
+    def __init__(
+        self, rng: random.Random, models: Sequence[ModelSpec], now: datetime, zone: ZoneInfo
+    ) -> None:
         self.rng = rng
         self.models = models
         self.model_weights = list(accumulate(m.weight for m in models))
         self.now = now
-        self.zone = ZoneInfo(settings.TIME_ZONE)
+        self.zone = zone
 
-    def hours(self, start: datetime, service: bool) -> list[tuple[datetime, float, float]]:
+    def hours(self, start: datetime) -> list[tuple[datetime, float, float]]:
         """Each hour slot from `start` to now, with its length in seconds and relative load."""
         slots = []
         day_noise: dict[Any, float] = {}
@@ -586,10 +619,7 @@ class Traffic:
                 slot.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1), self.now
             )
             local = slot.astimezone(self.zone)
-            weekend = local.isoweekday() in {6, 7}
-            load = LOCAL_HOUR_LOAD[local.hour] * (WEEKEND_LOAD if weekend else 1)
-            if service:
-                load = SERVICE_BASE_LOAD + (1 - SERVICE_BASE_LOAD) * load
+            load = LOCAL_HOUR_LOAD[local.hour] * WEEKDAY_LOAD[local.weekday()]
             noise = day_noise.setdefault(local.date(), self.rng.uniform(*DAY_NOISE))
             seconds = (end - slot).total_seconds()
             slots.append((slot, seconds, load * noise * seconds / 3600))
@@ -597,12 +627,17 @@ class Traffic:
         return slots
 
     def rows(
-        self, keys: Sequence[Key], total: int, start: datetime, service: bool
+        self,
+        keys: Sequence[Key],
+        total: int,
+        slots: Sequence[tuple[datetime, float, float]],
+        key_cap: float,
     ) -> Iterator[LogRow]:
-        cum = list(accumulate(k.weight for k in keys))
+        """`total` calls by `keys` spread over `slots`, none of the keys making more than
+        `key_cap` of them."""
+        cum = list(accumulate(capped([k.weight for k in keys], key_cap)))
         if not keys or cum[-1] <= 0:
             return
-        slots = self.hours(start, service)
         scale = total / sum(load for *_, load in slots)
         owed = 0.0
         for slot, seconds, load in slots:
@@ -636,9 +671,8 @@ class Traffic:
         model = key.primary_model
         if rng.random() > PRIMARY_MODEL_SHARE:
             model = rng.choices(self.models, cum_weights=self.model_weights)[0]
-        shape = SHAPES[model.kind]
-        path = shape.path
-        if shape.streams and rng.random() < RESPONSES_API_SHARE:
+        path = SHAPES[model.kind].path
+        if model.kind is Kind.CHAT and rng.random() < RESPONSES_API_SHARE:
             path = "/v1/responses"
         status = self.status(key, at)
         latency: int | None
@@ -648,7 +682,7 @@ class Traffic:
         elif status >= HTTPStatus.BAD_REQUEST:
             latency = FAILED_MS[status == HTTPStatus.TOO_MANY_REQUESTS].draw(rng)
         else:
-            latency, *usage = self.served(model, shape)
+            latency, *usage = self.served(model)
         return LogRow(
             key.id,
             model.name,
@@ -675,20 +709,18 @@ class Traffic:
                 return self.rng.choice(codes)
         return HTTPStatus.OK
 
-    def served(self, model: ModelSpec, shape: Shape) -> tuple[int, int, int, int, int]:
+    def served(self, model: ModelSpec) -> tuple[int, int, int, int, int]:
         """Response time and token counts of a successful call: (latency, input, cached, output,
-        reasoning). A streamed call logs the time to its first byte."""
+        reasoning). The gateway logs a streamed call's time to its last chunk, so streaming
+        changes nothing in the log."""
         rng = self.rng
-        inp, out = shape.input_tokens.draw(rng), shape.output_tokens.draw(rng)
+        inp, out = model.input_tokens.draw(rng), model.output_tokens.draw(rng)
         cached = 0
-        if shape.caches and inp >= CACHE_BLOCK * 8 and rng.random() < CACHED_SHARE:
-            cached = int(inp * rng.uniform(0.4, 0.95)) // CACHE_BLOCK * CACHE_BLOCK
+        if model.cached_share and inp >= CACHE_BLOCK * 8:
+            share = min(max(rng.gauss(model.cached_share, CACHE_NOISE), 0), 0.99)
+            cached = int(inp * share) // CACHE_BLOCK * CACHE_BLOCK
         reasoning = int(out * rng.uniform(0.2, 0.7)) if model.reasoning else 0
-        if shape.streams and rng.random() < STREAMING_SHARE:
-            latency = FIRST_BYTE_MS.draw(rng)
-        else:
-            latency = shape.latency_ms.draw(rng) + int(out * shape.ms_per_output_token)
-        return latency, inp, cached, out, reasoning
+        return model.latency_ms.draw(rng), inp, cached, out, reasoning
 
 
 class Command(BaseCommand):
@@ -698,25 +730,29 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser: CommandParser) -> None:
-        parser.add_argument("--teams", type=int, default=300, help="Teams in the large org.")
-        parser.add_argument("--small-teams", type=int, default=30, help="Teams in the small org.")
+        parser.set_defaults(**DEFAULTS)
+        parser.add_argument("--teams", type=int, help="Teams in the large org.")
+        parser.add_argument("--small-teams", type=int, help="Teams in the small org.")
         parser.add_argument(
-            "--service-accounts", type=int, default=25, help="Service accounts in the large org."
+            "--service-accounts", type=int, help="Service accounts in the large org."
         )
-        parser.add_argument("--requests-per-day", type=int, default=100_000)
-        parser.add_argument("--days", type=int, default=30, help="Days of log, ending now.")
+        parser.add_argument("--requests-per-day", type=int)
+        parser.add_argument("--days", type=int, help="Days of log, ending now.")
+        parser.add_argument(
+            "--local-time-zone",
+            help="The zone whose working hours shape the traffic; TIME_ZONE is left alone.",
+        )
         parser.add_argument("--seed", type=int, default=0, help="Seed of every random choice.")
         parser.add_argument(
             "--models-file",
             type=Path,
-            help="YAML or JSON model mix; see seed_demo_models.example.yaml. Defaults to the "
-            "router config's models.",
+            help="YAML or JSON model mix. Defaults to seed_demo_models.datalab.yaml.",
         )
         parser.add_argument(
             "--write-router-config",
             type=Path,
             metavar="PATH",
-            help="Write a router config serving the --models-file models to PATH and stop.",
+            help="Write a router config serving the models of --models-file to PATH and stop.",
         )
         parser.add_argument(
             "--reset", action="store_true", help="Delete earlier seeded data, then seed."
@@ -724,42 +760,60 @@ class Command(BaseCommand):
         parser.add_argument(
             "--delete", action="store_true", help="Delete earlier seeded data and stop."
         )
-        parser.add_argument("--force", action="store_true", help="Run even when DEBUG is off.")
+        parser.add_argument(
+            "--force", action="store_true", help="Run even when DEBUG is off. Use with care."
+        )
 
     def handle(self, *args: object, **options: Any) -> None:
-        models = load_catalog(options["models_file"]) if options["models_file"] else None
         if options["write_router_config"]:
-            self.write_router_config(models, options["write_router_config"])
+            self.write_router_config(
+                load_catalog(options["models_file"]), options["write_router_config"]
+            )
             return
-        if not settings.DEBUG and not options["force"]:
+        self.check_target(force=options["force"])
+        if options["delete"]:
+            with transaction.atomic():
+                self.delete()
+        else:
+            models = self.checked(load_catalog(options["models_file"]))
+            zone = self.zone(options["local_time_zone"])
+            with transaction.atomic():
+                if options["reset"]:
+                    self.delete()
+                if (
+                    Org.objects.filter(name__startswith=ORG_PREFIX).exists()
+                    or User.objects.filter(seed_users()).exists()
+                ):
+                    msg = "Seeded data already exists. Pass --reset to replace it or --delete."
+                    raise CommandError(msg)
+                self.seed(models, zone, options)
+        call_command("rebuild_usage_rollups", stdout=self.stdout)
+
+    def check_target(self, *, force: bool) -> None:
+        if settings.DEBUG:
+            return
+        if not force:
             msg = (
                 "seed_demo writes demo data and runs only with DEBUG on. Pass --force to override."
             )
             raise CommandError(msg)
-        models = self.checked(models or router_catalog())
-        if options["delete"] or options["reset"]:
-            started = time.monotonic()
-            with transaction.atomic():
-                counts = delete_seeded()
-            self.stdout.write(
-                f"Deleted {self.summary(counts)} in {time.monotonic() - started:.1f} s"
-            )
-            if options["delete"]:
-                call_command("rebuild_usage_rollups", stdout=self.stdout)
-                return
-        if (
-            Org.objects.filter(name__startswith=ORG_PREFIX).exists()
-            or User.objects.filter(seed_users()).exists()
-        ):
-            msg = "Seeded data already exists. Pass --reset to replace it or --delete to remove it."
-            raise CommandError(msg)
-        self.seed(models, options)
-        call_command("rebuild_usage_rollups", stdout=self.stdout)
+        name = connection.settings_dict["NAME"]
+        self.stderr.write(f"DEBUG is off. Writing to the {connection.vendor} database {name}.")
 
-    def write_router_config(self, models: list[ModelSpec] | None, path: Path) -> None:
-        if models is None:
-            msg = "--write-router-config needs --models-file."
-            raise CommandError(msg)
+    def delete(self) -> None:
+        started = time.monotonic()
+        counts = delete_seeded()
+        self.stdout.write(f"Deleted {self.summary(counts)} in {time.monotonic() - started:.1f} s")
+
+    @staticmethod
+    def zone(name: str) -> ZoneInfo:
+        try:
+            return ZoneInfo(name)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            msg = f"Unknown --local-time-zone {name!r}."
+            raise CommandError(msg) from exc
+
+    def write_router_config(self, models: list[ModelSpec], path: Path) -> None:
         path.write_text(yaml.safe_dump(router_config_for(models), sort_keys=False))
         self.stdout.write(
             f"Wrote {path}. Point LITELLM_ROUTER_CONFIG_FILE_PATH at it, then run seed_demo again."
@@ -776,41 +830,43 @@ class Command(BaseCommand):
             raise CommandError(msg)
         return models
 
-    def seed(self, models: list[ModelSpec], options: dict[str, Any]) -> None:
+    def seed(self, models: list[ModelSpec], zone: ZoneInfo, options: dict[str, Any]) -> None:
         rng = random.Random(options["seed"])  # noqa: S311
         now = timezone.now()
         start = now - timedelta(days=options["days"])
-        total = options["requests_per_day"] * options["days"]
+        total = round(options["requests_per_day"] * options["days"] / (1 - MODELLESS_SHARE))
         if connection.vendor == "sqlite" and total > SQLITE_WARN_ROWS:
             self.stderr.write(
                 f"{total:,} requests on SQLite will take a while. Postgres is faster."
             )
         started = time.monotonic()
-        with transaction.atomic():
-            builder = Builder(rng, models, start - timedelta(days=7))
-            cap = settings.MAX_SERVICE_ACCOUNTS_PER_TEAM
-            builder.org(
-                "campus", options["teams"], min(options["service_accounts"], cap * options["teams"])
+        builder = Builder(rng, models, start - timedelta(days=7))
+        cap = settings.MAX_SERVICE_ACCOUNTS_PER_TEAM
+        builder.org(
+            "campus", options["teams"], min(options["service_accounts"], cap * options["teams"])
+        )
+        small_accounts = min(SMALL_ORG_SERVICE_ACCOUNTS, cap * options["small_teams"])
+        builder.org("institute", options["small_teams"], small_accounts)
+        people = builder.people
+        self.stdout.write(
+            f"Created 2 orgs, {builder.serial:,} users, {len(people.personal):,} personal "
+            f"keys, {len(people.service)} service account keys, "
+            f"{self.summary(builder.storage(now))} in {time.monotonic() - started:.1f} s"
+        )
+        traffic = Traffic(rng, models, now, zone)
+        slots = traffic.hours(start)
+        service = round(total * SERVICE_SHARE) if people.service else 0
+        personal = total - service
+        personal_cap = PERSONAL_KEY_CAP * total / max(personal, 1)
+        rows = (
+            row
+            for keys, count, key_cap in (
+                (people.personal, personal, personal_cap),
+                (people.service, service, 1.0),
             )
-            small_accounts = min(SMALL_ORG_SERVICE_ACCOUNTS, cap * options["small_teams"])
-            builder.org("institute", options["small_teams"], small_accounts)
-            people = builder.people
-            self.stdout.write(
-                f"Created 2 orgs, {builder.serial:,} users, {len(people.personal):,} personal "
-                f"keys, {len(people.service)} service account keys, "
-                f"{self.summary(builder.storage(now))} in {time.monotonic() - started:.1f} s"
-            )
-            traffic = Traffic(rng, models, now)
-            service = round(total * SERVICE_SHARE) if people.service else 0
-            rows = (
-                row
-                for keys, count, is_service in (
-                    (people.personal, total - service, False),
-                    (people.service, service, True),
-                )
-                for row in traffic.rows(keys, count, start, is_service)
-            )
-            written = self.insert(rows, total)
+            for row in traffic.rows(keys, count, slots, key_cap)
+        )
+        written = self.insert(rows, total)
         self.stdout.write(f"Wrote {written:,} requests in {time.monotonic() - started:.1f} s")
 
     def insert(self, rows: Iterator[LogRow], expected: int) -> int:

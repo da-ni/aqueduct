@@ -94,16 +94,26 @@ _Note: You will need to have Dex running locally, or adjust your environment var
 
 ---
 
----
-
 ## Demo Data at Production Scale
 
 `seed_demo` fills a development database with two orgs and a month of request log, so the
-management pages can be checked against realistic volume. It runs only with `DEBUG` on.
+management pages can be checked against realistic volume. Its defaults mirror the order of
+magnitude of the datalab production deployment in October 2026: about 60,000 chat requests a day
+on five models, with long, mostly cached prompts.
+
+Requests may only name models that the router config in `LITELLM_ROUTER_CONFIG_FILE_PATH`
+serves. Write a router config for the default models once, and point the variable at it:
 
 ```bash
 cd aqueduct
-uv run python manage.py seed_demo                 # 300 + 30 teams, 100,000 requests a day for 30 days
+uv run python manage.py seed_demo --write-router-config /tmp/seed-router.yaml
+export LITELLM_ROUTER_CONFIG_FILE_PATH=/tmp/seed-router.yaml
+```
+
+Then seed:
+
+```bash
+uv run python manage.py seed_demo                 # 300 + 30 teams, 60,000 requests a day for 30 days
 uv run python manage.py seed_demo --reset         # replace earlier demo data
 uv run python manage.py seed_demo --delete        # remove it
 uv run python manage.py seed_demo --teams 20 --small-teams 5 --requests-per-day 5000 --days 7
@@ -111,16 +121,23 @@ uv run python manage.py seed_demo --teams 20 --small-teams 5 --requests-per-day 
 
 The large org `seed-demo-campus` and the small org `seed-demo-institute` get teams of three to
 five people, a few team and org admins, one to three personal keys per user, and service accounts
-with keys. Every seeded user has an `@seed.invalid` address. `--reset` and `--delete` remove only
-those users, the `seed-demo-` orgs, and the keys, requests, files, batches, and vector stores
-attached to them. The same `--seed` and end time give the same data.
+with keys. Every seeded user has an `@seed.invalid` address. `--reset` and `--delete` remove those
+users, every org whose name starts with `seed-demo-`, and the keys, requests, files, batches, and
+vector stores attached to them. They stop without deleting anything when a user without an
+`@seed.invalid` address belongs to such an org. `--reset` deletes and seeds in one transaction,
+so a failed run keeps the earlier data. The same `--seed` and end time give the same data.
 
-Requests use only the models of the router config in `LITELLM_ROUTER_CONFIG_FILE_PATH`. To set
-the model mix, pass `--models-file` with a YAML or JSON file in the format of
-`aqueduct/management/management/commands/seed_demo_models.example.yaml`. When the file names
-models that the router config does not serve, the command stops. Run it once with
-`--write-router-config <path>` to write a router config that serves them, then point
-`LITELLM_ROUTER_CONFIG_FILE_PATH` at that file.
+The volume defaults are in `DEFAULTS` at the top of
+`aqueduct/management/management/commands/seed_demo.py`, and the traffic shape is in the constants
+below it. Traffic follows the hourly curve of `--local-time-zone` (default `Europe/Vienna`),
+whatever `TIME_ZONE` is. The model mix is
+`aqueduct/management/management/commands/seed_demo_models.datalab.yaml`: each model's share of
+requests, median input and output tokens, cached input share, and median and 90th percentile
+response time. Pass another file in the same format with `--models-file`, and write its router
+config with `--models-file <file> --write-router-config <path>`.
 
-On Postgres, the default 3 million requests take about two minutes, including the usage rollup
-rebuild. SQLite is slower, so use fewer requests there.
+The command runs only with `DEBUG` on. `--force` runs it with `DEBUG` off and prints the database
+it writes to. Do not use `--force` against a database whose data you need.
+
+On Postgres, a default run took 1 minute 6 seconds and `--reset` 1 minute 17 seconds, including
+the usage rollup rebuild.
