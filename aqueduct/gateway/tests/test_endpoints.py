@@ -8,12 +8,12 @@ from unittest.mock import patch
 
 from asgiref.sync import async_to_sync
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.test import TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 from httpx import Request as HttpxRequest
 from httpx import Response
 from litellm.types.utils import (
@@ -43,6 +43,7 @@ from gateway.tests.utils.base import (
     ROUTER_CONFIG,
     GatewayIntegrationTestCase,
 )
+from gateway.tests.utils.test_runner import ROUTER_CACHES
 from management.models import Org, Request, ServiceAccount, Team, Token, UserProfile
 from management.models import Usage as AqueductUsage
 from mock_api.mock_configs import (
@@ -1610,15 +1611,11 @@ class ListModelsIntegrationTest(GatewayIntegrationTestCase):
 class TokenLimitTest(ChatCompletionsBase):
     def setUp(self):
         super().setUp()
-        # Rate-limit counts now live in the cache (LocMemCache under test), which
-        # is shared in-process across tests within the same window. Clear it so
-        # bucket counts from a previous test in the same minute/hour/day don't
-        # bleed into this one (DB transaction rollback no longer resets them).
-        cache.clear()
-
-    def tearDown(self):
-        cache.clear()
-        super().tearDown()
+        # The limits count per calendar minute, hour, and day. A frozen clock keeps every
+        # request of a test in the same window.
+        clock = patch("django.utils.timezone.now", return_value=timezone.now())
+        clock.start()
+        self.addCleanup(clock.stop)
 
     def _setup_limits(self, kind: str, field: str, value: int):
         """
@@ -1973,6 +1970,11 @@ class ModelAliasConfigValidationTest(TransactionTestCase):
     Tests for model alias configuration validation.
     These tests validate that the router config correctly validates aliases when loaded.
     """
+
+    def setUp(self):
+        # Each test caches a mocked router config. Later tests need the real one.
+        for cached in ROUTER_CACHES:
+            self.addCleanup(cached.cache_clear)
 
     def test_config_load_with_valid_aliases(self):
         """
@@ -2412,10 +2414,6 @@ class ModelAliasRoutingTest(GatewayIntegrationTestCase):
     tts_model = "gpt-4o-mini-tts"
     stt_model = "whisper-1"
     image_gen_model = "dall-e-2"
-
-    def setUp(self):
-        super().setUp()
-        get_router_config.cache_clear()
 
     def test_chat_completion_with_alias(self):
         """

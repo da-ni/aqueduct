@@ -1,5 +1,3 @@
-from collections.abc import Iterator
-from contextlib import contextmanager
 from http import HTTPStatus
 from pathlib import Path
 
@@ -8,7 +6,6 @@ from django.forms.models import model_to_dict
 from django.test import override_settings
 from django.urls import reverse
 
-from gateway.config import get_mcp_config
 from management.availability import configured_mcp_servers, configured_models
 from management.models import Org, ServiceAccount, Token, UserGroup
 from management.models.token import HIERARCHY
@@ -44,14 +41,8 @@ def available(*unavailable: str, mcp: tuple[str, ...] | None = None) -> dict:
     return data
 
 
-@contextmanager
-def mcp_config(path: Path | str) -> Iterator[None]:
-    get_mcp_config.cache_clear()
-    try:
-        with override_settings(MCP_CONFIG_FILE_PATH=path):
-            yield
-    finally:
-        get_mcp_config.cache_clear()
+def mcp_config(path: Path | str) -> override_settings:
+    return override_settings(MCP_CONFIG_FILE_PATH=path)
 
 
 def edits() -> tuple[tuple[str, dict], ...]:

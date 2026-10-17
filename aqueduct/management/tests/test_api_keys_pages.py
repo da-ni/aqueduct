@@ -28,11 +28,7 @@ from management.models.token import HIERARCHY
 User = get_user_model()
 
 PAGES = override_settings(
-    STORAGES={
-        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-    },
-    LITELLM_ROUTER_CONFIG_FILE_PATH=Path(settings.BASE_DIR).parent / "example_router_config.yaml",
+    LITELLM_ROUTER_CONFIG_FILE_PATH=Path(settings.BASE_DIR).parent / "example_router_config.yaml"
 )
 
 
@@ -51,7 +47,6 @@ def secret_on(response) -> str | None:
 @PAGES
 class ApiKeysPagesTestBase(TestCase):
     def setUp(self):
-        cache.clear()  # without current rollups, the Overview heatmap is cached per org
         self.org = Org.objects.create(name="keys-org")
         self.team = Team.objects.create(name="keys-team", org=self.org)
         self.other_team = Team.objects.create(name="other-team", org=self.org)

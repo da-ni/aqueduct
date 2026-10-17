@@ -3,7 +3,6 @@ from datetime import timedelta
 from unittest import mock
 
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -31,7 +30,6 @@ KEY_NAMES = ("solo-laptop", "member-laptop", "pipeline", "foreign-laptop")
 @PAGES
 class UsagePageTestBase(TestCase):
     def setUp(self):
-        cache.clear()  # without current rollups, the Overview heatmap is cached per org
         self.org = Org.objects.create(name="lab-org")
         self.other_org = Org.objects.create(name="other-org")
         self.team = Team.objects.create(name="NLP Lab", org=self.org)

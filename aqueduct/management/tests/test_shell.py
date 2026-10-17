@@ -64,13 +64,7 @@ urlpatterns = [
 ]
 
 
-@override_settings(
-    STORAGES={
-        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-    },
-    LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG_PATH,
-)
+@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG_PATH)
 class ShellTest(TestCase):
     fixtures: ClassVar[list[str]] = ["gateway_data.json"]
 

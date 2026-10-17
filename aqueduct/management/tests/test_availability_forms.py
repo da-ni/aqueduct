@@ -6,7 +6,6 @@ import yaml
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from gateway.config import get_router_config
 from management.admin import TeamAdminForm, UserProfileAdminForm
 from management.availability import Reach, configured_models
 from management.models import Org, Team, Token, UserGroup
@@ -88,8 +87,6 @@ class RepeatedModelNameTest(TestCase):
         config = Path(directory.name) / "router.yaml"
         entries = [{"model_name": n, "litellm_params": {"model": f"openai/{n}"}} for n in "aab"]
         config.write_text(yaml.safe_dump({"model_list": entries}))
-        get_router_config.cache_clear()
-        self.addCleanup(get_router_config.cache_clear)
         settings = override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=str(config))
         settings.enable()
         self.addCleanup(settings.disable)
