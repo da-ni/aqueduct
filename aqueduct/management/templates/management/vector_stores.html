@@ -24,7 +24,7 @@
             <td>{% include "management/_status.html" with status=row.status %}</td>
             <td class="text-right font-mono">{{ row.files }} of {{ listing.files_limit|intcomma }}</td>
             <td class="text-right font-mono">{{ row.size|filesizeformat }}</td>
-            <td><span class="{{ row.expiry.tone }}">{{ row.expiry.label }}</span></td>
+            <td>{{ row.expiry|expiry }}</td>
             <td>
                 <form class="relative z-10 flex justify-end" action="{% url 'vector_store_card_refresh' id=row.store.id %}" method="post">
                     {% csrf_token %}

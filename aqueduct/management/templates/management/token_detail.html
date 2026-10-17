@@ -1,5 +1,6 @@
 {% extends "management/base.html" %}
 {% load humanize ui %}
+{% block title %}{{ token.name }} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
 
@@ -19,9 +20,9 @@
             <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
                 <span>{% if team %}Service account · <a class="link-plain" href="{% url 'team' team.id %}">{{ team.name }}</a>{% else %}Personal{% endif %}</span>
                 <span class="font-mono">{{ token.key_preview }}</span>
-                <span>Created: {{ token.created_at|date:"j M Y" }}</span>
-                <span>Expires: <span class="{{ expiry.tone }}">{{ expiry.label }}</span></span>
-                <span>Last used: {% include "management/_last_used.html" with last_used=report.totals.last_used %}</span>
+                <span>Created: {{ token.created_at|when:"date" }}</span>
+                <span>Expires: {{ expiry|expiry }}</span>
+                <span>Last used: {{ report.totals.last_used|when:"relative"|default:"Never" }}</span>
             </div>
         </div>
         {% if can_manage %}
@@ -132,7 +133,7 @@
                         {% for row in latest %}
                             {% with request=row.request %}
                                 <tr class="font-mono text-[13px]">
-                                    <td><a class="muted row-link" href="{% url 'requests' %}?key={{ token.id }}&amp;request={{ request.id }}#request-{{ request.id }}" aria-label="Open request {{ request.id }} in the log">{{ request.timestamp|date:"j M H:i:s" }}</a></td>
+                                    <td><a class="muted row-link" href="{% url 'requests' %}?key={{ token.id }}&amp;request={{ request.id }}#request-{{ request.id }}" aria-label="Open request {{ request.id }} in the log">{{ request.timestamp|when }}</a></td>
                                     <td>{{ request.model|default:"n/a" }}</td>
                                     <td class="muted">{{ request.path }}</td>
                                     <td>

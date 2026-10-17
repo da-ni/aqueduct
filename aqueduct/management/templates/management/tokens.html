@@ -60,7 +60,7 @@
                                         · <span class="font-mono">{{ row.token.key_preview }}</span>
                                     </div>
                                 </td>
-                                <td class="muted">{% include "management/_last_used.html" with last_used=row.activity.last_used %}</td>
+                                <td class="muted">{{ row.activity.last_used|when:"relative"|default:"Never" }}</td>
                                 <td>
                                     <div class="flex items-center gap-3">
                                         <div class="min-w-0 flex-1">
@@ -75,7 +75,7 @@
                                 </td>
                                 <td class="text-right font-mono">{{ row.activity.cache_hits }}</td>
                                 <td class="text-right font-mono">{{ row.activity.requests|intcomma }}</td>
-                                <td><span class="{{ row.expiry.tone }}">{{ row.expiry.label }}</span></td>
+                                <td>{{ row.expiry|expiry }}</td>
                                 <td>
                                     <div class="relative z-10 flex justify-end gap-1">
                                         {% if row.manageable %}

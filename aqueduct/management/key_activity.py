@@ -73,18 +73,19 @@ class KeyKind(StrEnum):
 class Expiry:
     label: str
     tone: str = "muted"
+    at: datetime | None = None
 
     @classmethod
     def of(cls, expires_at: datetime | None, now: datetime) -> "Expiry":
         if expires_at is None:
             return cls("Never")
         if expires_at <= now:
-            return cls("Expired", "st-err font-semibold")
+            return cls("Expired", "st-err font-semibold", expires_at)
         if expires_at - now <= EXPIRY_WARNING:
             days = (expires_at - now).days
             label = "Today" if days == 0 else f"In {days} day{'s' if days > 1 else ''}"
-            return cls(label, "st-warn font-semibold")
-        return cls(f"{timezone.localtime(expires_at):%-d %b %Y}")
+            return cls(label, "st-warn font-semibold", expires_at)
+        return cls(f"{timezone.localtime(expires_at):%-d %b %Y}", at=expires_at)
 
 
 @dataclass(frozen=True)

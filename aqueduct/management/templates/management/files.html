@@ -21,8 +21,8 @@
             </td>
             <td><span class="badge badge-sm bg-base-100 font-mono">{{ row.purpose }}</span></td>
             <td class="text-right font-mono">{{ row.file.bytes|filesizeformat }}</td>
-            <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.uploaded|date:"j M Y H:i" }}</td>
-            <td><span class="{{ row.expiry.tone }}">{{ row.expiry.label }}</span></td>
+            <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.uploaded|when }}</td>
+            <td>{{ row.expiry|expiry }}</td>
             <td>
                 <div class="flex justify-end gap-1">
                     {% if row.file.preview %}

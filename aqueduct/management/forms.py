@@ -21,7 +21,7 @@ class ServiceAccountForm(forms.ModelForm):
         widget=forms.DateTimeInput(
             attrs={"type": "datetime-local", "class": EXPIRY_INPUT}, format="%Y-%m-%dT%H:%M"
         ),
-        label="Key expiry (optional)",
+        label="Key expiry in UTC (optional)",
         help_text="Leave it empty and the key never expires.",
     )
 
@@ -146,7 +146,7 @@ class TokenCreateForm(forms.ModelForm):
                 attrs={"type": "datetime-local", "class": EXPIRY_INPUT}, format="%Y-%m-%dT%H:%M"
             ),
         }
-        labels: ClassVar[dict] = {"name": "Name", "expires_at": "Expiry (optional)"}
+        labels: ClassVar[dict] = {"name": "Name", "expires_at": "Expiry in UTC (optional)"}
         help_texts: ClassVar[dict] = {
             "expires_at": "Leave it empty and the key never expires. "
             "Rotate it yourself from time to time."
@@ -158,6 +158,7 @@ class TokenCreateForm(forms.ModelForm):
         if not self.user:
             raise ValueError("User must be provided to TokenCreateForm.")
         self.fields["expires_at"].input_formats = ["%Y-%m-%dT%H:%M"]
+        self.fields["expires_at"].widget.attrs["min"] = f"{timezone.now():%Y-%m-%dT%H:%M}"
 
     def clean(self) -> dict:
         cleaned_data = super().clean()

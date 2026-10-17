@@ -1,7 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import include, path, reverse
-from django.utils import timezone
 from tos.models import TermsOfService, UserAgreement
 
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
@@ -110,9 +109,12 @@ class SettingsPageTest(TestCase):
         self.assertContains(self.page(self.member), "You have not accepted the current version.")
 
         agreement = UserAgreement.objects.create(terms_of_service=current, user=self.member)
-        accepted = timezone.localtime(agreement.created)
+        accepted = agreement.created
         response = self.page(self.member)
         self.assertContains(
-            response, f"You accepted the current version on {accepted.day} {accepted:%B %Y}."
+            response,
+            "You accepted the current version on "
+            f'<time datetime="{accepted.isoformat()}" title="{accepted:%Y-%m-%d %H:%M:%S} UTC">'
+            f"{accepted.day} {accepted:%b %Y}</time>.",
         )
         self.assertContains(response, f'href="{reverse("tos")}"')

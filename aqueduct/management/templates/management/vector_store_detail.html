@@ -1,5 +1,6 @@
 {% extends "management/base.html" %}
 {% load humanize ui %}
+{% block title %}{% if detail %}{{ detail.row.store.name }}{% else %}Not found{% endif %} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
 
@@ -18,9 +19,9 @@
                         {% include "management/_status.html" with status=row.status %}
                         <span class="flex items-center gap-1 font-mono">{{ row.store.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.store.id }}" aria-label="Copy ID of {{ row.store.name }}" title="Copy vector store ID">{% icon "copy" small=True %}</button></span>
                         <span>{{ row.team|default:"Yours" }}</span>
-                        <span>Created {{ detail.created|date:"j M Y" }}</span>
-                        {% if detail.last_active %}<span>Last active {{ detail.last_active|date:"j M Y" }}</span>{% endif %}
-                        <span>Expires: <span class="{{ row.expiry.tone }}">{{ row.expiry.label }}</span></span>
+                        <span>Created {{ detail.created|when:"date" }}</span>
+                        {% if detail.last_active %}<span>Last active {{ detail.last_active|when:"date" }}</span>{% endif %}
+                        <span>Expires: {{ row.expiry|expiry }}</span>
                     </div>
                 </div>
                 <form action="{% url 'vector_store_detail_refresh' id=row.store.id %}" method="post">
@@ -64,7 +65,7 @@
                                     </td>
                                     <td>{% include "management/_status.html" with status=file.status %}</td>
                                     <td class="text-right font-mono">{{ file.entry.usage_bytes|filesizeformat }}</td>
-                                    <td class="muted whitespace-nowrap font-mono text-[13px]">{{ file.added|date:"j M Y H:i" }}</td>
+                                    <td class="muted whitespace-nowrap font-mono text-[13px]">{{ file.added|when }}</td>
                                 </tr>
                             {% empty %}
                                 <tr><td colspan="4" class="muted">No files in this vector store.</td></tr>
@@ -91,7 +92,7 @@
                                             {% include "management/_progress.html" with progress=batch.progress %}
                                             {% if batch.in_progress %}<div class="muted font-mono text-xs">{{ batch.in_progress }} in progress</div>{% endif %}
                                         </td>
-                                        <td class="muted whitespace-nowrap font-mono text-[13px]">{{ batch.created|date:"j M Y H:i" }}</td>
+                                        <td class="muted whitespace-nowrap font-mono text-[13px]">{{ batch.created|when }}</td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
