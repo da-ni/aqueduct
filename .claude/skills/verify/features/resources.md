@@ -18,7 +18,7 @@ The Files, Batches, and Vector stores pages each list what the viewer's own keys
 
 - Choose **Files**, **Batches**, or **Vector stores** under Resources in the sidebar. The paths are `/aqueduct/management/files/`, `/aqueduct/management/batches/`, and `/aqueduct/management/vector-stores/`.
 - Choose a store's name to open `/aqueduct/management/vector-stores/<id>/`.
-- On Batches, a file name links to its row on the Files page.
+- On Batches and on a vector store's detail page, a file name links to its row on the Files page, which is highlighted.
 
 ## Driving it with aqv
 
@@ -32,11 +32,11 @@ Preconditions:
 - **Batches.** Open `/aqueduct/management/batches/`. `batch-user-running` reads `In progress` and `1,240 of 4,000 · 12 failed`. Run `aqv click --role button --name "Cancel batch-user-running"`. The page reads `Batch batch-user-running is being cancelled.` and the row reads `Cancelled`.
 - **Team batch.** Run `aqv login team-admin --next /aqueduct/management/batches/`. `batch-team-running` has no Cancel button, though `team-admin` created the service account key. Service account batches are cancelled with that key over the API.
 - **Vector stores.** Open `/aqueduct/management/vector-stores/` as `user`, and run `aqv click --role link --name thesis-corpus`. The detail page lists `thesis-corpus.pdf` as `Ready`. Run `aqv click --role button --name Refresh`. The page reads `Synced "thesis-corpus" from upstream.`
-- **Scope.** As `team-member`, open `/aqueduct/management/files/file-user-prompts/delete/`. It returns 404. `/aqueduct/management/vector-stores/vs_user_thesis/` reads `Vector store not found or you do not have access.` Signed out, every path redirects to `/login/`.
+- **Scope.** As `team-member`, open `/aqueduct/management/files/file-user-prompts/delete/`. It returns 404. `/aqueduct/management/vector-stores/vs_user_thesis/` reads `Vector store not found` with a `Back to vector stores` link. Signed out, every path redirects to `/login/`.
 
 ## Gotchas
 
 - Files and Batches show the teams the viewer is a member of. Vector stores also shows every team of the org to an org admin, so `org-admin` sees `group-papers` there but not the team's files or batches.
-- The personal limits count everything the viewer's keys created, including service account keys they own. `team-admin` therefore counts `batch-team-running` under `running yours` and under `running in Verify Team`.
+- The personal limits count everything the viewer's keys created, including service account keys they own. `team-admin` therefore counts `batch-team-running` under `Your keys` and under `Verify Team`.
 - A deleted output file leaves its batch with `No output file`.
 - The browser accepts the `confirm()` dialog of Cancel.

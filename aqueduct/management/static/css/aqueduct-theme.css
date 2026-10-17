@@ -125,6 +125,11 @@ tr:has(.row-link) { position: relative; }
 a.row-link::after { content: ""; position: absolute; inset: 0; }
 a.row-link:focus-visible { outline: none; }
 a.row-link:focus-visible::after { outline: 3px solid var(--color-primary); outline-offset: -3px; }
+
+/* Batches and vector stores link to a file's row on the Files page; mark the row they point at. */
+.file-row { scroll-margin-top: 6rem; }
+.file-row:target { background: var(--aq-hover); }
+
 .model-table th, .key-table th, .resource-table th { font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--aq-muted); }
 .badge-deprecated { --badge-color: var(--aq-warn); }
 

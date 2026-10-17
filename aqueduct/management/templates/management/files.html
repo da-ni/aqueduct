@@ -14,10 +14,10 @@
 
 {% block rows %}
     {% for row in listing.rows %}
-        <tr id="{{ row.file.id }}" class="target:bg-base-100">
+        <tr id="{{ row.file.id }}" class="file-row">
             <td>
                 <span class="font-semibold">{{ row.file.filename }}</span>
-                <div class="muted font-mono text-xs">{{ row.file.id }}{% if row.team %} · {{ row.team }}{% endif %}</div>
+                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.file.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.file.id }}" aria-label="Copy ID of {{ row.file.filename }}" title="Copy file ID">{% icon "copy" small=True %}</button>{% if row.team %} · {{ row.team }}{% endif %}</div>
             </td>
             <td><span class="badge badge-sm bg-base-100 font-mono">{{ row.purpose }}</span></td>
             <td class="text-right font-mono">{{ row.file.bytes|filesizeformat }}</td>
@@ -46,3 +46,4 @@
         <tr><td colspan="6" class="muted">You have no files. Upload one through the Files API.</td></tr>
     {% endfor %}
 {% endblock %}
+

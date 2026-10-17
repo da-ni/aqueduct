@@ -38,7 +38,11 @@ class VectorStoreDetailView(BaseAqueductView, TemplateView):
             .filter(id=self.kwargs["id"])
             .first()
         )
-        context["detail"] = store_detail(store, timezone.now()) if store else None
+        context["detail"] = (
+            store_detail(store, self.request.user, self.profile.teams.all(), timezone.now())
+            if store
+            else None
+        )
         return context
 
 

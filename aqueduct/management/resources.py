@@ -114,12 +114,13 @@ PURPOSES: Mapping[str, str] = {
 
 @dataclass(frozen=True)
 class Quota:
-    scope: str
+    owner: str
     used: int
     limit: int
+    noun: str
 
     def __str__(self) -> str:
-        return f"{self.used} of {self.limit} {self.scope}"
+        return f"{self.owner}: {self.used} of {self.limit} {self.noun}"
 
 
 @dataclass(frozen=True)
@@ -249,12 +250,18 @@ def batch_list(user: AbstractBaseUser, teams: QuerySet[Team], now: datetime) -> 
     )
     active = Batch.objects.filter(ACTIVE_BATCH)
     quotas = (
-        Quota("running yours", active.filter(token__user=user).count(), settings.MAX_USER_BATCHES),
+        Quota(
+            "Your keys",
+            active.filter(token__user=user).count(),
+            settings.MAX_USER_BATCHES,
+            "running",
+        ),
         *(
             Quota(
-                f"running in {team.name}",
+                team.name,
                 active.filter(token__service_account__team=team).count(),
                 settings.MAX_TEAM_BATCHES,
+                "running",
             )
             for team in teams.order_by("name")
         ),
@@ -319,15 +326,17 @@ def store_list(user: AbstractBaseUser, teams: QuerySet[Team], now: datetime) -> 
     stores = stores_visible_to(user, teams).order_by("-created_at")
     quotas = (
         Quota(
-            "yours",
+            "Your keys",
             VectorStore.objects.filter(token__user=user).count(),
             settings.MAX_USER_VECTOR_STORES,
+            "vector stores",
         ),
         *(
             Quota(
-                f"in {team.name}",
+                team.name,
                 VectorStore.objects.filter(token__service_account__team=team).count(),
                 settings.MAX_TEAM_VECTOR_STORES,
+                "vector stores",
             )
             for team in teams.order_by("name")
         ),
@@ -342,6 +351,7 @@ class StoreFileRow:
     entry: VectorStoreFile
     status: Status
     added: datetime | None
+    listed: bool
 
 
 @dataclass(frozen=True)
@@ -363,14 +373,27 @@ class StoreDetail:
     last_active: datetime | None
 
 
-def store_detail(store: VectorStore, now: datetime) -> StoreDetail:
+def store_detail(
+    store: VectorStore, user: AbstractBaseUser, file_teams: QuerySet[Team], now: datetime
+) -> StoreDetail:
+    """`file_teams` are the teams whose files the Files page lists, so a file links there only
+    when its row exists."""
+    entries = store.files.all()
+    listed = set(
+        FileObject.objects.filter(
+            visible_to(user, file_teams), id__in=[entry.file_obj_id for entry in entries]
+        ).values_list("id", flat=True)
+    )
     return StoreDetail(
         row=store_row(store, now),
         files=tuple(
             StoreFileRow(
-                entry, Status.of(entry.status, STORE_FILE_STATUSES), moment(entry.created_at)
+                entry,
+                Status.of(entry.status, STORE_FILE_STATUSES),
+                moment(entry.created_at),
+                entry.file_obj_id in listed,
             )
-            for entry in store.files.all()
+            for entry in entries
         ),
         batches=tuple(
             StoreBatchRow(
