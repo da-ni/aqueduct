@@ -317,6 +317,17 @@ class SevenDaysTest(ApiKeysPagesTestBase):
                 self.get(self.owner, "token_detail", self.key.id), f"request={hidden.id}"
             )
 
+    def test_last_used_reaches_back_past_the_seven_days(self):
+        old = self.request_log(self.pipeline_key, timedelta(days=20), model="", path="/files")
+        listed = self.get(self.member, "tokens").context["keys"].rows[0].activity
+        detail = self.get(self.member, "token_detail", self.pipeline_key.id).context["report"]
+        team = self.get(self.member, "team", self.team.id).context["page"]
+        on_team = team.service_accounts[0].activity
+        self.assertEqual(
+            (listed.last_used, detail.totals.last_used, on_team.last_used), (old.timestamp,) * 3
+        )
+        self.assertEqual((listed.requests, detail.totals.requests, on_team.requests), (0, 0, 0))
+
 
 class SecretShownOnceTest(ApiKeysPagesTestBase):
     def test_created_key_secret_appears_once_on_the_list(self):

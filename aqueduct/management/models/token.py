@@ -5,6 +5,7 @@ from typing import Any, Optional, TypeVar
 
 from django.conf import settings
 from django.db import models
+from django.db.models.fields.mixins import FieldCacheMixin
 from django.utils import timezone
 
 from gateway.config import resolve_model_alias
@@ -12,6 +13,8 @@ from management.models.mixins import LimitSet, MCPServerExclusionMixin, ModelExc
 from management.models.service_account import ServiceAccount
 
 _T = TypeVar("_T")
+HIERARCHY = ("user__profile__org", "service_account__team__org")
+"""The relations a token's limits and exclusions come from."""
 
 
 class Token(models.Model):
@@ -112,10 +115,23 @@ class Token(models.Model):
         """
         super().clean()
 
+    def _hierarchy_loaded(self) -> bool:
+        """Whether the owner and org `_get_from_hierarchy` reads are already on this instance."""
+        path = HIERARCHY[1] if self.service_account_id else HIERARCHY[0]
+        related: models.Model = self
+        for name in path.split("__"):
+            field = related._meta.get_field(name)
+            if not (isinstance(field, FieldCacheMixin) and field.is_cached(related)):
+                return False
+            related = getattr(related, name)
+        return True
+
     def _get_from_hierarchy(self, retrieval_function: Callable[..., _T]) -> _T:
-        token_instance = Token.objects.select_related(
-            "user__profile__org", "service_account__team__org"
-        ).get(pk=self.pk)
+        token_instance = (
+            self
+            if self._hierarchy_loaded()
+            else Token.objects.select_related(*HIERARCHY).get(pk=self.pk)
+        )
 
         if token_instance.service_account:
             team = token_instance.service_account.team
@@ -218,8 +234,6 @@ class Token(models.Model):
         try:
             hashed_key = cls._hash_key(key_value)
             # Use select_related for efficiency if you often need related objects after lookup
-            return cls.objects.select_related(
-                "user__profile__org", "service_account__team__org"
-            ).get(key_hash=hashed_key)
+            return cls.objects.select_related(*HIERARCHY).get(key_hash=hashed_key)
         except cls.DoesNotExist:
             return None

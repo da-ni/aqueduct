@@ -18,6 +18,7 @@ from gateway.rate_limiting import get_per_token_usage
 from management.forms import TokenCreateForm
 from management.key_activity import Expiry, KeyKind, key_list, key_report, personal_tokens
 from management.models import Token
+from management.models.token import HIERARCHY
 from management.request_log import Key, Row
 from management.views.base import BaseAqueductView
 
@@ -51,16 +52,13 @@ class TokenDetailView(BaseAqueductView, DetailView):
     def get_queryset(self) -> QuerySet:
         """The viewer's personal keys and the service account keys of every team they may see."""
         service = Token.objects.filter(service_account__team__in=self.get_teams_for_user())
-        return (personal_tokens(self.request.user) | service).select_related(
-            "service_account__team"
-        )
+        return (personal_tokens(self.request.user) | service).select_related(*HIERARCHY)
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         token = self.object
         now = timezone.now()
         report = key_report(token, now)
-        limits = token.get_limit()
         team = token.service_account.team if token.service_account else None
         metric = "requests" if self.request.GET.get("metric") == "requests" else "tokens"
         context.update(
@@ -69,7 +67,7 @@ class TokenDetailView(BaseAqueductView, DetailView):
             metric=metric,
             chart=report.chart(metric),
             expiry=Expiry.of(token.expires_at, now),
-            limits=limits,
+            limits=token.get_limit(),
             usage=get_per_token_usage([token.id])[token.id],
             excluded_models=token.model_exclusion_list(),
             excluded_mcp_servers=token.mcp_server_exclusion_list(),

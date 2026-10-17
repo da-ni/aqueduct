@@ -9,9 +9,16 @@ from django.test import override_settings
 from django.urls import reverse
 
 from gateway.config import get_mcp_config
-from management.models import Org, ServiceAccount, UserGroup
+from management.models import Org, ServiceAccount, Token, UserGroup
+from management.models.token import HIERARCHY
 from management.tests.test_api_keys_pages import make_token
 from management.tests.test_teams_pages import TeamsPagesTestBase
+
+
+def enforced(key: Token) -> Token:
+    """The key as the gateway loads it on each request (`Token.find_by_key`)."""
+    return Token.objects.select_related(*HIERARCHY).get(pk=key.pk)
+
 
 TEST_MCP_CONFIG = Path(settings.BASE_DIR).parent / "test-mcp.json"
 
@@ -247,8 +254,8 @@ class OrganizationEditFormTest(OrganizationTestBase):
                 "organization_switch_offs", {**SWITCH_OFFS, "excluded_mcp_servers": ["aqueduct"]}
             )
         key = make_token(self.member, "laptop")
-        self.assertTrue(key.mcp_server_excluded("aqueduct"))
-        self.assertFalse(key.mcp_server_excluded("test-server"))
+        self.assertTrue(enforced(key).mcp_server_excluded("aqueduct"))
+        self.assertFalse(enforced(key).mcp_server_excluded("test-server"))
 
 
 class OrganizationEditGatewayTest(OrganizationTestBase):
@@ -261,30 +268,30 @@ class OrganizationEditGatewayTest(OrganizationTestBase):
     def test_switch_off_reaches_personal_and_service_account_keys_of_the_org(self):
         personal = make_token(self.member, "laptop")
         foreign = make_token(self.other_org_admin, "elsewhere")
-        self.assertFalse(personal.model_excluded("gpt-4.1-nano"))
+        self.assertFalse(enforced(personal).model_excluded("gpt-4.1-nano"))
 
         self.switch_off(self.org_admin, self.org, SWITCH_OFFS)
 
-        self.assertTrue(personal.model_excluded("gpt-4.1-nano"))
-        self.assertTrue(self.pipeline_key.model_excluded("gpt-4.1-nano"))
-        self.assertFalse(personal.model_excluded("whisper-1"))
-        self.assertFalse(foreign.model_excluded("gpt-4.1-nano"))
+        self.assertTrue(enforced(personal).model_excluded("gpt-4.1-nano"))
+        self.assertTrue(enforced(self.pipeline_key).model_excluded("gpt-4.1-nano"))
+        self.assertFalse(enforced(personal).model_excluded("whisper-1"))
+        self.assertFalse(enforced(foreign).model_excluded("gpt-4.1-nano"))
 
         self.switch_off(self.org_admin, self.org, {"merge_exclusion_lists": "on"})
-        self.assertFalse(personal.model_excluded("gpt-4.1-nano"))
+        self.assertFalse(enforced(personal).model_excluded("gpt-4.1-nano"))
 
     def test_foreign_org_admin_cannot_switch_off_a_model_for_this_org(self):
         personal = make_token(self.member, "laptop")
         response = self.switch_off(self.other_org_admin, self.org, SWITCH_OFFS)
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
-        self.assertFalse(personal.model_excluded("gpt-4.1-nano"))
+        self.assertFalse(enforced(personal).model_excluded("gpt-4.1-nano"))
 
     @override_settings(AQUEDUCT_DEFAULT_MODEL_EXCLUSION_LIST=["whisper-1"])
     def test_clearing_merge_makes_the_server_defaults_available(self):
         personal = make_token(self.member, "laptop")
-        self.assertTrue(personal.model_excluded("whisper-1"))
+        self.assertTrue(enforced(personal).model_excluded("whisper-1"))
         self.switch_off(self.org_admin, self.org, {})
-        self.assertFalse(personal.model_excluded("whisper-1"))
+        self.assertFalse(enforced(personal).model_excluded("whisper-1"))
 
     def test_models_page_shows_the_org_switch_off(self):
         self.switch_off(self.org_admin, self.org, SWITCH_OFFS)
