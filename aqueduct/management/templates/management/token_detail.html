@@ -28,6 +28,7 @@
             <div class="flex flex-wrap gap-2">
                 <form action="{% url 'token_regenerate' token.id %}" method="post">
                     {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'token_detail' token.id %}">
                     <button type="submit" class="btn btn-outline btn-primary"
                             onclick="return confirm('Rotate the API key {{ token.name|escapejs }}? The current key stops working immediately.');">{% icon "rotate" small=True %}Rotate</button>
                 </form>

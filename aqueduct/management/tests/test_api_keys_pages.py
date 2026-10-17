@@ -311,3 +311,39 @@ class ServiceAccountKeyDetailTest(ApiKeysPagesTestBase):
         self.assertContains(
             response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
         )
+
+    def test_limits_are_the_teams_not_the_viewers(self):
+        self.team.requests_per_minute = 7
+        self.team.save()
+        profile = self.member.profile
+        profile.requests_per_minute = 999
+        profile.save()
+        response = self.detail(self.member)
+        self.assertContains(response, 'Requests per minute: <span class="font-mono">7</span>')
+        self.assertNotContains(response, "999</span>")
+
+    def test_plain_team_member_cannot_rotate_the_key(self):
+        old_hash = self.pipeline_key.key_hash
+        self.client.force_login(self.plain_member)
+        response = self.client.post(reverse("token_regenerate", args=[self.pipeline_key.id]))
+        self.assertRedirects(
+            response, reverse("team", args=[self.team.id]), fetch_redirect_response=False
+        )
+        self.pipeline_key.refresh_from_db()
+        self.assertEqual(self.pipeline_key.key_hash, old_hash)
+
+    def test_rotating_from_the_detail_page_returns_there_with_the_new_secret(self):
+        detail = reverse("token_detail", args=[self.pipeline_key.id])
+        self.client.force_login(self.member)
+        response = self.client.post(
+            reverse("token_regenerate", args=[self.pipeline_key.id]), {"next": detail}, follow=True
+        )
+        self.assertEqual(response.redirect_chain, [(detail, 302)])
+        self.assertEqual(Token.find_by_key(secret_on(response)), self.pipeline_key)
+
+    def test_rotating_from_the_team_page_returns_to_the_team(self):
+        self.client.force_login(self.member)
+        response = self.client.post(reverse("token_regenerate", args=[self.pipeline_key.id]))
+        self.assertRedirects(
+            response, reverse("team", args=[self.team.id]), fetch_redirect_response=False
+        )

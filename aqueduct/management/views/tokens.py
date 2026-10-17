@@ -233,6 +233,9 @@ class TokenRegenerateView(BaseAqueductView, View):
                     f"{new_key}",  # Only include the key itself in the message
                     extra_tags="token-regenerated-key",  # Use a specific tag
                 )
+                detail_url = reverse("token_detail", kwargs={"id": token.id})
+                if request.POST.get("next") == detail_url:
+                    redirect_url = detail_url
             # Else: error message already added during permission check
 
         except Token.DoesNotExist:
