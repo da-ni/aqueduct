@@ -27,7 +27,7 @@ The Overview page shows the token and request usage of the keys you can see. Cho
 
 ## Choose the time frame, the key, and the model
 
-Choose **1 hour**, **24 hours**, **7 days**, **30 days**, or **All retained**. The page opens on **7 days**. **Custom range** opens a form for a start and an end time in UTC.
+Choose **1 hour**, **24 hours**, **7 days**, **30 days**, or **All retained**. The page opens on **7 days**.
 
 To show one key or one model, choose it in **All keys** or **All models**. The [Requests](requests.md) page has the same filters.
 
@@ -35,12 +35,12 @@ The gateway keeps requests for a limited time, 30 days by default. If the time f
 
 ## Read the page
 
-- **Totals**: input tokens, output tokens, cache hits, requests, the share of failed requests, and the median response time. Each total shows a bar per stretch of the time frame. **Requests** and **Failed** open the log. When the previous period of the same length is still kept, each total shows its change against that period.
+- **Totals**: input tokens, output tokens, cache hits, requests, the share of failed requests, and the median response time. Each total shows a bar per stretch of the time frame. **Failed** counts every `4xx` and `5xx` request. When the previous period of the same length is still kept, each total shows its change against that period.
 - **Tokens per minute, hour, or day**: a chart of the time frame. **Tokens** and **Requests** switch what it counts.
-- **Requests**: the requests split into answered (`2xx`), rate-limited (`429`), other client errors (`4xx`), and model or provider failures (`5xx`). **Open the log**, or a status group, opens the [Requests](requests.md) page with the same filters.
+- **Requests**: the requests split into answered (`2xx`), rate-limited (`429`), other client errors (`4xx`), and model or provider errors (`5xx`). **Open the log**, or a status group, opens the [Requests](requests.md) page with the same filters.
 - **Usage by weekday and hour**: the average tokens per hour for each weekday and hour, over the last 28 days, whatever the time frame.
-- **By model**: each model with requests in the time frame, with its tokens, cache hits, requests, median response time, and share. The request count opens the log for that model.
-- **Largest keys**: the keys that used the most tokens. A key links to its page for its owner. A service account links to its team page for members of that team.
+- **By model**: each model with requests in the time frame, with its tokens, cache hits, requests, median response time, and share. Choose a model to open the log for that model.
+- **Largest keys**: the keys that used the most tokens. Choose a key to open its page. You can open your own keys and the service accounts of your teams.
 - **By organization**: the tokens of each organization, when an admin views all organizations.
 
 ## See usage per client user

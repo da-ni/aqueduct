@@ -22,23 +22,20 @@
         {% endif %}
     </div>
 
-    {% if filters.custom_error %}
-        <div class="alert alert-error" role="alert">{% icon "failed" %}<span>{{ filters.custom_error }}</span></div>
-    {% endif %}
     {% if retention_warning %}
         <div class="alert alert-warning" role="alert">{% icon "warning" %}<span>The time frame reaches back further than the {{ retention_days }} days requests are kept. Older requests are missing from these figures.</span></div>
     {% endif %}
 
     <section aria-label="Totals" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         {% for kpi in kpis %}
-            {% if kpi.href %}<a class="card bg-base-200 hover:outline-2 hover:outline-[var(--color-primary)]" href="{{ kpi.href }}" aria-label="{{ kpi.label }} {{ kpi.value }}, open in the request log">{% else %}<div class="card bg-base-200">{% endif %}
+            <div class="card bg-base-200">
                 <div class="card-body gap-1 p-4">
                     <span class="muted text-sm">{{ kpi.label }}</span>
                     <span class="text-2xl font-semibold">{{ kpi.value }}</span>
                     <span class="muted min-h-4 font-mono text-xs">{% if kpi.change %}{{ kpi.change }}{% endif %}</span>
                     {% include "management/_spark.html" with bars=kpi.spark %}
                 </div>
-            {% if kpi.href %}</a>{% else %}</div>{% endif %}
+            </div>
         {% endfor %}
     </section>
 
@@ -64,11 +61,15 @@
                         </nav>
                     </div>
                 </div>
-                <div class="flex h-72 gap-px sm:gap-1">
-                    {% for column in chart %}
-                        {% include "management/_chart_column.html" %}
-                    {% endfor %}
-                </div>
+                {% if requests_in_period %}
+                    <div class="flex h-72 gap-px sm:gap-1">
+                        {% for column in chart %}
+                            {% include "management/_chart_column.html" %}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="muted flex h-72 items-center justify-center text-sm">No requests in this time frame.</p>
+                {% endif %}
             </div>
         </div>
 
@@ -131,45 +132,47 @@
                     <span class="flex items-center gap-2"><span class="sw o"></span>Output</span>
                 </div>
             </div>
-            <div class="overflow-x-auto">
-                <table class="table table-fixed model-table min-w-[860px]">
-                    <thead>
-                        <tr>
-                            <th class="w-[22%]">Model</th><th class="w-[26%]">Tokens</th>
-                            <th class="w-[8%] text-right">Input</th><th class="w-[8%] text-right">Output</th>
-                            <th class="w-[10%] text-right">Cache hits</th><th class="w-[10%] text-right">Requests</th>
-                            <th class="w-[8%] text-right">Median</th><th class="w-[8%] text-right">Share</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in models %}
+            {% if models %}
+                <div class="overflow-x-auto">
+                    <table class="table table-fixed model-table min-w-[860px]">
+                        <thead>
                             <tr>
-                                <td>
-                                    <a class="link-plain break-all font-mono" href="{% url 'models' %}?model={{ row.name|urlencode }}">{{ row.name }}</a>
-                                    <div class="muted text-xs">{{ row.kind }}</div>
-                                </td>
-                                <td>
-                                    {% if row.activity.tokens %}
-                                        <div class="tbar" style="width: {{ row.width }}%">
-                                            {% for css, count in row.activity.segments %}{% if count %}<i class="{{ css }}" style="flex: {{ count }} 1 0%"></i>{% endif %}{% endfor %}
-                                        </div>
-                                    {% else %}
-                                        <span class="muted text-xs">Not metered in tokens</span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-right font-mono">{{ row.input }}</td>
-                                <td class="text-right font-mono">{{ row.output }}</td>
-                                <td class="text-right font-mono">{{ row.activity.cache_hits }}</td>
-                                <td class="text-right font-mono"><a class="link-plain" href="{{ row.log_url }}">{{ row.activity.requests|intcomma }}</a></td>
-                                <td class="text-right font-mono">{{ row.median }}</td>
-                                <td class="muted text-right font-mono">{{ row.share }}</td>
+                                <th class="w-[22%]">Model</th><th class="w-[26%]">Tokens</th>
+                                <th class="w-[8%] text-right">Input</th><th class="w-[8%] text-right">Output</th>
+                                <th class="w-[10%] text-right">Cache hits</th><th class="w-[10%] text-right">Requests</th>
+                                <th class="w-[8%] text-right">Median</th><th class="w-[8%] text-right">Share</th>
                             </tr>
-                        {% empty %}
-                            <tr><td colspan="8" class="muted">No requests in this time frame.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            {% for row in models %}
+                                <tr>
+                                    <td>
+                                        <a class="link-plain row-link break-all font-mono" href="{{ row.log_url }}" aria-label="{{ row.name }}, open its requests in the request log">{{ row.name }}</a>
+                                        <div class="muted text-xs">{{ row.kind }}</div>
+                                    </td>
+                                    <td>
+                                        {% if row.activity.tokens %}
+                                            <div class="tbar" style="width: {{ row.width }}%">
+                                                {% for css, count in row.activity.segments %}{% if count %}<i class="{{ css }}" style="flex: {{ count }} 1 0%"></i>{% endif %}{% endfor %}
+                                            </div>
+                                        {% else %}
+                                            <span class="muted text-xs">Not metered in tokens</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-right font-mono">{{ row.input }}</td>
+                                    <td class="text-right font-mono">{{ row.output }}</td>
+                                    <td class="text-right font-mono">{{ row.activity.cache_hits }}</td>
+                                    <td class="text-right font-mono">{{ row.activity.requests|intcomma }}</td>
+                                    <td class="text-right font-mono">{{ row.median }}</td>
+                                    <td class="muted text-right font-mono">{{ row.share }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="muted text-sm">No requests in this time frame.</p>
+            {% endif %}
         </div>
     </section>
 
@@ -180,8 +183,8 @@
                     <h2 class="text-xl font-semibold">By organization</h2>
                     <div class="-mx-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto">
                         {% for org in orgs_usage %}
-                            <div class="hover-row grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_4rem] items-center gap-4 rounded-lg px-2 py-1 text-sm">
-                                <span class="truncate">{{ org.name }}</span>
+                            <div class="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_4rem] items-center gap-4 rounded-lg px-2 py-1 text-sm">
+                                <span class="truncate" title="{{ org.name }}">{{ org.name }}</span>
                                 <div><div class="onebar" style="width: {{ org.width }}%"></div></div>
                                 <span class="text-right font-mono">{{ org.value }}</span>
                             </div>
@@ -193,20 +196,22 @@
         <div class="card bg-base-200{% if not orgs_usage %} lg:col-span-2{% endif %}">
             <div class="card-body gap-3 p-5">
                 <h2 class="text-xl font-semibold">{% if filters.key %}By user ID{% else %}Largest keys{% endif %}</h2>
-                <div class="-mx-2 flex max-h-60 flex-col overflow-y-auto">
-                    {% for key in keys %}
-                        <div class="hover-row grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_4rem] items-center gap-4 rounded-lg border-t border-base-300 px-2 py-2 text-sm">
-                            <span class="flex min-w-0 flex-col leading-tight">
-                                {% if key.href %}<a class="link-plain truncate font-mono" href="{{ key.href }}">{{ key.name }}</a>{% else %}<span class="truncate font-mono">{{ key.name }}</span>{% endif %}
-                                <span class="muted truncate text-xs">{{ key.detail }}</span>
-                            </span>
-                            <div><div class="onebar" style="width: {{ key.width }}%"></div></div>
-                            <span class="text-right font-mono">{{ key.value }}</span>
-                        </div>
-                    {% empty %}
-                        <p class="muted text-sm">No requests in this time frame.</p>
-                    {% endfor %}
-                </div>
+                {% if keys %}
+                    <div class="-mx-2 flex max-h-60 flex-col overflow-y-auto">
+                        {% for key in keys %}
+                            <div class="{% if key.href %}hover-row relative {% endif %}grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_4rem] items-center gap-4 rounded-lg border-t border-base-300 px-2 py-2 text-sm">
+                                <span class="flex min-w-0 flex-col leading-tight">
+                                    {% if key.href %}<a class="link-plain row-link truncate font-mono" href="{{ key.href }}" title="{{ key.name }}">{{ key.name }}</a>{% else %}<span class="truncate font-mono" title="{{ key.name }}">{{ key.name }}</span>{% endif %}
+                                    <span class="muted truncate text-xs" title="{{ key.detail }}">{{ key.detail }}</span>
+                                </span>
+                                <div><div class="onebar" style="width: {{ key.width }}%"></div></div>
+                                <span class="text-right font-mono">{{ key.value }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="muted text-sm">No requests in this time frame.</p>
+                {% endif %}
             </div>
         </div>
     </section>

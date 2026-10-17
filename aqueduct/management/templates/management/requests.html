@@ -13,16 +13,12 @@
         {% include "management/_filters.html" %}
     </div>
 
-    {% if filters.custom_error %}
-        <div class="alert alert-error" role="alert">{% icon "failed" %}<span>{{ filters.custom_error }}</span></div>
-    {% endif %}
-
     <div class="flex flex-wrap items-center gap-3">
-        <nav class="join" aria-label="Status">
+        <nav class="join max-sm:flex-wrap max-sm:gap-1 max-sm:[&>.join-item]:rounded-full!" aria-label="Status">
             {% for tab in log.tabs %}
                 <a class="btn btn-sm join-item{% if tab.outcome == outcome %} btn-primary{% endif %}"
                    href="{% querystring status=tab.value page=None request=None %}"
-                   {% if tab.outcome == outcome %}aria-current="page"{% endif %}>{{ tab.label }} <span class="font-mono text-xs opacity-70">{{ tab.count|intcomma }}</span></a>
+                   {% if tab.outcome == outcome %}aria-current="page"{% endif %}{% if tab.outcome.codes %} title="{{ tab.outcome.codes }}"{% endif %}>{{ tab.label }} <span class="font-mono text-xs opacity-70">{{ tab.count|intcomma }}</span></a>
             {% endfor %}
         </nav>
     </div>
@@ -30,7 +26,7 @@
     <section class="card bg-base-200">
         <div class="card-body p-3">
             <div class="overflow-x-auto">
-                <table class="table table-sm table-fixed min-w-[1020px]">
+                <table class="table table-sm table-fixed key-table min-w-[1020px]">
                     <thead>
                         <tr>
                             <th class="w-12"><span class="sr-only">Details</span></th>
@@ -56,10 +52,13 @@
                                     </td>
                                     <td class="muted">{{ request.timestamp|date:"j M H:i:s" }}</td>
                                     <td class="truncate">
-                                        {% if row.key.href %}<a class="link-plain" href="{{ row.key.href }}">{{ row.key.name }}</a>{% else %}{{ row.key.name }}{% endif %}
-                                        <div class="muted truncate font-sans text-xs">{{ row.key.note }}</div>
+                                        {% if row.key.href %}<a class="link-plain" href="{{ row.key.href }}" title="{{ row.key.name }}">{{ row.key.name }}</a>{% else %}<span title="{{ row.key.name }}">{{ row.key.name }}</span>{% endif %}
+                                        <div class="muted truncate font-sans text-xs" title="{{ row.key.note }}">{{ row.key.note }}</div>
                                     </td>
-                                    <td class="truncate">{{ request.model|default:"n/a" }}<div class="muted text-xs">{{ request.path }}</div></td>
+                                    <td class="truncate">
+                                        {% if request.model %}<a class="link-plain" href="{% querystring model=request.model page=None request=None %}" title="Show only {{ request.model }}">{{ request.model }}</a>{% else %}n/a{% endif %}
+                                        <div class="muted truncate text-xs" title="{{ request.path }}">{{ request.path }}</div>
+                                    </td>
                                     <td>
                                         {% include "management/_request_status.html" %}
                                     </td>
@@ -72,7 +71,8 @@
                                     <tr>
                                         <td></td>
                                         <td colspan="8">
-                                            <dl class="grid grid-cols-2 gap-2 pb-2 md:grid-cols-5" aria-label="Details of request {{ request.id }}">
+                                            <dl class="grid grid-cols-2 gap-2 pb-2 md:grid-cols-3 xl:grid-cols-6" aria-label="Details of request {{ request.id }}">
+                                                <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">Request ID</dt><dd class="flex items-center gap-1 font-mono text-[13px]">{{ request.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ request.id }}" aria-label="Copy request ID {{ request.id }}" title="Copy request ID">{% icon "copy" small=True %}</button></dd></div>
                                                 <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">User agent</dt><dd class="break-all font-mono text-[13px]">{{ request.user_agent|default:"not sent" }}</dd></div>
                                                 <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">User ID sent by the client</dt><dd class="break-all font-mono text-[13px]">{{ request.user_id|default:"not sent" }}</dd></div>
                                                 <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">Gateway overhead</dt><dd class="font-mono text-[13px]">{{ row.overhead }}</dd></div>
@@ -84,7 +84,7 @@
                                 {% endif %}
                             {% endwith %}
                         {% empty %}
-                            <tr><td colspan="9" class="muted">No request matches.</td></tr>
+                            <tr><td colspan="9" class="muted">{% if narrowed %}No request matches these filters.{% else %}No requests in the last {{ retention_days }} days.{% endif %}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

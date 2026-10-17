@@ -116,14 +116,6 @@ class Period:
         start = step.floor(oldest) if count is None else end - count * step.size
         return cls(start, end, step, label)
 
-    @classmethod
-    def between(cls, start: datetime, end: datetime) -> "Period":
-        length = end - start
-        step = (
-            MINUTE if length <= timedelta(hours=2) else HOUR if length <= timedelta(days=2) else DAY
-        )
-        return cls(start, end, step, "custom range")
-
     def previous(self, now: datetime) -> "Period":
         """The same stretch one period earlier, cut where this period's elapsed time ends."""
         length = self.end - self.start
@@ -197,7 +189,6 @@ class Kpi:
     value: str
     change: str | None
     spark: tuple[SparkBar, ...]
-    href: str | None = None
 
 
 def _share(ratio: float) -> str:
@@ -250,8 +241,6 @@ def kpis(
     medians: Sequence[int | None],
     before: Activity | None,
     before_median: int | None,
-    requests_url: str,
-    failed_url: str,
 ) -> tuple[Kpi, ...]:
     """The headline figures, each with its change against the previous period when known.
 
@@ -286,13 +275,13 @@ def kpis(
             "Input tokens",
             compact(now.input),
             relative("input"),
-            bars_of(lambda a: a.input, as_tokens),
+            bars_of(lambda a: a.input, lambda n: f"{compact(round(n))} input tokens"),
         ),
         Kpi(
             "Output tokens",
             compact(now.output),
             relative("output"),
-            bars_of(lambda a: a.output, as_tokens),
+            bars_of(lambda a: a.output, lambda n: f"{compact(round(n))} output tokens"),
         ),
         Kpi(
             "Cache hits",
@@ -305,14 +294,12 @@ def kpis(
             f"{now.requests:,}",
             relative("requests"),
             bars_of(lambda a: a.requests, as_requests),
-            requests_url,
         ),
         Kpi(
             "Failed",
             now.failed_share,
             points("failed", "requests"),
             bars_of(lambda a: _ratio(a.failed, a.requests), _share),
-            failed_url,
         ),
         Kpi(
             "Median response",
@@ -344,7 +331,7 @@ STATUSES = (
         "st-off",
         FAILED & Q(status_code__lt=500) & ~Q(status_code=429),
     ),
-    ("Model or provider failed", "5xx", "failed", "st-err", Q(status_code__gte=500)),
+    ("Model or provider error", "5xx", "failed", "st-err", Q(status_code__gte=500)),
 )
 
 

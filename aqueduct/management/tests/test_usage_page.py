@@ -189,9 +189,7 @@ class UsageAccessTest(UsagePageTestBase):
         self.assertContains(response, "for the key")
         self.assertEqual(self.kpi(response, "Requests")[0], "1")
         self.assertEqual(self.page(self.solo, key=self.pipeline_key.id).status_code, 404)
-        self.assertEqual(
-            self.page(self.other_org_admin, key=self.pipeline_key.id).status_code, 404
-        )
+        self.assertEqual(self.page(self.other_org_admin, key=self.pipeline_key.id).status_code, 404)
 
     def test_key_filter_lets_an_org_admin_name_any_key_of_their_org(self):
         response = self.page(self.org_admin, key=self.member_key.id)
@@ -213,7 +211,7 @@ class UsageFiguresTest(UsagePageTestBase):
         self.assertEqual(self.status_count(response, "Answered"), "1")
         self.assertEqual(self.status_count(response, "Rate-limited"), "1")
         self.assertEqual(self.status_count(response, "Other client errors"), "0")
-        self.assertEqual(self.status_count(response, "Model or provider failed"), "1")
+        self.assertEqual(self.status_count(response, "Model or provider error"), "1")
 
     def test_time_frame_limits_the_requests_counted(self):
         self.log(self.solo_key, timedelta(days=3), 200)
@@ -296,16 +294,38 @@ class UsageFiguresTest(UsagePageTestBase):
         self.assertContains(self.page(self.solo, span="1m"), "Older requests are missing")
         self.assertNotContains(self.page(self.solo, span="1w"), "Older requests are missing")
 
-    def test_custom_range_counts_only_requests_inside_it(self):
+    def test_start_and_end_parameters_are_ignored(self):
+        self.log(self.solo_key, timedelta(days=3), 200)
         start = (timezone.now() - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M")
-        end = (timezone.now() - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M")
-        self.log(self.solo_key, timedelta(hours=5), 200)
-        response = self.page(self.solo, start=start, end=end)
-        self.assertEqual(self.kpi(response, "Requests")[0], "1")
-        self.assertContains(response, "Tokens per hour")
-
-    def test_invalid_custom_range_shows_an_error(self):
-        future = (timezone.now() + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M")
-        response = self.page(self.solo, start="2020-01-01T00:00", end=future)
+        response = self.page(self.solo, start=start, end="2020-01-01T00:00")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "End time is in the future.")
+        self.assertEqual(self.kpi(response, "Requests")[0], "2")
+
+    def test_change_caption_shows_only_beside_a_change(self):
+        self.assertNotContains(self.page(self.solo, span="1d"), "Change vs previous")
+
+    def test_empty_time_frame_says_so_in_each_section(self):
+        Request.objects.all().delete()
+        response = self.page(self.solo)
+        self.assertContains(response, "No requests in this time frame.", count=3)
+        self.assertNotContains(response, "Change vs previous")
+
+    def test_model_rows_open_the_log_on_their_model(self):
+        response = self.page(self.solo, span="1d")
+        log = f"{reverse('requests')}?span=1d&amp;model={CHAT}"
+        self.assertContains(
+            response, f'<a class="link-plain row-link break-all font-mono" href="{log}"'
+        )
+        self.assertNotContains(response, f"{reverse('models')}?model=")
+
+    def test_largest_keys_rows_open_the_key(self):
+        response = self.page(self.solo)
+        detail = reverse("token_detail", args=[self.solo_key.id])
+        self.assertContains(
+            response, f'class="link-plain row-link truncate font-mono" href="{detail}"'
+        )
+
+    def test_totals_do_not_link_to_the_log(self):
+        response = self.page(self.org_admin)
+        self.assertNotContains(response, '<a class="card')
+        self.assertNotContains(response, "open in the request log")
