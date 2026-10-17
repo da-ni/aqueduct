@@ -10,6 +10,7 @@ from django.db.models.functions import TruncDate
 from django.urls import reverse
 from django.utils import timezone
 
+from gateway.config import get_router_config
 from management.models import LimitSet, Request, ServiceAccount, Token, UserProfile
 
 if TYPE_CHECKING:
@@ -124,6 +125,16 @@ def week(now: datetime) -> "Period":
     return Period.last(Span.WEEK, now, now)
 
 
+def router_models() -> list[str]:
+    return [entry["model_name"] for entry in get_router_config().get("model_list", [])]
+
+
+def served(requests: QuerySet[Request]) -> QuerySet[Request]:
+    """The requests every page counts and lists: those for a model the router serves. Calls
+    that name no model, such as listing models or files, are left out."""
+    return requests.filter(model__in=router_models())
+
+
 def _sums(since: datetime) -> dict[str, Any]:
     recent = Q(timestamp__gte=since)
     return {
@@ -138,7 +149,7 @@ def _sums(since: datetime) -> dict[str, Any]:
 def activity_by(field: str, ids: Iterable[int], since: datetime) -> dict[int, Activity]:
     """Request activity grouped by `field`, a lookup that names a token or a team id."""
     rows = (
-        Request.objects.filter(**{f"{field}__in": list(ids)})
+        served(Request.objects.filter(**{f"{field}__in": list(ids)}))
         .values(field)
         .annotate(last_used=Max("timestamp"), **_sums(since))
     )
@@ -346,6 +357,7 @@ def chart(
 def window(requests: QuerySet[Request], now: datetime) -> Window:
     period = week(now)
     since = period.start
+    requests = served(requests)
     totals = Activity(**requests.aggregate(last_used=Max("timestamp"), **_sums(since)))
 
     per_day = {
@@ -364,13 +376,12 @@ def window(requests: QuerySet[Request], now: datetime) -> Window:
 
 
 def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> KeyReport:
-    requests = Request.objects.filter(token=token)
+    requests = served(Request.objects.filter(token=token))
     recent = requests.filter(timestamp__gte=week(now).start)
     base = window(requests, now)
 
     by_model = list(
-        recent.exclude(model="")
-        .values("model")
+        recent.values("model")
         .annotate(tokens=Sum(F("input_tokens") + F("output_tokens")))
         .order_by("-tokens", "model")[:top]
     )

@@ -14,8 +14,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import urlencode
 
-from gateway.config import get_router_config
-from management.key_activity import FAILED
+from management.key_activity import FAILED, router_models, served
 from management.models import Org, Request, Team, Token, UserProfile
 from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
 
@@ -52,18 +51,14 @@ def visible_requests(
     as `user_id` on another key of their org.
     """
     if org is None:
-        return Request.objects.filter(model__in=router_models())
+        return served(Request.objects.all())
     requests = Request.objects.filter(token__in=visible_tokens(profile, org, teams))
     if not profile.is_org_admin(org):
         user = profile.user
         requests |= Request.objects.filter(
             user_id=user.email, token__user__profile__org=profile.org
         )
-    return requests.filter(model__in=router_models())
-
-
-def router_models() -> list[str]:
-    return [entry["model_name"] for entry in get_router_config().get("model_list", [])]
+    return served(requests)
 
 
 _OVERVIEW_STATUS = {

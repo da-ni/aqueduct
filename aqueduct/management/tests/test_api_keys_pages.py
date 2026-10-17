@@ -70,6 +70,7 @@ class ApiKeysPagesTestBase(TestCase):
         return user
 
     def request_log(self, token: Token, ago: timedelta, **fields) -> Request:
+        fields.setdefault("model", "gpt-4.1-nano")
         return Request.objects.create(token=token, timestamp=timezone.now() - ago, **fields)
 
     def get(self, user, name: str, *args, **params):
@@ -262,6 +263,24 @@ class SevenDaysTest(ApiKeysPagesTestBase):
         self.assertEqual((listed, detail.totals.requests, requests), (2, 2, "2"))
         self.assertEqual(sum(day.activity.requests for day in detail.days), 2)
 
+    def test_key_pages_leave_out_requests_the_log_does_not_show(self):
+        served = self.request_log(self.key, timedelta(minutes=3), status_code=200)
+        no_model = self.request_log(self.key, timedelta(minutes=2), model="", path="/models")
+        retired = self.request_log(self.key, timedelta(minutes=1), model="retired-model")
+        listed = self.get(self.owner, "tokens").context["keys"].rows[0].activity
+        detail = self.get(self.owner, "token_detail", self.key.id).context
+        overview = self.get(self.owner, "usage", key=self.key.id).context["kpis"]
+        log = self.get(self.owner, "requests", key=self.key.id).context["log"]
+        requests = next(kpi.value for kpi in overview if kpi.label == "Requests")
+        self.assertEqual((listed.requests, detail["report"].totals.requests, requests), (1, 1, "1"))
+        self.assertEqual(listed.last_used, served.timestamp)
+        self.assertEqual([row.request for row in detail["latest"]], [served])
+        self.assertEqual([row.request for row in log.rows], [served])
+        for hidden in (no_model, retired):
+            self.assertNotContains(
+                self.get(self.owner, "token_detail", self.key.id), f"request={hidden.id}"
+            )
+
 
 class SecretShownOnceTest(ApiKeysPagesTestBase):
     def test_created_key_secret_appears_once_on_the_list(self):
@@ -343,7 +362,7 @@ class ServiceAccountKeyDetailTest(ApiKeysPagesTestBase):
         UserProfile.objects.create(
             user=self.other_org_admin, org=other_org
         ).group = UserGroup.ORG_ADMIN
-        self.request_log(self.pipeline_key, timedelta(hours=1), input_tokens=4200, model="m")
+        self.request_log(self.pipeline_key, timedelta(hours=1), input_tokens=4200)
 
     def detail(self, user):
         return self.get(user, "token_detail", self.pipeline_key.id)
