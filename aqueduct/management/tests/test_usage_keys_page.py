@@ -40,14 +40,11 @@ class KeyUsageAccessTest(KeyUsagePageTestBase):
     def test_team_member_sees_their_key_and_the_team_service_account(self):
         self.assert_keys(self.keys_page(self.member), "member-laptop", "pipeline")
 
-    def test_org_admin_sees_their_org_but_links_no_other_users_key(self):
+    def test_org_admin_sees_and_links_every_key_of_their_org(self):
         response = self.keys_page(self.org_admin)
         self.assert_keys(response, "solo-laptop", "member-laptop", "pipeline")
-        self.assertContains(
-            response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
-        )
-        for key in (self.solo_key, self.member_key):
-            self.assertNotContains(response, reverse("token_detail", args=[key.id]))
+        for key in (self.solo_key, self.member_key, self.pipeline_key):
+            self.assertContains(response, f'href="{reverse("token_detail", args=[key.id])}"')
 
     def test_my_keys_narrows_an_org_admin_to_their_own_keys(self):
         self.assertEqual(self.names(self.org_admin, scope="mine"), [])

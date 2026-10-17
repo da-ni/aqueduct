@@ -1,5 +1,5 @@
 import hashlib
-from collections.abc import Collection, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.http import urlencode
 
-from management.key_activity import FAILED, of_keys, router_models, served
+from management.key_activity import FAILED, KeyAccess, of_keys, router_models, served
 from management.model_catalog import scopes_for, usable_models
 from management.models import Org, Request, Team, Token, UserProfile
 from management.models.token import of_org
@@ -160,19 +160,18 @@ class Key:
         return self.token.name
 
 
-def describe_key(
-    token: Token, profile: UserProfile, team_ids: Collection[int], *, with_org: bool = False
-) -> Key:
+def describe_key(token: Token, access: KeyAccess, *, with_org: bool = False) -> Key:
     """How the log names a key: a link when the viewer may open it, whose key it is, and, with
-    `with_org`, its org."""
+    `with_org`, its org. Load the relations `KeyAccess.can_open` reads, or each key costs
+    queries."""
+    href = reverse("token_detail", args=[token.id]) if access.can_open(token) else None
     account, own = token.service_account, False
     if account is not None:
-        href = reverse("token_detail", args=[token.id]) if account.team_id in team_ids else None
         note = f"Service account · {account.team.name}"
-    elif token.user_id == profile.user_id:
-        href, note, own = reverse("token_detail", args=[token.id]), "Personal", True
+    elif token.user_id == access.user_id:
+        note, own = "Personal", True
     else:
-        href, note = None, token.user.email
+        note = token.user.email
     if with_org:
         owner = account.team if account is not None else getattr(token.user, "profile", None)
         note += f" · {owner.org.name if owner is not None else NO_ORG}"
@@ -187,7 +186,8 @@ class Filters:
 
     The key picker lists `keys`, the viewer's own keys, and `matches`, the visible keys that
     match the search `key_q`. `only_key` is the one key the viewer may see, when they see just
-    one, so that there is no key to choose. `page_params` holds the page's own parameters, such
+    one, so that there is no key to choose. `access` decides which keys link to their pages.
+    `page_params` holds the page's own parameters, such
     as the log's status tab, which the key search keeps."""
 
     can_pick_org: bool
@@ -199,6 +199,7 @@ class Filters:
     key: Key | None
     key_q: str
     matches: tuple[Key, ...]
+    access: KeyAccess
     page_params: tuple[tuple[str, str], ...]
     models: tuple[str, ...]
     model: str | None
@@ -276,8 +277,10 @@ def read_filters(
         .order_by("name", "id")
     )
 
+    access = KeyAccess.of(profile)
+
     def describe(token: Token) -> Key:
-        return describe_key(token, profile, team_ids, with_org=org is None)
+        return describe_key(token, access, with_org=org is None)
 
     own = Q(user=profile.user, service_account__isnull=True) | Q(
         service_account__team__in=profile.teams.all()
@@ -331,6 +334,7 @@ def read_filters(
         key=key,
         key_q=key_q,
         matches=matches,
+        access=access,
         page_params=tuple(
             (name, value) for name, value in params.items() if name not in _NOT_PAGE_PARAMS
         ),
@@ -764,13 +768,10 @@ def _page_by_offset(
     )
 
 
-def request_log(
-    profile: UserProfile, teams: QuerySet[Team], filters: Filters, params: Mapping[str, str]
-) -> RequestLog:
+def request_log(filters: Filters, params: Mapping[str, str]) -> RequestLog:
     """The page of the log that `params` asks for: its status tab (`status`), search
     (`q`), order (`sort`), place (`before`, `after` or `page`), and open request (`request`).
     An order the selection is too wide for falls back to newest first."""
-    team_ids = set(teams.values_list("id", flat=True))
     outcome = Outcome.parse(params.get("status", ""))
     search = params.get("q", "").strip()[:SEARCH_MAX]
     free = sorts_freely(filters)
@@ -787,14 +788,14 @@ def request_log(
 
     if outcome is not None:
         filtered = filtered.filter(outcome.matches)
-    listed = filtered.prefetch_related("token__user", "token__service_account__team")
+    listed = filtered.prefetch_related("token__user__profile", "token__service_account__team")
     if sort.column is Column.TIME:
         page, pager = _page_by_time(listed, sort.descending, params, open_id, counts[outcome])
     else:
         page, pager = _page_by_offset(listed, sort, params.get("page"), counts[outcome])
 
     rows = tuple(
-        Row(request, describe_key(request.token, profile, team_ids), request.id == open_id)
+        Row(request, describe_key(request.token, filters.access), request.id == open_id)
         for request in page
     )
     return RequestLog(
