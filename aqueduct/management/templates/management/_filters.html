@@ -11,7 +11,7 @@
     </details>
 {% endif %}
 {% if not scope_only or filters.can_pick_scope %}
-<details class="dropdown"{% if filters.key_q %} open{% endif %}>
+<details class="dropdown"{% if filters.key_q and not scope_only %} open{% endif %}>
     <summary class="btn btn-sm max-w-72">{% icon "key" small=True %}<span class="sr-only">Key: </span><span class="truncate"{% if filters.key %} title="{{ filters.key.name }}"{% endif %}>{% if filters.key %}{{ filters.key.name }}{% elif filters.mine %}My keys{% elif filters.can_pick_scope %}All keys{% else %}All my keys{% endif %}</span></summary>
     <div class="dropdown-content z-10 mt-1 flex w-80 flex-col gap-1 rounded-box bg-base-100 p-2 shadow">
         {% if not scope_only %}
@@ -25,7 +25,7 @@
         </form>
         {% endif %}
         <ul class="menu max-h-80 w-full flex-nowrap overflow-y-auto p-0">
-            {% if filters.key_q %}
+            {% if filters.key_q and not scope_only %}
                 <li class="menu-title">Matching keys</li>
                 {% for key in filters.matches %}
                     <li><a{% if key == filters.key %} class="menu-active" aria-current="true"{% endif %} href="{% querystring key_q=None key=key.token.id scope=None before=None after=None request=None page=None %}"><span class="flex flex-col"><span class="font-mono">{{ key.name }}</span><span class="text-xs opacity-70">{{ key.note }}</span></span></a></li>

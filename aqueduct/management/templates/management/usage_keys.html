@@ -12,7 +12,7 @@
 
     <header class="flex min-h-12 flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 class="text-3xl font-semibold">All keys</h1>
-        <span class="muted">Usage in the last {{ filters.period.label }}</span>
+        <span class="muted">{{ count|intcomma }} key{{ count|pluralize }} with requests in the last {{ filters.period.label }}</span>
     </header>
 
     <div class="flex flex-wrap items-center gap-3">
@@ -44,15 +44,7 @@
             {% else %}
                 <p class="muted text-sm">No requests in this time frame.</p>
             {% endif %}
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <span class="muted font-mono text-xs">{{ count|intcomma }} key{{ count|pluralize }}{% if pages > 1 %} · page {{ page }} of {{ pages }}{% endif %}</span>
-                {% if pages > 1 %}
-                    <nav class="join" aria-label="Pages">
-                        {% if page > 1 %}<a class="btn btn-sm join-item" href="{% querystring page=page|add:-1 %}">Previous</a>{% else %}<button type="button" class="btn btn-sm join-item" disabled>Previous</button>{% endif %}
-                        {% if page < pages %}<a class="btn btn-sm join-item" href="{% querystring page=page|add:1 %}">Next</a>{% else %}<button type="button" class="btn btn-sm join-item" disabled>Next</button>{% endif %}
-                    </nav>
-                {% endif %}
-            </div>
+            {% include "management/_pager.html" %}
         </div>
     </section>
 </div>

@@ -521,20 +521,36 @@ def key_totals(requests: QuerySet[Request]) -> KeyTotals:
     return KeyTotals(found["n"], found["top"], found["all"])
 
 
+def ranked_keys(requests: QuerySet[Request], order: KeyOrder = KeyOrder.TOKENS) -> QuerySet:
+    """One row of totals per key, in `order`."""
+    return _by_key(requests).order_by(*order.ordering)
+
+
+@dataclass(frozen=True)
+class CountedKeys:
+    """`ranked_keys` whose number is already known, so that a `Paginator` slices them without
+    counting them again."""
+
+    rows: QuerySet
+    size: int
+
+    def __len__(self) -> int:
+        return self.size
+
+    def __getitem__(self, page: slice) -> list[dict]:
+        return list(self.rows[page])
+
+
 def key_shares(
+    rows: Sequence[dict],
     requests: QuerySet[Request],
     total: int,
     describe: Callable[[Token], "Key"],
-    *,
-    order: KeyOrder = KeyOrder.TOKENS,
-    start: int = 0,
-    stop: int = TOP_KEYS,
     busiest: int | None = None,
 ) -> tuple[KeyShare, ...]:
-    """The keys at `start:stop` in `order`, by default the ones that used the most tokens.
-    `describe` names a key and links it where the viewer may open it. Bars are as wide as
-    `busiest` tokens, by default the first row's."""
-    rows = list(_by_key(requests).order_by(*order.ordering)[start:stop])
+    """The `ranked_keys` `rows` as table rows, with the median response of each key over
+    `requests`. `describe` names a key and links it where the viewer may open it. Bars are as
+    wide as `busiest` tokens, by default the first row's."""
     ids = [row["token_id"] for row in rows]
     medians = {
         row["token_id"]: row["median"]

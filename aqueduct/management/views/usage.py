@@ -1,7 +1,7 @@
-import math
 from datetime import timedelta
 
 from django.conf import settings
+from django.core.paginator import Paginator
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import urlencode
@@ -47,6 +47,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         else:
             team_ids = set(self.get_teams_for_user().values_list("id", flat=True))
             keys = report.key_shares(
+                report.ranked_keys(in_period)[: report.TOP_KEYS],
                 in_period,
                 total.tokens,
                 lambda token: describe_key(token, profile, team_ids, with_org=selected_org is None),
@@ -103,17 +104,16 @@ class KeyUsageView(BaseAqueductView, TemplateView):
             count = report.key_totals(listed).keys
 
         order = report.KeyOrder.parse(params.get("sort", "")) or report.KeyOrder.TOKENS
-        pages = max(1, math.ceil(count / PAGE_SIZE))
-        page = min(parse_id(params.get("page")) or 1, pages)
+        pages = Paginator(
+            report.CountedKeys(report.ranked_keys(listed, order), count), PAGE_SIZE
+        ).get_page(parse_id(params.get("page")) or 1)
         team_ids = set(teams.values_list("id", flat=True))
         keys = report.key_shares(
+            pages.object_list,
             listed,
             everyone.tokens,
             lambda token: describe_key(token, self.profile, team_ids, with_org=filters.org is None),
-            order=order,
-            start=(page - 1) * PAGE_SIZE,
-            stop=page * PAGE_SIZE,
-            busiest=everyone.busiest,
+            everyone.busiest,
         )
         context.update(
             {
@@ -124,7 +124,6 @@ class KeyUsageView(BaseAqueductView, TemplateView):
                 "q": q,
                 "orders": tuple(report.KeyOrder),
                 "order": order,
-                "page": page,
                 "pages": pages,
             }
         )

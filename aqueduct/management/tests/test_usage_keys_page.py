@@ -82,6 +82,11 @@ class KeyUsageSearchTest(KeyUsagePageTestBase):
         (pipeline,) = response.context["keys"]
         self.assertEqual((pipeline.share, pipeline.width), ("53%", 100))
 
+    def test_the_key_pickers_search_lists_no_keys_here(self):
+        response = self.keys_page(self.org_admin, key_q="laptop")
+        self.assertNotContains(response, "Matching keys")
+        self.assertNotContains(response, f"key={self.solo_key.id}")
+
     def test_search_without_a_match_says_so(self):
         self.assertContains(self.keys_page(self.solo, q="nothing"), "No key that matches")
 
@@ -127,8 +132,8 @@ class KeyUsagePagingTest(KeyUsagePageTestBase):
         self.assertEqual(self.names(self.solo), ["solo-laptop", "spare-0"])
         self.assertEqual(self.names(self.solo, page=2), ["spare-1", "spare-2"])
         response = self.keys_page(self.solo, page=2)
-        self.assertEqual((response.context["count"], response.context["pages"]), (4, 2))
-        self.assertContains(response, "page 2 of 2")
+        self.assertEqual(response.context["count"], 4)
+        self.assertContains(response, "3\u20134 of 4")
 
     def test_a_page_past_the_end_or_unreadable_shows_the_nearest_page(self):
         self.assertEqual(self.names(self.solo, page=99), ["spare-1", "spare-2"])
