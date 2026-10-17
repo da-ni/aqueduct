@@ -13,6 +13,12 @@ from management.models.snippet import Snippet, SnippetType
 from management.models.team import Team
 from management.models.team_membership import TeamMembership
 from management.models.token import Token
+from management.models.usage_rollup import (
+    KeyUsageWindow,
+    OrgLatencyHour,
+    OrgUsageHour,
+    UsageRollupState,
+)
 from management.models.user_profile import UserGroup, UserProfile
 from management.models.vector_store import VectorStore, VectorStoreStatus
 from management.models.vector_store_file import VectorStoreFile, VectorStoreFileStatus
@@ -25,11 +31,14 @@ __all__ = [
     "Batch",
     "BatchStatus",
     "FileObject",
+    "KeyUsageWindow",
     "LimitMixin",
     "LimitSet",
     "MCPServerExclusionMixin",
     "ModelExclusionMixin",
     "Org",
+    "OrgLatencyHour",
+    "OrgUsageHour",
     "Request",
     "ServiceAccount",
     "Snippet",
@@ -38,6 +47,7 @@ __all__ = [
     "TeamMembership",
     "Token",
     "Usage",
+    "UsageRollupState",
     "UserGroup",
     "UserProfile",
     "VectorStore",

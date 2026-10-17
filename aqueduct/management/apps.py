@@ -16,6 +16,10 @@ class AqueductManagementConfig(AppConfig):
     name = "management"
 
     def ready(self):
+        from management import signals
+
+        signals.connect()
+
         if settings.TOS_ENABLED:
             log.info("Setting up TOS dispatch functions...")
             cache = caches[getattr(settings, "TOS_CACHE_NAME", "default")]
