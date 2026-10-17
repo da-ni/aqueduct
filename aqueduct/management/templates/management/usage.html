@@ -112,7 +112,7 @@
                                 <th class="w-[22%]">Model</th><th class="w-[26%]">Tokens</th>
                                 <th class="w-[8%] text-right">Input</th><th class="w-[8%] text-right">Output</th>
                                 <th class="w-[10%] text-right">Cache hits</th><th class="w-[10%] text-right">Requests</th>
-                                <th class="w-[8%] text-right">Median</th><th class="w-[8%] text-right">Share</th>
+                                <th class="w-[8%] text-right">{% if approximate_tip %}<span class="tooltip tooltip-left" data-tip="{{ approximate_tip }}">Median<span class="sr-only">, {{ approximate_tip }}</span></span>{% else %}Median{% endif %}</th><th class="w-[8%] text-right">Share</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -127,7 +127,7 @@
                                     <td class="text-right font-mono">{{ row.output }}</td>
                                     <td class="text-right font-mono">{{ row.activity.cache_hits }}</td>
                                     <td class="text-right font-mono">{{ row.activity.requests|intcomma }}</td>
-                                    <td class="text-right font-mono">{{ row.median }}</td>
+                                    <td class="whitespace-nowrap text-right font-mono">{% if row.approximate %}<span aria-hidden="true">≈ </span><span class="sr-only">approximately </span>{% endif %}{{ row.median }}</td>
                                     <td class="muted text-right font-mono">{{ row.share }}</td>
                                 </tr>
                             {% endfor %}

@@ -19,15 +19,7 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.db import connection, models, transaction
 from django.db.models import Case, Count, Expression, F, IntegerField, Q, QuerySet, Sum, Value, When
-from django.db.models.functions import (
-    Cast,
-    Coalesce,
-    ExtractHour,
-    ExtractIsoWeekDay,
-    Floor,
-    Ln,
-    Trunc,
-)
+from django.db.models.functions import Cast, ExtractHour, ExtractIsoWeekDay, Floor, Ln, Trunc
 from django.utils import timezone
 
 from management.key_activity import FAILED, Activity, router_models, served
@@ -43,10 +35,12 @@ from management.models import (
 from management.models.usage_rollup import HOURLY
 from management.usage_report import (
     HOUR,
+    ORG,
     STATUS_COUNTS,
     STATUSES,
     TOKENS,
     TOTALS,
+    ModelUsage,
     Period,
     Series,
     Span,
@@ -58,6 +52,9 @@ SETTLE = timedelta(minutes=15)
 REWRITE = timedelta(hours=24)
 """How far back each refresh recounts sealed hours, to pick up late status and token updates."""
 KEY_WINDOWS: Mapping[int, Span] = {7: Span.WEEK, 30: Span.MONTH}
+CURRENT = timedelta(hours=2)
+"""How far the sealed hours may lag behind, with refreshes every 10 minutes, and still count as
+current."""
 
 BUCKETS_PER_DOUBLING = 8
 ZERO_BUCKET = -1
@@ -68,9 +65,6 @@ BUCKET = Case(
     ),
 )
 """Bucket `b` holds response times in [2^(b/8), 2^((b+1)/8)) ms, and `ZERO_BUCKET` those of 0 ms."""
-
-ORG = Coalesce("token__service_account__team__org", "token__user__profile__org")
-"""A service account's key counts for its team's org, a personal key for its owner's org."""
 
 STATUS_COLUMNS = ("ok", "rate_limited", "client_error", "server_error")
 _COUNT_STATUSES = {
@@ -229,14 +223,9 @@ def _insert(table: type[models.Model], rows: QuerySet[Any, Row], **fixed: int) -
 # Reading ----------------------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class ModelUsage:
-    activity: Activity
-    median_ms: int | None
-    """Within 4.5% of the lower median response time, or 1 ms below 12 ms."""
-
-
-def org_series(org: Org | None, model: str | None, period: Period) -> Series:
+def org_series(
+    org: Org | None, model: str | None, period: Period, sealed: "Sealed | None" = None
+) -> Series:
     """`usage_report.series` of the requests of `org`, every org when `None`, and of `model`,
     every served model when `None`."""
     found = _gather(
@@ -252,7 +241,7 @@ def org_series(org: Org | None, model: str | None, period: Period) -> Series:
         lambda rows: rows.values(bucket=Trunc("timestamp", period.step.kind)).annotate(
             **TOTALS, **STATUS_COUNTS
         ),
-        hourly=period.step.size >= HOUR.size,
+        sealed if period.step.size >= HOUR.size else Sealed(None),
     )
     return Series(
         [(bucket, _activity(found.get((bucket,), Counter()))) for bucket in period.buckets],
@@ -260,8 +249,11 @@ def org_series(org: Org | None, model: str | None, period: Period) -> Series:
     )
 
 
-def org_models(org: Org | None, model: str | None, period: Period) -> dict[str, ModelUsage]:
-    """Activity and approximate median response time per model, for the models with requests."""
+def org_models(
+    org: Org | None, model: str | None, period: Period, sealed: "Sealed | None" = None
+) -> dict[str, ModelUsage]:
+    """Activity and approximate median response time per model, for the models with requests.
+    Each median is within 4.5% of the lower median response time, or 1 ms below 12 ms."""
     args = (org, model, period.start, period.end)
     totals = _gather(
         *args,
@@ -269,6 +261,7 @@ def org_models(org: Org | None, model: str | None, period: Period) -> dict[str, 
         OrgUsageHour,
         lambda rows: rows.values("model").annotate(**_HOUR_TOTALS),
         lambda rows: rows.values("model").annotate(**TOTALS),
+        sealed,
     )
     latency = _gather(
         *args,
@@ -280,6 +273,7 @@ def org_models(org: Org | None, model: str | None, period: Period) -> dict[str, 
             .values("model", bucket=BUCKET)
             .annotate(n=Count("id"))
         ),
+        sealed,
     )
     buckets: dict[str, dict[int, int]] = defaultdict(dict)
     for (name, bucket), counts in latency.items():
@@ -290,7 +284,29 @@ def org_models(org: Org | None, model: str | None, period: Period) -> dict[str, 
     }
 
 
-def org_heat(org: Org | None, start: datetime, end: datetime) -> dict[tuple[int, int], int]:
+def org_tokens(
+    model: str | None, period: Period, sealed: "Sealed | None" = None
+) -> dict[int | None, int]:
+    """Tokens per org id, `None` for keys of no org, as `usage_report.org_tokens` sums them."""
+    found = _gather(
+        None,
+        model,
+        period.start,
+        period.end,
+        ("org_id",),
+        OrgUsageHour,
+        lambda rows: rows.values("org_id").annotate(
+            tokens=Sum(F("input_tokens") + F("output_tokens"))
+        ),
+        lambda rows: rows.values(org_id=ORG).annotate(tokens=Sum(TOKENS)),
+        sealed,
+    )
+    return {org_id: counts["tokens"] for (org_id,), counts in found.items()}
+
+
+def org_heat(
+    org: Org | None, start: datetime, end: datetime, sealed: "Sealed | None" = None
+) -> dict[tuple[int, int], int]:
     """Tokens per ISO weekday and local hour of day, as `usage_report.heat` sums them."""
     found = _gather(
         org,
@@ -305,6 +321,7 @@ def org_heat(org: Org | None, start: datetime, end: datetime) -> dict[tuple[int,
         lambda rows: rows.values(
             day=ExtractIsoWeekDay("timestamp"), at=ExtractHour("timestamp")
         ).annotate(tokens=Sum(TOKENS)),
+        sealed,
     )
     return {key: counts["tokens"] for key, counts in found.items()}
 
@@ -374,14 +391,26 @@ def approximate_median(counts: Mapping[int, int]) -> int | None:
     return round(2 ** ((bucket + 0.5) / BUCKETS_PER_DOUBLING))
 
 
-def _sealed_until() -> datetime | None:
-    if not steady_hours(settings.TIME_ZONE):
-        return None
-    return (
-        UsageRollupState.objects.filter(name=HOURLY, time_zone=settings.TIME_ZONE)
-        .values_list("sealed_until", flat=True)
-        .first()
-    )
+@dataclass(frozen=True)
+class Sealed:
+    """Where the hours the org rollups hold end, `None` when there are no usable rollups. A page
+    reads it once, so that all its figures split rollups and requests at the same hour."""
+
+    until: datetime | None
+
+    @classmethod
+    def read(cls) -> "Sealed":
+        if not steady_hours(settings.TIME_ZONE):
+            return cls(None)
+        return cls(
+            UsageRollupState.objects.filter(name=HOURLY, time_zone=settings.TIME_ZONE)
+            .values_list("sealed_until", flat=True)
+            .first()
+        )
+
+    def current(self, now: datetime) -> bool:
+        """Whether the rollups hold all but the last `CURRENT` before `now`."""
+        return self.until is not None and self.until >= now - CURRENT
 
 
 def _split(start: datetime, end: datetime, sealed_until: datetime | None) -> tuple[Q | None, Q]:
@@ -404,12 +433,11 @@ def _gather(
     table: type[OrgUsageHour] | type[OrgLatencyHour],
     from_rollup: Callable[[QuerySet[Any]], Iterable[Row]],
     from_requests: Callable[[QuerySet[Request]], Iterable[Row]],
-    *,
-    hourly: bool = True,
+    sealed: Sealed | None,
 ) -> Grouped:
-    """Counts per `keys` over [start, end), from rollup rows where they exist and from requests
-    elsewhere."""
-    hours, rest = _split(start, end, _sealed_until() if hourly else None)
+    """Counts per `keys` over [start, end), from rollup rows up to `sealed`, read now when
+    `None`, and from requests elsewhere."""
+    hours, rest = _split(start, end, (sealed or Sealed.read()).until)
     requests = org_requests(org).filter(rest)
     if model is not None:
         requests = requests.filter(model=model)

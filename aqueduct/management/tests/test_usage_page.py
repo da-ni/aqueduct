@@ -7,6 +7,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from management import usage_rollup as rollup
 from management.models import (
     Org,
     Request,
@@ -18,6 +19,7 @@ from management.models import (
     UserProfile,
 )
 from management.tests.test_api_keys_pages import PAGES, make_token
+from management.usage_report import APPROXIMATE_MEDIAN
 
 User = get_user_model()
 CHAT = "gpt-4.1-nano"
@@ -28,7 +30,7 @@ KEY_NAMES = ("solo-laptop", "member-laptop", "pipeline", "foreign-laptop")
 @PAGES
 class UsagePageTestBase(TestCase):
     def setUp(self):
-        cache.clear()
+        cache.clear()  # without current rollups, the Overview heatmap is cached per org
         self.org = Org.objects.create(name="lab-org")
         self.other_org = Org.objects.create(name="other-org")
         self.team = Team.objects.create(name="NLP Lab", org=self.org)
@@ -252,11 +254,19 @@ class UsageFiguresTest(UsagePageTestBase):
         self.assertContains(response, "Activity across all organizations")
         self.assertContains(response, cell.format("3.6K"))  # 14,500 tokens
 
-    def test_heatmap_is_cached_per_org(self):
+    def test_without_current_rollups_the_heatmap_is_cached_per_org(self):
         heat = self.page(self.solo).context["heat"]
         self.log(self.member_key, timedelta(minutes=1), 200, input_tokens=10**6)
         self.assertEqual(self.page(self.org_admin).context["heat"], heat)
         self.assertNotEqual(self.page(self.foreigner).context["heat"], heat)
+
+    def test_with_current_rollups_the_heatmap_shows_new_requests_at_once(self):
+        rollup.refresh()
+        heat = self.page(self.solo).context["heat"]
+        foreign_heat = self.page(self.foreigner).context["heat"]
+        self.log(self.member_key, timedelta(minutes=1), 200, input_tokens=10**6)
+        self.assertNotEqual(self.page(self.org_admin).context["heat"], heat)
+        self.assertEqual(self.page(self.foreigner).context["heat"], foreign_heat)
 
     @override_settings(REQUEST_RETENTION_DAYS=7)
     def test_retention_warning_when_the_time_frame_reaches_past_retention(self):
@@ -292,7 +302,7 @@ class UsageFiguresTest(UsagePageTestBase):
         )
         self.assertNotContains(response, f"{reverse('models')}?model=")
 
-    def test_model_and_key_rows_show_the_lower_median_response(self):
+    def test_model_rows_show_the_lower_median_response(self):
         Request.objects.all().delete()
         for ms in (700, 100, None, 500, 300):
             Request.objects.create(
@@ -302,9 +312,8 @@ class UsageFiguresTest(UsagePageTestBase):
                 model=CHAT,
                 response_time_ms=ms,
             )
-        context = self.page(self.solo).context
-        self.assertEqual([row.median for row in context["models"]], ["300 ms"])
-        self.assertEqual([key.median for key in context["keys"]], ["300 ms"])
+        self.assertEqual([row.median for row in self.page(self.solo).context["models"]], ["300 ms"])
+        self.assertNotContains(self.page(self.solo), APPROXIMATE_MEDIAN)
 
     def test_top_keys_rows_open_the_key(self):
         response = self.page(self.solo)
@@ -323,7 +332,7 @@ class UsageFiguresTest(UsagePageTestBase):
         )
         pipeline = keys["pipeline"]
         self.assertEqual((pipeline.input, pipeline.output), ("4K", "1.5K"))
-        self.assertEqual((pipeline.share, pipeline.median), ("61%", "100 ms"))
+        self.assertEqual(pipeline.share, "61%")
         self.assertEqual(pipeline.activity.segments, (("c", 0), ("i", 4000), ("o", 1500)))
         self.assertEqual(
             keys["solo-laptop"].activity.segments, (("c", 250), ("i", 750), ("o", 500))

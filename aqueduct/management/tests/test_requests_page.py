@@ -36,7 +36,7 @@ PATHS = ("/own", "/others", "/team-sa", "/side-sa", "/sent-as-owner", "/foreign"
 @PAGES
 class RequestsPageTestBase(TestCase):
     def setUp(self):
-        cache.clear()  # the Overview heatmap is cached per org id
+        cache.clear()  # without current rollups, the Overview heatmap is cached per org
         self.org = Org.objects.create(name="lab-org")
         self.other_org = Org.objects.create(name="other-org")
         self.team = Team.objects.create(name="NLP Lab", org=self.org)
