@@ -142,37 +142,12 @@
 
     <section class="card bg-base-200">
         <div class="card-body gap-3 p-5">
-            <h2 class="text-xl font-semibold">{% if filters.key %}By user ID{% else %}Top keys{% endif %}</h2>
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 class="text-xl font-semibold">{% if filters.key %}By user ID{% else %}Top keys{% endif %}</h2>
+                {% if not filters.key %}<a class="link-plain text-sm" href="{{ all_keys_url }}">View all keys</a>{% endif %}
+            </div>
             {% if keys %}
-                <div class="overflow-x-auto">
-                    <table class="table table-fixed model-table min-w-[860px]">
-                        <thead>
-                            <tr>
-                                <th class="w-[22%]">{% if filters.key %}User ID{% else %}Key{% endif %}</th><th class="w-[26%]">Tokens</th>
-                                <th class="w-[8%] text-right">Input</th><th class="w-[8%] text-right">Output</th>
-                                <th class="w-[10%] text-right">Cache hits</th><th class="w-[10%] text-right">Requests</th>
-                                <th class="w-[8%] text-right">Median</th><th class="w-[8%] text-right">Share</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for key in keys %}
-                                <tr>
-                                    <td>
-                                        {% if key.href %}<a class="link-plain row-link block truncate font-mono" href="{{ key.href }}" title="{{ key.name }}">{{ key.name }}</a>{% else %}<div class="truncate font-mono" title="{{ key.name }}">{{ key.name }}</div>{% endif %}
-                                        {% if key.detail %}<div class="muted truncate text-xs" title="{{ key.detail }}">{{ key.detail }}</div>{% endif %}
-                                    </td>
-                                    <td>{% include "management/_token_bar.html" with activity=key.activity width=key.width %}</td>
-                                    <td class="text-right font-mono">{{ key.input }}</td>
-                                    <td class="text-right font-mono">{{ key.output }}</td>
-                                    <td class="text-right font-mono">{{ key.activity.cache_hits }}</td>
-                                    <td class="text-right font-mono">{{ key.activity.requests|intcomma }}</td>
-                                    <td class="text-right font-mono">{{ key.median }}</td>
-                                    <td class="muted text-right font-mono">{{ key.share }}</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                {% include "management/_key_table.html" with first_column=filters.key|yesno:"User ID,Key" %}
             {% else %}
                 <p class="muted text-sm">No requests in this time frame.</p>
             {% endif %}

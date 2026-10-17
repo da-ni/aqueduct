@@ -55,6 +55,7 @@ urlpatterns = [
     # New URL for Model/Endpoint list
     path("models/", views.ModelListView.as_view(), name="models"),
     path("usage/", views.UsageDashboardView.as_view(), name="usage"),
+    path("usage/keys/", views.KeyUsageView.as_view(), name="usage_keys"),
     path("requests/", views.RequestLogView.as_view(), name="requests"),
     path("files/", views.UserFilesView.as_view(), name="files"),
     path("files/<str:id>/delete/", views.FileDeleteView.as_view(), name="file_delete"),
