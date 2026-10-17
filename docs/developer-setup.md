@@ -93,3 +93,34 @@ If you prefer to run Aqueduct directly on your machine (for development), you ca
 _Note: You will need to have Dex running locally, or adjust your environment variables accordingly to use an existing OIDC provider._
 
 ---
+
+---
+
+## Demo Data at Production Scale
+
+`seed_demo` fills a development database with two orgs and a month of request log, so the
+management pages can be checked against realistic volume. It runs only with `DEBUG` on.
+
+```bash
+cd aqueduct
+uv run python manage.py seed_demo                 # 300 + 30 teams, 100,000 requests a day for 30 days
+uv run python manage.py seed_demo --reset         # replace earlier demo data
+uv run python manage.py seed_demo --delete        # remove it
+uv run python manage.py seed_demo --teams 20 --small-teams 5 --requests-per-day 5000 --days 7
+```
+
+The large org `seed-demo-campus` and the small org `seed-demo-institute` get teams of three to
+five people, a few team and org admins, one to three personal keys per user, and service accounts
+with keys. Every seeded user has an `@seed.invalid` address. `--reset` and `--delete` remove only
+those users, the `seed-demo-` orgs, and the keys, requests, files, batches, and vector stores
+attached to them. The same `--seed` and end time give the same data.
+
+Requests use only the models of the router config in `LITELLM_ROUTER_CONFIG_FILE_PATH`. To set
+the model mix, pass `--models-file` with a YAML or JSON file in the format of
+`aqueduct/management/management/commands/seed_demo_models.example.yaml`. When the file names
+models that the router config does not serve, the command stops. Run it once with
+`--write-router-config <path>` to write a router config that serves them, then point
+`LITELLM_ROUTER_CONFIG_FILE_PATH` at that file.
+
+On Postgres, the default 3 million requests take about two minutes, including the usage rollup
+rebuild. SQLite is slower, so use fewer requests there.
