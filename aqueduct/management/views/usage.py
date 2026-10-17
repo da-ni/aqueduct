@@ -62,6 +62,15 @@ def _heat(
     return tokens
 
 
+def _tab_urls(filters: Filters) -> dict[str, str]:
+    """The Overview and All keys tabs, both on the selection of `filters`."""
+    query = urlencode(filters.query)
+    return {
+        "overview_url": f"{reverse('usage')}?{query}",
+        "all_keys_url": f"{reverse('usage_keys')}?{query}",
+    }
+
+
 def _org_tokens(filters: Filters) -> QuerySet[Token]:
     return Token.objects.all() if filters.org is None else Token.objects.filter(of_org(filters.org))
 
@@ -116,12 +125,16 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
 
         context.update(
             {
+                **_tab_urls(filters),
                 "filters": filters,
                 "period": period,
                 "kpis": report.kpis(report.slots(timeline.points, period.step)),
                 "requests_in_period": total.requests,
                 "metric": metric,
-                "chart": report.columns(timeline.points, period.step, metric),
+                "charts": tuple(
+                    (shown, report.columns(timeline.points, period.step, shown))
+                    for shown in ("tokens", "requests")
+                ),
                 "statuses": report.statuses(timeline, filters.log_url),
                 "heat_org": selected_org,
                 "heat": report.heat(_heat(selected_org, now, heat_weeks, sealed), heat_weeks),
@@ -133,7 +146,6 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 ),
                 "approximate_tip": report.APPROXIMATE_MEDIAN if org_wide else "",
                 "keys": keys,
-                "all_keys_url": f"{reverse('usage_keys')}?{urlencode(filters.query)}",
                 "orgs_usage": ()
                 if selected_org is not None
                 else report.org_shares(
@@ -191,8 +203,8 @@ class KeyUsageView(BaseAqueductView, TemplateView):
         )
         context.update(
             {
+                **_tab_urls(filters),
                 "filters": filters,
-                "overview_url": f"{reverse('usage')}?{urlencode(filters.query)}",
                 "keys": keys,
                 "count": count,
                 "q": q,

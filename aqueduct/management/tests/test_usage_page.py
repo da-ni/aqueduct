@@ -342,3 +342,76 @@ class UsageFiguresTest(UsagePageTestBase):
         response = self.page(self.org_admin)
         self.assertNotContains(response, '<a class="card')
         self.assertNotContains(response, "open in the request log")
+
+
+class UsageChartTest(UsagePageTestBase):
+    """The chart holds both series, so the metric switch shows one without loading the page."""
+
+    def series(self, response) -> dict[str, tuple[bool, str]]:
+        """Whether each chart series is shown, and the column labels it reads out."""
+        html = response.content.decode()
+        found = {}
+        opening = re.compile(r'<div class="flex h-72[^"]*" data-metric="(\w+)"( hidden)?>')
+        matches = list(opening.finditer(html))
+        for match, following in zip(matches, [*matches[1:], None], strict=True):
+            end = following.start() if following else html.index("</section>", match.end())
+            labels = re.findall(r'chart-col[^>]*aria-label="([^"]*)"', html[match.end() : end])
+            found[match.group(1)] = (match.group(2) is None, " ".join(labels))
+        return found
+
+    def test_both_series_are_on_the_page_and_tokens_is_shown_first(self):
+        series = self.series(self.page(self.org_admin))
+        self.assertEqual(series.keys(), {"tokens", "requests"})
+        self.assertTrue(series["tokens"][0])
+        self.assertFalse(series["requests"][0])
+        self.assertIn("Output", series["tokens"][1])
+        self.assertIn("Answered 1, Failed 2", series["requests"][1])
+
+    def test_the_metric_parameter_picks_the_series_shown(self):
+        response = self.page(self.org_admin, metric="requests")
+        series = self.series(response)
+        self.assertFalse(series["tokens"][0])
+        self.assertTrue(series["requests"][0])
+        self.assertContains(response, '<span data-metric="requests">Requests</span> per')
+
+    def test_the_metric_links_still_load_the_page_without_scripts(self):
+        response = self.page(self.org_admin, span="1m", key_q="lap")
+        html = response.content.decode()
+        self.assertIn('href="?span=1m" data-metric-show="tokens" aria-current="page"', html)
+        self.assertIn('href="?span=1m&amp;metric=requests" data-metric-show="requests"', html)
+
+
+class UsageTabsTest(UsagePageTestBase):
+    def tabs(self, response) -> dict[str, tuple[str, bool]]:
+        nav = re.search(
+            r'<nav class="join" aria-label="Usage">(.*?)</nav>', response.content.decode(), re.S
+        )
+        self.assertIsNotNone(nav, "no usage tabs on the page")
+        return {
+            label: (href.replace("&amp;", "&"), bool(current))
+            for href, current, label in re.findall(
+                r'href="([^"]*)"( aria-current="page")?>([^<]*)</a>', nav.group(1)
+            )
+        }
+
+    def test_overview_marks_its_tab_and_both_tabs_keep_the_filters(self):
+        response = self.page(self.admin, org=self.org.id, model=CHAT, span="1m", metric="requests")
+        query = f"org={self.org.id}&model={CHAT}&span=1m"
+        self.assertEqual(
+            self.tabs(response),
+            {
+                "Overview": (f"{reverse('usage')}?{query}", True),
+                "All keys": (f"{reverse('usage_keys')}?{query}", False),
+            },
+        )
+
+    def test_all_keys_marks_its_tab_and_both_tabs_keep_the_filters(self):
+        self.client.force_login(self.org_admin)
+        response = self.client.get(reverse("usage_keys"), {"scope": "mine", "span": "1d"})
+        self.assertEqual(
+            self.tabs(response),
+            {
+                "Overview": (f"{reverse('usage')}?scope=mine&span=1d", False),
+                "All keys": (f"{reverse('usage_keys')}?scope=mine&span=1d", True),
+            },
+        )

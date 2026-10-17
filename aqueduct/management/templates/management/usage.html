@@ -5,6 +5,8 @@
 
 {% block content %}
 <div class="flex flex-col gap-6">
+    {% include "management/_usage_tabs.html" with tab="overview" %}
+
     <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
         <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
             <h1 class="text-3xl font-semibold">Overview</h1>
@@ -36,33 +38,34 @@
     </section>
 
     <section class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div class="card bg-base-200 lg:col-span-2">
+        <div class="card bg-base-200 lg:col-span-2" data-metric-scope>
             <div class="card-body gap-4 p-5">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h2 class="text-xl font-semibold">{% if metric == "requests" %}Requests{% else %}Tokens{% endif %} per {{ period.step.kind }}</h2>
+                    <h2 class="text-xl font-semibold"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>Tokens</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>Requests</span> per {{ period.step.kind }}</h2>
                     <div class="flex flex-wrap items-center gap-4">
-                        <div class="flex items-center gap-4 text-sm">
-                            {% if metric == "requests" %}
-                                <span class="flex items-center gap-2"><span class="sw i"></span>Answered</span>
-                                <span class="flex items-center gap-2"><span class="sw f"></span>Failed</span>
-                            {% else %}
-                                <span class="flex items-center gap-2"><span class="sw c"></span>Input from cache</span>
-                                <span class="flex items-center gap-2"><span class="sw i"></span>New input</span>
-                                <span class="flex items-center gap-2"><span class="sw o"></span>Output</span>
-                            {% endif %}
+                        <div class="flex items-center gap-4 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
+                            <span class="flex items-center gap-2"><span class="sw c"></span>Input from cache</span>
+                            <span class="flex items-center gap-2"><span class="sw i"></span>New input</span>
+                            <span class="flex items-center gap-2"><span class="sw o"></span>Output</span>
+                        </div>
+                        <div class="flex items-center gap-4 text-sm" data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>
+                            <span class="flex items-center gap-2"><span class="sw i"></span>Answered</span>
+                            <span class="flex items-center gap-2"><span class="sw f"></span>Failed</span>
                         </div>
                         <nav class="join" aria-label="Chart metric">
-                            <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None key_q=None %}"{% if metric == 'tokens' %} aria-current="page"{% endif %}>Tokens</a>
-                            <a class="btn btn-sm join-item{% if metric == 'requests' %} btn-primary{% endif %}" href="{% querystring metric='requests' key_q=None %}"{% if metric == 'requests' %} aria-current="page"{% endif %}>Requests</a>
+                            <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None key_q=None %}" data-metric-show="tokens"{% if metric == 'tokens' %} aria-current="page"{% endif %}>Tokens</a>
+                            <a class="btn btn-sm join-item{% if metric == 'requests' %} btn-primary{% endif %}" href="{% querystring metric='requests' key_q=None %}" data-metric-show="requests"{% if metric == 'requests' %} aria-current="page"{% endif %}>Requests</a>
                         </nav>
                     </div>
                 </div>
                 {% if requests_in_period %}
-                    <div class="flex h-72 gap-px sm:gap-1">
-                        {% for column in chart %}
-                            {% include "management/_chart_column.html" %}
-                        {% endfor %}
-                    </div>
+                    {% for shown, chart in charts %}
+                        <div class="flex h-72 gap-px sm:gap-1" data-metric="{{ shown }}"{% if shown != metric %} hidden{% endif %}>
+                            {% for column in chart %}
+                                {% include "management/_chart_column.html" %}
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
                 {% else %}
                     <p class="muted flex h-72 items-center justify-center text-sm">No requests in this time frame.</p>
                 {% endif %}
