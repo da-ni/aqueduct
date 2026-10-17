@@ -7,7 +7,6 @@ Covers the ``_rate_usage.html`` include driven by
 from typing import ClassVar
 
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
@@ -19,12 +18,6 @@ User = get_user_model()
 
 class TokensPageTest(TestCase):
     fixtures: ClassVar[list[str]] = ["gateway_data.json"]
-
-    def setUp(self) -> None:
-        cache.clear()
-
-    def tearDown(self) -> None:
-        cache.clear()
 
     def test_page_renders_usage_progress_bars(self):
         user = User.objects.get(pk=1)

@@ -4,8 +4,11 @@ import os
 import shutil
 import signal
 import subprocess
+import unittest
+from typing import override
 
 from django.conf import settings
+from django.core.cache import caches
 from django.test.runner import DiscoverRunner
 
 from mock_api.mock_server import MockAPIServer
@@ -87,6 +90,17 @@ def set_shared_mcp_server(process: subprocess.Popen, port: int) -> None:
     MockServerState.set_mcp_server(process, port)
 
 
+class _ClearCachesBeforeEachTest(unittest.TestResult):
+    """The cache outlives each test's rollback, and object ids repeat across tests, so a key
+    cached by one test can answer the next."""
+
+    @override
+    def startTest(self, test):
+        for cache in caches.all(initialized_only=True):
+            cache.clear()
+        super().startTest(test)
+
+
 class MockServerTestRunner(DiscoverRunner):
     """
     Custom Django test runner that starts a single mock server instance
@@ -94,6 +108,10 @@ class MockServerTestRunner(DiscoverRunner):
 
     It also stops the test MCP server if it has been started by any tests that needed it.
     """
+
+    def get_resultclass(self):
+        result = super().get_resultclass() or unittest.TextTestResult
+        return type("IsolatedTestResult", (_ClearCachesBeforeEachTest, result), {})
 
     def setup_test_environment(self, **kwargs):
         """Set up the test environment, starting the mock API server."""

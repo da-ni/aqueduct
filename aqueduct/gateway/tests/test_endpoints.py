@@ -8,7 +8,6 @@ from unittest.mock import patch
 
 from asgiref.sync import async_to_sync
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.test import TransactionTestCase, override_settings
@@ -1611,20 +1610,11 @@ class ListModelsIntegrationTest(GatewayIntegrationTestCase):
 class TokenLimitTest(ChatCompletionsBase):
     def setUp(self):
         super().setUp()
-        # Rate-limit counts now live in the cache (LocMemCache under test), which
-        # is shared in-process across tests within the same window. Clear it so
-        # bucket counts from a previous test in the same minute/hour/day don't
-        # bleed into this one (DB transaction rollback no longer resets them).
-        cache.clear()
         # The limits count per calendar minute, hour, and day. A frozen clock keeps every
         # request of a test in the same window.
         clock = patch("django.utils.timezone.now", return_value=timezone.now())
         clock.start()
         self.addCleanup(clock.stop)
-
-    def tearDown(self):
-        cache.clear()
-        super().tearDown()
 
     def _setup_limits(self, kind: str, field: str, value: int):
         """

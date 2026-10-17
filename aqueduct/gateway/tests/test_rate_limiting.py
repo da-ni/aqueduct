@@ -47,15 +47,7 @@ def _lock_disabled():
     return patch("gateway.rate_limiting._cache_lock", return_value=_yielding(False))
 
 
-class RateLimitingBase(SimpleTestCase):
-    def setUp(self):
-        cache.clear()
-
-    def tearDown(self):
-        cache.clear()
-
-
-class CheckAndReserveTest(RateLimitingBase):
+class CheckAndReserveTest(SimpleTestCase):
     def setUp(self):
         super().setUp()
         # 14.5 s left in the minute (15 rounded up), unless a test sets its own clock
@@ -150,7 +142,7 @@ class CheckAndReserveTest(RateLimitingBase):
         self.assertIsNone(cache.get(_bucket_key(TOKEN_ID, "min", now)))
 
 
-class RecordTokenUsageTest(RateLimitingBase):
+class RecordTokenUsageTest(SimpleTestCase):
     def test_zero_usage_is_noop(self):
         now = datetime(2026, 7, 2, 10, 0, 0, tzinfo=UTC)
         with _patch_time(_Clock(now)):
@@ -190,7 +182,7 @@ class RecordTokenUsageTest(RateLimitingBase):
             self.assertIsNone(cache.get(_bucket_key(TOKEN_ID, name, now)))
 
 
-class GetAggregateUsageTest(RateLimitingBase):
+class GetAggregateUsageTest(SimpleTestCase):
     def test_empty_token_list_returns_zero_buckets_for_every_window(self):
         from gateway.rate_limiting import get_aggregate_usage
 
@@ -254,7 +246,7 @@ class GetAggregateUsageTest(RateLimitingBase):
         self.assertEqual(exceeded, [])
 
 
-class GetPerTokenUsageTest(RateLimitingBase):
+class GetPerTokenUsageTest(SimpleTestCase):
     def test_empty_token_list_returns_no_entries(self):
         from gateway.rate_limiting import get_per_token_usage
 
@@ -296,7 +288,7 @@ class GetPerTokenUsageTest(RateLimitingBase):
             self.assertEqual(per_token[TOKEN_ID][name], {"req": 0.0, "in": 0, "out": 0})
 
 
-class HourDayLimitTest(RateLimitingBase):
+class HourDayLimitTest(SimpleTestCase):
     def test_hour_limit_blocks_after_sustained_burst(self):
         """requests_per_minute=10, hourly_limit_multiplier=6 -> 60/hour.
 

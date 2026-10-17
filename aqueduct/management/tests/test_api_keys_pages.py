@@ -47,7 +47,6 @@ def secret_on(response) -> str | None:
 @PAGES
 class ApiKeysPagesTestBase(TestCase):
     def setUp(self):
-        cache.clear()  # without current rollups, the Overview heatmap is cached per org
         self.org = Org.objects.create(name="keys-org")
         self.team = Team.objects.create(name="keys-team", org=self.org)
         self.other_team = Team.objects.create(name="other-team", org=self.org)
