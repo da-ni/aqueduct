@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-17 23:10+0000\n"
+"POT-Creation-Date: 2026-10-17 23:33+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -59,6 +59,57 @@ msgstr "%(name)s löschen?"
 msgid "Delete"
 msgstr "Löschen"
 
+#, python-format
+msgid "%(count)s token"
+msgid_plural "%(count)s tokens"
+msgstr[0] "%(count)s Token"
+msgstr[1] "%(count)s Token"
+
+#, python-format
+msgid "%(count)s cached token"
+msgid_plural "%(count)s cached tokens"
+msgstr[0] "%(count)s Token aus dem Cache"
+msgstr[1] "%(count)s Token aus dem Cache"
+
+#, python-format
+msgid "%(count)s request"
+msgid_plural "%(count)s requests"
+msgstr[0] "%(count)s Anfrage"
+msgstr[1] "%(count)s Anfragen"
+
+#, python-format
+msgid "%(count)s failed"
+msgid_plural "%(count)s failed"
+msgstr[0] "%(count)s fehlgeschlagen"
+msgstr[1] "%(count)s fehlgeschlagen"
+
+msgid "Cached"
+msgstr "Aus dem Cache"
+
+msgid "New input"
+msgstr "Neue Eingabe"
+
+msgid "Output"
+msgstr "Ausgabe"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Failed"
+msgstr "Fehlgeschlagen"
+
+msgid "Input tokens"
+msgstr "Eingabe-Token"
+
+msgid "Output tokens"
+msgstr "Ausgabe-Token"
+
+msgid "Cache hits"
+msgstr "Cache-Treffer"
+
+msgid "Requests"
+msgstr "Anfragen"
+
 msgid "Platform admin"
 msgstr "Plattform-Admin"
 
@@ -86,9 +137,6 @@ msgstr "MCP-Server"
 
 msgid "API keys"
 msgstr "API-Schlüssel"
-
-msgid "Requests"
-msgstr "Anfragen"
 
 msgid "Teams"
 msgstr "Teams"
@@ -132,6 +180,13 @@ msgstr "Matrix-Supportkanal"
 msgid "GitHub repository"
 msgstr "GitHub-Repository"
 
+#, python-format
+msgid "Service account · %(team)s"
+msgstr "Dienstkonto · %(team)s"
+
+msgid "Personal"
+msgstr "Persönlich"
+
 msgid "Access denied"
 msgstr "Zugriff verweigert"
 
@@ -154,6 +209,40 @@ msgstr "Diese Seite gibt es nicht, oder Sie können sie nicht öffnen."
 msgid "Cancel"
 msgstr "Abbrechen"
 
+msgid "Key:"
+msgstr "Schlüssel:"
+
+msgid "My keys"
+msgstr "Meine Schlüssel"
+
+msgid "All keys"
+msgstr "Alle Schlüssel"
+
+msgid "Key name or owner email"
+msgstr "Schlüsselname oder E-Mail-Adresse"
+
+msgid "Search keys"
+msgstr "Schlüssel durchsuchen"
+
+msgid "Search"
+msgstr "Suchen"
+
+msgid "Matching keys"
+msgstr "Passende Schlüssel"
+
+#, python-format
+msgid "No key matches “%(q)s”"
+msgstr "Kein Schlüssel passt zu „%(q)s“"
+
+msgid "Model:"
+msgstr "Modell:"
+
+msgid "All models"
+msgstr "Alle Modelle"
+
+msgid "Time frame"
+msgstr "Zeitraum"
+
 msgid "Gateway"
 msgstr "Gateway"
 
@@ -162,6 +251,15 @@ msgstr "Gateway-URL kopieren"
 
 msgid "Help"
 msgstr "Hilfe"
+
+msgid "Tokens"
+msgstr "Token"
+
+msgid "Input"
+msgstr "Eingabe"
+
+msgid "Share"
+msgstr "Anteil"
 
 msgid "Copied"
 msgstr "Kopiert"
@@ -206,6 +304,9 @@ msgstr "Abmelden"
 msgid "Switch between light and dark"
 msgstr "Zwischen hellem und dunklem Design wechseln"
 
+msgid "Not metered in tokens"
+msgstr "Nicht in Token gemessen"
+
 msgid "Skip to content"
 msgstr "Zum Inhalt springen"
 
@@ -244,6 +345,10 @@ msgstr "Zuletzt aktualisiert am %(date)s"
 
 msgid "No privacy information has been published yet."
 msgstr "Es wurden noch keine Datenschutzhinweise veröffentlicht."
+
+#, python-format
+msgid "No requests %(span)s."
+msgstr "Keine Anfragen %(span)s."
 
 msgid "Email"
 msgstr "E-Mail"
@@ -290,6 +395,114 @@ msgstr ""
 
 msgid "Organization default"
 msgstr "Vorgabe der Organisation"
+
+#, python-format
+msgid "for the key <span class=\"font-mono\">%(name)s</span>"
+msgstr "für den Schlüssel <span class=\"font-mono\">%(name)s</span>"
+
+msgid "Show all keys"
+msgstr "Alle Schlüssel anzeigen"
+
+#, python-format
+msgid ""
+"The time frame reaches back further than the %(days)s day requests are kept. "
+"Older requests are missing from these figures."
+msgid_plural ""
+"The time frame reaches back further than the %(days)s days requests are "
+"kept. Older requests are missing from these figures."
+msgstr[0] ""
+"Der Zeitraum reicht weiter zurück als der %(days)s Tag, für den Anfragen "
+"aufbewahrt werden. Ältere Anfragen fehlen in diesen Zahlen."
+msgstr[1] ""
+"Der Zeitraum reicht weiter zurück als die %(days)s Tage, für die Anfragen "
+"aufbewahrt werden. Ältere Anfragen fehlen in diesen Zahlen."
+
+msgid "Totals"
+msgstr "Summen"
+
+msgid "Chart metric"
+msgstr "Kennzahl im Diagramm"
+
+msgid "No requests in this time frame."
+msgstr "Keine Anfragen in diesem Zeitraum."
+
+msgid "Open the log"
+msgstr "Protokoll öffnen"
+
+msgid "By model"
+msgstr "Nach Modell"
+
+msgid "Model"
+msgstr "Modell"
+
+msgid "Median time"
+msgstr "Median der Antwortzeit"
+
+#, python-format
+msgid "%(name)s, open its requests in the request log"
+msgstr "%(name)s, Anfragen dieses Modells im Anfrageprotokoll öffnen"
+
+msgid "approximately"
+msgstr "ungefähr"
+
+msgid "By user ID"
+msgstr "Nach User-ID"
+
+msgid "Top keys"
+msgstr "Meistgenutzte Schlüssel"
+
+msgid "View all keys"
+msgstr "Alle Schlüssel ansehen"
+
+msgid "User ID"
+msgstr "User-ID"
+
+msgid "Key"
+msgstr "Schlüssel"
+
+msgid "By organization"
+msgstr "Nach Organisation"
+
+#, python-format
+msgid "Activity across %(name)s"
+msgstr "Aktivität in %(name)s"
+
+msgid "Activity across all organizations"
+msgstr "Aktivität in allen Organisationen"
+
+#, python-format
+msgid "All users and keys, last %(days)s day."
+msgid_plural "All users and keys, last %(days)s days."
+msgstr[0] "Alle Konten und Schlüssel, letzter %(days)s Tag."
+msgstr[1] "Alle Konten und Schlüssel, letzte %(days)s Tage."
+
+msgid "Usage by weekday and hour"
+msgstr "Nutzung nach Wochentag und Stunde"
+
+msgid "Heatmap model:"
+msgstr "Modell der Heatmap:"
+
+msgid "Average tokens per hour"
+msgstr "Durchschnittliche Token pro Stunde"
+
+msgid "Less"
+msgstr "Weniger"
+
+msgid "More"
+msgstr "Mehr"
+
+#, python-format
+msgid "%(shown)s key"
+msgid_plural "%(shown)s keys"
+msgstr[0] "%(shown)s Schlüssel"
+msgstr[1] "%(shown)s Schlüssel"
+
+msgid "Key name"
+msgstr "Schlüsselname"
+
+#, python-format
+msgid "No key that matches “%(q)s” has requests in this time frame."
+msgstr "Kein Schlüssel, der zu „%(q)s“ passt, hat Anfragen in diesem Zeitraum."
 
 #, python-format
 msgid "%(count)s year ago"
@@ -366,6 +579,93 @@ msgstr[1] "in %(count)s Minuten"
 msgid "just now"
 msgstr "gerade eben"
 
+msgid "No organization"
+msgstr "Keine Organisation"
+
+msgid "Approximate"
+msgstr "Näherungswert"
+
+msgid "Tokens per minute"
+msgstr "Token pro Minute"
+
+msgid "Requests per minute"
+msgstr "Anfragen pro Minute"
+
+msgid "Tokens per hour"
+msgstr "Token pro Stunde"
+
+msgid "Requests per hour"
+msgstr "Anfragen pro Stunde"
+
+msgid "Tokens per day"
+msgstr "Token pro Tag"
+
+msgid "Requests per day"
+msgstr "Anfragen pro Tag"
+
+msgid "1 hour"
+msgstr "1 Stunde"
+
+msgid "in the last hour"
+msgstr "in der letzten Stunde"
+
+msgid "24 hours"
+msgstr "24 Stunden"
+
+msgid "in the last 24 hours"
+msgstr "in den letzten 24 Stunden"
+
+msgid "7 days"
+msgstr "7 Tage"
+
+msgid "in the last 7 days"
+msgstr "in den letzten 7 Tagen"
+
+msgid "30 days"
+msgstr "30 Tage"
+
+msgid "in the last 30 days"
+msgstr "in den letzten 30 Tagen"
+
+msgid "Rate-limited"
+msgstr "Limit erreicht"
+
+msgid "Client error"
+msgstr "Clientfehler"
+
+msgid "Server error"
+msgstr "Serverfehler"
+
+msgid "n/a"
+msgstr "k. A."
+
+#, python-format
+msgid "%(first)s to %(last)s"
+msgstr "%(first)s bis %(last)s"
+
+#, python-format
+msgid "%(count)s input token"
+msgid_plural "%(count)s input tokens"
+msgstr[0] "%(count)s Eingabe-Token"
+msgstr[1] "%(count)s Eingabe-Token"
+
+#, python-format
+msgid "%(count)s output token"
+msgid_plural "%(count)s output tokens"
+msgstr[0] "%(count)s Ausgabe-Token"
+msgstr[1] "%(count)s Ausgabe-Token"
+
+#, python-format
+msgid "%(day)s %(start)s to %(end)s"
+msgstr "%(day)s %(start)s bis %(end)s"
+
+#, python-format
+msgid "%(tokens)s per hour"
+msgstr "%(tokens)s pro Stunde"
+
+msgid "Not sent"
+msgstr "Nicht gesendet"
+
 msgid "You cannot login without agreeing to the terms of this site."
 msgstr ""
 "Ohne Zustimmung zu den Nutzungsbedingungen können Sie sich nicht anmelden."
@@ -388,6 +688,9 @@ msgstr "Ansicht: alle Organisationen."
 
 msgid "Choose one of the offered languages."
 msgstr "Wählen Sie eine der angebotenen Sprachen."
+
+msgid "You"
+msgstr "Sie"
 
 #, python-format
 msgid "Version of %(date)s"

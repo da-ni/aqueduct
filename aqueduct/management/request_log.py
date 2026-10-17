@@ -13,6 +13,7 @@ from django.http import Http404, HttpRequest
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.http import urlencode
+from django.utils.translation import gettext
 
 from management.key_activity import FAILED, KeyAccess, of_keys, router_models, served
 from management.model_catalog import scopes_for, usable_models
@@ -101,7 +102,7 @@ class Outcome(StrEnum):
 
     @property
     def label(self) -> str:
-        return "Failed" if self is Outcome.ERRORS else _OVERVIEW_STATUS[self.value][0]
+        return gettext("Failed") if self is Outcome.ERRORS else str(_OVERVIEW_STATUS[self.value][0])
 
     @property
     def codes(self) -> str | None:
@@ -167,9 +168,9 @@ def describe_key(token: Token, access: KeyAccess, *, with_org: bool = False) -> 
     href = reverse("token_detail", args=[token.id]) if access.can_open(token) else None
     account, own = token.service_account, False
     if account is not None:
-        note = f"Service account · {account.team.name}"
+        note = gettext("Service account · %(team)s") % {"team": account.team.name}
     elif token.user_id == access.user_id:
-        note, own = "Personal", True
+        note, own = gettext("Personal"), True
     else:
         note = token.user.email
     if with_org:

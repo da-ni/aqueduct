@@ -381,13 +381,28 @@ class UsageChartTest(UsagePageTestBase):
         series = self.series(response)
         self.assertFalse(series["tokens"][0])
         self.assertTrue(series["requests"][0])
-        self.assertContains(response, '<span data-metric="requests">Requests</span> per')
+        self.assertContains(response, '<span data-metric="requests">Requests per hour</span>')
 
     def test_the_metric_links_still_load_the_page_without_scripts(self):
         response = self.page(self.org_admin, span="1m", key_q="lap")
         html = response.content.decode()
         self.assertIn('href="?span=1m" data-metric-show="tokens" aria-current="page"', html)
         self.assertIn('href="?span=1m&amp;metric=requests" data-metric-show="requests"', html)
+
+
+class UsageGermanTest(UsagePageTestBase):
+    def test_a_german_browser_reads_the_overview_and_all_keys_in_german(self):
+        self.client.force_login(self.org_admin)
+        overview = self.client.get(
+            reverse("usage"), {"span": "1w", "metric": "requests"}, HTTP_ACCEPT_LANGUAGE="de"
+        ).content.decode()
+        self.assertIn('aria-current="page">7 Tage</a>', overview)
+        self.assertIn('<span data-metric="requests">Anfragen pro Tag</span>', overview)
+        self.assertIn("3 Anfragen (OK 1, Fehlgeschlagen 2)", overview)
+        self.assertIn("Limit erreicht", overview)
+        self.assertIn("Mo 00:00 bis 01:00", overview)
+        keys = self.client.get(reverse("usage_keys"), HTTP_ACCEPT_LANGUAGE="de")
+        self.assertContains(keys, "3 Schlüssel</span>")
 
 
 class UsageHeatModelTest(UsagePageTestBase):

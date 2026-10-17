@@ -126,7 +126,7 @@ class UsageRollupTest(TestCase):
         for org in (self.org, self.other_org, None):
             for model in (None, CHAT):
                 for each in periods:
-                    with self.subTest(org=org, model=model, period=each.label):
+                    with self.subTest(org=org, model=model, period=each.start):
                         self.assert_figures(org, model, each, now)
 
     def assert_figures(self, org, model, period: Period, now):
@@ -340,9 +340,7 @@ class UsageRollupTest(TestCase):
         now = timezone.now()
         delete_old_requests()
         self.assertFalse(Request.objects.filter(timestamp__lt=now - timedelta(days=30)).exists())
-        across_cutoff = Period(
-            DAY.floor(now - timedelta(days=32)), DAY.floor(now) + DAY.size, DAY, "cutoff"
-        )
+        across_cutoff = Period(DAY.floor(now - timedelta(days=32)), DAY.floor(now) + DAY.size, DAY)
         self.assert_matches_raw(across_cutoff, now)
 
     def test_key_windows_give_each_keys_raw_activity(self):

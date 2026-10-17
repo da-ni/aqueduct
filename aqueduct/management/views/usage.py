@@ -12,6 +12,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import urlencode
+from django.utils.translation import gettext
 from django.views.generic import TemplateView
 
 from gateway.config import get_router_config, model_info_with_context
@@ -86,7 +87,7 @@ def _describe(filters: Filters) -> Callable[[Token], Key]:
         key = describe_key(token, filters.access, with_org=filters.org is None)
         if not filters.can_pick_scope:
             return replace(key, note="")
-        return replace(key, note="You") if key.own else key
+        return replace(key, note=gettext("You")) if key.own else key
 
     return describe
 
