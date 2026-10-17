@@ -19,8 +19,10 @@ from management.model_catalog import (
     Catalog,
     Category,
     Scope,
+    hugging_face_repo,
     mode_for,
     parse_card,
+    quantization_in,
 )
 from management.models import Org, Team, Token, UserProfile
 
@@ -82,7 +84,10 @@ class ModelCardTest(SimpleTestCase):
         for raw in EXAMPLE_ENTRIES:
             with self.subTest(model=raw["model_name"]):
                 card = parse_card(raw)
-                self.assertEqual(card.specs, ())
+                self.assertEqual([spec.value for spec in card.specs], [None] * len(card.specs))
+                self.assertEqual(
+                    (card.description, card.model_card_url, card.quantization), (None,) * 3
+                )
                 self.assertIsNone(card.context)
                 self.assertIsNone(card.deprecation_date)
                 self.assertEqual(card.served_model, f"openai/{raw['model_name']}")
@@ -94,8 +99,9 @@ class ModelCardTest(SimpleTestCase):
         self.assertEqual(
             [(spec.label, spec.value) for spec in card.specs],
             [
-                ("Context window", "131.1K"),
-                ("Max output tokens", "16.4K"),
+                ("Quantization", None),
+                ("Max input tokens", "131,072"),
+                ("Max output tokens", "16,384"),
                 ("Dimensions", "1,024"),
                 ("Input", "Text, image"),
                 ("Output", "Text"),
@@ -131,19 +137,87 @@ class ModelCardTest(SimpleTestCase):
                 supports_vision="yes",
                 request_limit_multiplier="2",
                 deprecation_date="soon",
+                description=["not", "text"],
+                model_card_url="javascript:alert(1)",
+                quantization=4,
             )
         )
-        self.assertEqual((card.specs, card.capabilities, card.context), ((), (), None))
+        self.assertEqual(
+            [(spec.label, spec.value) for spec in card.specs],
+            [("Quantization", None), ("Max input tokens", None), ("Max output tokens", None)],
+        )
+        self.assertEqual((card.capabilities, card.context), ((), None))
+        self.assertEqual((card.description, card.model_card_url, card.quantization), (None,) * 3)
         self.assertIsNone(card.deprecation_date)
+
+    def test_a_model_without_model_info_renders_as_unknown(self):
+        card = parse_card({"model_name": "bare", "litellm_params": {"model": "openai/bare"}})
+        self.assertEqual([spec.value for spec in card.specs], [None, None, None])
+        self.assertEqual(card.aliases, ())
 
     def test_explicit_context_wins_over_max_tokens(self):
         card = parse_card(entry(max_input_tokens=1_047_576, max_tokens=8192))
         self.assertEqual(card.context, "1M")
 
-    def test_embedding_context_is_labelled_max_input_tokens(self):
+    def test_embeddings_have_no_output_limit_and_other_modes_expect_nothing(self):
         card = parse_card(entry(mode="embedding", max_tokens=8191))
-        self.assertEqual(card.specs[0].label, "Max input tokens")
-        self.assertEqual(card.specs[0].value, "8.2K")
+        self.assertEqual(
+            [(spec.label, spec.value) for spec in card.specs],
+            [("Quantization", None), ("Max input tokens", "8,191")],
+        )
+        self.assertEqual(parse_card(entry(mode="audio_speech")).specs, ())
+
+
+class ModelSourceTest(SimpleTestCase):
+    def test_hugging_face_repo_drops_the_provider_of_a_route(self):
+        cases = {
+            ("openai/Qwen/Qwen3.8-27B",): "Qwen/Qwen3.8-27B",
+            ("hosted_vllm/openai/gpt-oss-120b",): "openai/gpt-oss-120b",
+            ("zai-org/GLM-5.3",): "zai-org/GLM-5.3",
+            ("openai/gpt-4.1-nano", "gpt-4.1-nano"): None,
+            ("openai/local-qwen", "Qwen/Qwen3.8-27B"): "Qwen/Qwen3.8-27B",
+            ("unknown-provider/org/name", "a/b/c/d", "has space/x"): None,
+        }
+        for routes, repo in cases.items():
+            with self.subTest(routes=routes):
+                self.assertEqual(hugging_face_repo(*routes), repo)
+
+    def test_quantization_comes_from_the_repo_name(self):
+        cases = {
+            "Qwen/Qwen3.8-27B-FP8": "FP8",
+            "QuantTrio/Qwen3.6-35B-A3B-AWQ": "AWQ",
+            "Qwen/Qwen3-32B-GPTQ-Int4": "GPTQ INT4",
+            "unsloth/Llama-3.3-70B-bnb-4bit": "BNB 4bit",
+            "zai-org/GLM-5.3": "",
+            "FP8-labs/plain-model": "",
+        }
+        for name, quantization in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(quantization_in(name), quantization)
+
+    def test_card_links_the_hugging_face_repo_behind_the_route(self):
+        card = parse_card(
+            entry("local-awq", aliases=["fast"])
+            | {"litellm_params": {"model": "hosted_vllm/QuantTrio/Qwen3.6-35B-A3B-AWQ"}}
+        )
+        self.assertEqual(
+            card.model_card_url, "https://huggingface.co/QuantTrio/Qwen3.6-35B-A3B-AWQ"
+        )
+        self.assertEqual(card.quantization, "AWQ")
+        self.assertEqual(card.specs[0].value, "AWQ")
+
+    def test_configured_fields_win_over_derived_ones(self):
+        card = parse_card(
+            entry(
+                "Qwen/Qwen3.8-27B-FP8",
+                description="  General chat.  ",
+                model_card_url="https://example.org/card",
+                quantization="FP8 (dynamic)",
+            )
+        )
+        self.assertEqual(card.description, "General chat.")
+        self.assertEqual(card.model_card_url, "https://example.org/card")
+        self.assertEqual(card.quantization, "FP8 (dynamic)")
 
 
 class ModeTest(SimpleTestCase):
@@ -230,6 +304,12 @@ class CatalogTest(SimpleTestCase):
     def test_context_column_only_when_some_model_has_one(self):
         self.assertFalse(self.catalog.has_context)
         self.assertTrue(Catalog((parse_card(entry(max_tokens=8192)),)).has_context)
+
+    def test_alias_and_quantization_columns_only_when_some_model_has_one(self):
+        self.assertTrue(self.catalog.has_aliases)
+        self.assertFalse(self.catalog.has_quantization)
+        bare = Catalog((parse_card(entry("org/model-AWQ")),))
+        self.assertEqual((bare.has_aliases, bare.has_quantization), (False, True))
 
     def test_search_matches_names_and_aliases_within_a_category(self):
         names = [card.name for card in self.catalog.search(None, "STT")]
@@ -369,16 +449,49 @@ class ModelsPageTest(TestCase):
         self.assertEqual(selected(response), "whisper-1")
         self.assertContains(response, "curl http://testserver/v1/audio/transcriptions")
 
-    def test_a_literal_api_key_never_reaches_the_page(self):
-        raw = {**EXAMPLE_ENTRIES[0], "litellm_params": {"model": "openai/x", "api_key": "sk-leak"}}
+    def page_with(self, entries, **params):
         with tempfile.NamedTemporaryFile("w", suffix=".yaml") as config:
-            yaml.safe_dump({"model_list": [raw]}, config)
+            yaml.safe_dump({"model_list": entries}, config)
             self.addCleanup(get_router_config.cache_clear)
             get_router_config.cache_clear()
             with override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=config.name):
-                response = self.page()
+                return self.page(**params)
+
+    def test_a_literal_api_key_never_reaches_the_page(self):
+        raw = {**EXAMPLE_ENTRIES[0], "litellm_params": {"model": "openai/x", "api_key": "sk-leak"}}
+        response = self.page_with([raw])
         self.assertContains(response, raw["model_name"])
         self.assertNotContains(response, "sk-leak")
+
+    def test_described_model_shows_its_card_quantization_and_limits(self):
+        described = entry(
+            "Qwen/Qwen3.8-27B-FP8",
+            aliases=["qwen", "Qwen/Qwen3.8-27B"],
+            description="Fast general chat",
+            max_tokens=262144,
+        )
+        response = self.page_with([described, entry("bare")], model="qwen")
+        self.assertEqual(selected(response), "Qwen/Qwen3.8-27B-FP8")
+        self.assertContains(response, 'title="Fast general chat">Chat · Fast general chat</p>')
+        self.assertContains(
+            response,
+            'href="https://huggingface.co/Qwen/Qwen3.8-27B-FP8" target="_blank" '
+            'rel="noopener noreferrer"',
+        )
+        self.assertContains(response, ">262,144</span>")
+        self.assertContains(response, ">262.1K</td>")
+        self.assertContains(response, "Not configured", count=1)
+        for alias in ("qwen", "Qwen/Qwen3.8-27B"):
+            self.assertContains(response, f'data-copy="{alias}"')
+        self.assertContains(response, 'title="qwen, Qwen/Qwen3.8-27B"', count=2)
+
+    def test_model_without_metadata_says_not_configured(self):
+        response = self.page_with(
+            [{"model_name": "bare", "litellm_params": {"model": "openai/bare"}}]
+        )
+        self.assertContains(response, "Not configured", count=3)
+        self.assertNotContains(response, "Model card")
+        self.assertNotContains(response, '<th class="hidden w-36 md:table-cell">Aliases</th>')
 
     def test_switch_offs_match_what_the_gateway_enforces(self):
         self.switch_off(self.org, "dall-e-2")

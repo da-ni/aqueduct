@@ -1,14 +1,17 @@
 import json
+import re
 import shlex
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum, auto
 from typing import Any
+from urllib.parse import urlsplit
 
 from django.contrib.auth.models import AbstractUser
 from django.db.models import Model
 from django.urls import reverse
+from litellm.types.utils import LlmProviders
 
 from gateway.config import get_router_config, model_info_with_context
 from management.key_activity import compact
@@ -43,7 +46,11 @@ class Mode:
     fields: tuple[tuple[str, object], ...] = ()
     form: bool = False
     output: str | None = None
-    context_label: str = "Context window"
+    expected: tuple[str, ...] = ()
+    """The `_SPECS` keys the detail panel lists as "Not configured" when the config lacks them."""
+
+
+_CHAT_SPECS = ("quantization", "max_input_tokens", "max_output_tokens")
 
 
 MODES: tuple[Mode, ...] = (
@@ -53,18 +60,31 @@ MODES: tuple[Mode, ...] = (
         ("chat",),
         "gateway:chat_completions",
         (("messages", [{"role": "user", "content": "Hello"}]),),
+        expected=_CHAT_SPECS,
     ),
     Mode(
-        Category.CHAT, "Completion", ("completion",), "gateway:completions", (("prompt", "Hello"),)
+        Category.CHAT,
+        "Completion",
+        ("completion",),
+        "gateway:completions",
+        (("prompt", "Hello"),),
+        expected=_CHAT_SPECS,
     ),
-    Mode(Category.CHAT, "Responses", ("responses",), "gateway:responses", (("input", "Hello"),)),
+    Mode(
+        Category.CHAT,
+        "Responses",
+        ("responses",),
+        "gateway:responses",
+        (("input", "Hello"),),
+        expected=_CHAT_SPECS,
+    ),
     Mode(
         Category.EMBEDDINGS,
         "Embeddings",
         ("embedding", "embeddings"),
         "gateway:embeddings",
         (("input", "Hello"),),
-        context_label="Max input tokens",
+        expected=("quantization", "max_input_tokens"),
     ),
     Mode(
         Category.AUDIO,
@@ -117,6 +137,10 @@ def _number(value: object) -> str:
     return "" if count is None else f"{count:,}"
 
 
+def _text(value: object) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
 def _modalities(value: object) -> str:
     if not isinstance(value, list) or not value or not all(isinstance(v, str) for v in value):
         return ""
@@ -135,7 +159,9 @@ def _date(value: object) -> date | None:
 
 
 _SPECS: tuple[tuple[str, str, Callable[[object], str]], ...] = (
-    ("Max output tokens", "max_output_tokens", _tokens),
+    ("Quantization", "quantization", _text),
+    ("Max input tokens", "max_input_tokens", _number),
+    ("Max output tokens", "max_output_tokens", _number),
     ("Dimensions", "output_vector_size", _number),
     ("Input", "supported_modalities", _modalities),
     ("Output", "supported_output_modalities", _modalities),
@@ -154,10 +180,52 @@ _CAPABILITIES: tuple[tuple[str, str], ...] = (
 )
 
 
+_PROVIDERS = frozenset(provider.value for provider in LlmProviders)
+_ROUTE = re.compile(r"(?:(?P<provider>[\w-]+)/)?(?P<org>[A-Za-z0-9][\w.-]*)/[A-Za-z0-9][\w.-]*")
+# Name parts that mark a quantized checkpoint, as Hugging Face repos spell them.
+_QUANTIZATIONS = {
+    spelling.casefold(): spelling
+    for spelling in (
+        "AWQ", "GPTQ", "GGUF", "EXL2", "EXL3", "BNB", "FP8", "FP4", "NVFP4", "MXFP4",
+        "INT4", "INT8", "W4A16", "W8A8", "W8A16", "W4A8", "4bit", "8bit",
+    )
+}  # fmt: skip
+
+
+def hugging_face_repo(*routes: str) -> str | None:
+    """Return the first route that names a Hugging Face repo, as `org/name`.
+
+    A LiteLLM route such as `openai/Qwen/Qwen3-8B` loses its provider prefix. A two-part name
+    whose first part is a LiteLLM provider, such as `openai/gpt-4.1`, is a route, not a repo.
+    """
+    for route in routes:
+        match = _ROUTE.fullmatch(route)
+        if match is None:
+            continue
+        if match["provider"] is None and match["org"] not in _PROVIDERS:
+            return route
+        if match["provider"] in _PROVIDERS:
+            return route.split("/", 1)[1]
+    return None
+
+
+def quantization_in(name: str) -> str:
+    words = re.split(r"[-_.]", name.rsplit("/", 1)[-1])
+    found = (_QUANTIZATIONS.get(word.casefold()) for word in words)
+    return " ".join(dict.fromkeys(spelling for spelling in found if spelling))
+
+
+def _web_url(value: object) -> str | None:
+    if not isinstance(value, str) or urlsplit(value).scheme not in ("http", "https"):
+        return None
+    return value
+
+
 @dataclass(frozen=True)
 class Spec:
     label: str
-    value: str
+    value: str | None
+    """None means the config does not say, which the page shows as "Not configured"."""
 
 
 @dataclass(frozen=True)
@@ -215,6 +283,9 @@ class ModelCard(Availability):
     name: str
     aliases: tuple[str, ...]
     mode: Mode
+    description: str | None
+    model_card_url: str | None
+    quantization: str | None
     served_model: str | None
     context: str | None
     specs: tuple[Spec, ...]
@@ -258,6 +329,14 @@ class Catalog:
     def has_context(self) -> bool:
         return any(card.context for card in self.cards)
 
+    @property
+    def has_aliases(self) -> bool:
+        return any(card.aliases for card in self.cards)
+
+    @property
+    def has_quantization(self) -> bool:
+        return any(card.quantization for card in self.cards)
+
     def search(self, category: Category | None, text: str) -> tuple[ModelCard, ...]:
         return tuple(
             card
@@ -273,22 +352,32 @@ def parse_card(entry: Mapping[str, Any], scopes: Sequence[Scope] = ()) -> ModelC
     info = model_info_with_context(entry)
     name: str = entry["model_name"]
     mode = mode_for(info.get("mode"))
-    context = _tokens(info.get("max_input_tokens"))
-    cells = [(mode.context_label, context)]
-    cells += [(label, format_value(info.get(key))) for label, key, format_value in _SPECS]
+    raw_served = (entry.get("litellm_params") or {}).get("model")
+    served = raw_served if isinstance(raw_served, str) and raw_served else None
+    repo = hugging_face_repo(*filter(None, (served, name)))
+    quantization = _text(info.get("quantization")) or quantization_in(repo or served or name)
+    info["quantization"] = quantization
+    specs = tuple(
+        Spec(label, value or None)
+        for label, key, format_value in _SPECS
+        if (value := format_value(info.get(key))) or key in mode.expected
+    )
     capabilities = tuple(label for key, label in _CAPABILITIES if info.get(key) is True)
     multiplier = info.get("request_limit_multiplier")
     if isinstance(multiplier, int | float) and not isinstance(multiplier, bool) and multiplier != 1:
         capabilities += (f"{multiplier:g}x request limit",)
-    served = (entry.get("litellm_params") or {}).get("model")
     off_for, on_for = split_scopes(name, scopes)
+    model_card_url = _web_url(info.get("model_card_url"))
     return ModelCard(
         name=name,
         aliases=tuple(info.get("aliases") or ()),
         mode=mode,
-        served_model=served if isinstance(served, str) and served else None,
-        context=context or None,
-        specs=tuple(Spec(label, value) for label, value in cells if value),
+        description=_text(info.get("description")) or None,
+        model_card_url=model_card_url or (repo and f"https://huggingface.co/{repo}"),
+        quantization=quantization or None,
+        served_model=served,
+        context=_tokens(info.get("max_input_tokens")) or None,
+        specs=specs,
         capabilities=capabilities,
         deprecation_date=_date(info.get("deprecation_date")),
         off_for=off_for,
