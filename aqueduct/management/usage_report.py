@@ -552,8 +552,8 @@ def ranked_keys(
     return _by_key(requests).order_by(*order.ordering)
 
 
-def top_keys(requests: QuerySet[Request]) -> list[KeyRow]:
-    return [_key_row(row) for row in ranked_keys(requests)[:TOP_KEYS]]
+def top_keys(requests: QuerySet[Request], limit: int = TOP_KEYS) -> list[KeyRow]:
+    return [_key_row(row) for row in ranked_keys(requests)[:limit]]
 
 
 def ranked_totals(
