@@ -291,6 +291,15 @@ class BatchesPageTest(ResourcePagesTestBase):
         self.assertNotContains(response, reverse("batch_cancel", args=[self.team_batch.id]))
         self.assertContains(response, "Running: you 1/10 · NLP Lab 1/25")
 
+    def test_cancel_asks_with_a_dismiss_button_that_does_not_say_cancel(self):
+        response = self.as_user(self.owner).get(reverse("batches"))
+        self.assertContains(
+            response,
+            'data-confirm="Cancel batch-running?" '
+            'data-confirm-detail="Requests it has not run yet are dropped." '
+            'data-confirm-action="Cancel batch" data-confirm-dismiss="Keep running"',
+        )
+
     def test_a_running_batch_shows_when_it_must_finish_and_a_stopped_one_shows_nothing(self):
         def local(timestamp: int) -> datetime:
             return timezone.localtime(datetime.fromtimestamp(timestamp, tz=UTC))

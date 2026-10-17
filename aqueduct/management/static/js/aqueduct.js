@@ -121,6 +121,7 @@
     detail.textContent = trigger.dataset.confirmDetail;
     detail.hidden = !trigger.dataset.confirmDetail;
     dialog.querySelector('[data-confirm-submit]').textContent = trigger.dataset.confirmAction || 'Delete';
+    dialog.querySelector('[data-confirm-dismiss]').textContent = trigger.dataset.confirmDismiss || 'Cancel';
     dialog.showModal();
   });
   document.addEventListener('submit', (event) => {

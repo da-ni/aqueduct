@@ -37,7 +37,7 @@
                         {% csrf_token %}
                         <input type="hidden" name="page" value="{{ listing.pages.number }}">
                         <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Cancel {{ row.batch.id }}" title="Cancel"
-                                {% confirm "Cancel "|add:row.batch.id|add:"?" "Requests it has not run yet are dropped." "Cancel batch" %}>{% icon "close" small=True %}</button>
+                                {% confirm "Cancel "|add:row.batch.id|add:"?" "Requests it has not run yet are dropped." "Cancel batch" dismiss="Keep running" %}>{% icon "close" small=True %}</button>
                     </form>
                 {% endif %}
             </td>
