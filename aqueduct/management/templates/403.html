@@ -1,0 +1,12 @@
+{% extends "management/base.html" %}
+
+{% block title %}Access denied · Aqueduct AI Gateway{% endblock %}
+
+{% block content %}
+<div class="flex max-w-2xl flex-col gap-4">
+    <p class="label-mono">403</p>
+    <h1 class="text-3xl font-semibold">Access denied</h1>
+    <p>Your account does not have permission to open this page. If you need it, ask an administrator of your organization.</p>
+    <div><a class="btn btn-primary" href="/">Go to the home page</a></div>
+</div>
+{% endblock %}

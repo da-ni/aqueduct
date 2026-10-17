@@ -32,6 +32,8 @@
     if (event.target.closest('[data-toggle-theme]')) toggleTheme();
     const copyButton = event.target.closest('[data-copy]');
     if (copyButton) copy(copyButton);
+    const dismissButton = event.target.closest('[data-dismiss]');
+    if (dismissButton) dismissButton.parentElement.remove();
     toggleRow(event);
   });
   document.addEventListener('auxclick', (event) => {
@@ -57,4 +59,14 @@
     }, 250);
   }
 
+  // Success and info messages leave after a few seconds, but not while the pointer or focus is on them.
+  function autodismiss(alert) {
+    setTimeout(() => {
+      if (alert.matches(':hover, :focus-within')) autodismiss(alert);
+      else alert.remove();
+    }, 5000);
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-autodismiss]').forEach(autodismiss);
+  });
 })();

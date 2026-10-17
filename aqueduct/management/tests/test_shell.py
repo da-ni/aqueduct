@@ -1,15 +1,20 @@
 import re
+from datetime import UTC, date, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
 from typing import ClassVar
 
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
+from django.shortcuts import render
 from django.template import Context, Template, TemplateSyntaxError
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import NoReverseMatch, include, path, reverse
+from django.utils import timezone
 
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
 from management.nav import HELP, NAV, NAV_BOTTOM, Shell, build_shell
@@ -36,7 +41,20 @@ def request_as(user):
     return request
 
 
+def forbidden(request):
+    raise PermissionDenied
+
+
+def with_messages(request):
+    messages.success(request, "Saved.")
+    messages.error(request, "Could not save.")
+    messages.success(request, "sk-secret", extra_tags="token-regenerated-key")
+    return render(request, "management/base.html")
+
+
 urlpatterns = [
+    path("forbidden/", forbidden),
+    path("with-messages/", with_messages),
     path("silk/", include(([path("", lambda request: HttpResponse(), name="summary")], "silk"))),
     path("terms-of-service/", include("tos.urls")),
     *aqueduct_urlpatterns,
@@ -220,3 +238,71 @@ class IconTagTest(TestCase):
     def test_unknown_icon_raises(self):
         with self.assertRaisesMessage(TemplateSyntaxError, "unknown icon 'cpy'"):
             Template('{% load ui %}{% icon "cpy" %}').render(Context())
+
+
+@override_settings(ROOT_URLCONF=__name__)
+class ErrorPagesTest(TestCase):
+    fixtures: ClassVar[list[str]] = ["gateway_data.json"]
+
+    def test_render_in_the_shell_for_anonymous_and_signed_in_visitors(self):
+        cases = (
+            ("/aqueduct/management/no-such-page/", HTTPStatus.NOT_FOUND, "Page not found"),
+            ("/forbidden/", HTTPStatus.FORBIDDEN, "Access denied"),
+        )
+        for role in ("anonymous", "user"):
+            if FIXTURE_USER_PK_BY_ROLE[role] is not None:
+                self.client.force_login(User.objects.get(pk=FIXTURE_USER_PK_BY_ROLE[role]))
+            for url, status, heading in cases:
+                with self.subTest(url=url, role=role):
+                    page = self.client.get(url)
+                    self.assertEqual(page.status_code, status)
+                    html = page.content.decode()
+                    self.assertIn(f"<title>{heading} · Aqueduct AI Gateway</title>", html)
+                    self.assertIn(f">{heading}</h1>", html)
+                    self.assertIn('href="/"', html)
+                    self.assertEqual("drawer-side" in html, role != "anonymous")
+
+
+@override_settings(ROOT_URLCONF=__name__)
+class MessagesTest(TestCase):
+    def test_success_leaves_by_itself_errors_stay_and_the_new_key_is_not_a_toast(self):
+        html = self.client.get("/with-messages/").content.decode()
+        page, toasts = html.split('<div class="fixed bottom-4')
+        alerts = {m[1]: m[0] for m in re.finditer(r'<div class="alert alert-(\w+)[^>]*>', toasts)}
+        self.assertEqual(set(alerts), {"success", "error"})
+        self.assertIn("data-autodismiss", alerts["success"])
+        self.assertNotIn("data-autodismiss", alerts["error"])
+        self.assertEqual(toasts.count('aria-label="Dismiss"'), 2)
+        self.assertNotIn("sk-secret", toasts)
+        self.assertIn("sk-secret", page)
+
+
+class WhenFilterTest(TestCase):
+    def render(self, value, style=None):
+        arg = f':"{style}"' if style else ""
+        return Template(f"{{% load ui %}}{{{{ value|when{arg} }}}}").render(
+            Context({"value": value})
+        )
+
+    def test_shows_a_short_label_with_the_full_utc_time_on_hover(self):
+        moment = datetime(2026, 3, 4, 15, 6, 7, tzinfo=UTC)
+        full = 'datetime="2026-03-04T15:06:07+00:00" title="2026-03-04 15:06:07 UTC"'
+        self.assertInHTML(f"<time {full}>4 Mar 2026 15:06</time>", self.render(moment))
+        self.assertInHTML(f"<time {full}>4 Mar 2026</time>", self.render(moment, "date"))
+
+    def test_relative_label(self):
+        html = self.render(timezone.now() - timedelta(hours=3), "relative")
+        self.assertIn(">3\xa0hours ago</time>", html)
+
+    def test_plain_date(self):
+        self.assertInHTML(
+            '<time datetime="2026-03-04" title="2026-03-04">4 Mar 2026</time>',
+            self.render(date(2026, 3, 4), "date"),
+        )
+
+    def test_missing_value_renders_nothing(self):
+        self.assertEqual(self.render(None), "")
+
+    def test_unknown_style_raises(self):
+        with self.assertRaisesMessage(TemplateSyntaxError, "unknown when style 'ago'"):
+            self.render(timezone.now(), "ago")

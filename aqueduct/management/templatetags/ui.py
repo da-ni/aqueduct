@@ -1,7 +1,10 @@
 import shlex
+from datetime import UTC, date, datetime
 
 from django import template
+from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.forms import BoundField
+from django.template.defaultfilters import date as format_date
 from django.utils.html import format_html, format_html_join
 from django.utils.safestring import SafeString
 
@@ -48,3 +51,26 @@ def widget(field: BoundField) -> SafeString:
         return field.as_widget()
     component = classes.split()[0]
     return field.as_widget(attrs={"class": f"{classes} {component}-error"})
+
+
+WHEN_FORMATS = {"date": "j M Y", "datetime": "j M Y H:i"}
+
+
+@register.filter(expects_localtime=True)
+def when(value: date | None, style: str = "datetime") -> SafeString | str:
+    if value is None:
+        return ""
+    if style == "relative":
+        short = naturaltime(value)
+    elif style in WHEN_FORMATS:
+        short = format_date(value, WHEN_FORMATS[style])
+    else:
+        raise template.TemplateSyntaxError(
+            f"unknown when style {style!r}; use date, datetime, or relative"
+        )
+    if isinstance(value, datetime):
+        utc = value.astimezone(UTC)
+        machine, full = utc.isoformat(), utc.strftime("%Y-%m-%d %H:%M:%S UTC")
+    else:
+        machine = full = value.isoformat()
+    return format_html('<time datetime="{}" title="{}">{}</time>', machine, full, short)
