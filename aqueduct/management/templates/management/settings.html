@@ -18,13 +18,13 @@
                         <dt class="muted">Signed in as</dt><dd class="break-all font-mono">{{ shell.viewer.email }}</dd>
                         <dt class="muted">Sign-in</dt><dd>{{ sign_in_provider }}</dd>
                         <dt class="muted">Organization</dt><dd>{{ view.org.name }}</dd>
-                        <dt class="muted">Role</dt><dd>{% if shell.viewer.role %}<span class="badge badge-sm bg-base-100 font-mono">{{ shell.viewer.role }}</span>{% else %}<span class="muted">none</span>{% endif %}</dd>
+                        <dt class="muted">Role</dt><dd>{% if shell.viewer.role %}<span class="badge badge-sm bg-base-100">{{ shell.viewer.role }}</span>{% else %}<span class="muted">{{ shell.viewer.role|dash }}</span>{% endif %}</dd>
                         <dt class="muted">Teams</dt>
                         <dd class="flex flex-wrap gap-x-2">
                             {% for membership in memberships %}
                                 {% if not forloop.first %}<span aria-hidden="true">·</span>{% endif %}
                                 <a class="link-plain" href="{% url 'team' membership.team.id %}">{{ membership.team.name }}</a>
-                                <span class="muted">{% if membership.is_admin %}Team admin{% else %}Member{% endif %}</span>
+                                <span class="muted">{{ membership.role }}</span>
                             {% empty %}
                                 <span class="muted">You are in no team.</span>
                             {% endfor %}

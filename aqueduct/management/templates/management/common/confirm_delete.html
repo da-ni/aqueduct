@@ -1,33 +1,20 @@
 {% extends "management/base.html" %}
+{% comment %}The page behind a confirm link, for a click without JavaScript, a middle click, or a direct address. It asks what `_confirm_dialog.html` asks on the page.{% endcomment %}
 
-{% block title %}Delete {{ object_name }} · {{ block.super }}{% endblock %}
+{% block title %}{{ confirmation.title }} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
-    <div class="breadcrumbs p-0 text-sm">
-        <ul>
-            {% if shell.current %}<li><a href="{{ shell.current.href }}">{{ shell.current.label }}</a></li>{% endif %}
-            <li class="font-mono">{{ object_name }}</li>
-            <li>Delete</li>
-        </ul>
-    </div>
-    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
-        <h1 class="text-3xl font-semibold">Delete {{ object_type_name }}</h1>
-    </header>
-
-    <form method="post" class="card max-w-2xl bg-base-200">
-        {% csrf_token %}
-        <div class="card-body gap-4 p-6">
-            <p>Delete the {{ object_type_name }} <strong class="font-mono">{{ object_name }}</strong>?</p>
-            {% if warning %}<p class="text-sm">{{ warning }}</p>{% endif %}
-            <p class="text-sm text-error">This cannot be undone.</p>
-            <div class="flex flex-wrap gap-3 border-t border-base-300 pt-5">
-                <button type="submit" class="btn btn-error">Delete {{ object_type_name }}</button>
-                <a class="btn btn-outline btn-primary" href="{{ cancel_url }}">Cancel</a>
-            </div>
+<form method="post" class="card max-w-md bg-base-200">
+    {% csrf_token %}
+    <div class="card-body gap-3 p-6">
+        <h1 class="break-words text-xl font-semibold">{{ confirmation.title }}</h1>
+        {% if confirmation.detail %}<p>{{ confirmation.detail }}</p>{% endif %}
+        <div class="mt-2 flex flex-wrap justify-end gap-2">
+            <button type="submit" class="btn btn-error">{{ confirmation.action }}</button>
+            <a class="btn btn-outline btn-primary" href="{{ cancel_url }}">Cancel</a>
         </div>
-    </form>
-</div>
+    </div>
+</form>
 {% endblock %}

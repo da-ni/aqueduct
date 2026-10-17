@@ -30,7 +30,7 @@
                     </div>
                 {% endif %}
                 {% if can_delete %}
-                    <a class="btn btn-ghost st-err" href="{% url 'team_delete' team.id %}">{% icon "delete" small=True %}Delete</a>
+                    <a class="btn btn-ghost st-err" href="{% url 'team_delete' team.id %}" {% confirm_delete team %}>{% icon "delete" small=True %}Delete</a>
                 {% endif %}
             </div>
         {% endif %}
@@ -91,12 +91,12 @@
                                                 <form action="{% url 'token_regenerate' row.token.id %}" method="post">
                                                     {% csrf_token %}
                                                     <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Rotate {{ sa.name }}" title="Rotate"
-                                                            onclick="return confirm('Rotate the key of {{ sa.name|escapejs }}? The current key stops working immediately.');">{% icon "rotate" small=True %}</button>
+                                                            {% confirm "Rotate the key of "|add:sa.name|add:"?" "The current key stops working immediately." "Rotate" %}>{% icon "rotate" small=True %}</button>
                                                 </form>
                                             {% endif %}
                                             <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_edit' sa.id %}" aria-label="Edit {{ sa.name }}" title="Edit">{% icon "admin" small=True %}</a>
                                             <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_transfer' sa.id %}" aria-label="Transfer {{ sa.name }}" title="Transfer ownership">{% icon "transfer" small=True %}</a>
-                                            <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_delete' sa.id %}" aria-label="Delete {{ sa.name }}" title="Delete">{% icon "delete" small=True %}</a>
+                                            <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_delete' sa.id %}" {% confirm_delete sa %} aria-label="Delete {{ sa.name }}" title="Delete">{% icon "delete" small=True %}</a>
                                         </div>
                                     </td>
                                 {% endif %}
@@ -187,7 +187,7 @@
                                                 {% csrf_token %}
                                                 <input type="hidden" name="user_profile_to_remove_id" value="{{ member.profile.id }}">
                                                 <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Remove {{ member.profile.user.email }} from the team" title="Remove from the team"
-                                                        onclick="return confirm('Remove {{ member.profile.user.email|escapejs }} from this team?');">{% icon "delete" small=True %}</button>
+                                                        {% confirm "Remove "|add:member.profile.user.email|add:"?" "They lose access to the team and its service accounts." "Remove" %}>{% icon "delete" small=True %}</button>
                                             </form>
                                         {% endif %}
                                     </td>

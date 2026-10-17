@@ -16,12 +16,13 @@ from django.views.generic import CreateView, DeleteView, DetailView, TemplateVie
 
 from gateway.rate_limiting import get_per_token_usage
 from management.availability import Reach, configured_mcp_servers, configured_models
+from management.deletion import deletion
 from management.forms import TokenCreateForm
 from management.key_activity import Expiry, KeyKind, key_list, key_report, personal_tokens
 from management.models import Token
 from management.models.token import HIERARCHY
 from management.request_log import Key, Row
-from management.views.base import BaseAqueductView
+from management.views.base import ONLY_TEAM_ADMINS, BaseAqueductView
 
 
 class UserTokensView(BaseAqueductView, TemplateView):
@@ -108,7 +109,7 @@ class TokenCreateView(BaseAqueductView, CreateView):
         self.object.save()
 
         # Use the returned secret_key in the success message
-        messages.success(self.request, f'API key "{self.object.name}" created successfully.')
+        messages.success(self.request, f"API key {self.object.name} created.")
         messages.info(self.request, f"{secret_key}", extra_tags="token-regenerated-key")
 
         return redirect(self.get_success_url())
@@ -138,7 +139,7 @@ class TokenEditView(BaseAqueductView, UpdateView):
 
     def form_valid(self, form) -> HttpResponse:
         response = super().form_valid(form)
-        messages.success(self.request, f'API key "{self.object.name}" updated successfully.')
+        messages.success(self.request, f"API key {self.object.name} saved.")
         return response
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
@@ -160,94 +161,37 @@ class TokenDeleteView(BaseAqueductView, DeleteView):
     def form_valid(self, form) -> HttpResponse:
         token_name = self.object.name
         response = super().form_valid(form)
-        messages.success(self.request, f'API key "{token_name}" deleted successfully.')
+        messages.success(self.request, f"API key {token_name} deleted.")
         return response
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
-        context = super().get_context_data(**kwargs)
-        context["object_type_name"] = "API key"
-        context["object_name"] = self.object.name
-        context["cancel_url"] = reverse("token_detail", kwargs={"id": self.object.id})
-        return context
+        return super().get_context_data(
+            confirmation=deletion(self.object),
+            cancel_url=reverse("token_detail", kwargs={"id": self.object.id}),
+            **kwargs,
+        )
 
 
 @method_decorator(require_POST, name="dispatch")
 class TokenRegenerateView(BaseAqueductView, View):
-    """
-    Handles regeneration of a token key (both user and service account tokens).
-    Requires POST request.
-    Permissions are checked based on token type.
-    """
+    """Gives a key a new secret: a personal key for its owner, a service account key for the
+    admins of its team. A key the user may not see answers 404."""
 
     http_method_names: ClassVar[list] = ["post"]
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
-        token_id = kwargs.get("id")
-        profile = self.profile
-        user = request.user
-
-        try:
-            token = get_object_or_404(
-                Token.objects.select_related("service_account__team", "user"), pk=token_id
-            )
-            token_name = token.name
-            is_service_account_token = token.service_account is not None
-
-            # --- Permission Check --- #
-            can_regenerate = False
-            redirect_url = reverse_lazy("tokens")  # Default redirect
-
-            if is_service_account_token:
-                # Check if user is admin of the SA's team
-                team = token.service_account.team
-                redirect_url = reverse("team", kwargs={"id": team.id})
-                if profile.is_team_admin(team):
-                    can_regenerate = True
-                else:
-                    messages.error(
-                        request,
-                        f"You do not have permission to regenerate the token for service account "
-                        f'"{token.service_account.name}".',
-                    )
-            # Check if user owns the token
-            elif token.user == user:
-                can_regenerate = True
-            else:
-                # This case shouldn't happen with correct view/URL setup, but good to have
-                messages.error(request, "You do not have permission to regenerate this token.")
-
-            # --- Regeneration --- #
-            if can_regenerate:
-                new_key = token.regenerate_key()  # Assumes regenerate_key() saves the token
-                messages.success(
-                    request,
-                    f'API key "{token_name}" has been regenerated. '
-                    f"Please update any clients using the old key.",
-                )
-                messages.info(
-                    request,
-                    f"{new_key}",  # Only include the key itself in the message
-                    extra_tags="token-regenerated-key",  # Use a specific tag
-                )
-                detail_url = reverse("token_detail", kwargs={"id": token.id})
-                if request.POST.get("next") == detail_url:
-                    redirect_url = detail_url
-            # Else: error message already added during permission check
-
-        except Token.DoesNotExist:
-            messages.error(request, "The specified token could not be found.")
-            # Redirect to a default page if token not found
-            redirect_url = reverse_lazy("tokens")
-        except Exception as e:
-            messages.error(
-                request, f"An unexpected error occurred while regenerating the token: {e}"
-            )
-            # Try to determine redirect URL based on what we know, default if necessary
-            try:
-                # Attempt to get redirect URL again if token was fetched
-                if is_service_account_token and team:
-                    redirect_url = reverse("team", kwargs={"id": team.id})
-            except NameError:  # If token fetch failed earlier
-                redirect_url = reverse_lazy("tokens")
-
-        return redirect(redirect_url)
+        service = Token.objects.filter(service_account__team__in=self.profile.openable_teams())
+        token = get_object_or_404(
+            (personal_tokens(request.user) | service).select_related("service_account__team"),
+            pk=kwargs.get("id"),
+        )
+        team = token.service_account.team if token.service_account else None
+        back = reverse("team", kwargs={"id": team.id}) if team else reverse("tokens")
+        if team is not None and not self.profile.is_team_admin(team):
+            messages.error(request, ONLY_TEAM_ADMINS)
+            return redirect(back)
+        new_key = token.regenerate_key()
+        messages.success(request, f"Key {token.name} rotated. Update your clients.")
+        messages.info(request, new_key, extra_tags="token-regenerated-key")
+        detail_url = reverse("token_detail", kwargs={"id": token.id})
+        return redirect(detail_url if request.POST.get("next") == detail_url else back)

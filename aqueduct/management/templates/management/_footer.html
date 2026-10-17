@@ -1,20 +1,29 @@
 {% load ui %}
 <footer class="aq-band print:hidden">
     <div class="mx-auto flex w-full max-w-7xl flex-wrap items-start justify-between gap-8 px-4 py-8 sm:px-8">
-        <div class="flex flex-col gap-2">
-            <p class="label-mono">Gateway</p>
-            <div class="flex items-center gap-2">
-                <span class="font-mono text-sm">{{ shell.gateway_url }}</span>
-                <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ shell.gateway_url }}"
-                        aria-label="Copy gateway URL" title="Copy gateway URL">{% icon "copy" small=True %}</button>
+        {% if shell.viewer %}
+            <div class="flex flex-col gap-2">
+                <p class="label-mono">Gateway</p>
+                <div class="flex items-center gap-2">
+                    <span class="font-mono text-sm">{{ shell.gateway_url }}</span>
+                    <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ shell.gateway_url }}"
+                            aria-label="Copy gateway URL" title="Copy gateway URL">{% icon "copy" small=True %}</button>
+                </div>
             </div>
-        </div>
-        {% if shell.help_links %}
+        {% endif %}
+        {% if shell.help_links or shell.contact_links %}
             <div class="flex flex-col gap-2 text-sm">
-                <p class="label-mono">Help</p>
-                <span class="flex flex-wrap gap-4">
-                    {% for link in shell.help_links %}<a href="{{ link.href }}">{{ link.label }}</a>{% endfor %}
-                </span>
+                {% if shell.help_links %}
+                    <p class="label-mono">Help</p>
+                    <span class="flex flex-wrap gap-4">
+                        {% for link in shell.help_links %}<a href="{{ link.href }}">{{ link.label }}</a>{% endfor %}
+                    </span>
+                {% endif %}
+                {% if shell.contact_links %}
+                    <span class="-ml-1.5 flex gap-1">
+                        {% for link in shell.contact_links %}<a class="btn btn-ghost btn-sm btn-square" href="{{ link.href }}" aria-label="{{ link.label }}" title="{{ link.label }}">{% icon link.icon %}</a>{% endfor %}
+                    </span>
+                {% endif %}
             </div>
         {% endif %}
     </div>

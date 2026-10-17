@@ -259,8 +259,8 @@ class TeamDetailTest(TeamsPagesTestBase):
             self.join(user, self.team)
         response = self.as_user(self.member).get(self.url())
         for email, role in [
-            ("site-admin@example.com", "Admin"),
-            ("org-admin@example.com", "Organization admin"),
+            ("site-admin@example.com", "Platform admin"),
+            ("org-admin@example.com", "Org admin"),
             ("other-org-admin@example.com", "Member"),
             ("team-admin@example.com", "Team admin"),
             ("member@example.com", "Member"),
@@ -311,7 +311,7 @@ class TeamDetailTest(TeamsPagesTestBase):
         self.assertIn("57 members", found)
         self.assertIn("No member matches.", client.get(self.url(), {"q": "zzz"}).content.decode())
 
-    def test_outsiders_are_sent_back_to_the_teams_page(self):
+    def test_outsiders_get_404_without_the_team_name(self):
         for user, team in [
             (self.outsider, self.team),
             (self.member, self.side_team),
@@ -319,7 +319,8 @@ class TeamDetailTest(TeamsPagesTestBase):
         ]:
             with self.subTest(user=user.username, team=team.name):
                 response = self.as_user(user).get(self.url(team))
-                self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
+                self.assertEqual(response.status_code, 404)
+                self.assertNotContains(response, team.name, status_code=404)
 
 
 class TeamMembershipTest(TeamsPagesTestBase):
@@ -434,7 +435,7 @@ class TeamFormsTest(TeamsPagesTestBase):
         for user in (self.member, self.outsider, self.other_org_admin):
             with self.subTest(user=user.username):
                 response = self.as_user(user).post(url, {"name": "Hijacked"})
-                self.assertEqual(response.status_code, 302)
+                self.assertEqual(response.status_code, 302 if user == self.member else 404)
         self.team.refresh_from_db()
         self.assertEqual(self.team.name, "NLP Lab")
 
@@ -457,7 +458,7 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
         for user in (self.member, self.outsider, self.other_org_admin):
             with self.subTest(user=user.username):
                 response = self.as_user(user).post(url, {"name": "rag", "token_expires_at": ""})
-                self.assertEqual(response.status_code, 302)
+                self.assertEqual(response.status_code, 302 if user == self.member else 404)
         self.assertFalse(ServiceAccount.objects.filter(name="rag").exists())
 
     def test_team_admin_edits_a_service_account(self):
@@ -490,7 +491,7 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
                 response = self.as_user(user).post(
                     url, {"name": "hijacked", "token_expires_at": ""}
                 )
-                self.assertEqual(response.status_code, 302)
+                self.assertEqual(response.status_code, 302 if user == self.member else 404)
         self.pipeline.refresh_from_db()
         self.assertEqual(self.pipeline.name, "pipeline")
 
@@ -533,3 +534,151 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
                 self.as_user(user).post(url, {"email": "member@example.com"})
         self.pipeline_key.refresh_from_db()
         self.assertEqual(self.pipeline_key.user, self.team_admin)
+
+
+class TeamScopeTest(TeamsPagesTestBase):
+    """Every URL that names a team or service account answers 404 to someone who may not open
+    the team, and one toast without the team's name to a member who lacks the rights."""
+
+    def requests(self) -> list[tuple[str, str, dict]]:
+        team, sa = [self.team.id], [self.pipeline.id]
+        return [
+            ("get", reverse("team", args=team), {}),
+            ("post", reverse("team", args=team), {"email": "outsider@example.com"}),
+            (
+                "post",
+                reverse("team", args=team),
+                {"user_profile_to_remove_id": self.member.profile.id},
+            ),
+            ("get", reverse("team_edit", args=team), {}),
+            ("post", reverse("team_edit", args=team), {"name": "Hijacked"}),
+            ("get", reverse("team_delete", args=team), {}),
+            ("post", reverse("team_delete", args=team), {}),
+            (
+                "post",
+                reverse("team_admins_manage", args=team),
+                {"profile_id": self.member.profile.id, "action": "add"},
+            ),
+            ("get", reverse("service_account_create", args=team), {}),
+            (
+                "post",
+                reverse("service_account_create", args=team),
+                {"name": "rag", "token_expires_at": ""},
+            ),
+            ("get", reverse("service_account_edit", args=sa), {}),
+            (
+                "post",
+                reverse("service_account_edit", args=sa),
+                {"name": "hijacked", "token_expires_at": ""},
+            ),
+            ("get", reverse("service_account_delete", args=sa), {}),
+            ("post", reverse("service_account_delete", args=sa), {}),
+            ("get", reverse("service_account_transfer", args=sa), {}),
+            ("post", reverse("service_account_transfer", args=sa), {"email": "member@example.com"}),
+            ("post", reverse("token_regenerate", args=[self.pipeline_key.id]), {}),
+        ]
+
+    def state(self) -> tuple:
+        self.pipeline_key.refresh_from_db()
+        return (
+            list(Team.objects.values_list("name", flat=True).order_by("name")),
+            list(TeamMembership.objects.values_list("user_profile_id", "is_admin").order_by("pk")),
+            list(ServiceAccount.objects.values_list("name", flat=True).order_by("name")),
+            self.pipeline_key.user_id,
+            self.pipeline_key.key_hash,
+        )
+
+    def test_admin_of_another_org_and_outsiders_get_404_on_every_url(self):
+        before = self.state()
+        for user in (self.other_org_admin, self.outsider):
+            for method, url, data in self.requests():
+                with self.subTest(user=user.username, method=method, url=url, data=data):
+                    response = getattr(self.as_user(user), method)(url, data)
+                    self.assertEqual(response.status_code, 404)
+                    self.assertNotContains(response, "NLP Lab", status_code=404)
+                    self.assertNotContains(response, "pipeline", status_code=404)
+        self.assertEqual(self.state(), before)
+
+    def test_member_gets_one_toast_without_the_team_name(self):
+        before = self.state()
+        for method, url, data in self.requests():
+            if method == "get" and url == reverse("team", args=[self.team.id]):
+                continue
+            with self.subTest(method=method, url=url, data=data):
+                response = getattr(self.as_user(self.member), method)(url, data, follow=True)
+                toasts = [str(m) for m in response.context["messages"]]
+                self.assertEqual(len(toasts), 1)
+                self.assertIn(
+                    toasts[0], ("Only team admins can do that.", "Only org admins can do that.")
+                )
+        self.assertEqual(self.state(), before)
+
+    def test_team_admin_may_not_delete_the_team_or_appoint_admins(self):
+        client = self.as_user(self.team_admin)
+        for url, data in [
+            (reverse("team_delete", args=[self.team.id]), {}),
+            (
+                reverse("team_admins_manage", args=[self.team.id]),
+                {"profile_id": self.member.profile.id, "action": "add"},
+            ),
+        ]:
+            with self.subTest(url=url):
+                response = client.post(url, data, follow=True)
+                self.assertRedirects(response, reverse("team", args=[self.team.id]))
+                self.assertEqual(
+                    [str(m) for m in response.context["messages"]], ["Only org admins can do that."]
+                )
+        self.assertTrue(Team.objects.filter(id=self.team.id).exists())
+        self.assertFalse(TeamMembership.objects.get(user_profile=self.member.profile).is_admin)
+
+    def test_org_admin_deletes_the_team(self):
+        response = self.as_user(self.org_admin).post(
+            reverse("team_delete", args=[self.team.id]), follow=True
+        )
+        self.assertRedirects(response, reverse("org"))
+        self.assertContains(response, "Team NLP Lab deleted.")
+        self.assertFalse(Team.objects.filter(id=self.team.id).exists())
+
+
+class TeamMessagesTest(TeamsPagesTestBase):
+    def toasts(self, user, url: str, data: dict) -> list[str]:
+        response = self.as_user(user).post(url, data, follow=True)
+        return [str(message) for message in response.context["messages"]]
+
+    def test_membership_changes_say_what_happened_or_what_to_do_first(self):
+        team = reverse("team", args=[self.team.id])
+        admins = reverse("team_admins_manage", args=[self.team.id])
+        for user, url, data, toast in [
+            (
+                self.team_admin,
+                team,
+                {"email": "outsider@example.com"},
+                "outsider@example.com added.",
+            ),
+            (
+                self.team_admin,
+                team,
+                {"user_profile_to_remove_id": self.outsider.profile.id},
+                "outsider@example.com removed.",
+            ),
+            (
+                self.org_admin,
+                team,
+                {"user_profile_to_remove_id": self.team_admin.profile.id},
+                "Transfer or delete team-admin@example.com's service accounts first.",
+            ),
+            (
+                self.org_admin,
+                admins,
+                {"profile_id": self.org_admin.profile.id, "action": "add"},
+                "Org admins already have team admin rights.",
+            ),
+            (
+                self.org_admin,
+                admins,
+                {"profile_id": self.member.profile.id, "action": "add"},
+                "member@example.com is now a team admin.",
+            ),
+        ]:
+            with self.subTest(toast=toast):
+                self.assertEqual(self.toasts(user, url, data), [toast])

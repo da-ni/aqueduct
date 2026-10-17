@@ -31,8 +31,12 @@ def compact(count: int) -> str:
     return ("-" if count < 0 else "") + digits.removesuffix(".0") + suffix
 
 
+MISSING = "—"
+"""What a page shows for a value that does not exist, such as the cache hit rate of no input."""
+
+
 def percent(part: int, whole: int) -> str:
-    return f"{round(100 * part / whole)}%" if whole else "n/a"
+    return f"{round(100 * part / whole)}%" if whole else MISSING
 
 
 def as_tokens(count: float) -> str:

@@ -103,6 +103,39 @@
     }, 250);
   }
 
+  // A link or submit button with data-confirm asks in the shared dialog first. The dialog posts
+  // a link's address; a button submits its own form, so its name and value still count. A
+  // modified or middle click on a link opens the confirm page behind it, as without JavaScript.
+  let confirming = null;
+  document.addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-confirm]');
+    const dialog = document.getElementById('confirm-dialog');
+    if (!trigger || !dialog || event.button !== 0) return;
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    confirming = trigger;
+    const form = dialog.querySelector('form[method=post]');
+    form.action = trigger.matches('a') ? trigger.href : '';
+    dialog.querySelector('#confirm-title').textContent = trigger.dataset.confirm;
+    const detail = dialog.querySelector('#confirm-detail');
+    detail.textContent = trigger.dataset.confirmDetail;
+    detail.hidden = !trigger.dataset.confirmDetail;
+    dialog.querySelector('[data-confirm-submit]').textContent = trigger.dataset.confirmAction || 'Delete';
+    dialog.showModal();
+  });
+  document.addEventListener('submit', (event) => {
+    const form = event.target;
+    if (!form.closest('#confirm-dialog') || form.method === 'dialog') return;
+    if (event.submitter?.getAttribute('formmethod') === 'dialog' || confirming?.matches('a')) return;
+    event.preventDefault();
+    const button = confirming;
+    form.closest('dialog').close();
+    button.form.requestSubmit(button);
+  });
+  document.addEventListener('close', (event) => {
+    if (event.target.id === 'confirm-dialog') confirming?.focus();
+  }, true);
+
   // Success and info messages leave after a few seconds, but not while the pointer or focus is on them.
   function autodismiss(alert) {
     setTimeout(() => {

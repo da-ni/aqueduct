@@ -51,7 +51,7 @@ class SettingsPageTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "boss@example.com")
         self.assertContains(response, "<dd>Informatics</dd>", html=True)
-        self.assertContains(response, "Org Admin</span>")
+        self.assertContains(response, "Org admin</span>")
         self.assertContains(response, "You are in no team.")
 
     def test_lists_only_the_viewers_teams_with_role_and_link(self):

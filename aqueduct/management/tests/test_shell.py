@@ -170,7 +170,7 @@ class ShellTest(TestCase):
     def test_viewer_shows_email_and_role(self):
         self.sign_in("org-admin")
         viewer = self.shell_on(reverse("tokens")).viewer
-        self.assertEqual((viewer.email, viewer.role), ("someone@example.com", "Org Admin"))
+        self.assertEqual((viewer.email, viewer.role), ("someone@example.com", "Org admin"))
 
     def test_user_without_profile_still_gets_the_frame(self):
         self.client.force_login(User.objects.create_user("no-profile", "np@example.com"))
@@ -205,6 +205,35 @@ class ShellTest(TestCase):
         self.assertNotContains(page, "Sign out")
         for url in settings.EXTRA_NAV_LINKS.values():
             self.assertContains(page, f'href="{url}"', count=1)
+
+    def test_help_links_live_in_the_footer_and_the_gateway_url_only_signed_in(self):
+        self.sign_in("user")
+        page = self.client.get(reverse("tokens"))
+        self.assertEqual([link.label for link in page.context["shell"].bottom], ["Settings"])
+        for url in settings.EXTRA_NAV_LINKS.values():
+            self.assertContains(page, f'href="{url}"', count=1)
+        self.assertContains(page, "http://testserver/v1")
+        self.client.logout()
+        self.assertNotContains(self.client.get(reverse("sso")), "http://testserver/v1")
+
+    def test_contact_icons_show_only_once_configured(self):
+        links = {
+            "Matrix support channel": "https://matrix.to/#/#aqueduct:example.org",
+            "GitHub repository": "https://github.com/TU-Wien-dataLAB/aqueduct",
+        }
+        for role in ("anonymous", "user"):
+            self.sign_in(role)
+            with self.subTest(role=role):
+                page = self.client.get(self.home(role))
+                for label in links:
+                    self.assertNotContains(page, f'aria-label="{label}"')
+                with self.settings(
+                    MATRIX_SUPPORT_URL=links["Matrix support channel"],
+                    GITHUB_REPOSITORY_URL=links["GitHub repository"],
+                ):
+                    page = self.client.get(self.home(role))
+                for label, url in links.items():
+                    self.assertContains(page, f'href="{url}" aria-label="{label}"', count=1)
 
     def test_admin_keeps_a_top_bar_with_the_shared_nav(self):
         self.sign_in("admin")
@@ -251,20 +280,31 @@ class ErrorPagesTest(TestCase):
 
     def test_render_in_the_shell_for_anonymous_and_signed_in_visitors(self):
         cases = (
-            ("/aqueduct/management/no-such-page/", HTTPStatus.NOT_FOUND, "Page not found"),
-            ("/forbidden/", HTTPStatus.FORBIDDEN, "Access denied"),
+            (
+                "/aqueduct/management/no-such-page/",
+                HTTPStatus.NOT_FOUND,
+                "Page not found",
+                "This page doesn't exist or you can't open it.",
+            ),
+            (
+                "/forbidden/",
+                HTTPStatus.FORBIDDEN,
+                "Access denied",
+                "You don't have access. Ask your org admin.",
+            ),
         )
         for role in ("anonymous", "user"):
             if FIXTURE_USER_PK_BY_ROLE[role] is not None:
                 self.client.force_login(User.objects.get(pk=FIXTURE_USER_PK_BY_ROLE[role]))
-            for url, status, heading in cases:
+            for url, status, heading, body in cases:
                 with self.subTest(url=url, role=role):
                     page = self.client.get(url)
                     self.assertEqual(page.status_code, status)
                     html = page.content.decode()
                     self.assertIn(f"<title>{heading} · Aqueduct AI Gateway</title>", html)
                     self.assertIn(f">{heading}</h1>", html)
-                    self.assertIn('href="/"', html)
+                    self.assertIn(f"<p>{body}</p>", html)
+                    self.assertIn(f'href="{reverse("usage")}">Go to Overview</a>', html)
                     self.assertEqual("drawer-side" in html, role != "anonymous")
 
 
@@ -295,9 +335,17 @@ class WhenFilterTest(TestCase):
         self.assertInHTML(f"<time {full}>4 Mar 2026 15:06</time>", self.render(moment))
         self.assertInHTML(f"<time {full}>4 Mar 2026</time>", self.render(moment, "date"))
 
-    def test_relative_label(self):
-        html = self.render(timezone.now() - timedelta(hours=3), "relative")
-        self.assertIn(">3\xa0hours ago</time>", html)
+    def test_relative_label_uses_one_rounded_unit(self):
+        now = timezone.now()
+        for moment, label in [
+            (now - timedelta(seconds=20), "just now"),
+            (now - timedelta(hours=3), "3\xa0hours ago"),
+            (now - timedelta(days=1, hours=18), "2\xa0days ago"),
+            (now - timedelta(days=1, hours=2), "1\xa0day ago"),
+            (now + timedelta(hours=3, minutes=1), "in 3\xa0hours"),
+        ]:
+            with self.subTest(label=label):
+                self.assertIn(f">{label}</time>", self.render(moment, "relative"))
 
     def test_plain_date(self):
         self.assertInHTML(
@@ -316,3 +364,11 @@ class WhenFilterTest(TestCase):
     def test_unknown_style_raises(self):
         with self.assertRaisesMessage(TemplateSyntaxError, "unknown when style 'ago'"):
             self.render(timezone.now(), "ago")
+
+
+class DashFilterTest(TestCase):
+    def test_marks_only_missing_values(self):
+        template = Template("{% load ui %}{{ value|dash }}")
+        for value, shown in [(None, "\u2014"), ("", "\u2014"), (0, "0"), ("gpt-4o", "gpt-4o")]:
+            with self.subTest(value=value):
+                self.assertEqual(template.render(Context({"value": value})), shown)

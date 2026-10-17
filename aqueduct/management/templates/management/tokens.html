@@ -82,10 +82,10 @@
                                             <form action="{% url 'token_regenerate' row.token.id %}" method="post">
                                                 {% csrf_token %}
                                                 <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Rotate {{ row.token.name }}" title="Rotate"
-                                                        onclick="return confirm('Rotate the API key {{ row.token.name|escapejs }}? The current key stops working immediately.');">{% icon "rotate" small=True %}</button>
+                                                        {% confirm "Rotate "|add:row.token.name|add:"?" "The current key stops working immediately." "Rotate" %}>{% icon "rotate" small=True %}</button>
                                             </form>
                                             <a class="btn btn-ghost btn-sm btn-square" href="{% url 'token_edit' row.token.id %}" aria-label="Edit {{ row.token.name }}" title="Edit">{% icon "admin" small=True %}</a>
-                                            <a class="btn btn-ghost btn-sm btn-square" href="{% url 'token_delete' row.token.id %}" aria-label="Delete {{ row.token.name }}" title="Delete">{% icon "delete" small=True %}</a>
+                                            <a class="btn btn-ghost btn-sm btn-square" href="{% url 'token_delete' row.token.id %}" {% confirm_delete row.token %} aria-label="Delete {{ row.token.name }}" title="Delete">{% icon "delete" small=True %}</a>
                                         {% else %}
                                             <a class="link-plain muted whitespace-nowrap text-sm" href="{% url 'team' row.token.service_account.team_id %}">Managed by the team</a>
                                         {% endif %}

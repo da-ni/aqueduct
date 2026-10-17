@@ -6,7 +6,7 @@
 <div class="flex max-w-2xl flex-col gap-4">
     <p class="label-mono">404</p>
     <h1 class="text-3xl font-semibold">Page not found</h1>
-    <p>This page does not exist, or you do not have access to it. Check the address, or start again from the home page.</p>
-    <div><a class="btn btn-primary" href="/">Go to the home page</a></div>
+    <p>This page doesn't exist or you can't open it.</p>
+    <div><a class="btn btn-primary" href="{% url 'usage' %}">Go to Overview</a></div>
 </div>
 {% endblock %}

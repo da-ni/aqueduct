@@ -2,14 +2,16 @@ import shlex
 from datetime import UTC, date, datetime
 
 from django import template
-from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.forms import BoundField
 from django.template.defaultfilters import date as format_date
+from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from django.utils.safestring import SafeString
 
+from management.deletion import deletion
 from management.icons import Icon
-from management.key_activity import Expiry
+from management.key_activity import MISSING, Expiry
+from management.models import FileObject, ServiceAccount, Team, Token
 from management.privacy import render_markdown
 
 register = template.Library()
@@ -65,7 +67,7 @@ def when(value: object, style: str = "datetime") -> SafeString | str:
     if style == "relative":
         if not isinstance(value, datetime):
             raise template.TemplateSyntaxError("when:'relative' needs a datetime, not a date")
-        short = naturaltime(value)
+        short = ago(value, timezone.now())
     elif style in WHEN_FORMATS:
         short = format_date(value, WHEN_FORMATS[style])
     else:
@@ -73,6 +75,51 @@ def when(value: object, style: str = "datetime") -> SafeString | str:
             f"unknown when style {style!r}; use date, datetime, or relative"
         )
     return _time(value, short)
+
+
+AGO_UNITS = (
+    ("year", 365 * 86400),
+    ("month", 30 * 86400),
+    ("week", 7 * 86400),
+    ("day", 86400),
+    ("hour", 3600),
+    ("minute", 60),
+)
+
+
+def ago(value: datetime, now: datetime) -> str:
+    """How long ago, or how soon, `value` is, in the largest whole unit and rounded: "2 days
+    ago" for 1 day and 18 hours, "in 3 hours"."""
+    seconds = (now - value).total_seconds()
+    for unit, size in AGO_UNITS:
+        if abs(seconds) >= size:
+            count = round(abs(seconds) / size)
+            label = f"{count}\xa0{unit}{'' if count == 1 else 's'}"
+            return f"{label} ago" if seconds > 0 else f"in {label}"
+    return "just now"
+
+
+@register.filter
+def dash(value: object) -> object:
+    """`value`, or a dash when it is missing. Unlike `default`, it keeps 0 and False, which are
+    values, not gaps."""
+    return MISSING if value is None or value == "" else value
+
+
+@register.simple_tag
+def confirm(title: str, detail: str = "", action: str = "Delete") -> SafeString:
+    """Attributes that make a link or a submit button ask `title` in the shared confirm dialog
+    first. See `management/_confirm_dialog.html`."""
+    return format_html(
+        'data-confirm="{}" data-confirm-detail="{}" data-confirm-action="{}"', title, detail, action
+    )
+
+
+@register.simple_tag
+def confirm_delete(obj: Token | ServiceAccount | Team | FileObject) -> SafeString:
+    """`confirm` with what deleting `obj` takes with it, the question its confirm page asks."""
+    question = deletion(obj)
+    return confirm(question.title, question.detail, question.action)
 
 
 @register.filter
