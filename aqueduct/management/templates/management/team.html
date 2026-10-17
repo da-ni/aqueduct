@@ -16,7 +16,6 @@
             <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
                 <span>{{ page.members|length }} member{{ page.members|length|pluralize }}</span>
                 <span>{{ page.service_accounts|length }} of {{ max_service_accounts }} service accounts</span>
-                <span>{% if page.limits.requests_per_minute is None %}No request limit{% else %}Limit <span class="font-mono">{{ page.limits.requests_per_minute|intcomma }}</span> requests per minute{% endif %}</span>
             </div>
         </div>
         {% if is_team_admin %}
@@ -52,12 +51,11 @@
         <div class="card-body gap-2 p-5">
             <h2 id="service-accounts-title" class="text-xl font-semibold">Service accounts</h2>
             <div class="overflow-x-auto">
-                <table class="table table-fixed key-table min-w-[860px]">
+                <table class="table table-fixed key-table min-w-[760px]">
                     <thead>
                         <tr>
                             <th>Service account</th>
-                            <th class="w-56">Owner</th>
-                            <th class="w-[22%]">Tokens, 7 days</th>
+                            <th class="w-44">Tokens, 7 days</th>
                             <th class="w-32">Last used</th>
                             <th class="w-28">Expires</th>
                             {% if is_team_admin %}<th class="w-44"><span class="sr-only">Actions</span></th>{% endif %}
@@ -68,10 +66,9 @@
                             {% with sa=row.service_account %}
                             <tr>
                                 <td>
-                                    {% if row.token %}<a class="link-plain break-all font-mono" href="{% url 'token_detail' row.token.id %}">{{ sa.name }}</a>{% else %}<span class="break-all font-mono">{{ sa.name }}</span>{% endif %}
-                                    <div class="muted font-mono text-xs">{{ row.token.key_preview|default:"No key" }}</div>
+                                    {% if row.token %}<a class="link-plain row-link break-words font-mono" href="{% url 'token_detail' row.token.id %}">{{ sa.name }}</a>{% else %}<span class="break-words font-mono">{{ sa.name }}</span>{% endif %}
+                                    <div class="muted truncate text-xs"><span class="relative z-10" title="{{ row.token.user.email }}">{{ row.token.user.email|default:"No owner" }}</span> · <span class="font-mono">{{ row.token.key_preview|default:"No key" }}</span></div>
                                 </td>
-                                <td class="truncate">{{ row.token.user.email|default:"No owner" }}</td>
                                 <td>
                                     <div class="flex items-center gap-3">
                                         <div class="min-w-0 flex-1">
@@ -88,7 +85,7 @@
                                 <td>{% if row.expiry %}<span class="{{ row.expiry.tone }}">{{ row.expiry.label }}</span>{% endif %}</td>
                                 {% if is_team_admin %}
                                     <td>
-                                        <div class="flex justify-end gap-1">
+                                        <div class="relative z-10 flex justify-end gap-1">
                                             {% if row.token %}
                                                 <form action="{% url 'token_regenerate' row.token.id %}" method="post">
                                                     {% csrf_token %}
@@ -105,7 +102,7 @@
                             </tr>
                             {% endwith %}
                         {% empty %}
-                            <tr><td colspan="6" class="muted">This team has no service accounts.</td></tr>
+                            <tr><td colspan="{% if is_team_admin %}5{% else %}4{% endif %}" class="muted">This team has no service accounts.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -125,9 +122,9 @@
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 id="members-title" class="text-xl font-semibold">Members</h2>
                 {% if is_team_admin and page.addable %}
-                    <form method="post" class="flex items-center gap-2">
+                    <form method="post" class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                         {% csrf_token %}
-                        <select name="user_profile_to_add_id" class="select select-sm w-72" aria-label="Add someone from {{ team.org.name }}" required>
+                        <select name="user_profile_to_add_id" class="select select-sm w-full sm:w-72" aria-label="Add someone from {{ team.org.name }}" required>
                             <option value="" disabled selected>Add someone from {{ team.org.name }}</option>
                             {% for profile in page.addable %}
                                 <option value="{{ profile.id }}">{{ profile.user.email }}</option>
@@ -142,14 +139,14 @@
                     <thead>
                         <tr>
                             <th>Member</th>
-                            <th class="w-80">Role</th>
+                            <th class="w-72">Role</th>
                             {% if is_team_admin %}<th class="w-16"><span class="sr-only">Remove</span></th>{% endif %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for member in page.members %}
                             <tr>
-                                <td class="truncate"><span class="font-medium">{{ member.profile.user.email }}</span>{% if member.is_viewer %} <span class="muted">(you)</span>{% endif %}</td>
+                                <td class="truncate" title="{{ member.profile.user.email }}"><span class="font-medium">{{ member.profile.user.email }}</span>{% if member.is_viewer %} <span class="muted">(you)</span>{% endif %}</td>
                                 <td>
                                     <div class="flex flex-wrap items-center gap-3">
                                         <span>{{ member.role }}</span>
@@ -159,11 +156,11 @@
                                                 <input type="hidden" name="profile_id" value="{{ member.profile.id }}">
                                                 {% if member.is_team_admin %}
                                                     <input type="hidden" name="action" value="remove">
-                                                    <button type="submit" class="btn btn-ghost btn-xs"
+                                                    <button type="submit" class="btn btn-ghost btn-xs whitespace-nowrap"
                                                             onclick="return confirm('Remove team admin rights from {{ member.profile.user.email|escapejs }}?');">Remove team admin</button>
                                                 {% else %}
                                                     <input type="hidden" name="action" value="add">
-                                                    <button type="submit" class="btn btn-ghost btn-xs"
+                                                    <button type="submit" class="btn btn-ghost btn-xs whitespace-nowrap"
                                                             onclick="return confirm('Make {{ member.profile.user.email|escapejs }} a team admin?');">Make team admin</button>
                                                 {% endif %}
                                             </form>
@@ -187,7 +184,7 @@
                                 {% endif %}
                             </tr>
                         {% empty %}
-                            <tr><td colspan="3" class="muted">This team has no members.</td></tr>
+                            <tr><td colspan="{% if is_team_admin %}3{% else %}2{% endif %}" class="muted">This team has no members.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -201,9 +198,7 @@
                 <h2 id="limits-title" class="text-xl font-semibold">Limits</h2>
                 {% if can_edit_in_admin %}<a class="link-plain text-sm" href="{% url 'admin:management_team_change' team.id %}">Edit</a>{% endif %}
             </div>
-            <p class="text-sm">
-                {% for label, value in page.limit_labels %}{% if not forloop.first %} · {% endif %}{{ label }}: <span class="font-mono">{{ value }}</span>{% endfor %}
-            </p>
+            {% include "management/_limits.html" with limits=page.limits %}
             <p class="muted text-sm">Each service account key gets these limits. Team members' personal keys follow their own limits.</p>
             <dl class="grid grid-cols-[12rem_minmax(0,1fr)] items-center gap-x-4 gap-y-3 border-t border-base-300 pt-4 text-sm">
                 <dt class="muted">Switched off models</dt>
