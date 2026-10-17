@@ -10,6 +10,7 @@
 - `gateway`: API gateway app (endpoint views, auth/routing/integration logic, and most integration tests).
 
 ## Seeding Dev Data
+- For production-scale demo data, run `cd aqueduct && uv run python manage.py seed_demo` (see "Demo Data at Production Scale" in `docs/developer-setup.md`)
 - Use `cd aqueduct && uv run python manage.py shell` to insert records via the Django ORM (e.g. `Model.objects.bulk_create(...)`)
 - Inserted data must satisfy the same constraints the views enforce: for example, `Request.model` values must appear in `model_list` of the router config referenced by `LITELLM_ROUTER_CONFIG_FILE_PATH` (check `.env`), and FK-based org/team/token scoping must match the viewer's permissions
 

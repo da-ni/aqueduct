@@ -1,0 +1,51 @@
+# The default model mix of `manage.py seed_demo`: the datalab vLLM deployment in October 2026,
+# from 7 to 14 days of Grafana figures. Pass another file with `--models-file`.
+#
+# kind:          chat, embedding, speech, transcription, or image
+# weight:        relative share of requests
+# reasoning:     whether part of the output is reasoning tokens
+# input_tokens:  median input tokens per request
+# output_tokens: median output tokens per request
+# cached_share:  share of input tokens read from the prefix cache
+# latency_ms:    median and 90th percentile end-to-end response time
+# Omitted figures fall back to the defaults of the model's kind.
+models:
+  - name: deepseek-ai/DeepSeek-V4-Flash-Vision-Exp
+    kind: chat
+    weight: 49
+    reasoning: true
+    input_tokens: 81000
+    output_tokens: 433
+    cached_share: 0.93
+    latency_ms: [8400, 56000]
+  - name: zai-org/GLM-5.3
+    kind: chat
+    weight: 29
+    reasoning: true
+    input_tokens: 59000
+    output_tokens: 195
+    cached_share: 0.97
+    latency_ms: [5600, 46000]
+  - name: Qwen/Qwen3.8-27B-FP8
+    kind: chat
+    weight: 12
+    reasoning: true
+    input_tokens: 31000
+    output_tokens: 332
+    cached_share: 0.87
+    latency_ms: [2800, 19000]
+  - name: QuantTrio/Qwen3.6-35B-A3B-AWQ
+    kind: chat
+    weight: 10
+    reasoning: true
+    input_tokens: 12500
+    output_tokens: 324
+    cached_share: 0.89
+    latency_ms: [4600, 35000]
+  - name: openbmb/MiniCPM5-1B
+    kind: chat
+    weight: 0.0017
+    input_tokens: 75
+    output_tokens: 4
+    cached_share: 0
+    latency_ms: [210, 700]
