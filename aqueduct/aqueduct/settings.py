@@ -145,9 +145,14 @@ EXTRA_NAV_LINKS = {
     "Report a bug": "https://github.com/TU-Wien-dataLAB/aqueduct/issues/new?template=bug_report.md",
     "Documentation": "https://tu-wien-datalab.github.io/aqueduct/",
 }
-# Icon links at the bottom of every page, each hidden while its URL is empty.
-MATRIX_SUPPORT_URL = os.getenv("MATRIX_SUPPORT_URL", "")
-GITHUB_REPOSITORY_URL = os.getenv("GITHUB_REPOSITORY_URL", "")
+# Icon links at the bottom of every page; set a variable to an empty value to hide its link.
+# TODO: replace the placeholder with the real support room.
+MATRIX_SUPPORT_URL = os.getenv(
+    "MATRIX_SUPPORT_URL", "https://matrix.to/#/#aqueduct-support:example.org"
+)
+GITHUB_REPOSITORY_URL = os.getenv(
+    "GITHUB_REPOSITORY_URL", "https://github.com/TU-Wien-dataLAB/aqueduct"
+)
 
 RELAY_REQUEST_TIMEOUT = 60
 

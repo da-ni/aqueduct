@@ -29,7 +29,7 @@ Admins choose the organization they look at, or **All organizations**, in the **
 
 A link with `?org=` in its address, such as a link someone shared, shows that organization and keeps it as your choice. Org admins and users always see their own organization and get no select.
 
-The footer of every page shows the gateway URL with a copy button once you are signed in. Use this URL as the base URL in OpenAI-compatible clients. Under **Help**, the footer links to **Report a bug**, the documentation, the terms of service when your deployment uses them, and the **Privacy** page when your deployment publishes privacy information. Icon links to the Matrix support channel and the GitHub repository appear below them when your deployment sets `MATRIX_SUPPORT_URL` and `GITHUB_REPOSITORY_URL`. The Privacy page shows the information for everyone, followed by any information for your organization.
+The footer of every page shows the gateway URL with a copy button once you are signed in. Use this URL as the base URL in OpenAI-compatible clients. Under **Help**, the footer links to **Report a bug**, the documentation, the terms of service when your deployment uses them, and the **Privacy** page when your deployment publishes privacy information. Icon links to the Matrix support channel and the GitHub repository appear below them. Your deployment can point them elsewhere with `MATRIX_SUPPORT_URL` and `GITHUB_REPOSITORY_URL`, or hide one by setting its variable to an empty value. The Privacy page shows the information for everyone, followed by any information for your organization.
 
 ## Roles
 
