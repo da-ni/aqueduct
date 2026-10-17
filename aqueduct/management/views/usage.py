@@ -14,7 +14,7 @@ from management import usage_report as report
 from management import usage_rollup as rollup
 from management.key_activity import Activity
 from management.model_catalog import mode_for
-from management.models import Org, Token
+from management.models import Org, Request, Token
 from management.models.token import of_org
 from management.request_log import (
     PAGE_SIZE,
@@ -47,17 +47,17 @@ HEAT_CACHE_SECONDS = 60 * 60
 
 
 def _heat(
-    org: Org | None, now: datetime, weeks: int, sealed: rollup.Sealed
+    org: Org | None, requests: QuerySet[Request], now: datetime, weeks: int, sealed: rollup.Sealed
 ) -> dict[tuple[int, int], int]:
     """`rollup.org_heat` of the last `weeks` weeks. While the rollups are not current, it reads
     weeks of requests of a whole org, so it is cached for an hour."""
     start = now - timedelta(weeks=weeks)
     if sealed.current(now):
-        return rollup.org_heat(org, start, now, sealed)
+        return rollup.org_heat(org, start, now, sealed, requests)
     key = f"usage-heat:{org.pk if org else 'all'}:{weeks}"
     tokens = cache.get(key)
     if tokens is None:
-        tokens = rollup.org_heat(org, start, now, sealed)
+        tokens = rollup.org_heat(org, start, now, sealed, requests)
         cache.set(key, tokens, HEAT_CACHE_SECONDS)
     return tokens
 
@@ -90,9 +90,10 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         in_period = period.of(reqs)
         org_wide = _org_wide(filters)
         sealed = rollup.Sealed.read()
+        org_requests = report.org_requests(selected_org)
         if org_wide:
-            timeline = rollup.org_series(selected_org, filters.model, period, sealed)
-            models = rollup.org_models(selected_org, filters.model, period, sealed)
+            timeline = rollup.org_series(selected_org, filters.model, period, sealed, org_requests)
+            models = rollup.org_models(selected_org, filters.model, period, sealed, org_requests)
         else:
             timeline, models = report.series(reqs, period), report.model_usage(in_period)
         total = timeline.total
@@ -124,7 +125,9 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 "chart": report.columns(timeline.points, period.step, metric),
                 "statuses": report.statuses(timeline, filters.log_url),
                 "heat_org": selected_org,
-                "heat": report.heat(_heat(selected_org, now, heat_weeks, sealed), heat_weeks),
+                "heat": report.heat(
+                    _heat(selected_org, org_requests, now, heat_weeks, sealed), heat_weeks
+                ),
                 "heat_days": heat_weeks * 7,
                 "heat_legend": report.HEAT_CLASSES[1:],
                 "heat_hours": report.HEAT_HOURS,

@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.http import urlencode
 
-from management.key_activity import FAILED, router_models, served
+from management.key_activity import FAILED, of_keys, router_models, served
 from management.models import Org, Request, Team, Token, UserProfile
 from management.models.token import of_org
 from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
@@ -56,14 +56,7 @@ def visible_requests(
     """Requests of the `visible_tokens`, limited to the models the router serves."""
     if org is None:
         return served(Request.objects.all())
-    tokens = visible_tokens(profile, org, teams)
-    if not profile.is_org_admin(org):
-        # A user has a few keys. Naming them lets Postgres plan with the actual ids instead of a
-        # join, and find their requests through the token or the timestamp index.
-        return served(
-            Request.objects.filter(token_id__in=list(tokens.values_list("id", flat=True)))
-        )
-    return served(Request.objects.filter(token__in=tokens))
+    return served(of_keys(Request.objects.all(), visible_tokens(profile, org, teams)))
 
 
 _OVERVIEW_STATUS = {
@@ -423,7 +416,7 @@ def counts_whole_org(filters: Filters) -> bool:
 def _tab_counts(filters: Filters, filtered: QuerySet[Request]) -> dict[Outcome | None, int]:
     """The requests in each tab, `None` for All. An org-wide selection reads the rollups."""
     if counts_whole_org(filters):
-        found = org_series(filters.org, filters.model, filters.period)
+        found = org_series(filters.org, filters.model, filters.period, requests=filters.requests)
         by_codes = zip((codes for _, codes, *_ in STATUSES), found.status_counts, strict=True)
         return {None: found.total.requests, Outcome.ERRORS: found.total.failed} | {
             Outcome(codes): count for codes, count in by_codes
@@ -454,7 +447,7 @@ def request_log(
 
     if outcome is not None:
         filtered = filtered.filter(outcome.matches)
-    listed = filtered.select_related("token__user", "token__service_account__team")
+    listed = filtered.prefetch_related("token__user", "token__service_account__team")
     newest_first = listed.order_by("-timestamp", "-id")
 
     def older_than(cursor: Cursor | None) -> tuple[list[Request], bool]:

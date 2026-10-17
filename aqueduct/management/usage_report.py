@@ -34,6 +34,7 @@ from management.key_activity import (
     as_tokens,
     chart,
     compact,
+    of_keys,
     percent,
     served,
     spark,
@@ -350,8 +351,7 @@ def org_requests(org: Org | None) -> QuerySet[Request]:
     serves. `None` means every org."""
     if org is None:
         return served(Request.objects.all())
-    tokens = Token.objects.filter(of_org(org))
-    return served(Request.objects.filter(token__in=tokens))
+    return served(of_keys(Request.objects.all(), Token.objects.filter(of_org(org))))
 
 
 def heat(tokens: Mapping[tuple[int, int], int], weeks: int) -> tuple[HeatRow, ...]:

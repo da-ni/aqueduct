@@ -139,6 +139,19 @@ def served(requests: QuerySet[Request]) -> QuerySet[Request]:
     return requests.filter(model__in=router_models())
 
 
+LISTED_KEYS = 500
+
+
+def of_keys(requests: QuerySet[Request], tokens: QuerySet[Token]) -> QuerySet[Request]:
+    """The `requests` of the keys of `tokens`. Up to `LISTED_KEYS` keys are named by id, so the
+    planner sees how few requests they have and reads them through the token index, instead of
+    scanning every org's requests by model or time. More keys stay a subquery."""
+    ids = list(tokens.order_by().values_list("id", flat=True)[: LISTED_KEYS + 1])
+    if len(ids) > LISTED_KEYS:
+        return requests.filter(token__in=tokens)
+    return requests.filter(token_id__in=ids)
+
+
 _SUMS = {
     "requests": Count("id"),
     "failed": Count("id", filter=FAILED),

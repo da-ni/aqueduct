@@ -136,6 +136,13 @@ requests, median input and output tokens, cached input share, and median and 90t
 response time. Pass another file in the same format with `--models-file`, and write its router
 config with `--models-file <file> --write-router-config <path>`.
 
+On SQLite, the command analyzes the request table after writing it, because SQLite plans
+queries from statistics that only `ANALYZE` collects. Without them it may read a small org's
+requests through the model index, over every org's, and its pages take seconds. Run
+`sqlite3 <database> ANALYZE` after loading many requests another way. SQLite cannot estimate how
+many keys a subquery returns, so the request log of an org with more than 500 keys can still take
+about a second under a status tab at this volume. Postgres plans the same pages in milliseconds.
+
 The command runs only with `DEBUG` on. `--force` runs it with `DEBUG` off and prints the database
 it writes to. Do not use `--force` against a database whose data you need.
 
