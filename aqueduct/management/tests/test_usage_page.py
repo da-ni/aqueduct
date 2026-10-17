@@ -242,7 +242,7 @@ class UsageFiguresTest(UsagePageTestBase):
         for user, params in (
             (self.solo, {}),
             (self.solo, {"key": self.solo_key.id, "model": EMBEDDING}),
-            (self.org_admin, {"scope": "mine"}),
+            (self.org_admin, {"model": EMBEDDING}),
         ):
             with self.subTest(user=user.username, **params):
                 response = self.page(user, **params)

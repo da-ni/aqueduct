@@ -10,7 +10,7 @@
             <h1 class="text-3xl font-semibold">Overview</h1>
             {% if filters.key %}
                 <span class="muted">for the key <span class="font-mono">{{ filters.key.name }}</span></span>
-                <a class="link-plain text-sm" href="{% querystring key=None %}">Show all keys</a>
+                <a class="link-plain text-sm" href="{% querystring key=None key_q=None %}">Show all keys</a>
             {% endif %}
         </div>
     </header>
@@ -52,8 +52,8 @@
                             {% endif %}
                         </div>
                         <nav class="join" aria-label="Chart metric">
-                            <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None %}"{% if metric == 'tokens' %} aria-current="page"{% endif %}>Tokens</a>
-                            <a class="btn btn-sm join-item{% if metric == 'requests' %} btn-primary{% endif %}" href="{% querystring metric='requests' %}"{% if metric == 'requests' %} aria-current="page"{% endif %}>Requests</a>
+                            <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None key_q=None %}"{% if metric == 'tokens' %} aria-current="page"{% endif %}>Tokens</a>
+                            <a class="btn btn-sm join-item{% if metric == 'requests' %} btn-primary{% endif %}" href="{% querystring metric='requests' key_q=None %}"{% if metric == 'requests' %} aria-current="page"{% endif %}>Requests</a>
                         </nav>
                     </div>
                 </div>
