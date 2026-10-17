@@ -218,11 +218,11 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         log = reverse("requests")
         self.assertContains(
             response,
-            f'href="{log}?key={self.key.id}&amp;request={limited.id}#request-{limited.id}"',
+            f'href="{log}?key={self.key.id}&amp;span=1m&amp;request={limited.id}#request-{limited.id}"',
         )
         self.assertContains(
             response,
-            f'<a class="link-plain" href="{log}?key={self.key.id}">Open the log</a>',
+            f'<a class="link-plain" href="{log}?key={self.key.id}&amp;span=1m">Open the log</a>',
             html=True,
         )
         opened = self.client.get(f"{log}?key={self.key.id}&request={limited.id}")
@@ -233,7 +233,7 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         self.request_log(self.key, timedelta(days=31))
         detail = self.get(self.owner, "token_detail", self.key.id)
         self.assertEqual([row.request for row in detail.context["latest"]], [shown])
-        log = self.get(self.owner, "requests", key=self.key.id).context["log"]
+        log = self.get(self.owner, "requests", key=self.key.id, span="1m").context["log"]
         self.assertEqual([row.request for row in log.rows], [shown])
         shown.delete()
         self.assertContains(

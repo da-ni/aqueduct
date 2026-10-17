@@ -24,7 +24,7 @@ from management.models import (
 )
 from management.request_log import PAGE_SIZE, Outcome, Place
 from management.tests.test_api_keys_pages import PAGES, make_token
-from management.usage_report import Period, Span, org_requests
+from management.usage_report import STATUSES, Period, Span, org_requests
 
 User = get_user_model()
 
@@ -95,6 +95,7 @@ class RequestsScopeTest(RequestsPageTestBase):
         )
 
     def test_user_sees_their_own_keys_only_even_where_a_request_names_them(self):
+        make_token(self.owner, "owner-desktop")
         response = self.get(self.owner)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.paths_on(response), {"/own"})
@@ -113,7 +114,6 @@ class RequestsScopeTest(RequestsPageTestBase):
     def test_team_member_sees_their_teams_service_account_only(self):
         response = self.get(self.member)
         self.assertEqual(self.paths_on(response), {"/team-sa"})
-        self.assertContains(response, f'href="{reverse("token_detail", args=[self.team_key.id])}"')
         self.assertNotContains(response, "side-sa")
 
     def test_org_admin_sees_the_whole_org_and_nothing_outside(self):
@@ -199,16 +199,30 @@ class RequestsScopeTest(RequestsPageTestBase):
                     log = self.client.get(href).context["log"]
                     self.assertEqual(log.count, count, href)
 
-    def test_log_opens_on_30_days_and_an_unknown_time_frame_falls_back_to_it(self):
-        self.log(self.key, "/month-old", ago=timedelta(days=29))
-        self.log(self.key, "/overdue", ago=timedelta(days=32))
+    def test_log_opens_on_24_hours_and_an_unknown_time_frame_falls_back_to_it(self):
+        self.log(self.key, "/yesterday", ago=timedelta(hours=30))
         for params in ({}, {"span": "all"}, {"span": "bogus"}):
             response = self.get(self.owner, **params)
             self.assertEqual(response.status_code, 200)
-            self.assertContains(response, ">/month-old</div>")
-            self.assertNotContains(response, ">/overdue</div>")
-            self.assertContains(response, 'aria-current="page">30 days</a>')
-            self.assertNotContains(response, "All retained")
+            self.assertEqual(self.paths_on(response), {"/own"})
+            self.assertNotContains(response, ">/yesterday</div>")
+            self.assertContains(response, 'aria-current="page">24 hours</a>')
+
+    def test_a_30_day_link_still_opens_30_days(self):
+        self.log(self.key, "/month-old", ago=timedelta(days=29))
+        self.log(self.key, "/overdue", ago=timedelta(days=32))
+        response = self.get(self.owner, span="1m")
+        self.assertContains(response, ">/month-old</div>")
+        self.assertNotContains(response, ">/overdue</div>")
+        self.assertContains(response, 'aria-current="page">30 days</a>')
+
+    def test_a_key_pages_link_to_an_older_request_opens_it(self):
+        older = self.log(self.key, "/last-week", ago=timedelta(days=5), user_agent="old-agent/1")
+        self.client.force_login(self.owner)
+        page = self.client.get(reverse("token_detail", args=[self.key.id])).content.decode()
+        link = f"{reverse('requests')}?key={self.key.id}&amp;span=1m&amp;request={older.id}"
+        self.assertIn(link, page)
+        self.assertContains(self.client.get(link.replace("&amp;", "&")), "old-agent/1")
 
     def test_start_and_end_parameters_are_ignored(self):
         response = self.get(self.owner, start="2020-01-02T00:00", end="2020-01-01T00:00")
@@ -223,12 +237,12 @@ class RequestsScopeTest(RequestsPageTestBase):
             "No request matches these filters.",
         )
         Request.objects.all().delete()
-        self.assertContains(self.get(self.owner), "No requests in the last 30 days.")
+        self.assertContains(self.get(self.owner), "No requests in the last 24 hours.")
 
     def test_time_frame_limits_the_log(self):
         self.log(self.key, "/last-week", ago=timedelta(days=3))
-        self.assertContains(self.get(self.owner), ">/last-week</div>")
-        recent = self.get(self.owner, span="1d")
+        self.assertContains(self.get(self.owner, span="1w"), ">/last-week</div>")
+        recent = self.get(self.owner)
         self.assertNotContains(recent, ">/last-week</div>")
         self.assertEqual(self.paths_on(recent), {"/own"})
 
@@ -251,11 +265,12 @@ class RequestsFilterTest(RequestsPageTestBase):
         self.log(self.key, "/invalid", status_code=400)
         self.log(self.key, "/broken", status_code=502)
         response = self.get(self.owner, status="429")
-        tabs = {tab.label: tab.count for tab in response.context["log"].tabs}
-        self.assertEqual(
-            tabs, {"All": 4, "Failed": 3, "2xx": 1, "429": 1, "Other 4xx": 1, "5xx": 1}
-        )
+        tabs = {tab.value: tab.count for tab in response.context["log"].tabs}
+        self.assertEqual(tabs, {None: 4, "failed": 3, "2xx": 1, "429": 1, "4xx": 1, "5xx": 1})
         content = response.content.decode()
+        for label, codes, *_ in STATUSES:
+            self.assertIn(f'{label} <span class="font-mono text-[10px] font-normal', content)
+            self.assertIn(f">{codes}</span>", content)
         self.assertIn(">/limited</div>", content)
         self.assertNotIn(">/own</div>", content)
         self.assertNotIn(">/invalid</div>", content)
@@ -368,21 +383,76 @@ class RequestsFilterTest(RequestsPageTestBase):
     def test_detail_opens_only_for_a_request_on_the_page(self):
         own = Request.objects.get(path="/own")
         own.user_agent = "openai-python/1.51"
-        own.processing_time_ms = 12
-        own.output_tokens = 300
-        own.response_time_ms = 2000
         own.save()
-        closed = self.get(self.owner)
-        self.assertNotContains(closed, "openai-python/1.51")
+        self.assertNotContains(self.get(self.owner), "openai-python/1.51")
         opened = self.get(self.owner, request=own.id)
         self.assertContains(opened, "openai-python/1.51")
-        self.assertContains(opened, "150 tok/s")
-        self.assertContains(opened, "200 OK. The request succeeded.")
         self.assertContains(opened, f'data-copy="{own.id}"')
         foreign = Request.objects.get(path="/foreign")
         foreign.user_agent = "foreign-agent/9"
         foreign.save()
         self.assertNotContains(self.get(self.owner, request=foreign.id), "foreign-agent/9")
+
+    def test_detail_lists_only_fields_with_a_value(self):
+        bare = self.log(self.key, "/bare", user_agent="", output_tokens=0)
+        content = self.get(self.owner, request=bare.id).content.decode()
+        details = content[content.index("<dl") : content.index("</dl>")]
+        self.assertIn("Request ID", details)
+        for label in ("Error", "User agent", "User ID", "Gateway overhead", "Output speed"):
+            self.assertNotIn(label, details)
+        self.assertNotIn("n/a", details)
+
+    def test_detail_explains_a_failed_status_and_shows_the_rest(self):
+        failed = self.log(
+            self.key,
+            "/failed",
+            status_code=429,
+            user_id="alice",
+            processing_time_ms=12,
+            output_tokens=300,
+            response_time_ms=2000,
+        )
+        content = self.get(self.owner, request=failed.id).content.decode()
+        self.assertIn(
+            '>Error</dt><dd class="text-[13px]">429 Too Many Requests. '
+            "The key or the provider was over a limit.</dd>",
+            content,
+        )
+        self.assertIn(">User ID</dt>", content)
+        self.assertIn(">alice</dd>", content)
+        self.assertIn("150 tok/s", content)
+
+    def test_gateway_overhead_shows_to_org_admins_and_admins_only(self):
+        timed = self.log(self.team_key, "/timed", processing_time_ms=12)
+        team_admin = self.user("team-admin")
+        TeamMembership.objects.create(
+            user_profile=team_admin.profile, team=self.team, is_admin=True
+        )
+        for user, shown in (
+            (self.member, False),
+            (team_admin, False),
+            (self.org_admin, True),
+            (self.admin, True),
+        ):
+            with self.subTest(user=user.username):
+                content = self.get(user, request=timed.id).content.decode()
+                self.assertIn(">/timed</div>", content)
+                self.assertEqual(">Gateway overhead</dt>" in content, shown)
+
+    def test_key_column_shows_only_when_rows_may_differ_in_key(self):
+        make_token(self.owner, "owner-desktop")
+        for user, params, shown in (
+            (self.member, {}, False),
+            (self.other, {}, False),
+            (self.owner, {}, True),
+            (self.owner, {"key": self.key.id}, False),
+            (self.org_admin, {}, True),
+            (self.org_admin, {"key": self.key.id}, False),
+            (self.admin, {"org": "all"}, True),
+        ):
+            with self.subTest(user=user.username, **params):
+                content = self.get(user, **params).content.decode()
+                self.assertEqual('<th rowspan="2">Key</th>' in content, shown)
 
 
 class RequestsPaginationTest(RequestsPageTestBase):
@@ -533,6 +603,9 @@ class RequestsRollupCountsTest(RequestsPageTestBase):
         requests = org_requests(org)
         return self.raw_tabs(requests if model is None else requests.filter(model=model))
 
+    def get(self, user, **params):
+        return super().get(user, **{"span": Span.MONTH.value, **params})
+
     def tabs(self, user, **params) -> dict[str | None, int]:
         log = self.get(user, **params).context["log"]
         return {tab.value: tab.count for tab in log.tabs}
@@ -614,9 +687,9 @@ class RequestsSearchTest(RequestsPageTestBase):
         self.log(self.key, "/find-old", ago=timedelta(days=3))
         self.log(self.key, "/find-failed", status_code=500)
         self.log(self.key, "/find-other-model", model=OTHER_MODEL)
-        self.assertEqual(len(listed(self.get(self.owner, q="find"))), 3)
+        self.assertEqual(len(listed(self.get(self.owner, q="find", span="1w"))), 3)
         for params, paths in (
-            ({"span": "1d"}, ["/find-failed", "/find-other-model"]),
+            ({}, ["/find-failed", "/find-other-model"]),
             ({"status": "failed"}, ["/find-failed"]),
             ({"model": OTHER_MODEL}, ["/find-other-model"]),
         ):
@@ -673,24 +746,33 @@ class RequestsSortTest(RequestsPageTestBase):
                 self.assertEqual(listed(self.get(self.owner, sort=sort)), expected)
 
     def test_org_wide_30_days_sorts_by_time_only(self):
-        for user, params in ((self.org_admin, {}), (self.admin, {"org": "all"})):
+        for user, params in (
+            (self.org_admin, {"span": "1m"}),
+            (self.admin, {"org": "all", "span": "1m"}),
+        ):
             with self.subTest(user=user.username, **params):
                 response = self.get(user, sort="-response", **params)
                 self.assertEqual(str(response.context["log"].sort), "-time")
                 content = response.content.decode()
-                self.assertIn("To sort by response, choose 7 days or less", content)
-                self.assertIn('tabindex="0">Response<span', content)
-                self.assertNotIn('">Response<svg', content)
+                self.assertRegex(content, r'class="text-right">Response\s*</th>')
+                self.assertNotIn("To sort by", content)
                 self.assertIn("sort=time", content)
                 oldest = self.get(user, sort="time", **params).context["log"].rows[0]
                 self.assertEqual(oldest.request.path, "/others")
 
     def test_a_short_time_frame_a_key_a_model_or_own_keys_allow_every_sort(self):
-        for params in ({"span": "1w"}, {"model": MODEL}, {"key": self.key.id}, {"scope": "mine"}):
+        for params in (
+            {},
+            {"span": "1w"},
+            *(
+                {"span": "1m", narrower: value}
+                for narrower, value in (("model", MODEL), ("key", self.key.id), ("scope", "mine"))
+            ),
+        ):
             with self.subTest(**params):
                 response = self.get(self.org_admin, sort="-response", **params)
                 self.assertEqual(str(response.context["log"].sort), "-response")
-                self.assertNotIn("choose 7 days or less", response.content.decode())
+                self.assertIn('">Response<svg', response.content.decode())
 
     def test_headings_mark_the_sort_and_toggle_it(self):
         content = self.get(self.owner).content.decode()
@@ -801,6 +883,14 @@ class RequestsPagerTest(RequestsPageTestBase):
                 first = self.follow(last, "First")
                 self.assertEqual(listed(first), expected[:PAGE_SIZE])
                 self.assertEqual(self.label(first), f"1\u201350 of {t}")
+
+    def test_retention_note_shows_on_the_last_page_and_an_empty_log_only(self):
+        note = "Requests are kept for 30 days"
+        first = self.get(self.owner)
+        self.assertNotContains(first, note)
+        self.assertNotContains(self.follow(first, "Next"), note)
+        self.assertContains(self.follow(first, "Last"), note)
+        self.assertContains(self.get(self.owner, model=OTHER_MODEL), note)
 
     def test_a_deep_link_mid_log_shows_the_total_until_the_position_is_known(self):
         expected = self.expected("-timestamp", "-id")
