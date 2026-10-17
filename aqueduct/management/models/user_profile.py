@@ -1,7 +1,10 @@
+from typing import Any
+
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import models
+from django.utils.functional import cached_property
 
 from management.models.mixins import LimitMixin, MCPServerExclusionMixin, ModelExclusionMixin
 from management.models.org import Org
@@ -40,15 +43,19 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
     def __str__(self) -> str:
         return f"{self.user.email} (Profile - {self.org.name})"
 
+    @cached_property
+    def _group_names(self) -> frozenset[str]:
+        return frozenset(self.user.groups.values_list("name", flat=True))
+
+    def refresh_from_db(self, *args: Any, **kwargs: Any) -> None:
+        super().refresh_from_db(*args, **kwargs)
+        self.__dict__.pop("_group_names", None)
+
     @property
     def group(self) -> UserGroup:
-        groups = self.user.groups
-        if groups.filter(name=UserGroup.ADMIN).exists():
-            return UserGroup.ADMIN
-        if groups.filter(name=UserGroup.ORG_ADMIN).exists():
-            return UserGroup.ORG_ADMIN
-        if groups.filter(name=UserGroup.USER).exists():
-            return UserGroup.USER
+        for group in (UserGroup.ADMIN, UserGroup.ORG_ADMIN, UserGroup.USER):
+            if group in self._group_names:
+                return group
         raise ValidationError("User has no group")
 
     @group.setter
@@ -56,6 +63,7 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
         if group not in UserGroup.values:
             raise ValueError(f"Group {group} does not exist!")
 
+        self.__dict__.pop("_group_names", None)
         # Clear existing groups first
         self.user.groups.clear()
         # Add the new group
