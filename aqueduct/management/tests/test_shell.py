@@ -8,6 +8,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
+from django.contrib.sessions.backends.db import SessionStore
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.shortcuts import render
@@ -38,6 +39,7 @@ def labels(shell: Shell) -> set[str]:
 def request_as(user):
     request = RequestFactory().get("/")
     request.user = user
+    request.session = SessionStore()
     return request
 
 

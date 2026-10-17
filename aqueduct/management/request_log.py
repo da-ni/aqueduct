@@ -4,8 +4,9 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from http import HTTPStatus
 
+from django.contrib.sessions.backends.base import SessionBase
 from django.db.models import Count, Q, QuerySet
-from django.http import Http404
+from django.http import Http404, HttpRequest
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.http import urlencode
@@ -27,15 +28,32 @@ def parse_id(raw: str | None) -> int | None:
     return int(raw)
 
 
-def chosen_org(profile: UserProfile, raw: str | None) -> Org | None:
-    """The org whose requests the viewer looks at. `None` means every org, for admins only."""
+SESSION_ORG = "org"
+ORG_BOUND_PARAMS = ("org", "key", "key_q", "before", "after", "request", "page")
+"""The URL parameters that name something of one org, which a page drops on a change of org."""
+
+
+def remember_org(session: SessionBase, org: Org | None) -> None:
+    value = "all" if org is None else str(org.pk)
+    if session.get(SESSION_ORG) != value:
+        session[SESSION_ORG] = value
+
+
+def chosen_org(profile: UserProfile, request: HttpRequest) -> Org | None:
+    """The org the viewer looks at, `None` for every org. An admin chooses it with the org switch
+    or a `?org=` link, an org id or `all`, and the session keeps it for later pages. Everyone
+    else always sees their own org."""
     if not profile.is_admin():
         return profile.org
-    if raw == "all":
-        return None
-    if (org_id := parse_id(raw)) is not None:
-        return Org.objects.filter(pk=org_id).first() or profile.org
-    return profile.org
+    raw = request.GET.get("org", request.session.get(SESSION_ORG))
+    org: Org | None = None
+    if raw != "all":
+        org_id = parse_id(raw)
+        org = Org.objects.filter(pk=org_id).first() if org_id is not None else None
+        if org is None:
+            return profile.org
+    remember_org(request.session, org)
+    return org
 
 
 def visible_tokens(profile: UserProfile, org: Org | None, teams: QuerySet[Team]) -> QuerySet[Token]:
@@ -164,7 +182,7 @@ class Filters:
     match the search `key_q`. `page_params` holds the page's own parameters, such as the
     log's status tab, which the key search keeps."""
 
-    orgs: tuple[Org, ...]
+    can_pick_org: bool
     org: Org | None
     can_pick_scope: bool
     mine: bool
@@ -186,7 +204,7 @@ class Filters:
     @property
     def query(self) -> dict[str, str]:
         found = {}
-        if self.orgs:
+        if self.can_pick_org:
             found["org"] = str(self.org.id) if self.org else "all"
         if self.mine:
             found["scope"] = "mine"
@@ -226,11 +244,12 @@ def read_filters(
     teams: QuerySet[Team],
     params: Mapping[str, str],
     *,
+    org: Org | None,
     default_span: Span,
     now: datetime,
 ) -> Filters:
-    """Parse the shared filters. A key outside what the viewer may see is a 404."""
-    org = chosen_org(profile, params.get("org"))
+    """Parse the shared filters of `org`, every org when `None`. A key outside what the viewer
+    may see is a 404."""
     sees_others = org is None or profile.is_org_admin(org)
     requests = visible_requests(profile, org, teams)
     team_ids = set(teams.values_list("id", flat=True))
@@ -273,7 +292,7 @@ def read_filters(
     period = Period.last(span, now)
 
     return Filters(
-        orgs=tuple(Org.objects.order_by("name")) if profile.is_admin() else (),
+        can_pick_org=profile.is_admin(),
         org=org,
         can_pick_scope=sees_others,
         mine=mine,

@@ -23,7 +23,7 @@ The Overview page shows the token and request usage of the keys you can see. Cho
 
 - Users see their own keys and the service accounts of their teams.
 - Org admins see every key of their organization. In the key menu, **All keys in** your organization and **My keys** switch between the whole organization and your own keys.
-- Admins also choose an organization, or **All organizations**, in the organization select.
+- Admins see the organization they chose in the sidebar, or all organizations. See [Choose an organization](index.md#choose-an-organization).
 
 ## Choose the time frame, the key, and the model
 

@@ -7,7 +7,7 @@ The request log lists single API requests, newest first, 50 per page, paged by c
 - `requests-list` shows the rows, the count of matching requests (`<n> requests`), and the retention note `Requests are kept for <n> days`. A model name in a row filters the log on that model. With no rows, the page reads `No request matches these filters.` when a filter, a status tab, or a time frame other than `30 days` narrows it, and `No requests in the last 30 days.` otherwise.
 - `requests-status` filters by `All`, `Failed` (4xx and 5xx), `2xx`, `429`, `Other 4xx`, or `5xx`, each tab with its count.
 - `requests-filters` is the filter bar the Overview page shares: the `Key:` and `Model:` dropdowns and the time frame. The `Key:` dropdown holds a search field (`?key_q=`, up to 20 visible keys by name or owner email, shown with the dropdown open), the scope entries (`All keys in <org>` and `My keys` for org admins and admins, `All my keys` for users), and `Your keys`, the viewer's own keys. The log opens on `30 days`. There is no custom range, `?start=` and `?end=` are ignored, and an unknown `?span=` (such as the retired `all`) falls back to `30 days`.
-- `requests-org` lets an admin choose one org or all orgs in the `Organization:` dropdown.
+- `requests-org` shows the org an admin chose in the sidebar, as [org-switch.md](./org-switch.md) shows.
 - `requests-detail` opens one row's details. `?request=<id>` without a cursor opens the page that starts at that request when the newest page does not hold it, as the links on a key's page do.
 - `requests-pages` moves between pages with `Newer` and `Older`.
 
@@ -31,7 +31,7 @@ Preconditions:
 - **Org admin.** Run `aqv login org-admin --next /aqueduct/management/requests/`. The page reads `280 requests`, the same total as the usage page over one month.
 - **Key search.** As `org-admin`, run `aqv open "/aqueduct/management/requests/?key_q=member"`. The key dropdown is open and lists `member-notebook` under `Matching keys`. As `other-org-admin`, `?key_q=verify` reads `No key matches “verify”`.
 - **Other org.** Run `aqv login other-org-admin --next /aqueduct/management/requests/`. The page reads `No requests in the last 30 days.`
-- **Admin org choice.** Run `aqv login admin --next /aqueduct/management/requests/`, then `aqv click --selector "summary:has-text('Organization:')"` and `aqv click --role link --name "All organizations"`. The path ends `?org=all`, and the count matches `aqv shell -c "from management.models import Request; print(Request.objects.count())"`.
+- **Admin org choice.** Run `aqv login admin --next /aqueduct/management/requests/`, then `aqv select --label Organization --value all`. The page reloads, and the count matches `aqv shell -c "from management.models import Request; print(Request.objects.count())"`.
 
 ## Gotchas
 

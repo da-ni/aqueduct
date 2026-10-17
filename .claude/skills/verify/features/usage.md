@@ -19,7 +19,7 @@ The Overview page shows usage of the keys the viewer may see. Users see their ow
 - Choose **Overview** in the sidebar. The path is `/aqueduct/management/usage/`.
 - Choose a time frame: `1 hour`, `24 hours`, `7 days` (the default), or `30 days`. There is no custom range, `?start=` and `?end=` are ignored, and an unknown `?span=` (such as the retired `all`) falls back to `7 days`.
 - Choose a key in the `Key: All keys` dropdown, or a model in the `Model: All models` dropdown.
-- As an admin, choose an org in the `Organization:` dropdown, or `All organizations`.
+- As an admin, choose an org, or `All organizations`, in the sidebar's `Organization` select. See [org-switch.md](./org-switch.md).
 
 ## Driving it with aqv
 
@@ -41,4 +41,4 @@ Preconditions:
 - The time frames end with the current minute, hour, or day and start at a whole bucket. `7 days` is today and the six days before it, not the last 168 hours.
 - The seed builds no usage rollups, so org-wide figures read the requests until you run `aqv shell -c "from django.core.management import call_command; call_command('rebuild_usage_rollups')"`. The figures are the same either way, and the `≈` medians are approximate either way. Run it to exercise the rollup path, for example after a change to `usage_rollup.py`.
 - The seed puts no requests in `Other Org`, so `By organization` lists only `Verify Org`.
-- The time frame buttons and the dropdown entries are links. The key search is a form inside the `Key:` dropdown; `aqv open` with `?key_q=` is the short way to it. Click them with `--role link`. Open a dropdown first with `aqv click --selector "summary:has-text('Key:')"` (or `Model:`, `Organization:`).
+- The time frame buttons and the dropdown entries are links. The key search is a form inside the `Key:` dropdown; `aqv open` with `?key_q=` is the short way to it. Click them with `--role link`. Open a dropdown first with `aqv click --selector "summary:has-text('Key:')"` (or `Model:`).

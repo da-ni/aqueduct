@@ -25,7 +25,7 @@ You see the same requests as on the [Overview](usage.md) page:
 
 - Users see the requests of their own keys and of their teams' service accounts. A request that another person's key sent with your e-mail address as [`user_id`](../api/index.md#sending-user_id-in-api-requests) stays that person's request.
 - Org admins see every request of their organization.
-- Admins also choose an organization, or **All organizations**, in the organization select.
+- Admins see the organization they chose in the sidebar, or all organizations. See [Choose an organization](index.md#choose-an-organization).
 
 The log lists only requests to models that the gateway still serves.
 

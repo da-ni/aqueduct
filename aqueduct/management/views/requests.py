@@ -17,7 +17,12 @@ class RequestLogView(BaseAqueductView, TemplateView):
         params = self.request.GET
         teams = self.get_teams_for_user()
         filters = read_filters(
-            self.profile, teams, params, default_span=Span.MONTH, now=timezone.now()
+            self.profile,
+            teams,
+            params,
+            org=self.viewed_org,
+            default_span=Span.MONTH,
+            now=timezone.now(),
         )
         outcome = Outcome.parse(params.get("status", ""))
         context.update(

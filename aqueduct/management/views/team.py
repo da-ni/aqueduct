@@ -1,8 +1,9 @@
-# management/views/team.py
+from functools import cached_property
+
 from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -10,7 +11,8 @@ from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, UpdateView
 
 from management.forms import MemberEmailForm, TeamCreateForm
-from management.models import ServiceAccount, Team, UserProfile
+from management.models import Org, ServiceAccount, Team, UserProfile
+from management.request_log import parse_id
 from management.team_overview import team_page
 from management.views.base import (
     BaseAqueductView,
@@ -31,19 +33,24 @@ class TeamCreateView(BaseAqueductView, OrgAdminRequiredMixin, CreateView):
     template_name = "management/create/team.html"
     success_url = reverse_lazy("org")  # Redirects to organization dashboard
 
-    # Permission checking is handled by OrgAdminRequiredMixin in dispatch.
+    @cached_property
+    def target_org(self) -> Org:
+        """The org the form was opened for. The form posts it, so switching the org in another
+        tab before submitting does not move the team."""
+        if self.request.method != "POST":
+            return self.org
+        org = Org.objects.filter(pk=parse_id(self.request.POST.get("org"))).first()
+        if org is None or not self.profile.is_org_admin(org):
+            raise Http404("No organization found.")
+        return org
 
     def get_form_kwargs(self) -> dict:
-        """Pass the user's organization to the form."""
         kwargs = super().get_form_kwargs()
-        # self.org is guaranteed by BaseAqueductView for authenticated users.
-        kwargs["org"] = self.org
+        kwargs["org"] = self.target_org
         return kwargs
 
     def form_valid(self, form) -> HttpResponse:
-        """Assign the organization to the team instance before saving."""
-        # self.org is guaranteed by BaseAqueductView.
-        form.instance.org = self.org
+        form.instance.org = self.target_org
         response = super().form_valid(form)
         messages.success(self.request, f"Team '{form.instance.name}' created successfully.")
         return response
@@ -51,6 +58,7 @@ class TeamCreateView(BaseAqueductView, OrgAdminRequiredMixin, CreateView):
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         context["view_title"] = "Create a team"
+        context["target_org"] = self.target_org
         return context
 
 

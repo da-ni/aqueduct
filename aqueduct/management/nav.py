@@ -9,6 +9,8 @@ from django.urls import NoReverseMatch, reverse
 from silk.config import SilkyConfig
 
 from management.icons import Icon
+from management.models import Org
+from management.request_log import chosen_org
 
 Access = Callable[[HttpRequest], bool]
 
@@ -138,12 +140,21 @@ class Viewer:
 
 
 @dataclass(frozen=True)
+class OrgSwitch:
+    """The orgs an admin may look at, and the one they look at, `None` for every org."""
+
+    orgs: tuple[Org, ...]
+    chosen: Org | None
+
+
+@dataclass(frozen=True)
 class Shell:
     sections: tuple[Section, ...]
     bottom: tuple[Link, ...]
     help_links: tuple[Link, ...]
     viewer: Viewer | None
     gateway_url: str
+    org_switch: OrgSwitch | None
 
     @property
     def current(self) -> Link | None:
@@ -182,7 +193,15 @@ def build_shell(request: HttpRequest) -> Shell:
         help_links=extra + visible(HELP),
         viewer=_viewer(request),
         gateway_url=gateway_url(request),
+        org_switch=_org_switch(request),
     )
+
+
+def _org_switch(request: HttpRequest) -> OrgSwitch | None:
+    profile = getattr(request.user, "profile", None)
+    if profile is None or not profile.is_admin():
+        return None
+    return OrgSwitch(tuple(Org.objects.order_by("name")), chosen_org(profile, request))
 
 
 def _viewer(request: HttpRequest) -> Viewer | None:
