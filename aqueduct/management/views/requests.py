@@ -21,7 +21,7 @@ class RequestLogView(BaseAqueductView, TemplateView):
         params = self.request.GET
         teams = self.get_teams_for_user()
         filters = read_filters(
-            self.profile, teams, params, default_span=Span.ALL, now=timezone.now()
+            self.profile, teams, params, default_span=Span.MONTH, now=timezone.now()
         )
         outcome = Outcome.parse(params.get("status", ""))
         context.update(
@@ -36,7 +36,7 @@ class RequestLogView(BaseAqueductView, TemplateView):
             filters=filters,
             outcome=outcome,
             narrowed=outcome is not None
-            or filters.span is not Span.ALL
+            or filters.span is not Span.MONTH
             or bool(filters.mine or filters.key or filters.model),
             retention_days=int(getattr(settings, "REQUEST_RETENTION_DAYS", 30)),
         )

@@ -75,7 +75,6 @@ class Span(StrEnum):
     DAY = "1d"
     WEEK = "1w"
     MONTH = "1m"
-    ALL = "all"
 
     @property
     def label(self) -> str:
@@ -90,12 +89,11 @@ class Span(StrEnum):
 
 
 DEFAULT_SPAN = Span.WEEK
-SPANS: Mapping[Span, tuple[str, Step, int | None]] = {
+SPANS: Mapping[Span, tuple[str, Step, int]] = {
     Span.HOUR: ("1 hour", MINUTE, 60),
     Span.DAY: ("24 hours", HOUR, 24),
     Span.WEEK: ("7 days", DAY, 7),
     Span.MONTH: ("30 days", DAY, 30),
-    Span.ALL: ("All retained", DAY, None),
 }
 
 
@@ -109,12 +107,11 @@ class Period:
     label: str
 
     @classmethod
-    def last(cls, span: Span, now: datetime, oldest: datetime) -> "Period":
-        """The last `span` before `now`. `Span.ALL` reaches back to `oldest`."""
+    def last(cls, span: Span, now: datetime) -> "Period":
+        """The last `span` before `now`."""
         label, step, count = SPANS[span]
         end = step.floor(now) + step.size
-        start = step.floor(oldest) if count is None else end - count * step.size
-        return cls(start, end, step, label)
+        return cls(end - count * step.size, end, step, label)
 
     def previous(self, now: datetime) -> "Period":
         """The same stretch one period earlier, cut where this period's elapsed time ends."""
@@ -435,17 +432,46 @@ def model_rows(
 
 @dataclass(frozen=True)
 class KeyShare:
+    """One row of the Overview's Largest keys or By user ID table, laid out like `ModelRow`."""
+
     name: str
     detail: str
     href: str | None
-    value: str
+    activity: Activity
+    median: str
+    share: str
     width: int
+
+    @property
+    def input(self) -> str:
+        return compact(self.activity.input)
+
+    @property
+    def output(self) -> str:
+        return compact(self.activity.output)
 
 
 def _widths(values: Iterable[int]) -> list[int]:
     values = list(values)
     top = max(values, default=0)
     return [round(100 * v / top) if top else 0 for v in values]
+
+
+def _figures(
+    requests: QuerySet[Request], rows: list[dict], one: Callable[[dict], Q]
+) -> list[tuple[Activity, str, str, int]]:
+    """Activity, median response, token share, and bar width of each row, as `model_rows` shows
+    them. `one(row)` picks the row's requests."""
+    total = requests.aggregate(tokens=Sum(TOKENS, default=0))["tokens"]
+    return [
+        (
+            Activity(**{name: row[name] for name in TOTALS}),
+            duration(median_ms(requests.filter(one(row)))),
+            percent(row["tokens"], total),
+            width,
+        )
+        for row, width in zip(rows, _widths(r["tokens"] for r in rows), strict=True)
+    ]
 
 
 def key_shares(
@@ -462,7 +488,7 @@ def key_shares(
             "token__service_account__team__name",
             "token__user__profile__org__name",
         )
-        .annotate(tokens=Sum(TOKENS, default=0), requests=Count("id"))
+        .annotate(**TOTALS, tokens=Sum(TOKENS, default=0))
         .order_by("-tokens", "-requests", "token__name")[:TOP_KEYS]
     )
 
@@ -480,9 +506,10 @@ def key_shares(
             detail += f" · {row['token__user__profile__org__name'] or NO_ORG}"
         return detail, href
 
+    figures = _figures(requests, rows, lambda row: Q(token_id=row["token_id"]))
     return tuple(
-        KeyShare(row["token__name"], *describe(row), compact(row["tokens"]), width)
-        for row, width in zip(rows, _widths(r["tokens"] for r in rows), strict=True)
+        KeyShare(row["token__name"], *describe(row), *figure)
+        for row, figure in zip(rows, figures, strict=True)
     )
 
 
@@ -490,18 +517,13 @@ def user_id_shares(requests: QuerySet[Request]) -> tuple[KeyShare, ...]:
     """Tokens per `user` value the client sent, for one key."""
     rows = list(
         requests.values("user_id")
-        .annotate(tokens=Sum(TOKENS, default=0), requests=Count("id"))
+        .annotate(**TOTALS, tokens=Sum(TOKENS, default=0))
         .order_by("-tokens", "-requests", "user_id")[:TOP_KEYS]
     )
+    figures = _figures(requests, rows, lambda row: Q(user_id=row["user_id"]))
     return tuple(
-        KeyShare(
-            row["user_id"] or "Not sent",
-            f"{row['requests']:,} requests",
-            None,
-            compact(row["tokens"]),
-            width,
-        )
-        for row, width in zip(rows, _widths(r["tokens"] for r in rows), strict=True)
+        KeyShare(row["user_id"] or "Not sent", "", None, *figure)
+        for row, figure in zip(rows, figures, strict=True)
     )
 
 

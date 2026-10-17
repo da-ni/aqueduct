@@ -45,7 +45,7 @@ Choose a model name to show only that model. Choose a row, or the arrow at its s
 ## Filter the log
 
 - To show one kind of status, choose a tab: **All**, **Failed**, **2xx**, **429**, **Other 4xx**, or **5xx**. **Failed** holds every `4xx` and `5xx` request. Each tab shows its count.
-- The log has the same filters as the [Overview](usage.md) page: the organization, **Everyone** or **My keys**, **All keys**, **All models**, and the time frame. The log opens on **All retained**, every request Aqueduct still keeps.
+- The log has the same filters as the [Overview](usage.md) page: the organization, **Everyone** or **My keys**, **All keys**, **All models**, and the time frame. The log opens on **30 days**.
 - On the Overview page, **Open the log**, a status group, and a model open the log with the same filters.
 
 The log shows 50 requests per page. Choose **Older** and **Newer** to move between pages.

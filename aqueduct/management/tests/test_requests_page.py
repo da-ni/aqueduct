@@ -190,12 +190,16 @@ class RequestsScopeTest(RequestsPageTestBase):
                     log = self.client.get(href).context["log"]
                     self.assertEqual(log.page.paginator.count, count, href)
 
-    def test_log_opens_on_every_retained_request(self):
-        self.log(self.key, "/overdue", ago=timedelta(days=31))
-        response = self.get(self.owner)
-        self.assertContains(response, ">/overdue</div>")
-        self.assertContains(response, 'aria-current="page">All retained</a>')
-        self.assertNotContains(self.get(self.owner, span="1m"), ">/overdue</div>")
+    def test_log_opens_on_30_days_and_an_unknown_time_frame_falls_back_to_it(self):
+        self.log(self.key, "/month-old", ago=timedelta(days=29))
+        self.log(self.key, "/overdue", ago=timedelta(days=32))
+        for params in ({}, {"span": "all"}, {"span": "bogus"}):
+            response = self.get(self.owner, **params)
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, ">/month-old</div>")
+            self.assertNotContains(response, ">/overdue</div>")
+            self.assertContains(response, 'aria-current="page">30 days</a>')
+            self.assertNotContains(response, "All retained")
 
     def test_start_and_end_parameters_are_ignored(self):
         response = self.get(self.owner, start="2020-01-02T00:00", end="2020-01-01T00:00")

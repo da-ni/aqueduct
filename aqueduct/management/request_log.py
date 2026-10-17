@@ -1,12 +1,11 @@
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import StrEnum
 from http import HTTPStatus
 
-from django.conf import settings
 from django.core.paginator import Page, Paginator
-from django.db.models import Count, Min, Q, QuerySet
+from django.db.models import Count, Q, QuerySet
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -241,12 +240,7 @@ def read_filters(
         requests = requests.filter(model=model)
 
     span = Span.parse(params.get("span", "")) or default_span
-    oldest = now
-    if span is Span.ALL:
-        retained = now - timedelta(days=getattr(settings, "REQUEST_RETENTION_DAYS", 30))
-        first = requests.aggregate(first=Min("timestamp"))["first"]
-        oldest = min(first or retained, retained)
-    period = Period.last(span, now, oldest)
+    period = Period.last(span, now)
 
     return Filters(
         orgs=tuple(Org.objects.order_by("name")) if profile.is_admin() else (),

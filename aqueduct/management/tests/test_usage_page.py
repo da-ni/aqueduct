@@ -294,6 +294,15 @@ class UsageFiguresTest(UsagePageTestBase):
         self.assertContains(self.page(self.solo, span="1m"), "Older requests are missing")
         self.assertNotContains(self.page(self.solo, span="1w"), "Older requests are missing")
 
+    def test_an_unknown_time_frame_falls_back_to_7_days(self):
+        self.log(self.solo_key, timedelta(days=10), 200)
+        for span in ("all", "bogus"):
+            response = self.page(self.solo, span=span)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(self.kpi(response, "Requests")[0], "1")
+            self.assertContains(response, 'aria-current="page">7 days</a>')
+            self.assertNotContains(response, "All retained")
+
     def test_start_and_end_parameters_are_ignored(self):
         self.log(self.solo_key, timedelta(days=3), 200)
         start = (timezone.now() - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M")
@@ -322,7 +331,23 @@ class UsageFiguresTest(UsagePageTestBase):
         response = self.page(self.solo)
         detail = reverse("token_detail", args=[self.solo_key.id])
         self.assertContains(
-            response, f'class="link-plain row-link truncate font-mono" href="{detail}"'
+            response, f'class="link-plain row-link block truncate font-mono" href="{detail}"'
+        )
+
+    def test_largest_keys_count_tokens_and_requests_like_the_model_rows(self):
+        self.log(self.pipeline_key, timedelta(hours=2), 200, input_tokens=1000)
+        self.log(self.pipeline_key, timedelta(hours=3), 200, output_tokens=500)
+        keys = {key.name: key for key in self.page(self.org_admin).context["keys"]}
+        self.assertEqual(
+            {name: key.activity.requests for name, key in keys.items()},
+            {"pipeline": 3, "solo-laptop": 1, "member-laptop": 1},
+        )
+        pipeline = keys["pipeline"]
+        self.assertEqual((pipeline.input, pipeline.output), ("4K", "1.5K"))
+        self.assertEqual((pipeline.share, pipeline.median), ("61%", "100 ms"))
+        self.assertEqual(pipeline.activity.segments, (("c", 0), ("i", 4000), ("o", 1500)))
+        self.assertEqual(
+            keys["solo-laptop"].activity.segments, (("c", 250), ("i", 750), ("o", 500))
         )
 
     def test_totals_do_not_link_to_the_log(self):

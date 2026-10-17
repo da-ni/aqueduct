@@ -9,14 +9,14 @@ The Overview page shows usage of the keys the viewer may see. Users see their ow
 - `usage-statuses` splits requests into answered, rate-limited, other client errors, and `Model or provider error` (5xx). Each row opens the request log on its group. `Open the log` opens it with the same filters.
 - `usage-heat` shows average tokens per hour for each weekday and hour over the last 28 days, whatever the time frame.
 - `usage-models` lists every model with requests in the time frame, with tokens, cache hits, requests, median response, and share. A whole row opens the request log for that model.
-- `usage-keys` lists the keys that used the most tokens. A whole row opens the key's detail page when the viewer may open it: their own personal keys and the service accounts of their teams. With `?key=<id>`, the page shows one key, and `By user ID` replaces the list.
+- `usage-keys` lists the keys that used the most tokens in a table laid out like `usage-models`: the same split token bar and the same columns, requests included. A whole row opens the key's detail page when the viewer may open it: their own personal keys and the service accounts of their teams. With `?key=<id>`, the page shows one key, and `By user ID` replaces the list.
 - `usage-orgs` lists tokens per org when an admin views all orgs.
 - `usage-filters` covers the time frame, one key, one model, `My keys` for org admins and admins, and the org dropdown for admins.
 
 ## How to get to it (user POV)
 
 - Choose **Overview** in the sidebar. The path is `/aqueduct/management/usage/`.
-- Choose a time frame: `1 hour`, `24 hours`, `7 days` (the default), `30 days`, or `All retained`. There is no custom range, and `?start=` and `?end=` are ignored.
+- Choose a time frame: `1 hour`, `24 hours`, `7 days` (the default), or `30 days`. There is no custom range, `?start=` and `?end=` are ignored, and an unknown `?span=` (such as the retired `all`) falls back to `7 days`.
 - Choose a key in the `Key: All keys` dropdown, or a model in the `Model: All models` dropdown.
 - As an admin, choose an org in the `Organization:` dropdown, or `All organizations`.
 

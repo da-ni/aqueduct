@@ -124,7 +124,7 @@ def week(now: datetime) -> "Period":
     """The "7 days" every page shows: today and the six days before, as on the Overview."""
     from management.usage_report import Period, Span  # usage_report imports this module
 
-    return Period.last(Span.WEEK, now, now)
+    return Period.last(Span.WEEK, now)
 
 
 def router_models() -> list[str]:
