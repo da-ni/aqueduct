@@ -116,12 +116,12 @@ def ago(value: datetime, now: datetime) -> str:
     """How long ago, or how soon, `value` is, in one unit rounded half up: "2 days ago" for 1
     day and 18 hours, "1 day ago" for 23 hours and 40 minutes, "in 3 hours"."""
     seconds = (now - value).total_seconds()
-    for index, (size, _, _) in enumerate(AGO_UNITS):
+    for index, (size, _past, _future) in enumerate(AGO_UNITS):
         if abs(seconds) >= size:
             unit, count = index, int(abs(seconds) / size + 0.5)
             if index and count >= round(AGO_UNITS[index - 1][0] / size):
                 unit, count = index - 1, 1
-            _, past, future = AGO_UNITS[unit]
+            past, future = AGO_UNITS[unit][1:]
             return str((past if seconds > 0 else future) % {"count": count})
     return gettext("just now")
 

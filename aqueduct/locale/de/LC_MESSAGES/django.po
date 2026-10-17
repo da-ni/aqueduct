@@ -49,8 +49,8 @@ msgstr "Mitglieder behalten ihre persönlichen Schlüssel."
 msgid ""
 "Batches that use it as input are deleted with it, and vector stores drop it."
 msgstr ""
-"Batches, die sie als Eingabe nutzen, werden mit ihr gelöscht, und "
-"Vektorspeicher entfernen sie."
+"Batches, die sie als Eingabe nutzen, werden mit ihr gelöscht, und sie wird "
+"aus Vektorspeichern entfernt."
 
 #, python-format
 msgid "Delete %(name)s?"
@@ -72,7 +72,8 @@ msgid "Member"
 msgstr "Mitglied"
 
 msgid "Language of the management pages. Blank follows the browser."
-msgstr "Sprache der Verwaltungsseiten. Leer folgt sie dem Browser."
+msgstr ""
+"Sprache der Verwaltungsseiten. Ohne Auswahl gilt die Sprache des Browsers."
 
 msgid "Overview"
 msgstr "Übersicht"
@@ -139,8 +140,7 @@ msgstr "Aqueduct AI Gateway"
 
 msgid "You don't have access. Ask your org admin."
 msgstr ""
-"Sie haben keinen Zugriff. Wenden Sie sich an die Verwaltung Ihrer "
-"Organisation."
+"Sie haben keinen Zugriff. Wenden Sie sich an die Admins Ihrer Organisation."
 
 msgid "Go to Overview"
 msgstr "Zur Übersicht"
@@ -204,7 +204,7 @@ msgid "Sign out"
 msgstr "Abmelden"
 
 msgid "Switch between light and dark"
-msgstr "Zwischen hell und dunkel wechseln"
+msgstr "Zwischen hellem und dunklem Design wechseln"
 
 msgid "Skip to content"
 msgstr "Zum Inhalt springen"
@@ -271,7 +271,7 @@ msgid "Not accepted"
 msgstr "Nicht akzeptiert"
 
 msgid "Read the terms"
-msgstr "Bedingungen lesen"
+msgstr "Nutzungsbedingungen lesen"
 
 msgid "Personal key limits"
 msgstr "Limits persönlicher Schlüssel"
@@ -394,7 +394,7 @@ msgid "Version of %(date)s"
 msgstr "Fassung vom %(date)s"
 
 msgid "Accept the terms to continue"
-msgstr "Akzeptieren Sie die Bedingungen, um fortzufahren"
+msgstr "Akzeptieren Sie die Nutzungsbedingungen, um fortzufahren"
 
 msgid "Decline and sign out"
 msgstr "Ablehnen und abmelden"
