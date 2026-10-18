@@ -120,7 +120,7 @@
         <div class="card-body gap-3 p-5">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-xl font-semibold">{% translate "Latest requests" %}</h2>
-                <a class="link-plain text-sm" href="{% url 'requests' %}?key={{ token.id }}&amp;span=1m">{% translate "All requests" %}</a>
+                <a class="link-plain text-sm" href="{% url 'requests' %}?{{ log_query }}">{% translate "All requests" %}</a>
             </div>
             <div class="overflow-x-auto">
                 <table class="table table-sm">
@@ -135,7 +135,7 @@
                         {% for row in latest %}
                             {% with request=row.request %}
                                 <tr class="font-mono text-[13px]">
-                                    <td><a class="muted row-link" href="{% url 'requests' %}?key={{ token.id }}&amp;span=1m&amp;request={{ request.id }}#request-{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Open request {{ id }} in the log{% endblocktranslate %}">{{ request.timestamp|when }}</a></td>
+                                    <td><a class="muted row-link" href="{% url 'requests' %}?{{ log_query }}&amp;request={{ request.id }}#request-{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Open request {{ id }} in the log{% endblocktranslate %}">{{ request.timestamp|when }}</a></td>
                                     <td>{{ request.model|default:_("n/a") }}</td>
                                     <td class="muted">{{ request.path }}</td>
                                     <td>
