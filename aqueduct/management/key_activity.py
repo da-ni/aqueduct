@@ -5,7 +5,6 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
 from django.db.models import Count, F, OuterRef, Q, QuerySet, Subquery, Sum
 from django.db.models.functions import TruncDate
 from django.urls import reverse
@@ -18,7 +17,6 @@ from django.utils.translation import gettext_lazy as _
 from gateway.config import model_names
 from management.access import KeyAct, TeamAct, Viewer
 from management.models import Request, ServiceAccount, Token
-from management.ownership import personal
 
 if TYPE_CHECKING:
     from management.usage_report import Period
@@ -175,18 +173,6 @@ def served(requests: QuerySet[Request]) -> QuerySet[Request]:
     return requests.filter(model__in=model_names())
 
 
-LISTED_KEYS = 500
-
-
-def of_keys(requests: QuerySet[Request], tokens: QuerySet[Token]) -> QuerySet[Request]:
-    """Postgres estimates rows for a literal id list but not for a subquery, so up to
-    `LISTED_KEYS` ids keep the plan on the (token, timestamp) index."""
-    ids = list(tokens.order_by().values_list("id", flat=True)[: LISTED_KEYS + 1])
-    if len(ids) > LISTED_KEYS:
-        return requests.filter(token__in=tokens)
-    return requests.filter(token_id__in=ids)
-
-
 _SUMS = {
     "requests": Count("id"),
     "failed": Count("id", filter=FAILED),
@@ -227,12 +213,6 @@ class KeyRow:
     expiry: Expiry
     bar_width: int
     manageable: bool
-
-
-def personal_tokens(user: AbstractBaseUser | AnonymousUser) -> QuerySet[Token]:
-    if user.pk is None:
-        return Token.objects.none()
-    return Token.objects.filter(personal(user.pk))
 
 
 @dataclass(frozen=True)

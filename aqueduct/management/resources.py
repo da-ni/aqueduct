@@ -1,10 +1,8 @@
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import Enum, auto
 
 from django.conf import settings
-from django.contrib.auth.models import AbstractBaseUser
 from django.core.paginator import Page, Paginator
 from django.db.models import Count, Q, QuerySet, Sum
 from django.db.models.functions import Coalesce
@@ -16,14 +14,13 @@ from django.utils.http import urlencode
 from django.utils.translation import gettext, ngettext
 from django.utils.translation import gettext_lazy as _
 
-from management.access import EveryOrg, KeyAct, Memberships, Viewer, WholeOrg
+from management.access import EveryOrg, Extent, KeyAct, Memberships, TeamAct, Viewer, WholeOrg
 from management.icons import Icon
 from management.key_activity import Expiry, grouped
 from management.models import (
     Batch,
     BatchStatus,
     FileObject,
-    Team,
     Token,
     VectorStore,
     VectorStoreFile,
@@ -31,7 +28,7 @@ from management.models import (
     VectorStoreFileStatus,
     VectorStoreStatus,
 )
-from management.ownership import is_personal_of, of_teams, personal
+from management.ownership import of_teams
 
 DAY_SECONDS = 86_400
 PAGE_SIZE = 50
@@ -41,59 +38,24 @@ NEWEST_FIRST = ("-created_at", "-id")
 API_DOCS = "https://tu-wien-datalab.github.io/aqueduct/api/"
 
 
-class Whose(Enum):
-    EVERY_ORG = auto()
-    ORG = auto()
-    YOURS = auto()
-
-
-@dataclass(frozen=True)
-class Scope:
-    keys: QuerySet[Token]
-    whose: Whose
-    org: str = ""
-
-    def empty(self, every_org: str, org: str, yours: str) -> str:
-        match self.whose:
-            case Whose.EVERY_ORG:
-                return every_org
-            case Whose.ORG:
-                return org % {"org": self.org}
-            case Whose.YOURS:
-                return yours
-
-
-def scope(viewer: Viewer) -> Scope:
-    keys = viewer.keys(KeyAct.SEE)
-    match viewer.shown:
+def empty_text(shown: Extent, every_org: str, org: str, yours: str) -> str:
+    match shown:
         case EveryOrg():
-            return Scope(keys, Whose.EVERY_ORG)
-        case WholeOrg(org):
-            return Scope(keys, Whose.ORG, org.name)
+            return every_org
+        case WholeOrg(found):
+            return org % {"org": found.name}
         case Memberships():
-            return Scope(keys, Whose.YOURS)
-
-
-def syncable(user: AbstractBaseUser, teams: Iterable[Team], seen: Scope) -> Q:
-    return Q(token__in=seen.keys) & (Q(token__user=user) | of_teams(teams, "token__"))
-
-
-def own(user: AbstractBaseUser) -> Q:
-    return personal(user.pk, "token__")
-
-
-def owns(user: AbstractBaseUser, token: Token | None) -> bool:
-    return token is not None and is_personal_of(token, user.pk)
+            return yours
 
 
 def moment(timestamp: int | None) -> datetime | None:
     return None if timestamp is None else datetime.fromtimestamp(timestamp, tz=UTC)
 
 
-def owner_of(token: Token, viewer: AbstractBaseUser) -> str:
+def owner_of(token: Token, viewer: Viewer) -> str:
     if token.service_account:
         return token.service_account.team.name
-    return gettext("You") if token.user_id == viewer.pk else token.user.email
+    return gettext("You") if viewer.may_key(KeyAct.OWN, token) else token.user.email
 
 
 @dataclass(frozen=True)
@@ -172,14 +134,9 @@ def page_holding(rows: QuerySet, row_id: str) -> int | None:
     return newer // PAGE_SIZE + 1
 
 
-def quotas(
-    line: str,
-    user: AbstractBaseUser,
-    rows: QuerySet,
-    teams: QuerySet[Team],
-    limits: tuple[int, int],
-) -> str:
+def quotas(line: str, viewer: Viewer, rows: QuerySet, limits: tuple[int, int]) -> str:
     user_limit, team_limit = limits
+    teams = viewer.teams(TeamAct.MINE)
     per_team = dict(
         rows.filter(of_teams(teams, "token__"))
         .order_by()
@@ -189,7 +146,7 @@ def quotas(
     )
     used = (
         gettext("you %(used)s/%(limit)s")
-        % {"used": rows.filter(own(user)).count(), "limit": user_limit},
+        % {"used": rows.filter(token__in=viewer.keys(KeyAct.OWN)).count(), "limit": user_limit},
         *(
             f"{team.name} {per_team.get(team.id, 0)}/{team_limit}"
             for team in teams.order_by("name")
@@ -251,7 +208,7 @@ class FileList:
     rows: tuple[FileRow, ...]
     pages: Page
     size: int
-    scope: Scope
+    shown: Extent
     docs = f"{API_DOCS}files/"
 
     @property
@@ -268,7 +225,8 @@ class FileList:
 
     @property
     def empty(self) -> str:
-        return self.scope.empty(
+        return empty_text(
+            self.shown,
             gettext("No files yet."),
             gettext("No files in %(org)s yet."),
             gettext("No files from your keys or your teams' keys yet."),
@@ -276,13 +234,9 @@ class FileList:
 
 
 def file_list(
-    user: AbstractBaseUser,
-    keys: Scope,
-    now: datetime,
-    page: str | int | None = None,
-    file_id: str | None = None,
+    viewer: Viewer, now: datetime, page: str | int | None = None, file_id: str | None = None
 ) -> FileList:
-    visible = FileObject.objects.filter(token__in=keys.keys)
+    visible = FileObject.objects.filter(token__in=viewer.keys(KeyAct.SEE))
     size = visible.aggregate(size=Coalesce(Sum("bytes"), 0))["size"]
     pages, files = paged(visible, (file_id and page_holding(visible, file_id)) or page)
     files = files.select_related("token__user", "token__service_account__team")
@@ -290,17 +244,17 @@ def file_list(
         tuple(
             FileRow(
                 file=file,
-                owner=owner_of(file.token, user),
+                owner=owner_of(file.token, viewer),
                 purpose=PURPOSES.get(file.purpose, file.purpose),
                 created=moment(file.created_at),
                 expiry=Expiry.of(moment(file.expires_at), now),
-                mine=owns(user, file.token),
+                mine=viewer.may_key(KeyAct.OWN, file.token),
             )
             for file in files
         ),
         pages,
         size,
-        keys,
+        viewer.shown,
     )
 
 
@@ -336,12 +290,13 @@ class BatchList:
     rows: tuple[BatchRow, ...]
     pages: Page
     summary: str
-    scope: Scope
+    shown: Extent
     docs = f"{API_DOCS}batches/"
 
     @property
     def empty(self) -> str:
-        return self.scope.empty(
+        return empty_text(
+            self.shown,
             gettext("No batches yet."),
             gettext("No batches in %(org)s yet."),
             gettext("No batches from your keys or your teams' keys yet."),
@@ -353,13 +308,13 @@ ACTIVE_BATCH = Q(
 )
 
 
-def batch_row(batch: Batch, user: AbstractBaseUser, now: datetime) -> BatchRow:
+def batch_row(batch: Batch, viewer: Viewer, now: datetime) -> BatchRow:
     running = batch.status in CANCELLABLE
-    mine = owns(user, batch.token)
+    mine = viewer.may_key(KeyAct.OWN, batch.token)
     deadline = moment(batch.expires_at) if running else None
     return BatchRow(
         batch=batch,
-        owner=owner_of(batch.token, user),
+        owner=owner_of(batch.token, viewer),
         status=Status.of(batch.status, BATCH_STATUSES),
         progress=Progress.of(batch.request_counts),
         created=moment(batch.created_at),
@@ -371,25 +326,17 @@ def batch_row(batch: Batch, user: AbstractBaseUser, now: datetime) -> BatchRow:
     )
 
 
-def batch_list(
-    user: AbstractBaseUser,
-    keys: Scope,
-    teams: QuerySet[Team],
-    now: datetime,
-    page: str | None = None,
-) -> BatchList:
-    pages, batches = paged(Batch.objects.filter(token__in=keys.keys), page)
+def batch_list(viewer: Viewer, now: datetime, page: str | None = None) -> BatchList:
+    pages, batches = paged(Batch.objects.filter(token__in=viewer.keys(KeyAct.SEE)), page)
     batches = batches.select_related(
         "token__user", "token__service_account__team", "input_file", "output_file", "error_file"
     )
     limits = (settings.MAX_USER_BATCHES, settings.MAX_TEAM_BATCHES)
     return BatchList(
-        tuple(batch_row(batch, user, now) for batch in batches),
+        tuple(batch_row(batch, viewer, now) for batch in batches),
         pages,
-        quotas(
-            gettext("Running: %(quotas)s"), user, Batch.objects.filter(ACTIVE_BATCH), teams, limits
-        ),
-        keys,
+        quotas(gettext("Running: %(quotas)s"), viewer, Batch.objects.filter(ACTIVE_BATCH), limits),
+        viewer.shown,
     )
 
 
@@ -418,12 +365,13 @@ class StoreList:
     rows: tuple[StoreRow, ...]
     pages: Page
     summary: str
-    scope: Scope
+    shown: Extent
     docs = f"{API_DOCS}vector-stores/"
 
     @property
     def empty(self) -> str:
-        return self.scope.empty(
+        return empty_text(
+            self.shown,
             gettext("No vector stores yet."),
             gettext("No vector stores in %(org)s yet."),
             gettext("No vector stores from your keys or your teams' keys yet."),
@@ -431,16 +379,16 @@ class StoreList:
 
 
 def store_rows(
-    stores: QuerySet[VectorStore], user: AbstractBaseUser, sync: Q, now: datetime
+    stores: QuerySet[VectorStore], viewer: Viewer, now: datetime
 ) -> tuple[StoreRow, ...]:
     stores = stores.select_related("token__user", "token__service_account__team").annotate(
         file_count=Count("files"), size=Coalesce(Sum("files__file_obj__bytes"), 0)
     )
-    synced = set(stores.filter(sync).values_list("id", flat=True))
+    synced = set(stores.filter(token__in=viewer.keys(KeyAct.SYNC)).values_list("id", flat=True))
     return tuple(
         StoreRow(
             store=store,
-            owner=owner_of(store.token, user),
+            owner=owner_of(store.token, viewer),
             status=Status.of(store.status, STORE_STATUSES),
             files=store.file_count,
             size=store.size,
@@ -451,23 +399,14 @@ def store_rows(
     )
 
 
-def store_list(
-    user: AbstractBaseUser,
-    keys: Scope,
-    sync: Q,
-    teams: QuerySet[Team],
-    now: datetime,
-    page: str | None = None,
-) -> StoreList:
-    pages, stores = paged(VectorStore.objects.filter(token__in=keys.keys), page)
+def store_list(viewer: Viewer, now: datetime, page: str | None = None) -> StoreList:
+    pages, stores = paged(VectorStore.objects.filter(token__in=viewer.keys(KeyAct.SEE)), page)
     limits = (settings.MAX_USER_VECTOR_STORES, settings.MAX_TEAM_VECTOR_STORES)
     return StoreList(
-        store_rows(stores, user, sync, now),
+        store_rows(stores, viewer, now),
         pages,
-        quotas(
-            gettext("Vector stores: %(quotas)s"), user, VectorStore.objects.all(), teams, limits
-        ),
-        keys,
+        quotas(gettext("Vector stores: %(quotas)s"), viewer, VectorStore.objects.all(), limits),
+        viewer.shown,
     )
 
 
@@ -499,16 +438,10 @@ class StoreDetail:
 
 
 def store_detail(
-    store_id: str,
-    user: AbstractBaseUser,
-    keys: Scope,
-    sync: Q,
-    now: datetime,
-    page: str | None = None,
+    store_id: str, viewer: Viewer, now: datetime, page: str | None = None
 ) -> StoreDetail | None:
-    found = store_rows(
-        VectorStore.objects.filter(token__in=keys.keys, id=store_id), user, sync, now
-    )
+    listed_keys = viewer.keys(KeyAct.SEE)
+    found = store_rows(VectorStore.objects.filter(token__in=listed_keys, id=store_id), viewer, now)
     if not found:
         return None
     row = found[0]
@@ -517,7 +450,7 @@ def store_detail(
     entries = tuple(entries_on_page.select_related("file_obj"))
     listed = set(
         FileObject.objects.filter(
-            token__in=keys.keys, id__in=[entry.file_obj_id for entry in entries]
+            token__in=listed_keys, id__in=[entry.file_obj_id for entry in entries]
         ).values_list("id", flat=True)
     )
     return StoreDetail(

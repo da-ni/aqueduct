@@ -1,5 +1,6 @@
 from datetime import timedelta
 from itertools import product
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.db import connection
@@ -8,7 +9,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
-from management.access import EveryOrg, KeyAct, OrgWide, TeamAct, Viewer, WholeOrg
+from management.access import EveryOrg, KeyAct, OrgWide, TeamAct, Viewer, WholeOrg, requests_of
 from management.models import (
     Org,
     Request,
@@ -204,6 +205,30 @@ class CrossOrgRuleTest(Matrix):
                 for token in Token.objects.all():
                     status = self.client.get(reverse("token_detail", args=[token.id])).status_code
                     self.assertEqual(status, 200 if token.name in listed else 404, token.name)
+
+
+class RequestScopeTest(Matrix):
+    def test_both_branches_of_the_id_list_lever_return_the_same_requests(self):
+        sent = timezone.now() - timedelta(hours=1)
+        Request.objects.bulk_create(
+            Request(token=token, path=f"/{token.name}", model=CHAT, timestamp=sent)
+            for token in Token.objects.all()
+        )
+        for viewer in self.viewers():
+            expected = set(
+                Request.objects.filter(token__in=viewer.keys(KeyAct.SEE)).values_list(
+                    "id", flat=True
+                )
+            )
+            with self.subTest(viewer=viewer.profile.user.username, shown=viewer.shown):
+                named = requests_of(viewer.shown)
+                self.assertEqual(set(named.values_list("id", flat=True)), expected)
+                with mock.patch("management.access._LISTED_KEYS", 0):
+                    many = requests_of(viewer.shown)
+                self.assertEqual(set(many.values_list("id", flat=True)), expected)
+                if not isinstance(viewer.shown, EveryOrg):
+                    self.assertNotIn("management_token", str(named.query))
+                    self.assertIn("management_token", str(many.query))
 
 
 class OneResolutionPerRequestTest(Matrix):

@@ -16,6 +16,7 @@ from django.db.models.functions import Cast, ExtractHour, ExtractIsoWeekDay, Flo
 from django.utils import timezone
 
 from gateway.config import model_names
+from management.access import EveryOrg, OrgWide, WholeOrg, requests_of
 from management.key_activity import FAILED, Activity, served
 from management.models import (
     KeyUsageWindow,
@@ -38,7 +39,6 @@ from management.usage_report import (
     Period,
     Series,
     Span,
-    org_requests,
 )
 
 SETTLE = timedelta(minutes=15)
@@ -205,14 +205,14 @@ def _insert(table: type[models.Model], rows: QuerySet[Any, Row], **fixed: int) -
 
 
 def org_series(
-    org: Org | None,
+    extent: OrgWide,
     model: str | None,
     period: Period,
     sealed: "Sealed | None" = None,
     requests: QuerySet[Request] | None = None,
 ) -> Series:
     found = _gather(
-        org,
+        extent,
         requests,
         model,
         period.start,
@@ -234,15 +234,15 @@ def org_series(
 
 
 def org_models(
-    org: Org | None,
+    extent: OrgWide,
     model: str | None,
     period: Period,
     sealed: "Sealed | None" = None,
     requests: QuerySet[Request] | None = None,
 ) -> dict[str, ModelUsage]:
     if requests is None:
-        requests = org_requests(org)
-    args = (org, requests, model, period.start, period.end)
+        requests = served(requests_of(extent))
+    args = (extent, requests, model, period.start, period.end)
     totals = _gather(
         *args,
         ("model",),
@@ -276,7 +276,7 @@ def org_tokens(
     model: str | None, period: Period, sealed: "Sealed | None" = None
 ) -> dict[int | None, int]:
     found = _gather(
-        None,
+        EveryOrg(),
         None,
         model,
         period.start,
@@ -293,7 +293,7 @@ def org_tokens(
 
 
 def org_heat(
-    org: Org | None,
+    extent: OrgWide,
     start: datetime,
     end: datetime,
     sealed: "Sealed | None" = None,
@@ -301,7 +301,7 @@ def org_heat(
     model: str | None = None,
 ) -> dict[tuple[int, int], int]:
     found = _gather(
-        org,
+        extent,
         requests,
         model,
         start,
@@ -319,14 +319,10 @@ def org_heat(
     return {key: counts["tokens"] for key, counts in found.items()}
 
 
-def key_window_totals(
-    tokens: QuerySet[Token] | None, model: str | None, period: Period
-) -> dict[int, Activity]:
-    requests = served(Request.objects.all())
-    if tokens is not None:
-        requests = requests.filter(token__in=tokens)
+def key_window_totals(extent: OrgWide, model: str | None, period: Period) -> dict[int, Activity]:
+    requests = served(requests_of(extent))
     kept = KeyUsageWindow.objects.filter(
-        model__in=model_names(), token__in=Token.objects.all() if tokens is None else tokens
+        model__in=model_names(), token__in=Token.objects.filter(extent.keys())
     )
     if model is not None:
         requests, kept = requests.filter(model=model), kept.filter(model=model)
@@ -416,7 +412,7 @@ def _split(
 
 
 def _gather(
-    org: Org | None,
+    extent: OrgWide,
     requests: QuerySet[Request] | None,
     model: str | None,
     start: datetime,
@@ -429,14 +425,15 @@ def _gather(
 ) -> Grouped:
     hours, rest = _split(start, end, (sealed or Sealed.read()).until)
     if requests is None:
-        requests = org_requests(org)
+        requests = served(requests_of(extent))
     if model is not None:
         requests = requests.filter(model=model)
     rows = [] if rest is None else list(from_requests(requests.filter(rest).order_by()))
     if hours is not None:
+        orgs = Q(org=None) | Q(org__in=Org.objects.all())
         kept = table.objects.filter(
             hours,
-            Q(org=None) | Q(org__in=Org.objects.all()) if org is None else Q(org=org),
+            Q(org=extent.org) if isinstance(extent, WholeOrg) else orgs,
             model__in=model_names(),
         )
         if model is not None:

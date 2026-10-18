@@ -11,17 +11,9 @@ from django.views.generic import TemplateView
 from openai import OpenAIError
 
 from gateway.config import get_files_api_client
-from management.access import TeamAct
+from management.access import KeyAct
 from management.models import Batch
-from management.resources import (
-    BATCH_STATUSES,
-    CANCELLABLE,
-    Status,
-    batch_list,
-    list_url,
-    own,
-    scope,
-)
+from management.resources import BATCH_STATUSES, CANCELLABLE, Status, batch_list, list_url
 from management.views.base import BaseAqueductView
 
 
@@ -30,13 +22,7 @@ class UserBatchesView(BaseAqueductView, TemplateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["listing"] = batch_list(
-            self.request.user,
-            scope(self.viewer),
-            self.viewer.teams(TeamAct.MINE),
-            timezone.now(),
-            self.request.GET.get("page"),
-        )
+        context["listing"] = batch_list(self.viewer, timezone.now(), self.request.GET.get("page"))
         return context
 
 
@@ -44,7 +30,9 @@ class BatchCancelView(BaseAqueductView, View):
     http_method_names: ClassVar[list] = ["post"]
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
-        batch = get_object_or_404(Batch.objects.filter(own(request.user)), pk=kwargs["id"])
+        batch = get_object_or_404(
+            Batch.objects.filter(token__in=self.viewer.keys(KeyAct.OWN)), pk=kwargs["id"]
+        )
         back = list_url("batches", request.POST.get("page"))
         if batch.status not in CANCELLABLE:
             messages.error(

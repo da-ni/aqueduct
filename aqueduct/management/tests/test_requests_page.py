@@ -7,11 +7,12 @@ from django.urls import reverse
 from django.utils import timezone
 
 from management import usage_rollup as rollup
+from management.access import EveryOrg, WholeOrg, requests_of
 from management.key_activity import served
 from management.models import Org, Request, TeamMembership
 from management.request_log import Outcome
 from management.tests.helpers import CHAT, EMBEDDING, RequestsPageTestBase, join, listed, make_token
-from management.usage_report import STATUSES, Period, Span, org_requests
+from management.usage_report import STATUSES, Period, Span
 
 User = get_user_model()
 
@@ -369,7 +370,7 @@ class RequestsRollupCountsTest(RequestsPageTestBase):
         }
 
     def org_tabs(self, org: Org | None, model: str | None = None) -> dict[str | None, int]:
-        requests = org_requests(org)
+        requests = served(requests_of(EveryOrg() if org is None else WholeOrg(org)))
         return self.raw_tabs(requests if model is None else requests.filter(model=model))
 
     def get(self, user, **params):

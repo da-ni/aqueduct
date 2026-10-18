@@ -41,13 +41,11 @@ from management.key_activity import (
     compact,
     decimal,
     grouped,
-    of_keys,
     percent,
-    served,
     spark,
 )
 from management.models import Org, Request, Token
-from management.ownership import RELATED, key_org, of_orgs
+from management.ownership import RELATED, key_org
 
 if TYPE_CHECKING:
     from management.request_log import Key
@@ -376,12 +374,6 @@ class HeatCell:
 class HeatRow:
     day: str
     cells: tuple[HeatCell, ...]
-
-
-def org_requests(org: Org | None) -> QuerySet[Request]:
-    if org is None:
-        return served(Request.objects.all())
-    return served(of_keys(Request.objects.all(), Token.objects.filter(of_orgs({org.pk}))))
 
 
 def heat(tokens: Mapping[tuple[int, int], int], weeks: int) -> tuple[HeatRow, ...]:

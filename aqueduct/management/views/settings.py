@@ -10,7 +10,7 @@ from django.utils.translation import gettext as _
 from django.views.generic import TemplateView
 from tos.models import UserAgreement
 
-from management.key_activity import personal_tokens
+from management.access import KeyAct
 from management.models import LimitSet
 from management.nav import terms_of_service
 from management.views.auth import is_safe, remember_language
@@ -37,7 +37,7 @@ class SettingsView(BaseAqueductView, TemplateView):
             .order_by("team__name"),
             limits=LimitSet.from_objects(profile, profile.org),
             limits_set_for_account=not LimitSet.from_objects(profile, None).is_unlimited,
-            personal_keys=personal_tokens(self.request.user).count(),
+            personal_keys=self.viewer.keys(KeyAct.OWN).count(),
             max_tokens=settings.MAX_USER_TOKENS,
             show_terms=show_terms,
             terms_accepted_on=accepted_terms_on(self.request.user) if show_terms else None,

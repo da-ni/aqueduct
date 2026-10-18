@@ -25,7 +25,7 @@ from management.access import KeyAct, TeamAct
 from management.availability import Reach, configured_mcp_servers
 from management.deletion import deletion
 from management.forms import TokenCreateForm
-from management.key_activity import Expiry, KeyKind, key_list, key_report, personal_tokens
+from management.key_activity import Expiry, KeyKind, key_list, key_report
 from management.models import LimitSet, Token
 from management.org_choice import EVERY_ORG
 from management.ownership import RELATED, of_teams, org_id, team_of
@@ -198,7 +198,7 @@ class TokenEditView(BaseAqueductView, UpdateView):
     pk_url_kwarg = "id"
 
     def get_queryset(self) -> QuerySet:
-        return personal_tokens(self.request.user)
+        return self.viewer.keys(KeyAct.OWN)
 
     def get_form_kwargs(self) -> dict:
         kwargs = super().get_form_kwargs()
@@ -228,7 +228,7 @@ class TokenDeleteView(BaseAqueductView, DeleteView):
     success_url = reverse_lazy("tokens")
 
     def get_queryset(self) -> QuerySet:
-        return personal_tokens(self.request.user)
+        return self.viewer.keys(KeyAct.OWN)
 
     def form_valid(self, form) -> HttpResponse:
         token_name = self.object.name
@@ -251,7 +251,7 @@ class TokenRegenerateView(BaseAqueductView, View):
     def post(self, request, *args, **kwargs) -> HttpResponse:
         service = Token.objects.filter(of_teams(self.viewer.teams(TeamAct.OPEN)))
         token = get_object_or_404(
-            (personal_tokens(request.user) | service).select_related("service_account__team"),
+            (self.viewer.keys(KeyAct.OWN) | service).select_related("service_account__team"),
             pk=kwargs.get("id"),
         )
         team = team_of(token)

@@ -17,7 +17,7 @@ from management.ids import parse_id
 from management.models import Org, UserProfile
 
 SESSION_KEY: Final = "org"
-EVERY_ORG: Final = "all"
+EVERY_ORG: Final = EveryOrg.param
 ORG_BOUND_PARAMS: Final = ("org", "key", "key_q", "before", "after", "request", "page")
 _MEMO: Final = "_aqueduct_viewer"
 

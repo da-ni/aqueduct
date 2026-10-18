@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 19:41+0000\n"
+"POT-Creation-Date: 2026-10-18 19:54+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -2101,9 +2101,6 @@ msgstr "API-Schlüssel %(name)s gespeichert."
 #, python-format
 msgid "API key %(name)s deleted."
 msgstr "API-Schlüssel %(name)s gelöscht."
-
-msgid "Vector store not found."
-msgstr "Vektorspeicher nicht gefunden."
 
 #, python-format
 msgid "Vector store %(name)s synced."
