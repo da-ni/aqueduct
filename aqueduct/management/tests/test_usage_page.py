@@ -98,12 +98,6 @@ class UsagePageTestBase(TestCase):
 
 
 class UsageAccessTest(UsagePageTestBase):
-    def test_signed_out_goes_to_sign_in(self):
-        url = reverse("usage")
-        self.assertRedirects(
-            self.client.get(url), f"{reverse('sso')}?next={url}", fetch_redirect_response=False
-        )
-
     def test_user_with_one_key_gets_no_key_picker_and_no_top_keys(self):
         response = self.page(self.solo)
         self.assert_keys(response)

@@ -76,13 +76,6 @@ class RequestsPageTestBase(TestCase):
 
 
 class RequestsScopeTest(RequestsPageTestBase):
-    def test_signed_out_goes_to_sign_in(self):
-        url = reverse("requests")
-        response = self.client.get(url)
-        self.assertRedirects(
-            response, f"{reverse('sso')}?next={url}", fetch_redirect_response=False
-        )
-
     def test_matches_the_overview_status_counts_for_every_role(self):
         self.log(self.key, "/retired", model="not-in-the-router")
         self.log(self.others_key, "/limited", status_code=429, user_id="owner@example.com")

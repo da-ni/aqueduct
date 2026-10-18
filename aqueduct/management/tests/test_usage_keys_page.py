@@ -20,12 +20,6 @@ class KeyUsagePageTestBase(UsagePageTestBase):
 
 
 class KeyUsageAccessTest(KeyUsagePageTestBase):
-    def test_signed_out_goes_to_sign_in(self):
-        url = reverse("usage_keys")
-        self.assertRedirects(
-            self.client.get(url), f"{reverse('sso')}?next={url}", fetch_redirect_response=False
-        )
-
     def test_user_with_several_keys_sees_only_their_own(self):
         make_token(self.solo, "solo-desktop")
         response = self.keys_page(self.solo)

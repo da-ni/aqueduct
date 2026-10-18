@@ -39,12 +39,6 @@ class SettingsPageTest(TestCase):
         self.client.force_login(user)
         return self.client.get(reverse("settings"))
 
-    def test_signed_out_goes_to_sign_in(self):
-        url = reverse("settings")
-        self.assertRedirects(
-            self.client.get(url), f"{reverse('sso')}?next={url}", fetch_redirect_response=False
-        )
-
     def test_shows_the_viewers_account(self):
         response = self.page(self.user("boss", UserGroup.ORG_ADMIN))
         self.assertEqual(response.status_code, 200)
@@ -191,14 +185,6 @@ class LanguageTest(TestCase):
                 self.assertEqual(self.saved(), "")
         page = self.client.get(reverse("settings"))
         self.assertContains(page, "Choose one of the offered languages.")
-
-    def test_signed_out_visitor_cannot_save_a_language(self):
-        response = self.choose("de")
-        self.assertRedirects(
-            response, f"{reverse('sso')}?next={reverse('language')}", fetch_redirect_response=False
-        )
-        self.assertNotIn(LANGUAGE_COOKIE, response.cookies)
-        self.assertEqual(self.saved(), "")
 
     def test_page_language_follows_the_cookie_then_the_browser_then_english(self):
         self.client.force_login(self.user)

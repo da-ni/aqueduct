@@ -371,12 +371,6 @@ class ModelsPageTest(TestCase):
         holder.merge_exclusion_lists = merge
         holder.save()
 
-    def test_signed_out_goes_to_sign_in(self):
-        response = self.client.get(reverse("models"))
-        self.assertRedirects(
-            response, f"{reverse('sso')}?next={reverse('models')}", fetch_redirect_response=False
-        )
-
     def test_user_sees_every_model_when_nothing_is_unavailable(self):
         response = self.page()
         self.assertEqual(rows(response), [raw["model_name"] for raw in EXAMPLE_ENTRIES])

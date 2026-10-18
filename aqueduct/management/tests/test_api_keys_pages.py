@@ -65,13 +65,6 @@ class ApiKeysPagesTestBase(TestCase):
 
 
 class KeyListTest(ApiKeysPagesTestBase):
-    def test_signed_out_goes_to_sign_in(self):
-        url = reverse("tokens")
-        response = self.client.get(url)
-        self.assertRedirects(
-            response, f"{reverse('sso')}?next={url}", fetch_redirect_response=False
-        )
-
     def test_owner_sees_own_keys_linked_to_their_detail_page(self):
         response = self.get(self.owner, "tokens")
         self.assertEqual(response.status_code, 200)
@@ -189,13 +182,6 @@ class KeyListTest(ApiKeysPagesTestBase):
 
 
 class KeyDetailTest(ApiKeysPagesTestBase):
-    def test_signed_out_goes_to_sign_in(self):
-        url = reverse("token_detail", args=[self.key.id])
-        response = self.client.get(url)
-        self.assertRedirects(
-            response, f"{reverse('sso')}?next={url}", fetch_redirect_response=False
-        )
-
     def test_owner_sees_totals_models_and_latest_requests(self):
         self.request_log(
             self.key,

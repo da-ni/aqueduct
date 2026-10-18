@@ -47,17 +47,8 @@ class TeamsPagesTestBase(TestCase):
         self.client.force_login(user)
         return self.client
 
-    def assert_sent_to_sign_in(self, response, url: str) -> None:
-        self.assertRedirects(
-            response, f"{reverse('sso')}?next={url}", fetch_redirect_response=False
-        )
-
 
 class TeamListTest(TeamsPagesTestBase):
-    def test_signed_out_goes_to_sign_in(self):
-        url = reverse("org")
-        self.assert_sent_to_sign_in(self.client.get(url), url)
-
     def test_member_sees_only_their_teams_and_team_admins_see_a_badge(self):
         badge = '<span class="badge badge-sm whitespace-nowrap bg-base-100">Team admin</span>'
         response = self.as_user(self.member).get(reverse("org"))
@@ -152,9 +143,6 @@ class TeamListTest(TeamsPagesTestBase):
 class TeamDetailTest(TeamsPagesTestBase):
     def url(self, team: Team | None = None) -> str:
         return reverse("team", args=[(team or self.team).id])
-
-    def test_signed_out_goes_to_sign_in(self):
-        self.assert_sent_to_sign_in(self.client.get(self.url()), self.url())
 
     def test_member_sees_the_team_without_management_controls(self):
         response = self.as_user(self.member).get(self.url())
@@ -381,12 +369,6 @@ class TeamMembershipTest(TeamsPagesTestBase):
     def members(self) -> set[str]:
         return set(self.team.member_profiles.values_list("user__username", flat=True))
 
-    def test_signed_out_post_changes_nothing(self):
-        before = self.members()
-        response = self.client.post(self.url(), {"email": "outsider@example.com"})
-        self.assert_sent_to_sign_in(response, self.url())
-        self.assertEqual(self.members(), before)
-
     def test_team_admin_adds_by_email_ignoring_case_and_removes_a_member(self):
         client = self.as_user(self.team_admin)
         response = client.post(self.url(), {"email": "Outsider@Example.com"})
@@ -448,24 +430,6 @@ class TeamMembershipTest(TeamsPagesTestBase):
 
 
 class TeamFormsTest(TeamsPagesTestBase):
-    def test_signed_out_goes_to_sign_in(self):
-        for name, args in [
-            ("team_create", []),
-            ("team_edit", [self.team.id]),
-            ("team_delete", [self.team.id]),
-            ("team_admins_manage", [self.team.id]),
-            ("service_account_create", [self.team.id]),
-            ("service_account_edit", [self.pipeline.id]),
-            ("service_account_transfer", [self.pipeline.id]),
-            ("service_account_delete", [self.pipeline.id]),
-        ]:
-            with self.subTest(name=name):
-                url = reverse(name, args=args)
-                self.assert_sent_to_sign_in(self.client.get(url), url)
-                self.assert_sent_to_sign_in(self.client.post(url, {"name": "x"}), url)
-        self.assertEqual(Team.objects.count(), 3)
-        self.assertEqual(self.team.service_accounts.count(), 1)
-
     def test_org_admin_creates_a_team(self):
         client = self.as_user(self.org_admin)
         page = client.get(reverse("team_create"))

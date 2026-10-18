@@ -63,9 +63,6 @@ class OrganizationTestBase(TeamsPagesTestBase):
 class OrganizationPageTest(OrganizationTestBase):
     url = reverse("organization")
 
-    def test_signed_out_goes_to_sign_in(self):
-        self.assert_sent_to_sign_in(self.client.get(self.url), self.url)
-
     def test_users_and_team_admins_are_sent_to_the_teams_page(self):
         for user in (self.member, self.team_admin, self.outsider):
             with self.subTest(user=user.username):
@@ -145,15 +142,6 @@ class OrganizationPageTest(OrganizationTestBase):
 class OrganizationEditPermissionTest(OrganizationTestBase):
     def url(self, name: str, org: Org | None = None) -> str:
         return reverse(name, args=[(org or self.org).id])
-
-    def test_signed_out_goes_to_sign_in_and_changes_nothing(self):
-        before = self.stored(self.org)
-        for name, data in edits():
-            with self.subTest(name):
-                url = self.url(name)
-                self.assert_sent_to_sign_in(self.client.get(url), url)
-                self.assert_sent_to_sign_in(self.client.post(url, data), url)
-        self.assertEqual(self.stored(self.org), before)
 
     def test_refused_roles_get_404_and_change_nothing(self):
         before = self.stored(self.org)

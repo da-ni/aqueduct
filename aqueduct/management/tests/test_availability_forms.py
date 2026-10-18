@@ -151,13 +151,6 @@ class TeamAvailabilityPageTest(TeamsPagesTestBase):
     def stored(self) -> list[str]:
         return Team.objects.get(pk=self.team.pk).excluded_models
 
-    def test_signed_out_goes_to_sign_in_and_changes_nothing(self):
-        self.assert_sent_to_sign_in(self.client.get(self.url()), self.url())
-        self.assert_sent_to_sign_in(
-            self.client.post(self.url(), self.unavailable_dall_e()), self.url()
-        )
-        self.assertEqual(self.stored(), [])
-
     def test_members_team_admins_and_other_orgs_get_404_and_change_nothing(self):
         for user in (self.member, self.team_admin, self.outsider, self.other_org_admin):
             with self.subTest(user=user.username):

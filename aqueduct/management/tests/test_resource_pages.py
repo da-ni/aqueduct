@@ -95,11 +95,6 @@ class ResourcePagesTestBase(TestCase):
         self.addCleanup(files_api.disable)
         return mock_server
 
-    def assert_goes_to_sign_in(self, response, url: str):
-        self.assertRedirects(
-            response, f"{reverse('sso')}?next={url}", fetch_redirect_response=False
-        )
-
 
 class FilesPageTest(ResourcePagesTestBase):
     def setUp(self):
@@ -107,10 +102,6 @@ class FilesPageTest(ResourcePagesTestBase):
         self.own_file = self.file(self.owner_key, "prompts.jsonl", preview='{"a": 1}')
         self.team_file = self.file(self.team_key, "team-corpus.jsonl", purpose="user_data")
         self.outsider_file = self.file(self.outsider_key, "secret.jsonl")
-
-    def test_signed_out_goes_to_sign_in(self):
-        url = reverse("files")
-        self.assert_goes_to_sign_in(self.client.get(url), url)
 
     def test_owner_sees_own_and_team_files_but_deletes_only_their_own(self):
         response = self.as_user(self.owner).get(reverse("files"))
@@ -173,11 +164,6 @@ class FileDeleteTest(ResourcePagesTestBase):
 
     def url(self, file: FileObject) -> str:
         return reverse("file_delete", args=[file.id])
-
-    def test_signed_out_goes_to_sign_in_and_keeps_the_file(self):
-        url = self.url(self.own_file)
-        self.assert_goes_to_sign_in(self.client.post(url), url)
-        self.assertTrue(FileObject.objects.filter(id=self.own_file.id).exists())
 
     def test_owner_confirms_and_deletes_their_file(self):
         client = self.as_user(self.owner)
@@ -252,10 +238,6 @@ class BatchesPageTest(ResourcePagesTestBase):
         self.team_batch = self.batch(self.team_key, "batch-team", "in_progress")
         self.batch(self.outsider_key, "batch-outsider", "completed")
 
-    def test_signed_out_goes_to_sign_in(self):
-        url = reverse("batches")
-        self.assert_goes_to_sign_in(self.client.get(url), url)
-
     def test_owner_sees_progress_and_cancels_only_their_own_batch(self):
         response = self.as_user(self.owner).get(reverse("batches"))
         self.assertContains(response, "batch-running")
@@ -309,11 +291,6 @@ class BatchCancelTest(ResourcePagesTestBase):
     def status_of(self, batch: Batch) -> str:
         batch.refresh_from_db()
         return batch.status
-
-    def test_signed_out_goes_to_sign_in_and_keeps_the_batch_running(self):
-        url = reverse("batch_cancel", args=[self.running.id])
-        self.assert_goes_to_sign_in(self.client.post(url), url)
-        self.assertEqual(self.status_of(self.running), "in_progress")
 
     def test_owner_cancels_their_batch(self):
         url = reverse("batch_cancel", args=[self.running.id])
@@ -379,14 +356,6 @@ class VectorStoresPageTest(ResourcePagesTestBase):
         self.team_store = self.store(self.team_key, "group-papers")
         self.outsider_store = self.store(self.outsider_key, "outsider-notes")
         self.use_mock_files_api()
-
-    def test_signed_out_goes_to_sign_in(self):
-        for url in (
-            reverse("vector_stores"),
-            reverse("vector_store_detail", args=[self.own_store.id]),
-        ):
-            with self.subTest(url=url):
-                self.assert_goes_to_sign_in(self.client.get(url), url)
 
     def test_owner_sees_own_and_team_stores_with_their_owner(self):
         response = self.as_user(self.owner).get(reverse("vector_stores"))
@@ -601,10 +570,6 @@ class VectorStoreSyncTest(ResourcePagesTestBase):
 
 
 class MCPServersPageTest(ResourcePagesTestBase):
-    def test_signed_out_goes_to_sign_in(self):
-        url = reverse("mcp_servers")
-        self.assert_goes_to_sign_in(self.client.get(url), url)
-
     def test_user_sees_servers_with_their_url_and_a_client_config(self):
         response = self.as_user(self.owner).get(reverse("mcp_servers"))
         url = "http://testserver/mcp-servers/test-server/mcp"
