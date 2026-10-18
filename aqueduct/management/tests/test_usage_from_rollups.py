@@ -13,7 +13,7 @@ from management import usage_report as report
 from management import usage_rollup as rollup
 from management.access import EveryOrg, WholeOrg, requests_of
 from management.activity import TOKENS, model_usage, served
-from management.charts import columns, heat, kpis, slots
+from management.charts import OVERVIEW_STATS, columns, heat, slots, stats
 from management.models import (
     KeyUsageWindow,
     Org,
@@ -101,7 +101,9 @@ class UsageFromRollupsTest(TestCase):
                 in_period = period.of(filters.requests)
                 raw = UsageSource(filters.requests, period)
                 timeline = raw.series()
-                self.assertEqual(page["kpis"], kpis(slots(timeline.points, period.step)))
+                self.assertEqual(
+                    page["kpis"], stats(slots(timeline.points, period.step), OVERVIEW_STATS)
+                )
                 self.assertEqual(page["chart"], columns(timeline.points, period.step, "tokens"))
                 self.assertEqual(page["statuses"], report.statuses(timeline, filters.log_url))
 

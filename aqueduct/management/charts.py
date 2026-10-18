@@ -2,15 +2,26 @@ import math
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
+from typing import TypeVar
 
 from django.utils import timezone
 from django.utils.dates import WEEKDAYS_ABBR
 from django.utils.functional import Promise
-from django.utils.translation import gettext, ngettext
+from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 
 from management.activity import Activity, summed
-from management.formatting import as_cached, as_percent, as_requests, as_tokens, compact, grouped
+from management.formatting import (
+    as_cached,
+    as_failed,
+    as_input,
+    as_output,
+    as_percent,
+    as_requests,
+    as_tokens,
+    compact,
+    grouped,
+)
 from management.periods import Step
 
 SPARK_BARS = 12
@@ -26,6 +37,7 @@ HEAT_CLASSES = (
 HEAT_HOURS = tuple(f"{hour:02d}" if hour % 3 == 0 else "" for hour in range(24))
 TOKEN_SERIES = {"c": _("Cached"), "n": _("New input"), "o": _("Output")}
 REQUEST_SERIES = {"i": _("OK"), "f": _("Failed")}
+K = TypeVar("K")
 
 
 def scaled(values: Iterable[float], top: float | None = None) -> tuple[int, ...]:
@@ -125,59 +137,69 @@ def columns(
     )
 
 
-@dataclass(frozen=True)
-class Slot:
-    label: str
-    activity: Activity
-
-
-def slots(points: Sequence[tuple[datetime, Activity]], step: Step) -> tuple[Slot, ...]:
+def slots(
+    points: Sequence[tuple[datetime, Activity]], step: Step
+) -> tuple[tuple[str, Activity], ...]:
     size = math.ceil(len(points) / SPARK_BARS) or 1
 
-    def slot(group: Sequence[tuple[datetime, Activity]]) -> Slot:
+    def slot(group: Sequence[tuple[datetime, Activity]]) -> tuple[str, Activity]:
         first, last = (step.format(timezone.localtime(m)) for m in (group[0][0], group[-1][0]))
         between = gettext("%(first)s to %(last)s") % {"first": first, "last": last}
         label = first if first == last else between
-        return Slot(label, summed([a for _, a in group]))
+        return label, summed([a for _, a in group])
 
     return tuple(slot(points[i : i + size]) for i in range(0, len(points), size))
 
 
-def _ratio(part: int, whole: int) -> float:
-    return part / whole if whole else 0.0
+@dataclass(frozen=True)
+class Metric:
+    label: Promise
+    total: Callable[[Activity], str]
+    each: Callable[[Activity], float]
+    show: Callable[[float], str]
 
 
-def kpis(spark_slots: Sequence[Slot]) -> tuple[Stat, ...]:
-    now = summed([s.activity for s in spark_slots])
-
-    def bars_of(
-        value: Callable[[Activity], float], show: Callable[[float], str]
-    ) -> tuple[SparkBar, ...]:
-        return spark([(s.label, value(s.activity)) for s in spark_slots], show)
-
-    def as_input(count: float) -> str:
-        return ngettext("%(count)s input token", "%(count)s input tokens", round(count)) % {
-            "count": compact(round(count))
-        }
-
-    def as_output(count: float) -> str:
-        return ngettext("%(count)s output token", "%(count)s output tokens", round(count)) % {
-            "count": compact(round(count))
-        }
-
-    return (
-        Stat(gettext("Input"), compact(now.input), bars_of(lambda a: a.input, as_input)),
-        Stat(gettext("Output"), compact(now.output), bars_of(lambda a: a.output, as_output)),
-        Stat(gettext("Cached"), compact(now.cached), bars_of(lambda a: a.cached, as_cached)),
+def stats(points: Sequence[tuple[str, Activity]], metrics: Sequence[Metric]) -> tuple[Stat, ...]:
+    total = summed([a for _, a in points])
+    return tuple(
         Stat(
-            gettext("Requests"), grouped(now.requests), bars_of(lambda a: a.requests, as_requests)
-        ),
-        Stat(
-            gettext("Failed"),
-            now.failed_share,
-            bars_of(lambda a: 100 * _ratio(a.failed, a.requests), as_percent),
-        ),
+            str(metric.label),
+            metric.total(total),
+            spark([(label, metric.each(a)) for label, a in points], metric.show),
+        )
+        for metric in metrics
     )
+
+
+def _failed_percent(a: Activity) -> float:
+    return 100 * a.failed / a.requests if a.requests else 0.0
+
+
+REQUESTS = Metric(_("Requests"), lambda a: grouped(a.requests), lambda a: a.requests, as_requests)
+FAILED = Metric(_("Failed"), lambda a: a.failed_share, lambda a: a.failed, as_failed)
+OVERVIEW_STATS = (
+    Metric(_("Input"), lambda a: compact(a.input), lambda a: a.input, as_input),
+    Metric(_("Output"), lambda a: compact(a.output), lambda a: a.output, as_output),
+    Metric(_("Cached"), lambda a: compact(a.cached), lambda a: a.cached, as_cached),
+    REQUESTS,
+    Metric(_("Failed"), lambda a: a.failed_share, _failed_percent, as_percent),
+)
+WINDOW_STATS = (
+    Metric(_("Input tokens"), lambda a: compact(a.input), lambda a: a.input, as_tokens),
+    Metric(_("Output tokens"), lambda a: compact(a.output), lambda a: a.output, as_tokens),
+    Metric(_("Cache hits"), lambda a: a.cache_hits, lambda a: a.cached, as_cached),
+    REQUESTS,
+    FAILED,
+)
+TEAM_STATS = (
+    Metric(_("Tokens"), lambda a: compact(a.tokens), lambda a: a.tokens, as_tokens),
+    REQUESTS,
+    FAILED,
+)
+
+
+def token_widths(activity: Mapping[K, Activity]) -> dict[K, int]:
+    return dict(zip(activity, scaled(a.tokens for a in activity.values()), strict=True))
 
 
 @dataclass(frozen=True)

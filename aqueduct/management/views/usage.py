@@ -16,7 +16,7 @@ from django.views.generic import TemplateView
 
 from management import usage_report as report
 from management.access import EveryOrg, KeyAct, OrgWide, WholeOrg
-from management.charts import HEAT_CLASSES, HEAT_HOURS, columns, heat, kpis, slots
+from management.charts import HEAT_CLASSES, HEAT_HOURS, OVERVIEW_STATS, columns, heat, slots, stats
 from management.ids import parse_id
 from management.model_catalog import model_kinds
 from management.models import Token
@@ -100,7 +100,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
             {
                 "filters": filters,
                 "period": period,
-                "kpis": kpis(slots(timeline.points, period.step)),
+                "kpis": stats(slots(timeline.points, period.step), OVERVIEW_STATS),
                 "requests_in_period": total.requests,
                 "charts": tuple(
                     (shown, columns(timeline.points, period.step, shown))

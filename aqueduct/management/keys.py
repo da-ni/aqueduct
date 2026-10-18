@@ -11,7 +11,7 @@ from django.utils.translation import gettext, ngettext
 
 from management.access import KeyAct, TeamAct, Viewer
 from management.activity import Activity, activity_by, served
-from management.charts import Column, Share, chart
+from management.charts import Column, Share, chart, scaled, token_widths
 from management.formatting import compact, day_label, percent
 from management.models import Request, ServiceAccount, Token
 from management.periods import Period, Span, week
@@ -121,16 +121,16 @@ def key_list(viewer: Viewer, kind: KeyKind | None, query: str, now: datetime) ->
         and (needle in token.name.casefold() or needle in (team or "").casefold())
     ]
     activity = key_activity((token.id for token, *_ in entries), now)
-    busiest = max((a.tokens for a in activity.values()), default=0)
+    widths = token_widths(activity)
     rows = tuple(
         KeyRow(
             token=token,
             kind=entry_kind,
             team=team,
             href=href,
-            activity=(found := activity.get(token.id, Activity())),
+            activity=activity.get(token.id, Activity()),
             expiry=Expiry.of(token.expires_at, now),
-            bar_width=round(100 * found.tokens / busiest) if busiest else 0,
+            bar_width=widths.get(token.id, 0),
             manageable=viewer.may_key(KeyAct.MANAGE, token),
         )
         for token, entry_kind, team, href in entries
@@ -163,12 +163,9 @@ def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> K
         .annotate(tokens=Sum(F("input_tokens") + F("output_tokens")))
         .order_by("-tokens", "model")[:top]
     )
-    most = max((row["tokens"] for row in by_model), default=0)
     models = tuple(
-        Share(
-            row["model"], compact(row["tokens"]), round(100 * row["tokens"] / most) if most else 0
-        )
-        for row in by_model
+        Share(row["model"], compact(row["tokens"]), width)
+        for row, width in zip(by_model, scaled(row["tokens"] for row in by_model), strict=True)
     )
 
     clients = [
