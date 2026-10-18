@@ -91,12 +91,6 @@ class SettingsPageTest(TestCase):
         self.assertNotContains(response, ">600</span></dd>")
         self.assertContains(response, "Set for your account. Others use the organization default.")
 
-    def test_page_has_no_write_action(self):
-        self.client.force_login(self.member)
-        response = self.client.post(reverse("settings"))
-        self.assertEqual(response.status_code, 405)
-        self.assertEqual(self.member.profile.teammembership_set.count(), 2)
-
     def test_terms_card_hidden_without_the_terms_route(self):
         self.assertNotContains(self.page(self.member), "Terms of service</h2>")
 

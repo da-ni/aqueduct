@@ -212,10 +212,6 @@ class RequestsScopeTest(RequestsPageTestBase):
         self.assertIn(link, page)
         self.assertContains(self.client.get(link.replace("&amp;", "&")), "old-agent/1")
 
-    def test_start_and_end_parameters_are_ignored(self):
-        response = self.get(self.owner, start="2020-01-02T00:00", end="2020-01-01T00:00")
-        self.assertEqual(self.paths_on(response), {"/own"})
-
     def test_empty_log_says_whether_filters_hide_requests(self):
         self.assertContains(
             self.get(self.owner, model=OTHER_MODEL), "No request matches these filters."

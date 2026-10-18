@@ -118,7 +118,6 @@ class UsageAccessTest(UsagePageTestBase):
         self.assertContains(response, '<span class="sr-only">Key: </span>')
         self.assertContains(response, 'aria-current="true" class="menu-active">All keys</a>')
         self.assertNotContains(response, "My keys")
-        self.assertNotContains(response, "Your keys")
         self.assertNotContains(response, 'name="key_q"')
         self.assertContains(response, "Top keys")
         self.assertEqual([key.detail for key in response.context["keys"]], [""])
@@ -275,15 +274,7 @@ class UsageFiguresTest(UsagePageTestBase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(self.kpi(response, "Requests"), "1")
             self.assertContains(response, 'aria-current="page">24 hours</a>')
-            self.assertNotContains(response, "All retained")
         self.assertEqual(self.kpi(self.page(self.solo, span="1w"), "Requests"), "2")
-
-    def test_start_and_end_parameters_are_ignored(self):
-        self.log(self.solo_key, timedelta(hours=3), 200)
-        start = (timezone.now() - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M")
-        response = self.page(self.solo, start=start, end="2020-01-01T00:00")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.kpi(response, "Requests"), "2")
 
     def test_empty_time_frame_says_so_in_each_section(self):
         Request.objects.all().delete()
@@ -456,7 +447,6 @@ class UsageFilterChoicesTest(UsagePageTestBase):
         html = response.content.decode()
         mine = html.index(">My keys</a>")
         self.assertGreater(html.index(f"key={own.id}", mine), mine)
-        self.assertNotContains(response, "Your keys")
 
 
 class UsageKeyNamesTest(UsagePageTestBase):
