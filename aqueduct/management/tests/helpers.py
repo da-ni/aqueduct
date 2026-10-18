@@ -94,8 +94,6 @@ class RoleWorld(TestCase):
     def user(cls, name: str, group: UserGroup = UserGroup.USER, org: Org | None = None):
         return make_user(name, org or cls.org, group)
 
-    join = staticmethod(join)
-
     def as_user(self, user):
         self.client.force_login(user)
         return self.client

@@ -10,7 +10,7 @@ from django.utils.http import urlencode
 
 from management.models import Request, TeamMembership, UserGroup
 from management.request_log import PAGE_SIZE, Place
-from management.tests.helpers import CHAT, EMBEDDING, RequestsPageTestBase, listed
+from management.tests.helpers import CHAT, EMBEDDING, RequestsPageTestBase, join, listed
 
 
 class RequestsPaginationTest(RequestsPageTestBase):
@@ -279,7 +279,7 @@ class RequestsCountCacheTest(RequestsPageTestBase):
 
     def test_cached_counts_are_never_shared_between_viewers(self):
         team_admin = self.user("side-admin")
-        self.join(team_admin, self.side_team, is_admin=True)
+        join(team_admin, self.side_team, is_admin=True)
         for user, params, count in (
             (self.solo, {}, 1),
             (self.other, {}, 2),

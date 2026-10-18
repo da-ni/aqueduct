@@ -21,7 +21,7 @@ from management.models import (
     VectorStore,
     VectorStoreFile,
 )
-from management.tests.helpers import RoleWorld, make_token, mcp_config
+from management.tests.helpers import RoleWorld, join, make_token, mcp_config
 from mock_api.mock_configs import MockConfig
 
 User = get_user_model()
@@ -35,7 +35,7 @@ class ResourcePagesTestBase(RoleWorld):
     def setUpTestData(cls):
         super().setUpTestData()
         cls.teammate = cls.user("teammate")
-        cls.join(cls.teammate, cls.team)
+        join(cls.teammate, cls.team)
 
     def file(self, token: Token, filename: str, **fields) -> FileObject:
         return FileObject.objects.create(

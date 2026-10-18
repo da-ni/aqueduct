@@ -10,7 +10,7 @@ from management import usage_rollup as rollup
 from management.key_activity import served
 from management.models import Org, Request, TeamMembership
 from management.request_log import Outcome
-from management.tests.helpers import CHAT, EMBEDDING, RequestsPageTestBase, listed, make_token
+from management.tests.helpers import CHAT, EMBEDDING, RequestsPageTestBase, join, listed, make_token
 from management.usage_report import STATUSES, Period, Span, org_requests
 
 User = get_user_model()
@@ -311,7 +311,7 @@ class RequestsFilterTest(RequestsPageTestBase):
     def test_key_column_shows_only_when_rows_may_differ_in_key(self):
         make_token(self.solo, "owner-desktop")
         side_member = self.user("side-member")
-        self.join(side_member, self.side_team)
+        join(side_member, self.side_team)
         for user, params, shown in (
             (side_member, {}, False),
             (self.member, {}, True),

@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from management.models import Request, ServiceAccount, Team, TeamMembership, Token, UserGroup
-from management.tests.helpers import RoleWorld, make_token, secret_on
+from management.tests.helpers import RoleWorld, join, make_token, secret_on
 
 User = get_user_model()
 
@@ -263,7 +263,7 @@ class TeamDetailTest(RoleWorld):
     def test_roles_follow_groups_org_and_team_admin_flag(self):
         admin = self.user("site-admin", UserGroup.ADMIN, self.other_org)
         for user in (admin, self.org_admin, self.other_org_admin):
-            self.join(user, self.team)
+            join(user, self.team)
         response = self.as_user(self.member).get(self.url())
         for email, role in [
             ("site-admin@example.com", "Platform admin"),
@@ -280,7 +280,7 @@ class TeamDetailTest(RoleWorld):
         with CaptureQueriesContext(connection) as small:
             client.get(self.url())
         for n in range(10):
-            self.join(
+            join(
                 self.user(f"extra-{n}", UserGroup.ORG_ADMIN if n % 2 else UserGroup.USER), self.team
             )
         with CaptureQueriesContext(connection) as large:
@@ -289,7 +289,7 @@ class TeamDetailTest(RoleWorld):
 
     def test_members_come_fifty_a_page_team_admins_first_and_can_be_searched(self):
         for n in range(55):
-            self.join(self.user(f"a{n:02}"), self.team)
+            join(self.user(f"a{n:02}"), self.team)
         client = self.as_user(self.member)
         first = client.get(self.url()).content.decode()
         emails = re.findall(r'<span class="font-medium">([^<]+)</span>', first)
@@ -355,7 +355,7 @@ class TeamMembershipTest(RoleWorld):
         self.assertNotIn("member", self.members())
 
     def test_org_admin_who_leaves_stays_on_the_team(self):
-        self.join(self.org_admin, self.team)
+        join(self.org_admin, self.team)
         response = self.as_user(self.org_admin).post(
             self.url(), {"user_profile_to_remove_id": self.org_admin.profile.id}
         )
@@ -617,11 +617,11 @@ class ServiceAccountFormsTest(RoleWorld):
 
     def test_team_of_more_than_fifty_names_the_new_owner_by_email(self):
         for n in range(48):
-            self.join(self.user(f"a{n:02}"), self.team)
+            join(self.user(f"a{n:02}"), self.team)
         url = reverse("service_account_transfer", args=[self.pipeline.id])
         client = self.as_user(self.team_admin)
         self.assertContains(client.get(url), "<select")
-        self.join(self.user("a48"), self.team)
+        join(self.user("a48"), self.team)
         page = client.get(url)
         self.assertNotContains(page, "<select")
         self.assertContains(page, '<input type="email" name="email" id="new-owner"')

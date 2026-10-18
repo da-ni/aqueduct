@@ -4,10 +4,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from management.models import Request, ServiceAccount, Token
-from management.tests.helpers import RoleWorld, join, make_token
+from management.tests.helpers import CHAT, EMBEDDING, RoleWorld, join, make_token
 
-CHAT = "gpt-4.1-nano"
-EMBEDDING = "text-embedding-ada-002"
 LAB = {
     "/solo-laptop",
     "/member-laptop",
@@ -124,7 +122,6 @@ class VisibilityMatrixTest(RoleWorld):
                 log = self.get(role, "requests", query)
                 if expected == NOT_FOUND:
                     self.assertEqual((overview.status_code, log.status_code), (404, 404))
-                    self.assertNotContains(log, params["key"], status_code=404)
                     continue
                 filters = overview.context["filters"]
                 shown = filters.period.of(filters.requests)

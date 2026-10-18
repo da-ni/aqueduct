@@ -3,15 +3,16 @@ import json
 import re
 import shlex
 import tempfile
+from pathlib import Path
 from typing import ClassVar
 from urllib.parse import urlsplit
 
 import yaml
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import resolve, reverse
 
-from gateway.tests.utils.test_runner import EXAMPLE_ROUTER_CONFIG
 from management.model_catalog import (
     MODES,
     OTHER_MODE,
@@ -27,7 +28,9 @@ from management.models import Org, Team, Token, UserGroup, UserProfile
 
 User = get_user_model()
 
-EXAMPLE_ENTRIES = yaml.safe_load(EXAMPLE_ROUTER_CONFIG.read_text())["model_list"]
+EXAMPLE_ENTRIES = yaml.safe_load(Path(settings.LITELLM_ROUTER_CONFIG_FILE_PATH).read_text())[
+    "model_list"
+]
 
 RICH_ENTRY = {
     "model_name": "rich",

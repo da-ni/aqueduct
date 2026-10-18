@@ -47,6 +47,7 @@ class UsageAccessTest(UsagePageTestBase):
         self.assertContains(response, "By organization")
         self.assertContains(response, "other-org")
         self.assertEqual(self.kpi(response, "Requests"), "4")
+        self.assertNotContains(self.page(self.admin, org=self.other_org.id), "By organization")
 
     def test_all_orgs_names_no_org_for_a_key_whose_owner_has_no_profile(self):
         root = User.objects.create_superuser("root", "root@example.com", "pw")

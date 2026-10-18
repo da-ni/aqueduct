@@ -5,13 +5,11 @@ import shutil
 import signal
 import subprocess
 import unittest
-from pathlib import Path
 
 from django.conf import settings
 from django.core.cache import caches
 from django.core.signals import setting_changed
 from django.dispatch import receiver
-from django.test import override_settings
 from django.test.runner import DiscoverRunner, ParallelTestSuite, RemoteTestResult, RemoteTestRunner
 from django.utils import translation
 
@@ -19,8 +17,6 @@ from gateway import config
 from mock_api.mock_server import MockAPIServer
 
 logger = logging.getLogger("aqueduct")
-
-EXAMPLE_ROUTER_CONFIG = Path(settings.BASE_DIR).parent / "example_router_config.yaml"
 
 
 class MockServerState:
@@ -157,14 +153,6 @@ class MockServerTestRunner(DiscoverRunner):
     def setup_test_environment(self, **kwargs):
         """Set up the test environment, starting the mock API server."""
         super().setup_test_environment(**kwargs)
-        self.test_settings = override_settings(
-            LITELLM_ROUTER_CONFIG_FILE_PATH=EXAMPLE_ROUTER_CONFIG,
-            STORAGES={
-                **settings.STORAGES,
-                "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-            },
-        )
-        self.test_settings.enable()
 
         if settings.TESTS_USE_MOCK_API:
             MockServerState._mock_server = MockAPIServer(host="localhost", delays=False)
@@ -185,5 +173,4 @@ class MockServerTestRunner(DiscoverRunner):
         """Tear down the test environment, stopping the mock and MCP server."""
         MockServerState.cleanup_mock_server()
         MockServerState.cleanup_mcp_server()
-        self.test_settings.disable()
         super().teardown_test_environment(**kwargs)

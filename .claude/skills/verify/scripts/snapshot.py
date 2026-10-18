@@ -56,7 +56,8 @@ secrets.token_hex = lambda nbytes=32: random_bytes.randbytes(nbytes or 32).hex()
 
 from django.conf import settings  # noqa: E402
 
-settings.DATABASES["default"]["NAME"] = str(Path(tempfile.mkdtemp(prefix="aqv-snapshot-")) / "db")
+database_folder = tempfile.TemporaryDirectory(prefix="aqv-snapshot-")
+settings.DATABASES["default"]["NAME"] = str(Path(database_folder.name) / "db")
 settings.CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 settings.STORAGES = {
     **settings.STORAGES,
