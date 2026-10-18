@@ -528,6 +528,12 @@ class OrgAdminKeyAccessTest(ApiKeysPagesTestBase):
                     shown = Request.objects.get(token=key)
                     self.assertContains(response, f'id="request-{shown.id}"')
 
+    def test_admin_on_all_organizations_stays_there_after_a_key_log_link(self):
+        self.client.force_login(self.admin)
+        self.client.get(reverse("tokens"), {"org": "all"})
+        page = self.client.get(reverse("token_detail", args=[self.key.id])).content.decode()
+        self.assertNotIn("org=", "".join(re.findall(r'href="[^"]*/requests/\?[^"]*"', page)))
+
     def test_admin_rotating_another_orgs_service_account_lands_on_its_key(self):
         detail = reverse("token_detail", args=[self.pipeline_key.id])
         self.client.force_login(self.admin)

@@ -72,9 +72,11 @@ class TokenDetailView(BaseAqueductView, DetailView):
         own = team is None and token.user_id == self.request.user.id
         metric = "requests" if self.request.GET.get("metric") == "requests" else "tokens"
         log_query: dict[str, object] = {"key": token.id, "span": "1m"}
-        if self.profile.is_admin():
+        if self.profile.is_admin() and self.viewed_org is not None:
             owner = team or getattr(token.user, "profile", None)
-            log_query["org"] = owner.org_id if owner and owner.org_id else "all"
+            key_org = owner.org_id if owner else None
+            if key_org != self.viewed_org.id:
+                log_query["org"] = key_org or "all"
         context.update(
             report=report,
             latest=tuple(Row(request, Key(token, None, ""), False) for request in report.latest),
