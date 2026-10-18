@@ -1,109 +1,89 @@
 {% extends "management/base.html" %}
 {% load i18n l10n ui %}
 
-{% block page_background %}{% endblock %}
-
-{% block content %}
-<div class="flex flex-col gap-6">
-    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
-        <h1 class="text-3xl font-semibold">{% translate "API keys" %}</h1>
-        {% if can_add_token %}
-            <a class="btn btn-primary" href="{% url 'token_create' %}">{% icon "plus" small=True %}{% translate "Create API key" %}<span class="font-mono text-xs font-normal opacity-70">{{ keys.personal_count }}/{{ max_tokens }}</span></a>
-        {% else %}
-            <button type="button" class="btn btn-primary" disabled>{% blocktranslate count n=max_tokens %}{{ n }} of {{ n }} key used{% plural %}{{ n }} of {{ n }} keys used{% endblocktranslate %}</button>
-        {% endif %}
-    </header>
-
-    <div class="flex flex-wrap items-center gap-3">
-        {% if keys.has_service_accounts %}
-            <nav class="join" aria-label="{% translate "Key type" %}">
-                <a class="btn btn-sm join-item{% if not kind %} btn-primary{% endif %}" href="{% querystring kind=None %}"{% if not kind %} aria-current="page"{% endif %}>{% translate "All" %}</a>
-                {% for tab in kinds %}
-                    <a class="btn btn-sm join-item{% if tab == kind %} btn-primary{% endif %}" href="{% querystring kind=tab.value %}"{% if tab == kind %} aria-current="page"{% endif %}>{{ tab.label }}</a>
-                {% endfor %}
-            </nav>
-        {% endif %}
-        <form method="get" role="search">
-            {% if kind %}<input type="hidden" name="kind" value="{{ kind.value }}">{% endif %}
-            <label class="input input-sm w-64">
-                {% icon "search" small=True %}
-                <input type="search" name="q" value="{{ query }}" placeholder="{% translate "Search keys" %}" aria-label="{% translate "Search keys" %}">
-            </label>
-        </form>
-    </div>
-
-    <section class="card bg-base-200">
-        <div class="card-body p-3">
-            <div class="md:overflow-x-auto">
-                <table class="table table-fixed key-table md:min-w-[800px]">
-                    {% if keys.rows %}
-                    <thead>
-                        <tr>
-                            <th>{% translate "Key" %}</th>
-                            <th class="hidden w-32 md:table-cell">{% translate "Last used" %}</th>
-                            <th class="w-36 md:w-[22%]">{% translate "Tokens, 7 days" %}</th>
-                            <th class="hidden w-24 text-right md:table-cell">{% translate "Requests" %}</th>
-                            <th class="hidden w-28 md:table-cell">{% translate "Expires" %}</th>
-                            <th class="w-12 md:w-36"><span class="sr-only">{% translate "Actions" %}</span></th>
-                        </tr>
-                    </thead>
-                    {% endif %}
-                    <tbody>
-                        {% for row in keys.rows %}
-                            <tr>
-                                <td>
-                                    <a class="link-plain font-mono row-link" href="{{ row.href }}">{{ row.token.name }}</a>
-                                    <div class="muted text-xs">
-                                        {% if row.team %}{% translate "Service account" %} · <a class="link-plain relative z-10" href="{% url 'team' row.token.service_account.team_id %}">{{ row.team }}</a>{% else %}{% translate "Personal" %}{% endif %}
-                                        · <span class="font-mono">{{ row.token.key_preview }}</span>
-                                    </div>
-                                </td>
-                                <td class="muted hidden md:table-cell">{{ row.activity.last_used|when:"relative"|default:"—" }}</td>
-                                <td>
-                                    <div class="flex items-center gap-3">
-                                        <div class="hidden min-w-0 flex-1 md:block">
-                                            {% if row.activity.tokens %}
-                                                <div class="tbar" style="width: {{ row.bar_width|unlocalize }}%">
-                                                    {% for css, count in row.activity.segments %}{% if count %}<i class="{{ css }}" style="flex: {{ count|unlocalize }} 1 0%"></i>{% endif %}{% endfor %}
-                                                </div>
-                                            {% endif %}
-                                        </div>
-                                        <span class="w-full text-right font-mono md:w-14 de:md:w-22">{{ row.activity.tokens_short }}</span>
-                                    </div>
-                                </td>
-                                <td class="hidden text-right font-mono md:table-cell">{{ row.activity.requests|grouped }}</td>
-                                <td class="hidden md:table-cell">{{ row.expiry|expiry }}</td>
-                                <td>
-                                    {% if row.manageable %}
-                                        <div class="relative z-10 hidden justify-end gap-1 md:flex">
-                                            {% include "management/_key_actions.html" with button="btn btn-ghost btn-sm btn-square" %}
-                                        </div>
-                                        <details class="dropdown dropdown-end relative z-10 open:z-20 flex justify-end md:hidden">
-                                            <summary class="btn btn-ghost btn-sm btn-square" aria-label="{% blocktranslate with name=row.token.name %}Actions for {{ name }}{% endblocktranslate %}">⋯</summary>
-                                            <div class="dropdown-content z-20 mt-1 flex w-40 flex-col rounded-box border border-base-300 bg-base-100 p-1 shadow">
-                                                {% include "management/_key_actions.html" with button="btn btn-ghost btn-sm justify-start" labelled=True %}
-                                            </div>
-                                        </details>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        {% empty %}
-                            <tr><td colspan="6">
-                                {% if query or kind %}<span class="muted">{% translate "No key matches." %}</span>
-                                {% else %}
-                                    <div class="flex flex-wrap items-center gap-3"><span class="muted">{% translate "No keys yet." %}</span>{% if can_add_token %}<a class="btn btn-primary btn-sm" href="{% url 'token_create' %}">{% icon "plus" small=True %}{% translate "Create" %}</a>{% endif %}</div>
-                                {% endif %}
-                            </td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% if keys.rows %}
-                <div class="flex flex-wrap items-center gap-4 px-3 pb-2 pt-1 text-sm">
-                    {% include "management/_token_legend.html" %}
-                </div>
-            {% endif %}
-        </div>
-    </section>
+{% block heading %}{% translate "API keys" %}{% endblock %}
+{% block actions %}
+    {% if can_add_token %}
+        <a class="btn btn-primary" href="{% url 'token_create' %}">{% icon "plus" small=True %}{% translate "Create API key" %}<span class="font-mono text-xs font-normal opacity-70">{{ keys.personal_count }}/{{ max_tokens }}</span></a>
+    {% else %}
+        <button type="button" class="btn btn-primary" disabled>{% blocktranslate count n=max_tokens %}{{ n }} of {{ n }} key used{% plural %}{{ n }} of {{ n }} keys used{% endblocktranslate %}</button>
+    {% endif %}
+{% endblock %}
+{% block body %}
+<div class="flex flex-wrap items-center gap-3">
+    {% if keys.has_service_accounts %}
+        {% include "management/_segmented.html" with label=_("Key type") param="kind" tabs=kinds current=kind all_label=_("All") %}
+    {% endif %}
+    {% include "management/_search.html" with name="q" value=query placeholder=_("Search keys") width="w-64" %}
 </div>
+
+<section class="card bg-base-200">
+    <div class="card-body p-3">
+        <div class="md:overflow-x-auto">
+            <table class="table table-fixed data-table md:min-w-[800px]">
+                {% if keys.rows %}
+                <thead>
+                    <tr>
+                        <th>{% translate "Key" %}</th>
+                        <th class="hidden w-32 md:table-cell">{% translate "Last used" %}</th>
+                        <th class="w-36 md:w-[22%]">{% translate "Tokens, 7 days" %}</th>
+                        <th class="hidden w-24 text-right md:table-cell">{% translate "Requests" %}</th>
+                        <th class="hidden w-28 md:table-cell">{% translate "Expires" %}</th>
+                        <th class="w-12 md:w-36"><span class="sr-only">{% translate "Actions" %}</span></th>
+                    </tr>
+                </thead>
+                {% endif %}
+                <tbody>
+                    {% for row in keys.rows %}
+                        <tr>
+                            <td>
+                                <a class="link-plain font-mono row-link" href="{{ row.href }}">{{ row.token.name }}</a>
+                                <div class="muted text-xs">
+                                    {% if row.team %}{% translate "Service account" %} · <a class="link-plain relative z-10" href="{% url 'team' row.token.service_account.team_id %}">{{ row.team }}</a>{% else %}{% translate "Personal" %}{% endif %}
+                                    · <span class="font-mono">{{ row.token.key_preview }}</span>
+                                </div>
+                            </td>
+                            <td class="muted hidden md:table-cell">{{ row.activity.last_used|when:"relative"|default:"—" }}</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="hidden min-w-0 flex-1 md:block">
+                                        {% if row.activity.tokens %}{% include "management/_token_bar.html" with activity=row.activity width=row.bar_width %}{% endif %}
+                                    </div>
+                                    <span class="w-full text-right font-mono md:w-14 de:md:w-22">{{ row.activity.tokens_short }}</span>
+                                </div>
+                            </td>
+                            <td class="hidden text-right font-mono md:table-cell">{{ row.activity.requests|grouped }}</td>
+                            <td class="hidden md:table-cell">{{ row.expiry|expiry }}</td>
+                            <td>
+                                {% if row.manageable %}
+                                    <div class="relative z-10 hidden justify-end gap-1 md:flex">
+                                        {% include "management/_key_actions.html" with button="btn btn-ghost btn-sm btn-square" %}
+                                    </div>
+                                    <details class="dropdown dropdown-end relative z-10 open:z-20 flex justify-end md:hidden">
+                                        <summary class="btn btn-ghost btn-sm btn-square" aria-label="{% blocktranslate with name=row.token.name %}Actions for {{ name }}{% endblocktranslate %}">⋯</summary>
+                                        <div class="dropdown-content z-20 mt-1 flex w-40 flex-col rounded-box border border-base-300 bg-base-100 p-1 shadow">
+                                            {% include "management/_key_actions.html" with button="btn btn-ghost btn-sm justify-start" labelled=True %}
+                                        </div>
+                                    </details>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="6">
+                            {% if query or kind %}<span class="muted">{% translate "No key matches." %}</span>
+                            {% else %}
+                                <div class="flex flex-wrap items-center gap-3"><span class="muted">{% translate "No keys yet." %}</span>{% if can_add_token %}<a class="btn btn-primary btn-sm" href="{% url 'token_create' %}">{% icon "plus" small=True %}{% translate "Create" %}</a>{% endif %}</div>
+                            {% endif %}
+                        </td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if keys.rows %}
+            <div class="flex flex-wrap items-center gap-4 px-3 pb-2 pt-1 text-sm">
+                {% include "management/_token_legend.html" %}
+            </div>
+        {% endif %}
+    </div>
+</section>
 {% endblock %}

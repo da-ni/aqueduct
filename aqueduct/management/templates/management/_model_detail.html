@@ -8,8 +8,8 @@
         {% if selected.model_card_url %}
             <a class="link-plain inline-flex items-center gap-1" href="{{ selected.model_card_url }}" target="_blank" rel="noopener noreferrer">{% translate "Model card" %}{% icon "external" small=True %}</a>
         {% endif %}
-        <a class="link-plain" href="{% url 'usage' %}?model={{ selected.name|urlencode }}">{% translate "Usage" %}</a>
-        <a class="link-plain" href="{% url 'requests' %}?model={{ selected.name|urlencode }}">{% translate "Requests" %}</a>
+        <a class="link-plain" href="{% url_with 'usage' model=selected.name %}">{% translate "Usage" %}</a>
+        <a class="link-plain" href="{% url_with 'requests' model=selected.name %}">{% translate "Requests" %}</a>
     </div>
 </div>
 
@@ -59,8 +59,7 @@
     <div class="flex flex-col gap-2">
         <div class="flex items-center justify-between gap-2">
             <span class="text-sm font-semibold">{% translate "Use it" %}</span>
-            <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ snippet }}"
-                    aria-label="{% translate 'Copy example' %}" title="{% translate 'Copy example' %}">{% icon "copy" small=True %}</button>
+            {% copy_button snippet _("Copy example") %}
         </div>
         <pre class="overflow-x-auto rounded-lg bg-base-100 p-3 font-mono text-[11px] leading-relaxed">{{ snippet }}</pre>
     </div>

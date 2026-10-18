@@ -1,4 +1,4 @@
-{% extends "management/_resource_list.html" %}
+{% extends "management/resource_list.html" %}
 {% load i18n ui %}
 
 {% block heading %}{% translate "Files" %}{% endblock %}
@@ -17,7 +17,7 @@
         <tr id="{{ row.file.id }}" class="file-row">
             <td>
                 <span class="font-semibold">{{ row.file.filename }}</span>
-                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.file.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.file.id }}" aria-label="{% blocktranslate with name=row.file.filename %}Copy ID of {{ name }}{% endblocktranslate %}" title="{% translate 'Copy file ID' %}">{% icon "copy" small=True %}</button>{% if not row.mine %} · {{ row.owner }}{% endif %}</div>
+                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.file.id }}{% blocktranslate with name=row.file.filename asvar copy_label %}Copy ID of {{ name }}{% endblocktranslate %}{% copy_button row.file.id copy_label _("Copy file ID") %}{% if not row.mine %} · {{ row.owner }}{% endif %}</div>
             </td>
             <td><span class="badge badge-sm whitespace-nowrap bg-base-100 font-mono">{{ row.purpose }}</span></td>
             <td class="text-right font-mono">{{ row.file.bytes|filesizeformat }}</td>
@@ -37,7 +37,7 @@
                         </div>
                     {% endif %}
                     {% if row.mine %}
-                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'file_delete' row.file.id %}?page={{ listing.pages.number }}" {% confirm_delete row.file %} aria-label="{% blocktranslate with name=row.file.filename %}Delete {{ name }}{% endblocktranslate %}" title="{% translate 'Delete' %}">{% icon "delete" small=True %}</a>
+                        <a class="btn btn-ghost btn-sm btn-square" href="{% url_with 'file_delete' row.file.id page=listing.pages.number %}" {% confirm_delete row.file %} aria-label="{% blocktranslate with name=row.file.filename %}Delete {{ name }}{% endblocktranslate %}" title="{% translate 'Delete' %}">{% icon "delete" small=True %}</a>
                     {% endif %}
                 </div>
             </td>

@@ -29,9 +29,6 @@ class RequestLogView(BaseAqueductView, TemplateView):
             log=log,
             filters=filters,
             outcome=log.outcome,
-            search_params=tuple(
-                (name, value) for name, value in filters.search_params if name != "q"
-            ),
             narrowed=log.outcome is not None
             or bool(log.search)
             or filters.span is not Span.DAY

@@ -1,0 +1,13 @@
+{% extends "management/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ heading }} · {% translate "Aqueduct AI Gateway" %}{% endblock %}
+
+{% block content %}
+<div class="flex max-w-2xl flex-col gap-4">
+    <p class="label-mono">{{ code }}</p>
+    <h1 class="text-3xl font-semibold">{{ heading }}</h1>
+    <p>{{ message }}</p>
+    <div><a class="btn btn-primary" href="{% url 'usage' %}">{% translate "Go to Overview" %}</a></div>
+</div>
+{% endblock %}

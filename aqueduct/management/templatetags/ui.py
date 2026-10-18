@@ -1,11 +1,16 @@
 import shlex
+from collections.abc import Iterable
 from datetime import UTC, date, datetime
 
 from django import template
+from django.contrib.messages.storage.base import Message
 from django.forms import BoundField
 from django.template.defaultfilters import date as format_date
+from django.template.defaulttags import querystring
+from django.urls import reverse
 from django.utils import dateformat, timezone
 from django.utils.html import format_html, format_html_join
+from django.utils.http import urlencode
 from django.utils.safestring import SafeString
 from django.utils.translation import gettext, ngettext_lazy
 
@@ -14,6 +19,7 @@ from management.icons import Icon
 from management.key_activity import MISSING, Expiry, grouped
 from management.models import FileObject, ServiceAccount, Team, Token
 from management.privacy import render_markdown
+from management.views.base import NEW_KEY_TAG
 
 register = template.Library()
 
@@ -38,6 +44,61 @@ def icon(name: Icon | str, small: bool = False, extra_class: str = "") -> SafeSt
         classes,
         body,
     )
+
+
+@register.simple_tag
+def copy_button(
+    value: str, label: str, title: str = "", size: str = "xs", extra_class: str = ""
+) -> SafeString:
+    classes = " ".join(filter(None, ("btn btn-ghost", f"btn-{size}", "btn-square", extra_class)))
+    return format_html(
+        '<button type="button" class="{}" data-copy="{}" aria-label="{}" title="{}">{}</button>',
+        classes,
+        value,
+        label,
+        title or label,
+        icon(Icon.COPY, small=True),
+    )
+
+
+RESET_ON_FILTER = frozenset({"page", "key_q", "before", "after", "request"})
+
+
+def _names(groups: tuple[str, ...]) -> set[str]:
+    return {name for group in groups for name in group.split()}
+
+
+@register.simple_tag(takes_context=True)
+def hidden_params(
+    context: template.Context, *dropped: str, keep: Iterable[tuple[str, str]] | None = None
+) -> SafeString:
+    """Hidden inputs that carry a query to a GET form, minus `dropped` and paging.
+
+    `keep` names the parameters to carry; without it, the page's own query is carried.
+    """
+    skip = _names(dropped) | RESET_ON_FILTER
+    pairs = (
+        keep
+        if keep is not None
+        else ((name, value) for name, values in context.request.GET.lists() for value in values)
+    )
+    return format_html_join(
+        "",
+        '<input type="hidden" name="{}" value="{}">',
+        ((name, value) for name, value in pairs if name not in skip),
+    )
+
+
+@register.simple_tag(takes_context=True)
+def query_with(context: template.Context, name: str, value: object, dropped: str = "") -> str:
+    """`{% querystring %}` with a parameter name that comes from a variable."""
+    return querystring(context, **{name: value}, **dict.fromkeys(_names((dropped,))))
+
+
+@register.simple_tag
+def url_with(viewname: str, *args: object, **query: object) -> str:
+    """`{% url %}` with a query string, as in `{% url_with 'files' file=file.id %}`."""
+    return f"{reverse(viewname, args=args)}?{urlencode(query)}"
 
 
 @register.filter
@@ -156,13 +217,13 @@ def confirm_delete(obj: Token | ServiceAccount | Team | FileObject) -> SafeStrin
 
 
 @register.filter
-def markdown(text: str) -> SafeString:
-    return render_markdown(text)
+def is_new_key(message: Message) -> bool:
+    return message.extra_tags == NEW_KEY_TAG
 
 
 @register.filter
-def percent_of(part: float, whole: float) -> int:
-    return round(part * 100 / whole)
+def markdown(text: str) -> SafeString:
+    return render_markdown(text)
 
 
 @register.filter

@@ -2,15 +2,14 @@
 {% load i18n ui %}
 
 {% block title %}{% translate "Data protection information" %} · {% translate "Aqueduct AI Gateway" %}{% endblock %}
-{% block page_background %}{% endblock %}
 
 {% block content %}
 <div class="mx-auto flex w-full max-w-3xl flex-col gap-8">
     <h1 class="text-3xl font-semibold">{% translate "Data protection information" %}</h1>
     {% for notice in notices %}
-        <section class="flex flex-col gap-3"{% if notice.org %} aria-labelledby="addendum-title"{% endif %}>
+        <section class="flex flex-col gap-3"{% if notice.org %} aria-labelledby="addendum-{{ notice.org.id }}"{% endif %}>
             {% if notice.org %}
-                <h2 id="addendum-title" class="label-mono border-t border-base-300 pt-6">{% blocktranslate with name=notice.org.name %}For members of {{ name }}{% endblocktranslate %}</h2>
+                <h2 id="addendum-{{ notice.org.id }}" class="label-mono border-t border-base-300 pt-6">{% blocktranslate with name=notice.org.name %}For members of {{ name }}{% endblocktranslate %}</h2>
             {% endif %}
             <p class="muted text-sm">{% blocktranslate with date=notice.updated_at|when:"date" %}Last updated {{ date }}{% endblocktranslate %}</p>
             <div class="aq-prose">{{ notice.content|markdown }}</div>

@@ -1,89 +1,71 @@
 {% extends "management/base.html" %}
 {% load i18n ui %}
 
-{% block page_background %}{% endblock %}
+{% block heading %}{% translate "Models" %}{% endblock %}
+{% block body %}
+<div class="flex flex-wrap items-center gap-3">
+    {% if catalog.categories|length > 1 %}
+        {% include "management/_segmented.html" with label=_("Model type") param="type" tabs=catalog.categories current=category all_label=_("All") reset="model" %}
+    {% endif %}
+    {% include "management/_search.html" with name="q" value=query placeholder=_("Search models and aliases") width="w-64" reset="model" %}
+</div>
 
-{% block content %}
-<div class="flex flex-col gap-6">
-    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
-        <h1 class="text-3xl font-semibold">{% translate "Models" %}</h1>
-    </header>
-
-    <div class="flex flex-wrap items-center gap-3">
-        {% if catalog.categories|length > 1 %}
-            <nav class="join" aria-label="{% translate 'Model type' %}">
-                <a class="btn btn-sm join-item{% if not category %} btn-primary{% endif %}" href="{% querystring type=None model=None %}"{% if not category %} aria-current="page"{% endif %}>{% translate "All" %}</a>
-                {% for tab in catalog.categories %}
-                    <a class="btn btn-sm join-item{% if tab == category %} btn-primary{% endif %}" href="{% querystring type=tab.value model=None %}"{% if tab == category %} aria-current="page"{% endif %}>{{ tab.label }}</a>
-                {% endfor %}
-            </nav>
-        {% endif %}
-        <form method="get" role="search">
-            {% if category %}<input type="hidden" name="type" value="{{ category.value }}">{% endif %}
-            <label class="input input-sm w-64">
-                {% icon "search" small=True %}
-                <input type="search" name="q" value="{{ query }}" placeholder="{% translate 'Search models and aliases' %}" aria-label="{% translate 'Search models and aliases' %}">
-            </label>
-        </form>
-    </div>
-
-    {% if selected %}
-        <section class="grid grid-cols-1 gap-4 xl:grid-cols-5">
-            <div class="card min-w-0 bg-base-200 xl:col-span-3">
-                <div class="card-body overflow-x-auto p-3">
-                    <table class="table table-fixed model-table">
-                        <thead>
+{% if selected %}
+    <section class="grid grid-cols-1 gap-4 xl:grid-cols-5">
+        <div class="card min-w-0 bg-base-200 xl:col-span-3">
+            <div class="card-body overflow-x-auto p-3">
+                <table class="table table-fixed data-table">
+                    <thead>
+                        <tr>
+                            <th>{% translate "Model" %}</th>
+                            {% if catalog.has_aliases %}<th class="hidden w-36 xl:table-cell">{% translate "Aliases" %}</th>{% endif %}
+                            {% if catalog.has_context %}<th class="w-20 text-right">{% translate "Context" %}</th>{% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for card in cards %}
                             <tr>
-                                <th>{% translate "Model" %}</th>
-                                {% if catalog.has_aliases %}<th class="hidden w-36 xl:table-cell">{% translate "Aliases" %}</th>{% endif %}
-                                {% if catalog.has_context %}<th class="w-20 text-right">{% translate "Context" %}</th>{% endif %}
+                                <td>
+                                    <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                        <a class="min-w-0 font-mono font-semibold [overflow-wrap:anywhere] row-link"
+                                           href="{% querystring model=card.name %}#model-detail"{% if card == selected %} aria-current="true"{% endif %}>{{ card.name }}</a>
+                                        {% if card.quantization %}<span class="badge badge-outline badge-sm max-w-full font-mono" title="{{ card.quantization }}"><span class="truncate">{{ card.quantization }}</span></span>{% endif %}
+                                        {% if card.deprecation_date %}<span class="badge badge-outline badge-deprecated badge-sm flex-none font-mono uppercase">{% translate "Deprecated" %}</span>{% endif %}
+                                    </div>
+                                    <p class="muted mt-0.5 truncate text-xs"{% if card.description %} title="{{ card.description }}"{% endif %}>{{ card.mode.label }}{% if card.description %} · {{ card.description }}{% endif %}</p>
+                                    {% if card.aliases %}<p class="muted mt-0.5 truncate font-mono text-xs xl:hidden" title="{{ card.aliases|join:', ' }}">{{ card.aliases|join:", " }}</p>{% endif %}
+                                </td>
+                                {% if catalog.has_aliases %}<td class="muted hidden truncate font-mono text-xs xl:table-cell" title="{{ card.aliases|join:', ' }}">{{ card.aliases|join:", " }}</td>{% endif %}
+                                {% if catalog.has_context %}<td class="text-right font-mono">{{ card.context|default:_("n/a") }}</td>{% endif %}
                             </tr>
-                        </thead>
-                        <tbody>
-                            {% for card in cards %}
-                                <tr>
-                                    <td>
-                                        <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                                            <a class="min-w-0 font-mono font-semibold [overflow-wrap:anywhere] row-link"
-                                               href="{% querystring model=card.name %}#model-detail"{% if card == selected %} aria-current="true"{% endif %}>{{ card.name }}</a>
-                                            {% if card.quantization %}<span class="badge badge-outline badge-sm max-w-full font-mono" title="{{ card.quantization }}"><span class="truncate">{{ card.quantization }}</span></span>{% endif %}
-                                            {% if card.deprecation_date %}<span class="badge badge-outline badge-deprecated badge-sm flex-none font-mono uppercase">{% translate "Deprecated" %}</span>{% endif %}
-                                        </div>
-                                        <p class="muted mt-0.5 truncate text-xs"{% if card.description %} title="{{ card.description }}"{% endif %}>{{ card.mode.label }}{% if card.description %} · {{ card.description }}{% endif %}</p>
-                                        {% if card.aliases %}<p class="muted mt-0.5 truncate font-mono text-xs xl:hidden" title="{{ card.aliases|join:', ' }}">{{ card.aliases|join:", " }}</p>{% endif %}
+                            {% if card == selected %}
+                                <tr id="model-detail" class="scroll-mt-20 xl:hidden">
+                                    <td colspan="{% if catalog.has_context %}2{% else %}1{% endif %}" class="p-0">
+                                        <section class="flex flex-col gap-5 rounded-box bg-base-100/60 p-4" aria-labelledby="model-detail-name-inline">
+                                            {% include "management/_model_detail.html" with place="inline" %}
+                                        </section>
                                     </td>
-                                    {% if catalog.has_aliases %}<td class="muted hidden truncate font-mono text-xs xl:table-cell" title="{{ card.aliases|join:', ' }}">{{ card.aliases|join:", " }}</td>{% endif %}
-                                    {% if catalog.has_context %}<td class="text-right font-mono">{{ card.context|default:_("n/a") }}</td>{% endif %}
                                 </tr>
-                                {% if card == selected %}
-                                    <tr id="model-detail" class="scroll-mt-20 xl:hidden">
-                                        <td colspan="{% if catalog.has_context %}2{% else %}1{% endif %}" class="p-0">
-                                            <section class="flex flex-col gap-5 rounded-box bg-base-100/60 p-4" aria-labelledby="model-detail-name-inline">
-                                                {% include "management/_model_detail.html" with place="inline" %}
-                                            </section>
-                                        </td>
-                                    </tr>
-                                {% endif %}
-                            {% empty %}
-                                <tr><td colspan="{{ catalog.columns }}" class="muted">{% translate "No model matches." %}</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <aside class="card min-w-0 self-start bg-base-200 xl:sticky xl:top-4 xl:col-span-2{% if selected in cards %} max-xl:hidden{% endif %}" aria-labelledby="model-detail-name-panel">
-                <div class="card-body gap-5 p-5">
-                    {% include "management/_model_detail.html" with place="panel" %}
-                </div>
-            </aside>
-        </section>
-    {% else %}
-        <div class="card bg-base-200">
-            <div class="card-body">
-                <p class="muted">{% translate "No models are available to you." %}</p>
+                            {% endif %}
+                        {% empty %}
+                            <tr><td colspan="{{ catalog.columns }}" class="muted">{% translate "No model matches." %}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
-    {% endif %}
-</div>
+
+        <aside class="card min-w-0 self-start bg-base-200 xl:sticky xl:top-4 xl:col-span-2{% if selected in cards %} max-xl:hidden{% endif %}" aria-labelledby="model-detail-name-panel">
+            <div class="card-body gap-5 p-5">
+                {% include "management/_model_detail.html" with place="panel" %}
+            </div>
+        </aside>
+    </section>
+{% else %}
+    <div class="card bg-base-200">
+        <div class="card-body">
+            <p class="muted">{% translate "No models are available to you." %}</p>
+        </div>
+    </div>
+{% endif %}
 {% endblock %}

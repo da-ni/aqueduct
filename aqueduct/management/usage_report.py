@@ -137,8 +137,8 @@ class Span(StrEnum):
         return str(SPANS[self].label)
 
     @property
-    def in_the_last(self) -> str:
-        return str(SPANS[self].in_the_last)
+    def no_requests(self) -> str:
+        return str(SPANS[self].no_requests)
 
     @classmethod
     def parse(cls, raw: str) -> "Span | None":
@@ -151,17 +151,17 @@ class Span(StrEnum):
 @dataclass(frozen=True)
 class SpanSpec:
     label: Promise
-    in_the_last: Promise
+    no_requests: Promise
     step: Step
     count: int
 
 
 DEFAULT_SPAN = Span.DAY
 SPANS: Mapping[Span, SpanSpec] = {
-    Span.HOUR: SpanSpec(_("1 hour"), _("in the last hour"), MINUTE, 60),
-    Span.DAY: SpanSpec(_("24 hours"), _("in the last 24 hours"), HOUR, 24),
-    Span.WEEK: SpanSpec(_("7 days"), _("in the last 7 days"), DAY, 7),
-    Span.MONTH: SpanSpec(_("30 days"), _("in the last 30 days"), DAY, 30),
+    Span.HOUR: SpanSpec(_("1 hour"), _("No requests in the last hour."), MINUTE, 60),
+    Span.DAY: SpanSpec(_("24 hours"), _("No requests in the last 24 hours."), HOUR, 24),
+    Span.WEEK: SpanSpec(_("7 days"), _("No requests in the last 7 days."), DAY, 7),
+    Span.MONTH: SpanSpec(_("30 days"), _("No requests in the last 30 days."), DAY, 30),
 }
 
 

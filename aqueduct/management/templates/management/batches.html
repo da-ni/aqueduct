@@ -1,4 +1,4 @@
-{% extends "management/_resource_list.html" %}
+{% extends "management/resource_list.html" %}
 {% load i18n ui %}
 
 {% block heading %}{% translate "Batches" %}{% endblock %}
@@ -16,7 +16,7 @@
     {% for row in listing.rows %}
         <tr>
             <td>
-                <div class="flex items-center gap-1"><span class="font-mono font-semibold">{{ row.batch.id }}</span><button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.batch.id }}" aria-label="{% blocktranslate with id=row.batch.id %}Copy ID of batch {{ id }}{% endblocktranslate %}" title="{% translate 'Copy batch ID' %}">{% icon "copy" small=True %}</button></div>
+                <div class="flex items-center gap-1"><span class="font-mono font-semibold">{{ row.batch.id }}</span>{% blocktranslate with id=row.batch.id asvar copy_label %}Copy ID of batch {{ id }}{% endblocktranslate %}{% copy_button row.batch.id copy_label _("Copy batch ID") %}</div>
                 <div class="muted font-mono text-xs">{{ row.batch.endpoint }}{% if not row.mine %} · {{ row.owner }}{% endif %}</div>
             </td>
             <td>
@@ -25,9 +25,9 @@
             </td>
             <td>{% include "management/_progress.html" with progress=row.progress %}</td>
             <td>
-                <a class="link-plain font-mono text-[13px]" href="{% url 'files' %}?file={{ row.batch.input_file.id }}#{{ row.batch.input_file.id }}">{{ row.batch.input_file.filename }}</a>
+                <a class="link-plain font-mono text-[13px]" href="{% url_with 'files' file=row.batch.input_file.id %}#{{ row.batch.input_file.id }}">{{ row.batch.input_file.filename }}</a>
                 <div class="muted text-xs">
-                    {% for label, file in row.results %}<a class="link-plain" href="{% url 'files' %}?file={{ file.id }}#{{ file.id }}">{{ label }}</a>{% if not forloop.last %} · {% endif %}{% empty %}{{ row.note }}{% endfor %}
+                    {% for label, file in row.results %}<a class="link-plain" href="{% url_with 'files' file=file.id %}#{{ file.id }}">{{ label }}</a>{% if not forloop.last %} · {% endif %}{% empty %}{{ row.note }}{% endfor %}
                 </div>
             </td>
             <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.created|when|dash }}</td>

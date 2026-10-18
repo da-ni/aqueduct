@@ -5,7 +5,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import BooleanField, JSONField
-from django.utils.translation import gettext
+from django.utils.translation import gettext, gettext_lazy
 
 # Physical maxima used to validate the hourly/daily limit multipliers: an hour has
 # 60 minutes and a day has 1440 minutes (24 hours). A larger-window limit above
@@ -13,6 +13,13 @@ from django.utils.translation import gettext
 MINUTES_PER_HOUR = 60
 HOURS_PER_DAY = 24
 MINUTES_PER_DAY = HOURS_PER_DAY * MINUTES_PER_HOUR
+
+
+PER_MINUTE_LIMITS = (
+    ("requests_per_minute", gettext_lazy("Requests per minute")),
+    ("input_tokens_per_minute", gettext_lazy("Input tokens per minute")),
+    ("output_tokens_per_minute", gettext_lazy("Output tokens per minute")),
+)
 
 
 @dataclasses.dataclass(frozen=True)  # frozen=True makes instances immutable
@@ -33,6 +40,19 @@ class LimitSet:
     daily_limit_multiplier: int | None = None
 
     # Add future limit fields here with default None
+
+    @property
+    def per_minute(self) -> tuple[tuple[str, int], ...]:
+        """The per-minute limits that are set, with their labels."""
+        return tuple(
+            (str(label), getattr(self, field))
+            for field, label in PER_MINUTE_LIMITS
+            if getattr(self, field) is not None
+        )
+
+    @property
+    def is_unlimited(self) -> bool:
+        return not self.per_minute
 
     @classmethod
     def from_objects(

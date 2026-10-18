@@ -33,7 +33,7 @@ html[data-theme="light"] {
   --color-error-content: var(--paper);
 
   --aq-muted: #4A6572;
-  --aq-ok: #1B7A43; --aq-warn: #8A5A00; --aq-err: #B3261E;
+  --aq-warn: #8A5A00;
   --aq-band: var(--deep); --aq-band-muted: #D0EBF7; --aq-band-link: var(--spray);
   --viz-in: #0A84C6; --viz-track: #D0EBF7;
   --tok-cached: #449FD6; --tok-new: #0A84C6; --tok-out: #07486B;
@@ -62,7 +62,7 @@ html[data-theme="dark"] {
   --color-error: #FF9A8F;
   --color-error-content: var(--abyss);
   --aq-muted: #9DB6C0;
-  --aq-ok: #7ADFA4; --aq-warn: #F2C14E; --aq-err: #FF9A8F;
+  --aq-warn: #F2C14E;
   --aq-band: #041721; --aq-band-muted: #9DB6C0; --aq-band-link: var(--spray);
   --viz-in: #6BBAE6; --viz-track: #1D4C63;
   --tok-cached: #0A84C6; --tok-new: #6BBAE6; --tok-out: #D0EBF7;
@@ -92,10 +92,13 @@ body { overflow-x: clip; }
 
 .font-mono, code, pre, kbd { font-variant-numeric: tabular-nums; }
 
-.btn:not(.btn-square):not(.btn-circle):not(.join-item) { border-radius: 9999px; }
-.join > .btn.join-item:first-child { border-start-start-radius: 9999px; border-end-start-radius: 9999px; }
-.join > .btn.join-item:last-child { border-start-end-radius: 9999px; border-end-end-radius: 9999px; }
+.btn:not(.btn-square) { --radius-field: 9999px; }
 .card { box-shadow: none; }
+[data-metric-scope]:has([name=metric][value=tokens]:checked) [data-metric=requests],
+[data-metric-scope]:has([name=metric][value=requests]:checked) [data-metric=tokens] { display: none; }
+/* daisyUI isolates a checked radio button, which lifts its border over the next button in a join. */
+.join > input.btn:checked { isolation: auto; }
+.card-title { --cardtitle-fs: 1.25rem; line-height: 1.75rem; }
 .label-mono { font: 500 12px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--color-primary); }
 .muted { color: var(--aq-muted); }
 :focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
@@ -105,7 +108,7 @@ body { overflow-x: clip; }
 a.link-plain { color: var(--color-primary); font-weight: 600; text-decoration: none; }
 a.link-plain:hover { text-decoration: underline; }
 
-.st-ok { color: var(--aq-ok); } .st-warn { color: var(--aq-warn); } .st-err { color: var(--aq-err); } .st-off { color: var(--aq-muted); }
+.st-ok { color: var(--color-success); } .st-warn { color: var(--aq-warn); } .st-err { color: var(--color-error); } .st-off { color: var(--aq-muted); }
 
 .aq-band { background: var(--aq-band); color: var(--paper); }
 .aq-band .muted { color: var(--aq-band-muted); }
@@ -134,8 +137,26 @@ a.row-link:focus-visible::after { outline: 3px solid var(--color-primary); outli
 .file-row { scroll-margin-top: 6rem; }
 .file-row:target { background: var(--aq-hover); }
 
-.model-table th, .key-table th, .resource-table th { font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--aq-muted); }
-:lang(de) :is(.model-table, .key-table, .resource-table) th { white-space: normal; }
+.data-table th { font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--aq-muted); }
+:lang(de) .data-table th { white-space: normal; }
+
+/* Column widths of the usage tables (_usage_cols.html); German headings need wider number columns. */
+.usage-table { table-layout: fixed; min-width: var(--min); }
+.usage-table col { width: var(--w); }
+.usage-table .c-name { --w: var(--name); } .usage-table .c-bar { --w: var(--bar); }
+.usage-table .c-input { --w: var(--input); } .usage-table .c-cached { --w: var(--cached); } .usage-table .c-output { --w: var(--output); }
+.usage-table .c-requests { --w: var(--requests); } .usage-table .c-median { --w: var(--median); } .usage-table .c-share { --w: var(--share); }
+@media (width < 48rem) { .usage-table .c-bar { display: none; } }
+.usage-table { --min: 560px; --name: 34%; --bar: 30%; --input: 12%; --cached: 12%; --output: 12%; --requests: 16%; --share: 14%; }
+:lang(de) .usage-table { --min: 700px; --name: 28%; --input: 16%; --cached: 11%; --output: 16%; --requests: 15%; }
+.usage-table.by-model { --min: 640px; --name: 28%; --input: 10%; --cached: 10%; --output: 10%; --requests: 13%; --median: 17%; --share: 12%; }
+:lang(de) .usage-table.by-model { --min: 760px; --name: 24%; --input: 15%; --cached: 9%; --output: 15%; --requests: 12%; --median: 15%; --share: 10%; }
+@media (width >= 48rem) {
+  .usage-table { min-width: 860px; --name: 26%; --input: 8%; --cached: 8%; --output: 8%; --requests: 10%; --share: 10%; }
+  :lang(de) .usage-table { --name: 24%; --bar: 24%; --input: 11%; --cached: 8%; --output: 11%; --requests: 11%; --share: 11%; }
+  .usage-table.by-model { --name: 22%; --bar: 26%; --input: 8%; --cached: 8%; --output: 8%; --requests: 10%; --median: 10%; --share: 8%; }
+  :lang(de) .usage-table.by-model { --name: 22%; --bar: 18%; --input: 11%; --cached: 7%; --output: 11%; --requests: 10%; --median: 13%; --share: 8%; }
+}
 .badge-deprecated { --badge-color: var(--aq-warn); }
 
 .copy-field { display: flex; align-items: center; gap: .25rem; min-width: 0; height: 2.5rem; padding: 0 .25rem 0 .75rem;
@@ -151,12 +172,12 @@ a.row-link:focus-visible::after { outline: 3px solid var(--color-primary); outli
 .tbar .n, .sw.n, .vbar .n { background: var(--tok-new); }
 .tbar .o, .sw.o, .vbar .o { background: var(--tok-out); }
 .sw.i, .vbar .i { background: var(--viz-in); }
-.sw.f, .vbar .f { background: var(--aq-err); }
+.sw.f, .vbar .f { background: var(--color-error); }
 .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
 .pbar { display: flex; gap: 2px; height: 8px; overflow: hidden; border-radius: 9999px; background: var(--viz-track); }
 .pbar > i { display: block; }
 .pbar .i { background: var(--viz-in); }
-.pbar .f { background: var(--aq-err); }
+.pbar .f { background: var(--color-error); }
 .onebar { height: 10px; border-radius: 0 4px 4px 0; background: var(--viz-in); min-width: 3px; }
 .spark { display: flex; gap: 3px; height: 28px; }
 .spark > span { position: relative; display: flex; align-items: flex-end; flex: 1; max-width: 10px; }

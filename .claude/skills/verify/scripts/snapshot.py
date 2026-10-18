@@ -133,7 +133,6 @@ def overview_pages(key_ids: list[int]) -> Iterator[tuple[str, str]]:
     for span in ("1h", "1d", "1w", "1m"):
         yield "usage", url("usage", span=span)
     yield "usage", url("usage")
-    yield "usage", url("usage", metric="requests", span="1w")
     yield "usage", url("usage", model="gpt-4.1-nano", span="1w")
     yield "usage", url("usage", heat_model="gpt-4.1-nano", span="1m")
     yield "usage", url("usage", scope="mine", span="1w")
@@ -171,7 +170,6 @@ def pages(ids: dict[str, list[int] | list[str]]) -> Iterator[tuple[str, str]]:
     yield "tokens", url("token_create")
     for key_id in ids["keys"]:
         yield "tokens", url("token_detail", key_id)
-        yield "tokens", url("token_detail", key_id, metric="requests")
     for key_id in ids["keys"][:2]:
         yield "tokens", url("token_edit", key_id)
         yield "tokens", url("token_delete", key_id)

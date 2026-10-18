@@ -18,7 +18,12 @@ from management.models import ServiceAccount, Token  # Added UserProfile
 
 # Import base views/mixins and models/forms
 # Assuming base.py is in the same directory level
-from management.views.base import BaseServiceAccountView, BaseTeamView, TeamAdminRequiredMixin
+from management.views.base import (
+    BaseServiceAccountView,
+    BaseTeamView,
+    TeamAdminRequiredMixin,
+    show_new_key,
+)
 
 User = get_user_model()
 
@@ -70,7 +75,7 @@ class ServiceAccountCreateView(BaseTeamView, TeamAdminRequiredMixin, CreateView)
         )
         secret_key = token._set_new_key()
         token.save()
-        messages.info(self.request, secret_key, extra_tags="token-regenerated-key")
+        show_new_key(self.request, secret_key)
         return redirect(self.get_success_url())
 
     def get_success_url(self) -> str:

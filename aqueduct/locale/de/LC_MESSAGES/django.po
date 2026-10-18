@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 09:23+0000\n"
+"POT-Creation-Date: 2026-10-18 19:41+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -690,15 +690,9 @@ msgstr "Token"
 msgid "Access denied"
 msgstr "Zugriff verweigert"
 
-msgid "Aqueduct AI Gateway"
-msgstr "Aqueduct AI Gateway"
-
 msgid "You don't have access. Ask your org admin."
 msgstr ""
 "Sie haben keinen Zugriff. Wenden Sie sich an die Admins Ihrer Organisation."
-
-msgid "Go to Overview"
-msgstr "Zur Übersicht"
 
 msgid "Page not found"
 msgstr "Seite nicht gefunden"
@@ -709,23 +703,11 @@ msgstr "Diese Seite gibt es nicht, oder Sie können sie nicht öffnen."
 msgid "Cancel"
 msgstr "Abbrechen"
 
-msgid "Key:"
-msgstr "Schlüssel:"
-
-msgid "My keys"
-msgstr "Meine Schlüssel"
-
-msgid "All keys"
-msgstr "Alle Schlüssel"
-
 msgid "Key name or owner email"
 msgstr "Schlüsselname oder E-Mail-Adresse"
 
 msgid "Search keys"
 msgstr "Schlüssel durchsuchen"
-
-msgid "Search"
-msgstr "Suchen"
 
 msgid "Matching keys"
 msgstr "Passende Schlüssel"
@@ -734,11 +716,14 @@ msgstr "Passende Schlüssel"
 msgid "No key matches “%(q)s”"
 msgstr "Kein Schlüssel passt zu „%(q)s“"
 
+msgid "All keys"
+msgstr "Alle Schlüssel"
+
+msgid "My keys"
+msgstr "Meine Schlüssel"
+
 msgid "Model:"
 msgstr "Modell:"
-
-msgid "All models"
-msgstr "Alle Modelle"
 
 msgid "Time frame"
 msgstr "Zeitraum"
@@ -754,6 +739,18 @@ msgstr "Hilfe"
 
 msgid "Community"
 msgstr "Community"
+
+msgid "Aqueduct"
+msgstr "Aqueduct"
+
+msgid "Menu"
+msgstr "Menü"
+
+msgid "Account"
+msgstr "Konto"
+
+msgid "Sign out"
+msgstr "Abmelden"
 
 #, python-format
 msgid "Rotate %(name)s?"
@@ -780,11 +777,17 @@ msgstr "Der bisherige Schlüssel funktioniert sofort nicht mehr."
 msgid "Edit"
 msgstr "Bearbeiten"
 
+msgid "Key:"
+msgstr "Schlüssel:"
+
 msgid "Share"
 msgstr "Anteil"
 
 msgid "No limits"
 msgstr "Keine Limits"
+
+msgid "Chart metric"
+msgstr "Kennzahl im Diagramm"
 
 #, python-format
 msgid "Available with %(keys)s."
@@ -816,6 +819,9 @@ msgstr "Verwendung"
 
 msgid "Copy example"
 msgstr "Beispiel kopieren"
+
+msgid "All models"
+msgstr "Alle Modelle"
 
 msgid "Your key is ready"
 msgstr "Ihr Schlüssel ist bereit"
@@ -854,41 +860,26 @@ msgstr "%(first)s–%(last)s von %(total)s"
 msgid "Pages"
 msgstr "Seiten"
 
-msgid "Aqueduct"
-msgstr "Aqueduct"
-
-#, python-format
-msgid "%(used)s / %(limit)s request this hour"
-msgid_plural "%(used)s / %(limit)s requests this hour"
-msgstr[0] "%(used)s / %(limit)s Anfrage in dieser Stunde"
-msgstr[1] "%(used)s / %(limit)s Anfragen in dieser Stunde"
-
-msgid "Hourly limit"
-msgstr "Stundenlimit"
-
-#, python-format
-msgid "%(used)s / %(limit)s request today"
-msgid_plural "%(used)s / %(limit)s requests today"
-msgstr[0] "%(used)s / %(limit)s Anfrage heute"
-msgstr[1] "%(used)s / %(limit)s Anfragen heute"
-
-msgid "Daily limit"
-msgstr "Tageslimit"
-
 msgid "n/a"
 msgstr "k. A."
 
+msgid "Search"
+msgstr "Suchen"
+
+msgid "Clear"
+msgstr "Zurücksetzen"
+
 msgid "Main"
 msgstr "Hauptmenü"
-
-msgid "Sign out"
-msgstr "Abmelden"
 
 msgid "Switch between light and dark"
 msgstr "Zwischen hellem und dunklem Design wechseln"
 
 msgid "Not metered in tokens"
 msgstr "Nicht in Token gemessen"
+
+msgid "Aqueduct AI Gateway"
+msgstr "Aqueduct AI Gateway"
 
 msgid "Skip to content"
 msgstr "Zum Inhalt springen"
@@ -975,9 +966,6 @@ msgstr "Team erstellen"
 msgid "New"
 msgstr "Neu"
 
-msgid "Save changes"
-msgstr "Änderungen speichern"
-
 msgid "Delete team"
 msgstr "Team löschen"
 
@@ -990,6 +978,9 @@ msgstr "<span class=\"font-mono\">%(name)s</span> bearbeiten"
 
 msgid "Save"
 msgstr "Speichern"
+
+msgid "Go to Overview"
+msgstr "Zur Übersicht"
 
 msgid "File"
 msgstr "Datei"
@@ -1029,11 +1020,8 @@ msgstr ""
 "Laden Sie Dateien über die <a class=\"link\" href=\"%(docs)s\">Files API</a> "
 "hoch."
 
-msgid "Menu"
-msgstr "Menü"
-
-msgid "Account"
-msgstr "Konto"
+msgid "Save changes"
+msgstr "Änderungen speichern"
 
 msgid "Sign in"
 msgstr "Anmelden"
@@ -1190,12 +1178,6 @@ msgstr "Kein Team passt."
 msgid "This organization has no teams yet."
 msgstr "Diese Organisation hat noch keine Teams."
 
-msgid "Organizations"
-msgstr "Organisationen"
-
-msgid "No organizations yet."
-msgstr "Noch keine Organisationen."
-
 #, python-format
 msgid "%(teams)s team"
 msgid_plural "%(teams)s teams"
@@ -1240,6 +1222,12 @@ msgstr "Alle in %(name)s"
 msgid "None"
 msgstr "Keine"
 
+msgid "Organizations"
+msgstr "Organisationen"
+
+msgid "No organizations yet."
+msgstr "Noch keine Organisationen."
+
 msgid "Data protection information"
 msgstr "Datenschutzinformation"
 
@@ -1271,9 +1259,6 @@ msgstr "Anfragen durchsuchen"
 
 msgid "Request ID"
 msgstr "Anfrage-ID"
-
-msgid "Clear"
-msgstr "Zurücksetzen"
 
 msgid "Narrow to 7 days or pick a key or model to search text."
 msgstr ""
@@ -1338,10 +1323,6 @@ msgstr "Ausgabegeschwindigkeit"
 
 msgid "No request matches these filters."
 msgstr "Keine Anfrage passt zu diesen Filtern."
-
-#, python-format
-msgid "No requests %(span)s."
-msgstr "Keine Anfragen %(span)s."
 
 #, python-format
 msgid "%(start)s–%(end)s of %(total)s"
@@ -1529,8 +1510,8 @@ msgid "Unavailable to service accounts"
 msgstr "Für Dienstkonten nicht verfügbar"
 
 #, python-format
-msgid "Created: %(date)s"
-msgstr "Erstellt: %(date)s"
+msgid "Created %(date)s"
+msgstr "Erstellt am %(date)s"
 
 #, python-format
 msgid "Last used: %(time)s"
@@ -1544,9 +1525,6 @@ msgstr "Token pro Tag"
 
 msgid "Requests per day"
 msgstr "Anfragen pro Tag"
-
-msgid "Chart metric"
-msgstr "Kennzahl im Diagramm"
 
 msgid "No requests in the last 7 days."
 msgstr "Keine Anfragen in den letzten 7 Tagen."
@@ -1727,12 +1705,11 @@ msgstr "Kein Schlüssel, der zu „%(q)s“ passt, hat Anfragen in diesem Zeitra
 msgid "Not found"
 msgstr "Nicht gefunden"
 
+msgid "Vector store not found"
+msgstr "Vektorspeicher nicht gefunden"
+
 msgid "Copy vector store ID"
 msgstr "Vektorspeicher-ID kopieren"
-
-#, python-format
-msgid "Created %(date)s"
-msgstr "Erstellt am %(date)s"
 
 #, python-format
 msgid "Last active %(date)s"
@@ -1762,9 +1739,6 @@ msgid "%(count)s in progress"
 msgid_plural "%(count)s in progress"
 msgstr[0] "%(count)s in Bearbeitung"
 msgstr[1] "%(count)s in Bearbeitung"
-
-msgid "Vector store not found"
-msgstr "Vektorspeicher nicht gefunden"
 
 msgid "It doesn't exist or you don't have access."
 msgstr "Er existiert nicht, oder Sie haben keinen Zugriff."
@@ -1889,26 +1863,20 @@ msgstr "Anfragen pro Stunde"
 msgid "1 hour"
 msgstr "1 Stunde"
 
-msgid "in the last hour"
-msgstr "in der letzten Stunde"
+msgid "No requests in the last hour."
+msgstr "Keine Anfragen in der letzten Stunde."
 
 msgid "24 hours"
 msgstr "24 Stunden"
 
-msgid "in the last 24 hours"
-msgstr "in den letzten 24 Stunden"
+msgid "No requests in the last 24 hours."
+msgstr "Keine Anfragen in den letzten 24 Stunden."
 
 msgid "7 days"
 msgstr "7 Tage"
 
-msgid "in the last 7 days"
-msgstr "in den letzten 7 Tagen"
-
 msgid "30 days"
 msgstr "30 Tage"
-
-msgid "in the last 30 days"
-msgstr "in den letzten 30 Tagen"
 
 msgid "Rate-limited"
 msgstr "Limit erreicht"
@@ -2104,6 +2072,24 @@ msgstr "%(email)s entfernt."
 
 msgid "Nothing to change."
 msgstr "Nichts zu ändern."
+
+msgid "Hourly limit"
+msgstr "Stundenlimit"
+
+#, python-format
+msgid "%(used)s / %(limit)s request this hour"
+msgid_plural "%(used)s / %(limit)s requests this hour"
+msgstr[0] "%(used)s / %(limit)s Anfrage in dieser Stunde"
+msgstr[1] "%(used)s / %(limit)s Anfragen in dieser Stunde"
+
+msgid "Daily limit"
+msgstr "Tageslimit"
+
+#, python-format
+msgid "%(used)s / %(limit)s request today"
+msgid_plural "%(used)s / %(limit)s requests today"
+msgstr[0] "%(used)s / %(limit)s Anfrage heute"
+msgstr[1] "%(used)s / %(limit)s Anfragen heute"
 
 msgid "New API key"
 msgstr "Neuer API-Schlüssel"

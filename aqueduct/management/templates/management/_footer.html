@@ -6,8 +6,7 @@
                 <p class="label-mono">{% translate "Gateway" %}</p>
                 <div class="flex items-center gap-2">
                     <span class="font-mono text-sm break-all">{{ shell.gateway_url }}</span>
-                    <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ shell.gateway_url }}"
-                            aria-label="{% translate 'Copy gateway URL' %}" title="{% translate 'Copy gateway URL' %}">{% icon "copy" small=True %}</button>
+                    {% copy_button shell.gateway_url _("Copy gateway URL") %}
                 </div>
             </div>
         {% endif %}

@@ -1,85 +1,73 @@
 {% extends "management/base.html" %}
 {% load i18n l10n ui %}
 
-{% block page_background %}{% endblock %}
-
-{% block content %}
-<div class="flex flex-col gap-6">
-    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
-        <div class="flex flex-col gap-1">
-            <h1 class="text-3xl font-semibold">{% translate "Teams" %}</h1>
-            <span class="muted text-sm">{% if all_orgs %}{% translate "All organizations" %}{% else %}{{ org_object.name }}{% endif %}</span>
-        </div>
-        {% if is_org_admin %}
-            <a class="btn btn-primary" href="{% url 'team_create' %}">{% icon "plus" small=True %}{% translate "Create team" %}</a>
-        {% endif %}
-    </header>
-
-    {% if in_no_team %}
-        <section class="card bg-base-200">
-            <div class="card-body p-5">
-                <p>{% translate "You're not in a team. Ask your org admin to add you." %}</p>
-            </div>
-        </section>
-    {% else %}
-        <form method="get" role="search">
-            <label class="input input-sm w-full sm:w-64">
-                {% icon "search" small=True %}
-                <input type="search" name="q" value="{{ query }}" placeholder="{% translate "Search teams" %}" aria-label="{% translate "Search teams" %}">
-            </label>
-        </form>
-
-        <section class="card bg-base-200">
-            <div class="card-body p-3">
-                <table class="table key-table lg:table-fixed max-lg:block">
-                    <colgroup>
-                        <col>{% if all_orgs %}<col class="w-40">{% elif not is_org_admin %}<col class="w-28">{% endif %}<col class="w-24"><col class="w-36"><col class="w-32"><col class="w-48"><col class="w-14">
-                    </colgroup>
-                    <thead class="max-lg:hidden">
-                        <tr>
-                            <th>{% translate "Team" %}</th>
-                            {% if all_orgs %}<th>{% translate "Organization" %}</th>{% elif not is_org_admin %}<th>{% translate "Your role" %}</th>{% endif %}
-                            <th class="text-right">{% translate "Members" %}</th>
-                            <th class="text-right">{% translate "Service accounts" %}</th>
-                            <th class="text-right">{% translate "Requests/min" %}</th>
-                            <th class="whitespace-normal" colspan="2"><span class="tooltip">{% translate "Service account tokens, 7 days" %}<span class="tooltip-content font-sans text-sm font-normal normal-case tracking-normal"><span class="sr-only">. </span>{% translate "Members' personal keys don't count." %}</span></span></th>
-                        </tr>
-                    </thead>
-                    <tbody class="max-lg:block">
-                        {% for row in teams.rows %}
-                            <tr class="max-lg:flex max-lg:items-center">
-                                <td class="min-w-0 max-lg:flex-1">
-                                    <div class="flex items-center gap-2">
-                                        <a class="link-plain row-link truncate" href="{% url 'team' row.team.id %}">{{ row.team.name }}</a>
-                                        {% if row.is_team_admin %}<span class="badge badge-sm whitespace-nowrap bg-base-100 shrink-0 lg:hidden">{% translate "Team admin" %}</span>{% endif %}
-                                    </div>
-                                    {% if row.team.description %}<div class="muted truncate text-xs max-lg:hidden" title="{{ row.team.description }}">{{ row.team.description }}</div>{% endif %}
-                                    <div class="muted text-sm lg:hidden">{% if all_orgs %}{{ row.team.org.name }} · {% endif %}{% blocktranslate count n=row.members %}{{ n }} member{% plural %}{{ n }} members{% endblocktranslate %} · {% blocktranslate count n=row.service_accounts %}{{ n }} service account{% plural %}{{ n }} service accounts{% endblocktranslate %} · {% blocktranslate with tokens=row.activity.tokens_short count n=row.activity.tokens %}{{ tokens }} token{% plural %}{{ tokens }} tokens{% endblocktranslate %}</div>
-                                </td>
-                                {% if all_orgs %}<td class="truncate max-lg:hidden">{{ row.team.org.name }}</td>{% elif not is_org_admin %}<td class="max-lg:hidden">{% if row.is_team_admin %}<span class="badge badge-sm whitespace-nowrap bg-base-100">{% translate "Team admin" %}</span>{% endif %}</td>{% endif %}
-                                <td class="text-right font-mono max-lg:hidden">{{ row.members }}</td>
-                                <td class="text-right font-mono max-lg:hidden">{{ row.service_accounts }}</td>
-                                <td class="text-right max-lg:hidden">{% if row.limit is None %}{% translate "No limit" %}{% else %}<span class="font-mono">{{ row.limit|grouped }}</span>{% endif %}</td>
-                                <td class="max-lg:hidden">
-                                    <div class="flex items-center gap-3">
-                                        <div class="min-w-0 flex-1">
-                                            {% if row.activity.tokens %}<div class="onebar" style="width: {{ row.bar_width|unlocalize }}%"></div>{% endif %}
-                                        </div>
-                                        <span class="w-14 text-right font-mono de:w-22">{{ row.activity.tokens_short }}</span>
-                                    </div>
-                                </td>
-                                <td class="max-lg:px-1">
-                                    {% blocktranslate with name=row.team.name asvar open_label %}Open {{ name }}{% endblocktranslate %}<a class="btn btn-ghost btn-sm btn-square relative z-10" href="{% url 'team' row.team.id %}" aria-label="{{ open_label }}">{% icon "chevron" small=True %}</a>
-                                </td>
-                            </tr>
-                        {% empty %}
-                            <tr class="max-lg:block"><td colspan="7" class="muted max-lg:block">{% if query %}{% translate "No team matches." %}{% else %}{% translate "This organization has no teams yet." %}{% endif %}</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% include "management/_pager.html" with pages=teams.pages %}
-            </div>
-        </section>
+{% block heading %}{% translate "Teams" %}{% endblock %}
+{% block subheading %}<span class="muted -mt-1 text-sm">{% if all_orgs %}{% translate "All organizations" %}{% else %}{{ org_object.name }}{% endif %}</span>{% endblock %}
+{% block actions %}
+    {% if is_org_admin %}
+        <a class="btn btn-primary" href="{% url 'team_create' %}">{% icon "plus" small=True %}{% translate "Create team" %}</a>
     {% endif %}
-</div>
+{% endblock %}
+{% block body %}
+{% if in_no_team %}
+    <section class="card bg-base-200">
+        <div class="card-body p-5">
+            <p>{% translate "You're not in a team. Ask your org admin to add you." %}</p>
+        </div>
+    </section>
+{% else %}
+    {% include "management/_search.html" with name="q" value=query placeholder=_("Search teams") width="w-full sm:w-64" %}
+
+    <section class="card bg-base-200">
+        <div class="card-body p-3">
+            <table class="table data-table lg:table-fixed max-lg:block">
+                <colgroup>
+                    <col>{% if all_orgs %}<col class="w-40">{% elif not is_org_admin %}<col class="w-28">{% endif %}<col class="w-24"><col class="w-36"><col class="w-32"><col class="w-48"><col class="w-14">
+                </colgroup>
+                <thead class="max-lg:hidden">
+                    <tr>
+                        <th>{% translate "Team" %}</th>
+                        {% if all_orgs %}<th>{% translate "Organization" %}</th>{% elif not is_org_admin %}<th>{% translate "Your role" %}</th>{% endif %}
+                        <th class="text-right">{% translate "Members" %}</th>
+                        <th class="text-right">{% translate "Service accounts" %}</th>
+                        <th class="text-right">{% translate "Requests/min" %}</th>
+                        <th class="whitespace-normal" colspan="2"><span class="tooltip">{% translate "Service account tokens, 7 days" %}<span class="tooltip-content font-sans text-sm font-normal normal-case tracking-normal"><span class="sr-only">. </span>{% translate "Members' personal keys don't count." %}</span></span></th>
+                    </tr>
+                </thead>
+                <tbody class="max-lg:block">
+                    {% for row in teams.rows %}
+                        <tr class="max-lg:flex max-lg:items-center">
+                            <td class="min-w-0 max-lg:flex-1">
+                                <div class="flex items-center gap-2">
+                                    <a class="link-plain row-link truncate" href="{% url 'team' row.team.id %}">{{ row.team.name }}</a>
+                                    {% if row.is_team_admin %}<span class="badge badge-sm whitespace-nowrap bg-base-100 shrink-0 lg:hidden">{% translate "Team admin" %}</span>{% endif %}
+                                </div>
+                                {% if row.team.description %}<div class="muted truncate text-xs max-lg:hidden" title="{{ row.team.description }}">{{ row.team.description }}</div>{% endif %}
+                                <div class="muted text-sm lg:hidden">{% if all_orgs %}{{ row.team.org.name }} · {% endif %}{% blocktranslate count n=row.members %}{{ n }} member{% plural %}{{ n }} members{% endblocktranslate %} · {% blocktranslate count n=row.service_accounts %}{{ n }} service account{% plural %}{{ n }} service accounts{% endblocktranslate %} · {% blocktranslate with tokens=row.activity.tokens_short count n=row.activity.tokens %}{{ tokens }} token{% plural %}{{ tokens }} tokens{% endblocktranslate %}</div>
+                            </td>
+                            {% if all_orgs %}<td class="truncate max-lg:hidden">{{ row.team.org.name }}</td>{% elif not is_org_admin %}<td class="max-lg:hidden">{% if row.is_team_admin %}<span class="badge badge-sm whitespace-nowrap bg-base-100">{% translate "Team admin" %}</span>{% endif %}</td>{% endif %}
+                            <td class="text-right font-mono max-lg:hidden">{{ row.members }}</td>
+                            <td class="text-right font-mono max-lg:hidden">{{ row.service_accounts }}</td>
+                            <td class="text-right max-lg:hidden">{% if row.limit is None %}{% translate "No limit" %}{% else %}<span class="font-mono">{{ row.limit|grouped }}</span>{% endif %}</td>
+                            <td class="max-lg:hidden">
+                                <div class="flex items-center gap-3">
+                                    <div class="min-w-0 flex-1">
+                                        {% if row.activity.tokens %}<div class="onebar" style="width: {{ row.bar_width|unlocalize }}%"></div>{% endif %}
+                                    </div>
+                                    <span class="w-14 text-right font-mono de:w-22">{{ row.activity.tokens_short }}</span>
+                                </div>
+                            </td>
+                            <td class="max-lg:px-1">
+                                {% blocktranslate with name=row.team.name asvar open_label %}Open {{ name }}{% endblocktranslate %}<a class="btn btn-ghost btn-sm btn-square relative z-10" href="{% url 'team' row.team.id %}" aria-label="{{ open_label }}">{% icon "chevron" small=True %}</a>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr class="max-lg:block"><td colspan="{% if all_orgs or not is_org_admin %}7{% else %}6{% endif %}" class="muted max-lg:block">{% if query %}{% translate "No team matches." %}{% else %}{% translate "This organization has no teams yet." %}{% endif %}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% include "management/_pager.html" with pages=teams.pages %}
+        </div>
+    </section>
+{% endif %}
 {% endblock %}

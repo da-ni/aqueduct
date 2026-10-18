@@ -1,3 +1,5 @@
+import dataclasses
+from collections.abc import Mapping
 from typing import ClassVar
 
 from django import forms
@@ -5,13 +7,14 @@ from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import QuerySet
-from django.http import HttpResponse
+from django.http import HttpResponse, QueryDict
 from django.shortcuts import get_object_or_404, redirect
+from django.template.defaultfilters import floatformat
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.http import urlencode
-from django.utils.translation import gettext
+from django.utils.translation import gettext, gettext_lazy, ngettext_lazy
 from django.views import View
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DeleteView, DetailView, TemplateView, UpdateView
@@ -29,10 +32,10 @@ from management.key_activity import (
     key_report,
     personal_tokens,
 )
-from management.models import Token
+from management.models import LimitSet, Token
 from management.ownership import RELATED, is_personal_of, of_teams, org_id, team_of
 from management.request_log import Key, Row
-from management.views.base import ONLY_TEAM_ADMINS, BaseAqueductView
+from management.views.base import ONLY_TEAM_ADMINS, BaseAqueductView, show_new_key
 
 
 class UserTokensView(BaseAqueductView, TemplateView):
@@ -55,6 +58,70 @@ class UserTokensView(BaseAqueductView, TemplateView):
         return context
 
 
+REQUEST_WINDOWS = {
+    "hour": (
+        gettext_lazy("Hourly limit"),
+        ngettext_lazy(
+            "%(used)s / %(limit)s request this hour",
+            "%(used)s / %(limit)s requests this hour",
+            "limit",
+        ),
+    ),
+    "day": (
+        gettext_lazy("Daily limit"),
+        ngettext_lazy(
+            "%(used)s / %(limit)s request today", "%(used)s / %(limit)s requests today", "limit"
+        ),
+    ),
+}
+
+
+FULL_PERCENT = 100
+NEARLY_FULL_PERCENT = 80
+
+
+@dataclasses.dataclass(frozen=True)
+class RateWindow:
+    """Requests a key used in one window, against that window's request limit."""
+
+    label: str
+    title: str
+    used: str
+    limit: int | None
+    percent: int
+
+    @property
+    def tone(self) -> str:
+        if self.percent >= FULL_PERCENT:
+            return "progress-error"
+        return "progress-warning" if self.percent >= NEARLY_FULL_PERCENT else "progress-primary"
+
+
+def rate_windows(
+    limits: LimitSet, usage: Mapping[str, Mapping[str, float]]
+) -> tuple[RateWindow, ...]:
+    """Request use against the hourly and daily request limits; none without a request limit.
+
+    `usage` is a key's entry from `gateway.rate_limiting.get_per_token_usage`.
+    """
+    if limits.requests_per_minute is None:
+        return ()
+    found = []
+    for name, _seconds, requests, _input, _output in limits.windows():
+        if name not in REQUEST_WINDOWS:
+            continue
+        label, title = REQUEST_WINDOWS[name]
+        used = usage[name]["req"]
+        shown = floatformat(used, "0")
+        percent = min(FULL_PERCENT, round(used * 100 / requests)) if requests else 0
+        found.append(
+            RateWindow(
+                str(label), title % {"used": shown, "limit": requests}, shown, requests, percent
+            )
+        )
+    return tuple(found)
+
+
 class TokenDetailView(BaseAqueductView, DetailView):
     model = Token
     template_name = "management/token_detail.html"
@@ -71,7 +138,7 @@ class TokenDetailView(BaseAqueductView, DetailView):
         report = key_report(token, now)
         team = team_of(token)
         own = is_personal_of(token, self.request.user.id)
-        metric = "requests" if self.request.GET.get("metric") == "requests" else "tokens"
+        limits = token.get_limit()
         log_query: dict[str, object] = {"key": token.id, "span": "1m"}
         if self.profile.is_admin() and self.viewed_org is not None:
             key_org = org_id(token)
@@ -80,12 +147,11 @@ class TokenDetailView(BaseAqueductView, DetailView):
         context.update(
             report=report,
             latest=tuple(Row(request, Key(token, None, ""), False) for request in report.latest),
-            metric=metric,
-            log_query=urlencode(log_query),
+            log_query=QueryDict(urlencode(log_query)),
             charts=tuple((shown, report.chart(shown)) for shown in ("tokens", "requests")),
             expiry=Expiry.of(token.expires_at, now),
-            limits=token.get_limit(),
-            usage=get_per_token_usage([token.id])[token.id],
+            limits=limits,
+            rate_windows=rate_windows(limits, get_per_token_usage([token.id])[token.id]),
             models=Reach.of(model_names(), token.model_exclusion_list()),
             mcp_servers=Reach.of(configured_mcp_servers(), token.mcp_server_exclusion_list()),
             team=team,
@@ -124,7 +190,7 @@ class TokenCreateView(BaseAqueductView, CreateView):
         # This will trigger clean() with the user assigned
         self.object.save()
 
-        messages.info(self.request, f"{secret_key}", extra_tags="token-regenerated-key")
+        show_new_key(self.request, secret_key)
 
         return redirect(self.get_success_url())
 
@@ -203,6 +269,6 @@ class TokenRegenerateView(BaseAqueductView, View):
             messages.error(request, ONLY_TEAM_ADMINS)
             return redirect(back)
         new_key = token.regenerate_key()
-        messages.info(request, new_key, extra_tags="token-regenerated-key")
+        show_new_key(request, new_key)
         returns = (reverse("token_detail", kwargs={"id": token.id}), reverse("tokens"))
         return redirect(request.POST["next"] if request.POST.get("next") in returns else back)

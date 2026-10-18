@@ -1,17 +1,11 @@
 {% load i18n ui %}
-{% if limits.requests_per_minute is None and limits.input_tokens_per_minute is None and limits.output_tokens_per_minute is None %}
+{% if limits.is_unlimited %}
     <p class="muted text-sm">{% translate "No limits" %}</p>
 {% else %}
     <dl class="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
-        {% if limits.requests_per_minute is not None %}
-            <div class="flex flex-wrap items-baseline gap-x-2"><dt class="muted whitespace-nowrap">{% translate "Requests per minute" %}</dt><dd><span class="font-mono font-semibold">{{ limits.requests_per_minute|grouped }}</span></dd></div>
-        {% endif %}
-        {% if limits.input_tokens_per_minute is not None %}
-            <div class="flex flex-wrap items-baseline gap-x-2"><dt class="muted whitespace-nowrap">{% translate "Input tokens per minute" %}</dt><dd><span class="font-mono font-semibold">{{ limits.input_tokens_per_minute|grouped }}</span></dd></div>
-        {% endif %}
-        {% if limits.output_tokens_per_minute is not None %}
-            <div class="flex flex-wrap items-baseline gap-x-2"><dt class="muted whitespace-nowrap">{% translate "Output tokens per minute" %}</dt><dd><span class="font-mono font-semibold">{{ limits.output_tokens_per_minute|grouped }}</span></dd></div>
-        {% endif %}
+        {% for label, value in limits.per_minute %}
+            {% include "management/_figure.html" with value=value|grouped %}
+        {% endfor %}
     </dl>
     {% if note %}<p class="muted text-sm">{{ note }}</p>{% endif %}
 {% endif %}

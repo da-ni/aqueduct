@@ -247,15 +247,6 @@ class TeamDetailView(BaseTeamView, DetailView):
             timezone.now(),
         )
         max_service_accounts = getattr(settings, "MAX_SERVICE_ACCOUNTS_PER_TEAM", 10)
-        limits = page.limits
-        has_limits = any(
-            value is not None
-            for value in (
-                limits.requests_per_minute,
-                limits.input_tokens_per_minute,
-                limits.output_tokens_per_minute,
-            )
-        )
         context.setdefault("add_form", self.add_member_form())
         context.update(
             page=page,
@@ -263,7 +254,7 @@ class TeamDetailView(BaseTeamView, DetailView):
             is_team_admin=self.profile.is_team_admin(team),
             can_manage_admins=can_manage_admins,
             is_org_admin=can_manage_admins,
-            shows_limits=can_manage_admins or has_limits,
+            shows_limits=can_manage_admins or not page.limits.is_unlimited,
             max_service_accounts=max_service_accounts,
             can_add_service_account=len(page.service_accounts) < max_service_accounts,
         )

@@ -1,13 +1,1 @@
-{% extends "management/base.html" %}
-{% load i18n %}
-
-{% block title %}{% translate "Access denied" %} · {% translate "Aqueduct AI Gateway" %}{% endblock %}
-
-{% block content %}
-<div class="flex max-w-2xl flex-col gap-4">
-    <p class="label-mono">403</p>
-    <h1 class="text-3xl font-semibold">{% translate "Access denied" %}</h1>
-    <p>{% translate "You don't have access. Ask your org admin." %}</p>
-    <div><a class="btn btn-primary" href="{% url 'usage' %}">{% translate "Go to Overview" %}</a></div>
-</div>
-{% endblock %}
+{% include "management/error.html" with code=403 heading=_("Access denied") message=_("You don't have access. Ask your org admin.") %}

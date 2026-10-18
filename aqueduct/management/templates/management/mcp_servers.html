@@ -1,68 +1,59 @@
 {% extends "management/base.html" %}
 {% load i18n ui %}
 
-{% block page_background %}{% endblock %}
+{% block heading %}{% translate "MCP servers" %}{% endblock %}
+{% block body %}
+{% if error %}
+    <div role="alert" class="alert alert-error">
+        {% icon "warning" small=True %}
+        <span>{% blocktranslate %}Error loading MCP servers: {{ error }}{% endblocktranslate %}</span>
+    </div>
+{% endif %}
 
-{% block content %}
-<div class="flex flex-col gap-6">
-    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
-        <h1 class="text-3xl font-semibold">{% translate "MCP servers" %}</h1>
-    </header>
-
-    {% if error %}
-        <div role="alert" class="alert alert-error">
-            {% icon "warning" small=True %}
-            <span>{% blocktranslate %}Error loading MCP servers: {{ error }}{% endblocktranslate %}</span>
-        </div>
-    {% endif %}
-
-    {% if servers %}
-        <section class="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {% for server in servers %}
-                <article class="card bg-base-200">
-                    <div class="card-body gap-4 p-5">
-                        <div class="flex items-start gap-4">
-                            {% if server.icon_url %}
-                                <img src="{{ server.icon_url }}" alt="" class="h-11 w-11 flex-none rounded-xl bg-base-100 object-contain p-2">
-                            {% else %}
-                                <span class="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-base-100 font-mono text-lg font-semibold text-primary" aria-hidden="true">{{ server.initial }}</span>
-                            {% endif %}
-                            <div class="flex min-w-0 flex-1 flex-col gap-1">
-                                <h2 class="break-all text-xl font-semibold">{{ server.name }}</h2>
-                                {% if server.description %}<p class="muted text-sm">{{ server.description }}</p>{% endif %}
-                                {% if server.available_with %}<p class="muted text-sm">{% blocktranslate with keys=server.available_with %}Available with {{ keys }}.{% endblocktranslate %}</p>{% endif %}
-                            </div>
-                        </div>
-                        <div class="copy-field mt-auto">
-                            <span title="{{ server.url }}">{{ server.url }}</span>
-                            <button type="button" class="btn btn-ghost btn-sm btn-square" data-copy="{{ server.url }}"
-                                    aria-label="{% blocktranslate with name=server.name %}Copy {{ name }} URL{% endblocktranslate %}" title="{% translate 'Copy server URL' %}">{% icon "copy" small=True %}</button>
+{% if servers %}
+    <section class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {% for server in servers %}
+            <article class="card bg-base-200">
+                <div class="card-body gap-4 p-5">
+                    <div class="flex items-start gap-4">
+                        {% if server.icon_url %}
+                            <img src="{{ server.icon_url }}" alt="" class="h-11 w-11 flex-none rounded-xl bg-base-100 object-contain p-2">
+                        {% else %}
+                            <span class="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-base-100 font-mono text-lg font-semibold text-primary" aria-hidden="true">{{ server.initial }}</span>
+                        {% endif %}
+                        <div class="flex min-w-0 flex-1 flex-col gap-1">
+                            <h2 class="card-title break-all">{{ server.name }}</h2>
+                            {% if server.description %}<p class="muted text-sm">{{ server.description }}</p>{% endif %}
+                            {% if server.available_with %}<p class="muted text-sm">{% blocktranslate with keys=server.available_with %}Available with {{ keys }}.{% endblocktranslate %}</p>{% endif %}
                         </div>
                     </div>
-                </article>
-            {% endfor %}
-        </section>
+                    <div class="copy-field mt-auto">
+                        <span title="{{ server.url }}">{{ server.url }}</span>
+                        {% blocktranslate with name=server.name asvar copy_label %}Copy {{ name }} URL{% endblocktranslate %}{% copy_button server.url copy_label _("Copy server URL") size="sm" %}
+                    </div>
+                </div>
+            </article>
+        {% endfor %}
+    </section>
 
-        <section class="card bg-base-200">
-            <div class="card-body grid grid-cols-1 gap-6 p-5 lg:grid-cols-3">
-                <div class="flex flex-col gap-2">
-                    <h2 class="text-xl font-semibold">{% translate "Connect a client" %}</h2>
-                    {% url 'tokens' as tokens_url %}
-                    <p class="muted text-sm">{% blocktranslate %}Paste into your MCP client's config and replace <code class="font-mono">sk-...</code> with your <a class="link-plain" href="{{ tokens_url }}">API key</a>.{% endblocktranslate %}</p>
-                </div>
-                <div class="relative lg:col-span-2">
-                    <pre class="h-full overflow-x-auto rounded-lg bg-base-100 p-4 pr-12 font-mono text-xs leading-relaxed">{{ client_config }}</pre>
-                    <button type="button" class="btn btn-ghost btn-sm btn-square absolute right-2 top-2" data-copy="{{ client_config }}"
-                            aria-label="{% translate 'Copy configuration' %}" title="{% translate 'Copy configuration' %}">{% icon "copy" small=True %}</button>
-                </div>
+    <section class="card bg-base-200">
+        <div class="card-body grid grid-cols-1 gap-6 p-5 lg:grid-cols-3">
+            <div class="flex flex-col gap-2">
+                <h2 class="card-title">{% translate "Connect a client" %}</h2>
+                {% url 'tokens' as tokens_url %}
+                <p class="muted text-sm">{% blocktranslate %}Paste into your MCP client's config and replace <code class="font-mono">sk-...</code> with your <a class="link-plain" href="{{ tokens_url }}">API key</a>.{% endblocktranslate %}</p>
             </div>
-        </section>
-    {% elif not error %}
-        <div class="card bg-base-200">
-            <div class="card-body">
-                <p class="muted">{% translate "No MCP servers are available to you." %}</p>
+            <div class="relative lg:col-span-2">
+                <pre class="h-full overflow-x-auto rounded-lg bg-base-100 p-4 pr-12 font-mono text-xs leading-relaxed">{{ client_config }}</pre>
+                {% copy_button client_config _("Copy configuration") size="sm" extra_class="absolute right-2 top-2" %}
             </div>
         </div>
-    {% endif %}
-</div>
+    </section>
+{% elif not error %}
+    <div class="card bg-base-200">
+        <div class="card-body">
+            <p class="muted">{% translate "No MCP servers are available to you." %}</p>
+        </div>
+    </div>
+{% endif %}
 {% endblock %}

@@ -3,8 +3,6 @@
 
 {% block title %}{{ confirmation.title }} · {{ block.super }}{% endblock %}
 
-{% block page_background %}{% endblock %}
-
 {% block content %}
 <form method="post" class="card max-w-md bg-base-200">
     {% csrf_token %}
