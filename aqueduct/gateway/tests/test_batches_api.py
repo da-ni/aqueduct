@@ -1,12 +1,16 @@
 import json
+import tempfile
+from pathlib import Path
 
+import yaml
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.urls import reverse
 
 from gateway.tests.utils import _build_chat_headers, _build_chat_payload
-from gateway.tests.utils.base import GatewayBatchesTestCase
+from gateway.tests.utils.base import ROUTER_CONFIG, GatewayBatchesTestCase
 from management.models import Batch as BatchModel
 from management.models import BatchStatus, FileObject, Org, ServiceAccount, Team, Token, UserProfile
 from mock_api.mock_configs import MockConfig, MockPlainTextConfig, batch_detail_response
@@ -807,6 +811,11 @@ class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
         )
         self.assertFalse(FileObject.objects.exists())
 
+    def test_upload_whose_model_is_not_a_string_is_rejected(self):
+        resp = self._upload_batch_file([])
+
+        self._assert_upload_rejected(resp, "[]")
+
     def test_model_unavailable_to_the_personal_key_profile_rejects_upload(self):
         UserProfile.objects.get(user_id=1).add_excluded_model(self.model)
 
@@ -839,7 +848,10 @@ class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
             "body": {"model": self.model},
         }
         exclude()
-        stored = MockPlainTextConfig(response_data=json.dumps(line) + "\n")
+        return self._create_batch(file_id, json.dumps(line) + "\n")
+
+    def _create_batch(self, file_id: str, stored_content: str):
+        stored = MockPlainTextConfig(response_data=stored_content)
         with self.mock_server.patch_external_api(f"files/{file_id}/content", stored):
             return self.client.post(
                 "/batches",
@@ -890,6 +902,42 @@ class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
             "Batch file validation failed: Line 1 is not a JSON object",
         )
         self.assertFalse(BatchModel.objects.exists())
+
+    def test_batch_from_a_file_whose_model_is_not_a_string_is_rejected(self):
+        file_id = self._upload_batch_file(self.model).json()["id"]
+        line = {"custom_id": "1", "method": "POST", "url": self.url_chat, "body": {"model": []}}
+
+        resp = self._create_batch(file_id, json.dumps(line) + "\n")
+
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertEqual(
+            resp.json()["error"]["message"],
+            "Batch file validation failed: Unknown model '[]' for custom_id '1'",
+        )
+        self.assertFalse(BatchModel.objects.exists())
+
+    def test_batch_starts_beside_a_deployment_with_its_own_provider(self):
+        router_config = yaml.safe_load(ROUTER_CONFIG)
+        router_config["model_list"].append(
+            {
+                "model_name": "local-vllm",
+                "litellm_params": {
+                    "model": "served-model",
+                    "custom_llm_provider": "hosted_vllm",
+                    "api_base": "http://localhost:1/v1",
+                },
+                "model_info": {"id": "local-vllm"},
+            }
+        )
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
+            yaml.safe_dump(router_config, f)
+        self.addCleanup(Path(f.name).unlink)
+
+        with override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=f.name):
+            resp = self._create_batch_after_making_unavailable(lambda: None)
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertTrue(BatchModel.objects.exists())
 
     def test_batch_from_a_file_whose_model_is_still_available_starts(self):
         resp = self._create_batch_after_making_unavailable(
