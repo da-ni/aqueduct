@@ -19,6 +19,7 @@ from typing import Any
 from celery.schedules import crontab
 from django.core.exceptions import ImproperlyConfigured
 from django.urls import reverse_lazy
+from django.utils.translation import gettext_noop
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -154,9 +155,13 @@ ADMIN_SUPERUSER_EMAILS = [
     e.strip().lower() for e in os.getenv("ADMIN_SUPERUSER_EMAILS", "").split(",") if e.strip()
 ]
 
+# Footer help links, label to URL. The footer translates a label that the German catalog holds,
+# such as these two; any other label shows as written here.
 EXTRA_NAV_LINKS = {
-    "Report a bug": "https://github.com/TU-Wien-dataLAB/aqueduct/issues/new?template=bug_report.md",
-    "Documentation": "https://tu-wien-datalab.github.io/aqueduct/",
+    gettext_noop("Report a bug"): (
+        "https://github.com/TU-Wien-dataLAB/aqueduct/issues/new?template=bug_report.md"
+    ),
+    gettext_noop("Documentation"): "https://tu-wien-datalab.github.io/aqueduct/",
 }
 # Icon links at the bottom of every page; set a variable to an empty value to hide its link.
 # TODO: replace the placeholder with the real support room.

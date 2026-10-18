@@ -4,12 +4,18 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 00:30+0000\n"
+"POT-Creation-Date: 2026-10-18 01:15+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Report a bug"
+msgstr "Fehler melden"
+
+msgid "Documentation"
+msgstr "Dokumentation"
 
 msgid "Also apply the organization's unavailable models"
 msgstr "Auch die nicht verfügbaren Modelle der Organisation übernehmen"
@@ -298,6 +304,108 @@ msgstr "Cache-Treffer"
 msgid "Requests"
 msgstr "Anfragen"
 
+msgid "Context length"
+msgstr "Kontextlänge"
+
+msgid "Chat"
+msgstr "Chat"
+
+msgid "Embeddings"
+msgstr "Embeddings"
+
+msgid "Audio"
+msgstr "Audio"
+
+msgid "Images"
+msgstr "Bilder"
+
+msgid "Other"
+msgstr "Sonstige"
+
+msgid "Completion"
+msgstr "Completion"
+
+msgid "Responses"
+msgstr "Responses"
+
+msgid "Max input tokens"
+msgstr "Max. Eingabe-Token"
+
+msgid "Text to speech"
+msgstr "Text zu Sprache"
+
+msgid "Speech to text"
+msgstr "Sprache zu Text"
+
+msgid "text"
+msgstr "Text"
+
+msgid "image"
+msgstr "Bild"
+
+msgid "audio"
+msgstr "Audio"
+
+msgid "video"
+msgstr "Video"
+
+msgid "Quantization"
+msgstr "Quantisierung"
+
+msgid "Max output tokens"
+msgstr "Max. Ausgabe-Token"
+
+msgid "Dimensions"
+msgstr "Dimensionen"
+
+msgid "Input"
+msgstr "Eingabe"
+
+msgid "Vision"
+msgstr "Vision"
+
+msgid "Tools"
+msgstr "Tools"
+
+msgid "JSON schema"
+msgstr "JSON-Schema"
+
+msgid "Reasoning"
+msgstr "Reasoning"
+
+msgid "Web search"
+msgstr "Websuche"
+
+msgid "PDF input"
+msgstr "PDF-Eingabe"
+
+msgid "Audio input"
+msgstr "Audio-Eingabe"
+
+msgid "Audio output"
+msgstr "Audio-Ausgabe"
+
+msgid "Prompt caching"
+msgstr "Prompt-Caching"
+
+msgid "Streaming"
+msgstr "Streaming"
+
+#, python-format
+msgid "%(team)s service accounts"
+msgstr "den Dienstkonten von %(team)s"
+
+msgid "your personal keys"
+msgstr "Ihren persönlichen Schlüsseln"
+
+#, python-format
+msgid "%(items)s and %(last)s"
+msgstr "%(items)s und %(last)s"
+
+#, python-format
+msgid "%(multiplier)sx request limit"
+msgstr "%(multiplier)sx Anfragelimit"
+
 msgid "Must be between 1 and 60 (an hour has 60 minutes)."
 msgstr "Muss zwischen 1 und 60 liegen (eine Stunde hat 60 Minuten)."
 
@@ -431,6 +539,123 @@ msgstr "Letzte"
 msgid "All"
 msgstr "Alle"
 
+msgid "You"
+msgstr "Sie"
+
+msgid "Completed"
+msgstr "Abgeschlossen"
+
+msgid "Cancelled"
+msgstr "Abgebrochen"
+
+msgid "Validating"
+msgstr "Wird geprüft"
+
+msgid "In progress"
+msgstr "In Bearbeitung"
+
+msgid "Finalizing"
+msgstr "Wird abgeschlossen"
+
+msgid "Cancelling"
+msgstr "Wird abgebrochen"
+
+msgid "Ready"
+msgstr "Bereit"
+
+msgid "Indexing"
+msgstr "Wird indexiert"
+
+msgid "Batch input"
+msgstr "Batch-Eingabe"
+
+msgid "Batch output"
+msgstr "Batch-Ausgabe"
+
+msgid "Assistants"
+msgstr "Assistants"
+
+msgid "Assistants output"
+msgstr "Assistants-Ausgabe"
+
+msgid "User data"
+msgstr "Nutzerdaten"
+
+msgid "Fine-tune"
+msgstr "Fine-Tuning"
+
+msgid "Evals"
+msgstr "Evals"
+
+#, python-format
+msgid "you %(used)s/%(limit)s"
+msgstr "Sie %(used)s/%(limit)s"
+
+#, python-format
+msgid "%(done)s of %(total)s"
+msgstr "%(done)s von %(total)s"
+
+#, python-format
+msgid "%(count)s file"
+msgid_plural "%(count)s files"
+msgstr[0] "%(count)s Datei"
+msgstr[1] "%(count)s Dateien"
+
+#, python-format
+msgid "max %(limit)s MB each"
+msgstr "max. %(limit)s MB pro Datei"
+
+msgid "No files yet."
+msgstr "Noch keine Dateien."
+
+#, python-format
+msgid "No files in %(org)s yet."
+msgstr "Noch keine Dateien in %(org)s."
+
+msgid "No files from your keys or your teams' keys yet."
+msgstr ""
+"Noch keine Dateien von Ihren Schlüsseln oder den Schlüsseln Ihrer Teams."
+
+msgid "Errors"
+msgstr "Fehler"
+
+msgid "Output pending"
+msgstr "Ausgabe ausstehend"
+
+msgid "No output file"
+msgstr "Keine Ausgabedatei"
+
+msgid "No batches yet."
+msgstr "Noch keine Batches."
+
+#, python-format
+msgid "No batches in %(org)s yet."
+msgstr "Noch keine Batches in %(org)s."
+
+msgid "No batches from your keys or your teams' keys yet."
+msgstr ""
+"Noch keine Batches von Ihren Schlüsseln oder den Schlüsseln Ihrer Teams."
+
+#, python-format
+msgid "Running: %(quotas)s"
+msgstr "Laufend: %(quotas)s"
+
+msgid "No vector stores yet."
+msgstr "Noch keine Vektorspeicher."
+
+#, python-format
+msgid "No vector stores in %(org)s yet."
+msgstr "Noch keine Vektorspeicher in %(org)s."
+
+msgid "No vector stores from your keys or your teams' keys yet."
+msgstr ""
+"Noch keine Vektorspeicher von Ihren Schlüsseln oder den Schlüsseln Ihrer "
+"Teams."
+
+#, python-format
+msgid "Vector stores: %(quotas)s"
+msgstr "Vektorspeicher: %(quotas)s"
+
 msgid "Tokens, 7 days"
 msgstr "Token, 7 Tage"
 
@@ -527,14 +752,42 @@ msgstr "Der bisherige Schlüssel funktioniert sofort nicht mehr."
 msgid "Edit"
 msgstr "Bearbeiten"
 
-msgid "Input"
-msgstr "Eingabe"
-
 msgid "Share"
 msgstr "Anteil"
 
 msgid "No limits"
 msgstr "Keine Limits"
+
+#, python-format
+msgid "Available with %(keys)s."
+msgstr "Verfügbar mit %(keys)s."
+
+msgid "Model card"
+msgstr "Modellkarte"
+
+msgid "Usage"
+msgstr "Nutzung"
+
+#, python-format
+msgid ""
+"<span class=\"font-semibold\">Deprecated.</span> Retirement date: %(date)s."
+msgstr ""
+"<span class=\"font-semibold\">Veraltet.</span> Abschaltung am %(date)s."
+
+msgid "Served model"
+msgstr "Bereitgestelltes Modell"
+
+msgid "Aliases"
+msgstr "Aliasse"
+
+msgid "Capabilities"
+msgstr "Fähigkeiten"
+
+msgid "Use it"
+msgstr "Verwendung"
+
+msgid "Copy example"
+msgstr "Beispiel kopieren"
 
 msgid "Your key is ready"
 msgstr "Ihr Schlüssel ist bereit"
@@ -621,6 +874,55 @@ msgstr "Navigation öffnen"
 msgid "Dismiss"
 msgstr "Schließen"
 
+msgid "Batch"
+msgstr "Batch"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Progress"
+msgstr "Fortschritt"
+
+msgid "Created"
+msgstr "Erstellt"
+
+msgid "Actions"
+msgstr "Aktionen"
+
+#, python-format
+msgid "Copy ID of batch %(id)s"
+msgstr "ID von Batch %(id)s kopieren"
+
+msgid "Copy batch ID"
+msgstr "Batch-ID kopieren"
+
+#, python-format
+msgid "Finish by %(time)s"
+msgstr "Abschluss bis %(time)s"
+
+#, python-format
+msgid "Cancel %(id)s?"
+msgstr "%(id)s abbrechen?"
+
+#, python-format
+msgid "Cancel %(id)s"
+msgstr "%(id)s abbrechen"
+
+msgid "Requests it has not run yet are dropped."
+msgstr "Anfragen, die noch nicht ausgeführt wurden, werden verworfen."
+
+msgid "Cancel batch"
+msgstr "Batch abbrechen"
+
+msgid "Keep running"
+msgstr "Weiterlaufen lassen"
+
+#, python-format
+msgid "Start one with the <a class=\"link\" href=\"%(docs)s\">Batches API</a>."
+msgstr ""
+"Starten Sie einen Batch über die <a class=\"link\" href=\"%(docs)s\">Batches "
+"API</a>."
+
 msgid "Add service account"
 msgstr "Dienstkonto hinzufügen"
 
@@ -661,6 +963,44 @@ msgstr "<span class=\"font-mono\">%(name)s</span> bearbeiten"
 msgid "Save"
 msgstr "Speichern"
 
+msgid "File"
+msgstr "Datei"
+
+msgid "Purpose"
+msgstr "Zweck"
+
+msgid "Size"
+msgstr "Größe"
+
+msgid "Expires"
+msgstr "Ablauf"
+
+#, python-format
+msgid "Copy ID of %(name)s"
+msgstr "ID von %(name)s kopieren"
+
+msgid "Copy file ID"
+msgstr "Datei-ID kopieren"
+
+#, python-format
+msgid "Preview %(name)s"
+msgstr "Vorschau von %(name)s"
+
+msgid "Preview"
+msgstr "Vorschau"
+
+msgid "Close"
+msgstr "Schließen"
+
+msgid "The first lines of the file."
+msgstr "Die ersten Zeilen der Datei."
+
+#, python-format
+msgid "Upload with the <a class=\"link\" href=\"%(docs)s\">Files API</a>."
+msgstr ""
+"Laden Sie Dateien über die <a class=\"link\" href=\"%(docs)s\">Files API</a> "
+"hoch."
+
 msgid "Menu"
 msgstr "Menü"
 
@@ -676,6 +1016,57 @@ msgstr "Bei Aqueduct anmelden"
 #, python-format
 msgid "Sign in with %(provider)s"
 msgstr "Mit %(provider)s anmelden"
+
+#, python-format
+msgid "Error loading MCP servers: %(error)s"
+msgstr "Fehler beim Laden der MCP-Server: %(error)s"
+
+#, python-format
+msgid "Copy %(name)s URL"
+msgstr "URL von %(name)s kopieren"
+
+msgid "Copy server URL"
+msgstr "Server-URL kopieren"
+
+msgid "Connect a client"
+msgstr "Client verbinden"
+
+#, python-format
+msgid ""
+"Paste into your MCP client's config and replace <code class=\"font-"
+"mono\">sk-...</code> with your <a class=\"link-plain\" "
+"href=\"%(tokens_url)s\">API key</a>."
+msgstr ""
+"Fügen Sie dies in die Konfiguration Ihres MCP-Clients ein und ersetzen Sie "
+"<code class=\"font-mono\">sk-...</code> durch Ihren <a class=\"link-plain\" "
+"href=\"%(tokens_url)s\">API-Schlüssel</a>."
+
+msgid "Copy configuration"
+msgstr "Konfiguration kopieren"
+
+msgid "No MCP servers are available to you."
+msgstr "Für Sie sind keine MCP-Server verfügbar."
+
+msgid "Model type"
+msgstr "Modelltyp"
+
+msgid "Search models and aliases"
+msgstr "Modelle und Aliasse durchsuchen"
+
+msgid "Model"
+msgstr "Modell"
+
+msgid "Context"
+msgstr "Kontext"
+
+msgid "Deprecated"
+msgstr "Veraltet"
+
+msgid "No model matches."
+msgstr "Kein Modell passt."
+
+msgid "No models are available to you."
+msgstr "Für Sie sind keine Modelle verfügbar."
 
 msgid "You're not in a team. Ask your org admin to add you."
 msgstr ""
@@ -795,9 +1186,6 @@ msgstr "Zuletzt aktualisiert am %(date)s"
 msgid "No privacy information has been published yet."
 msgstr "Es wurden noch keine Datenschutzhinweise veröffentlicht."
 
-msgid "Status"
-msgstr "Status"
-
 msgid "Request ID, path, user ID or user agent"
 msgstr "Anfrage-ID, Pfad, User-ID oder User-Agent"
 
@@ -823,9 +1211,6 @@ msgstr "Zeit"
 
 msgid "Key"
 msgstr "Schlüssel"
-
-msgid "Model"
-msgstr "Modell"
 
 msgid "(input + output)"
 msgstr "(Eingabe + Ausgabe)"
@@ -964,12 +1349,6 @@ msgstr "Dienstkonto"
 
 msgid "Last used"
 msgstr "Zuletzt genutzt"
-
-msgid "Expires"
-msgstr "Ablauf"
-
-msgid "Actions"
-msgstr "Aktionen"
 
 msgid "No owner"
 msgstr "Nicht zugeordnet"
@@ -1268,6 +1647,72 @@ msgstr "Schlüsselname"
 msgid "No key that matches “%(q)s” has requests in this time frame."
 msgstr "Kein Schlüssel, der zu „%(q)s“ passt, hat Anfragen in diesem Zeitraum."
 
+msgid "Not found"
+msgstr "Nicht gefunden"
+
+msgid "Copy vector store ID"
+msgstr "Vektorspeicher-ID kopieren"
+
+#, python-format
+msgid "Created %(date)s"
+msgstr "Erstellt am %(date)s"
+
+#, python-format
+msgid "Last active %(date)s"
+msgstr "Zuletzt aktiv am %(date)s"
+
+msgid "Sync status"
+msgstr "Status abgleichen"
+
+msgid "Copy vector store file ID"
+msgstr "Datei-ID im Vektorspeicher kopieren"
+
+msgid "No files in this vector store."
+msgstr "Dieser Vektorspeicher enthält keine Dateien."
+
+msgid "File batches"
+msgstr "Datei-Batches"
+
+#, python-format
+msgid "Copy ID of file batch %(id)s"
+msgstr "ID von Datei-Batch %(id)s kopieren"
+
+msgid "Copy file batch ID"
+msgstr "Datei-Batch-ID kopieren"
+
+#, python-format
+msgid "%(count)s in progress"
+msgid_plural "%(count)s in progress"
+msgstr[0] "%(count)s in Bearbeitung"
+msgstr[1] "%(count)s in Bearbeitung"
+
+msgid "Vector store not found"
+msgstr "Vektorspeicher nicht gefunden"
+
+msgid "It doesn't exist or you don't have access."
+msgstr "Er existiert nicht, oder Sie haben keinen Zugriff."
+
+msgid "Back to vector stores"
+msgstr "Zurück zu den Vektorspeichern"
+
+msgid "Vector store"
+msgstr "Vektorspeicher"
+
+msgid "Belongs to"
+msgstr "Zuordnung"
+
+#, python-format
+msgid "Sync status of %(name)s"
+msgstr "Status von %(name)s abgleichen"
+
+#, python-format
+msgid ""
+"Create one with the <a class=\"link\" href=\"%(docs)s\">Vector Stores API</"
+"a>."
+msgstr ""
+"Erstellen Sie einen über die <a class=\"link\" href=\"%(docs)s\">Vector "
+"Stores API</a>."
+
 msgid "Select all"
 msgstr "Alle auswählen"
 
@@ -1435,6 +1880,31 @@ msgid "Only team admins can do that."
 msgstr "Das können nur Team-Admins."
 
 #, python-format
+msgid "Batch %(id)s is %(status)s and cannot be cancelled."
+msgstr ""
+"Batch %(id)s kann nicht abgebrochen werden, der Status ist „%(status)s“."
+
+#, python-format
+msgid "Could not cancel batch %(id)s. Try again later."
+msgstr ""
+"Batch %(id)s konnte nicht abgebrochen werden. Versuchen Sie es später erneut."
+
+#, python-format
+msgid "Batch %(id)s is being cancelled."
+msgstr "Batch %(id)s wird abgebrochen."
+
+msgid "The Files API is not configured."
+msgstr "Die Files API ist nicht konfiguriert."
+
+#, python-format
+msgid "Could not delete %(name)s. Try again later."
+msgstr "%(name)s konnte nicht gelöscht werden. Versuchen Sie es später erneut."
+
+#, python-format
+msgid "File %(name)s deleted."
+msgstr "Datei %(name)s gelöscht."
+
+#, python-format
 msgid "Limits of %(name)s saved."
 msgstr "Limits von %(name)s gespeichert."
 
@@ -1573,8 +2043,18 @@ msgstr "API-Schlüssel %(name)s gespeichert."
 msgid "API key %(name)s deleted."
 msgstr "API-Schlüssel %(name)s gelöscht."
 
-msgid "You"
-msgstr "Sie"
+msgid "Vector store not found."
+msgstr "Vektorspeicher nicht gefunden."
+
+#, python-format
+msgid "Vector store %(name)s synced."
+msgstr "Vektorspeicher %(name)s abgeglichen."
+
+#, python-format
+msgid "Could not sync vector store %(name)s. Try again later."
+msgstr ""
+"Vektorspeicher %(name)s konnte nicht abgeglichen werden. Versuchen Sie es "
+"später erneut."
 
 #, python-format
 msgid "Version of %(date)s"

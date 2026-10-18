@@ -1,16 +1,16 @@
 {% extends "management/_resource_list.html" %}
-{% load humanize ui %}
+{% load humanize i18n ui %}
 
-{% block heading %}Vector stores{% endblock %}
+{% block heading %}{% translate "Vector stores" %}{% endblock %}
 
 {% block columns %}
-    <th>Vector store</th>
-    <th>Belongs to</th>
-    <th>Status</th>
-    <th class="text-right">Files</th>
-    <th class="text-right">Size</th>
-    <th>Expires</th>
-    <th><span class="sr-only">Actions</span></th>
+    <th>{% translate "Vector store" %}</th>
+    <th>{% translate "Belongs to" %}</th>
+    <th>{% translate "Status" %}</th>
+    <th class="text-right">{% translate "Files" %}</th>
+    <th class="text-right">{% translate "Size" %}</th>
+    <th>{% translate "Expires" %}</th>
+    <th><span class="sr-only">{% translate "Actions" %}</span></th>
 {% endblock %}
 
 {% block rows %}
@@ -18,7 +18,7 @@
         <tr>
             <td>
                 <a class="link-plain row-link" href="{% url 'vector_store_detail' id=row.store.id %}">{{ row.store.name }}</a>
-                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.store.id }}<button type="button" class="btn btn-ghost btn-xs btn-square relative z-10" data-copy="{{ row.store.id }}" aria-label="Copy ID of {{ row.store.name }}" title="Copy vector store ID">{% icon "copy" small=True %}</button></div>
+                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.store.id }}<button type="button" class="btn btn-ghost btn-xs btn-square relative z-10" data-copy="{{ row.store.id }}" aria-label="{% blocktranslate with name=row.store.name %}Copy ID of {{ name }}{% endblocktranslate %}" title="{% translate 'Copy vector store ID' %}">{% icon "copy" small=True %}</button></div>
             </td>
             <td>{{ row.owner }}</td>
             <td>{% include "management/_status.html" with status=row.status %}</td>
@@ -29,12 +29,12 @@
                 {% if row.syncable %}
                     <form class="relative z-10 flex justify-end" action="{% url 'vector_store_card_refresh' id=row.store.id %}" method="post">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Sync status of {{ row.store.name }}" title="Sync status">{% icon "rotate" small=True %}</button>
+                        <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="{% blocktranslate with name=row.store.name %}Sync status of {{ name }}{% endblocktranslate %}" title="{% translate 'Sync status' %}">{% icon "rotate" small=True %}</button>
                     </form>
                 {% endif %}
             </td>
         </tr>
     {% empty %}
-        <tr><td colspan="7" class="muted">No vector stores{{ listing.scope.whose }} yet. Create one with the <a class="link" href="{{ listing.docs }}">Vector Stores API</a>.</td></tr>
+        <tr><td colspan="7" class="muted">{{ listing.empty }} {% blocktranslate with docs=listing.docs %}Create one with the <a class="link" href="{{ docs }}">Vector Stores API</a>.{% endblocktranslate %}</td></tr>
     {% endfor %}
 {% endblock %}

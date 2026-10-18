@@ -195,8 +195,10 @@ def build_shell(request: HttpRequest) -> Shell:
             for page in allowed
         )
 
+    # gettext("") returns the catalog's header, not "".
     extra = tuple(
-        Link(name, url, Icon.LINK, external=True) for name, url in settings.EXTRA_NAV_LINKS.items()
+        Link(gettext(name) if name else name, url, Icon.LINK, external=True)
+        for name, url in settings.EXTRA_NAV_LINKS.items()
     )
     return Shell(
         sections=tuple(

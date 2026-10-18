@@ -540,6 +540,15 @@ class ResourceVisibilityTest(ResourcePagesTestBase):
         self.assertContains(batches, "batch-charlie")
         self.assertNotContains(batches, "/cancel/")
 
+    def test_a_german_viewer_s_own_items_name_no_owner(self):
+        client = self.as_user(self.owner)
+        client.cookies[settings.LANGUAGE_COOKIE_NAME] = "de"
+        for page in ("files", "batches"):
+            with self.subTest(page=page):
+                response = client.get(reverse(page))
+                self.assertContains(response, " · NLP Lab")
+                self.assertNotContains(response, " · Sie")
+
     def test_empty_lists_say_whose_items_they_list(self):
         newcomer = self.user("newcomer")
         lonely_admin = self.user(
