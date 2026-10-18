@@ -16,8 +16,8 @@ from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from litellm.types.utils import LlmProviders
 
-from gateway.config import get_router_config, model_info_with_context
-from management.key_activity import compact, grouped, router_models
+from gateway.config import model_entries, model_info_with_context, model_names
+from management.key_activity import compact, grouped
 from management.models import Token, UserProfile
 
 
@@ -389,17 +389,16 @@ def scopes_for(
 
 
 def usable_models(scopes: Sequence[Scope]) -> list[str]:
-    return [name for name in router_models() if Availability(*split_scopes(name, scopes)).usable]
+    return [name for name in model_names() if Availability(*split_scopes(name, scopes)).usable]
 
 
 def model_kinds() -> dict[str, str | Promise]:
     return {
-        entry["model_name"]: mode_for(model_info_with_context(entry).get("mode")).label
-        for entry in get_router_config().get("model_list", [])
+        name: mode_for(model_info_with_context(entry).get("mode")).label
+        for name, entry in model_entries().items()
     }
 
 
 def load_catalog(scopes: Sequence[Scope]) -> Catalog:
-    entries = get_router_config().get("model_list") or ()
-    cards = (parse_card(entry, scopes) for entry in entries)
+    cards = (parse_card(entry, scopes) for entry in model_entries().values())
     return Catalog(tuple(card for card in cards if card.usable))

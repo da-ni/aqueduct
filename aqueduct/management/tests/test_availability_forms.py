@@ -6,9 +6,9 @@ import yaml
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from gateway.config import get_router_config
+from gateway.config import get_router_config, model_names
 from management.admin import TeamAdminForm, UserProfileAdminForm
-from management.availability import Reach, configured_models
+from management.availability import Reach
 from management.models import Org, Team, Token, UserGroup
 from management.tests.helpers import make_token
 from management.tests.test_organization_page import TEST_MCP_CONFIG, mcp_config
@@ -34,7 +34,7 @@ class TeamAvailabilityAdminFormTest(TestCase):
 
     def test_every_box_starts_checked(self):
         form = TeamAdminForm(instance=self.team)
-        self.assertEqual(form["available_models"].value(), configured_models())
+        self.assertEqual(form["available_models"].value(), list(model_names()))
 
     def test_saving_unchanged_keeps_what_is_stored(self):
         self.team.excluded_models = ["retired-model", "whisper-1"]
@@ -78,7 +78,7 @@ class TeamAvailabilityAdminFormTest(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         form.save()
         self.team.refresh_from_db()
-        self.assertEqual(self.team.excluded_models, configured_models())
+        self.assertEqual(self.team.excluded_models, list(model_names()))
 
 
 class RepeatedModelNameTest(TestCase):
@@ -119,8 +119,8 @@ class RepeatedModelNameTest(TestCase):
         self.assertEqual(self.team.excluded_models, ["a"])
 
     def test_a_key_that_may_call_every_name_calls_every_model(self):
-        self.assertTrue(Reach.of(configured_models(), []).every)
-        self.assertEqual(Reach.of(configured_models(), ["a"]).usable, 1)
+        self.assertTrue(Reach.of(list(model_names()), []).every)
+        self.assertEqual(Reach.of(list(model_names()), ["a"]).usable, 1)
 
 
 @override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG)
@@ -144,8 +144,8 @@ class TeamAvailabilityPageTest(TeamsPagesTestBase):
 
     def unavailable_dall_e(self) -> dict:
         return {
-            "available_models": [m for m in configured_models() if m != "dall-e-2"],
-            "available_models-shown": configured_models(),
+            "available_models": [m for m in list(model_names()) if m != "dall-e-2"],
+            "available_models-shown": list(model_names()),
         }
 
     def stored(self) -> list[str]:

@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -8,13 +8,7 @@ from django.utils.safestring import SafeString
 from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 
-from gateway.config import get_mcp_config, get_router_config
-
-
-def configured_models() -> list[str]:
-    # LiteLLM balances load over entries that repeat a `model_name`.
-    entries = get_router_config().get("model_list", [])
-    return list(dict.fromkeys(entry["model_name"] for entry in entries))
+from gateway.config import get_mcp_config, model_names
 
 
 def configured_mcp_servers() -> list[str]:
@@ -34,12 +28,12 @@ class Reach:
         return self.usable == self.configured
 
     @classmethod
-    def of(cls, configured: list[str], excluded: list[str]) -> "Reach":
+    def of(cls, configured: Sequence[str], excluded: list[str]) -> "Reach":
         return cls(len(configured), len(set(configured) - set(excluded)))
 
 
-CHECKLISTS: dict[str, tuple[str, Callable[[], list[str]]]] = {
-    "available_models": ("excluded_models", configured_models),
+CHECKLISTS: dict[str, tuple[str, Callable[[], Sequence[str]]]] = {
+    "available_models": ("excluded_models", model_names),
     "available_mcp_servers": ("excluded_mcp_servers", configured_mcp_servers),
 }
 INHERIT_LABELS = {

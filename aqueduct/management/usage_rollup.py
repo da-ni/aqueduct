@@ -15,7 +15,8 @@ from django.db.models import Case, Count, Expression, F, IntegerField, Q, QueryS
 from django.db.models.functions import Cast, ExtractHour, ExtractIsoWeekDay, Floor, Ln, Trunc
 from django.utils import timezone
 
-from management.key_activity import FAILED, Activity, router_models, served
+from gateway.config import model_names
+from management.key_activity import FAILED, Activity, served
 from management.models import (
     KeyUsageWindow,
     Org,
@@ -325,7 +326,7 @@ def key_window_totals(
     if tokens is not None:
         requests = requests.filter(token__in=tokens)
     kept = KeyUsageWindow.objects.filter(
-        model__in=router_models(), token__in=Token.objects.all() if tokens is None else tokens
+        model__in=model_names(), token__in=Token.objects.all() if tokens is None else tokens
     )
     if model is not None:
         requests, kept = requests.filter(model=model), kept.filter(model=model)
@@ -436,7 +437,7 @@ def _gather(
         kept = table.objects.filter(
             hours,
             Q(org=None) | Q(org__in=Org.objects.all()) if org is None else Q(org=org),
-            model__in=router_models(),
+            model__in=model_names(),
         )
         if model is not None:
             kept = kept.filter(model=model)

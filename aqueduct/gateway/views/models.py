@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
-from gateway.config import get_router_config, model_info_with_context
+from gateway.config import model_entries, model_info_with_context
 from gateway.decorators import log_request, token_authenticated, tos_accepted
 from gateway.response_type import RawJsonResponse
 from management.models import Request, Token
@@ -30,21 +30,19 @@ def _model_group_info_entry(model: dict[str, Any]) -> dict[str, Any]:
 async def models(
     request: ASGIRequest, token: Token, request_log: Request, *args: Any, **kwargs: Any
 ) -> RawJsonResponse:
-    router_config = get_router_config()
-    model_list: list[dict[str, Any]] = router_config["model_list"]
     excluded_models = set(await sync_to_async(token.model_exclusion_list)())
 
     return RawJsonResponse(
         data={
             "data": [
                 {
-                    "id": model["model_name"],
+                    "id": name,
                     "object": "model",
                     "created": MODEL_CREATION_TIMESTAMP,
                     "owned_by": "aqueduct",
                 }
-                for model in model_list
-                if model["model_name"] not in excluded_models
+                for name in model_entries()
+                if name not in excluded_models
             ],
             "object": "list",
         }
@@ -66,14 +64,12 @@ async def model_group_info(
     /v1/models — read token limits and capabilities directly from the gateway
     instead of guessing from bundled model catalogs.
     """
-    router_config = get_router_config()
-    model_list: list[dict[str, Any]] = router_config["model_list"]
     excluded_models = set(await sync_to_async(token.model_exclusion_list)())
 
     return RawJsonResponse(
         data=[
             _model_group_info_entry(model)
-            for model in model_list
-            if model["model_name"] not in excluded_models
+            for name, model in model_entries().items()
+            if name not in excluded_models
         ]
     )

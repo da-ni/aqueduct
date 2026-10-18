@@ -36,12 +36,17 @@ def get_files_api_client() -> openai.AsyncClient:
     )
 
 
+def _models_in(config: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    # LiteLLM balances load over entries that repeat a `model_name`; the first one describes it.
+    models: dict[str, dict[str, Any]] = {}
+    for entry in config.get("model_list") or ():
+        models.setdefault(entry["model_name"], entry)
+    return models
+
+
 def _validate_router_config(config: dict[str, Any]) -> None:
-    # Validate alias uniqueness
     alias_to_model: dict[str, str] = {}
-    model_list = config.get("model_list", [])
-    for model in model_list:
-        model_name = model.get("model_name")
+    for model_name, model in _models_in(config).items():
         aliases = model.get("model_info", {}).get("aliases", [])
         for alias in aliases:
             if alias in alias_to_model:
@@ -70,6 +75,14 @@ def get_router_config() -> dict[str, Any]:
     _validate_router_config(data)
 
     return cast("dict[str, Any]", data)
+
+
+def model_entries() -> dict[str, dict[str, Any]]:
+    return _models_in(get_router_config())
+
+
+def model_names() -> tuple[str, ...]:
+    return tuple(model_entries())
 
 
 @lru_cache(maxsize=1)
@@ -120,12 +133,7 @@ def resolve_model_alias(model_or_alias: str) -> str:
     Returns:
         The actual model name
     """
-    config = get_router_config()
-    model_list = config.get("model_list", [])
-
-    # Build alias - model mapping
-    for model in model_list:
-        model_name = cast("str", model.get("model_name"))
+    for model_name, model in model_entries().items():
         if model_name == model_or_alias:
             return model_name
 
@@ -157,18 +165,7 @@ def get_model_request_limit_multiplier(model_name: str) -> float:
     Returns:
         The request limit multiplier (defaults to 1.0)
     """
-    resolved = resolve_model_alias(model_name)
-    config = get_router_config()
-    model_list = config.get("model_list", [])
-
-    for model in model_list:
-        if model.get("model_name") == resolved:
-            multiplier = model.get("model_info", {}).get("request_limit_multiplier")
-            if multiplier is not None:
-                return float(multiplier)
-            break
-
-    return 1.0
+    return get_all_model_request_limit_multipliers().get(resolve_model_alias(model_name), 1.0)
 
 
 @lru_cache(maxsize=1)
@@ -179,16 +176,10 @@ def get_all_model_request_limit_multipliers() -> dict[str, float]:
     Returns:
         Dict mapping model names to their multipliers (defaults to 1.0)
     """
-    config = get_router_config()
-    model_list = config.get("model_list", [])
     multipliers: dict[str, float] = {}
-
-    for model in model_list:
-        model_name = model.get("model_name")
-        if model_name:
-            multiplier = model.get("model_info", {}).get("request_limit_multiplier")
-            multipliers[model_name] = float(multiplier) if multiplier is not None else 1.0
-
+    for model_name, model in model_entries().items():
+        multiplier = model.get("model_info", {}).get("request_limit_multiplier")
+        multipliers[model_name] = float(multiplier) if multiplier is not None else 1.0
     return multipliers
 
 
@@ -206,15 +197,8 @@ def get_model_supports_response_format(model_name: str) -> bool:
     Returns:
         Whether response_format may be sent to the model
     """
-    resolved = resolve_model_alias(model_name)
-    config = get_router_config()
-    model_list = config.get("model_list", [])
-
-    for model in model_list:
-        if model.get("model_name") == resolved:
-            return model.get("model_info", {}).get("supports_response_format", True) is not False
-
-    return True
+    model = model_entries().get(resolve_model_alias(model_name), {})
+    return model.get("model_info", {}).get("supports_response_format", True) is not False
 
 
 @lru_cache(maxsize=1)

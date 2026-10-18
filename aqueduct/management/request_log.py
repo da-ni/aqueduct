@@ -16,7 +16,8 @@ from django.utils.http import urlencode
 from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 
-from management.key_activity import FAILED, KeyAccess, grouped, of_keys, router_models, served
+from gateway.config import model_names
+from management.key_activity import FAILED, KeyAccess, grouped, of_keys, served
 from management.model_catalog import scopes_for, usable_models
 from management.models import Org, Request, Team, Token, UserProfile
 from management.models.token import of_org
@@ -236,7 +237,7 @@ def read_filters(
     sees_others = org is None or profile.is_org_admin(org)
     requests = visible_requests(profile, org, teams)
     if sees_others:
-        names = set(router_models())
+        names = set(model_names())
     else:
         used = requests.order_by().values_list("model", flat=True).distinct()
         names = {*usable_models(scopes_for(profile)), *used}

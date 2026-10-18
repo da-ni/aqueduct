@@ -424,14 +424,14 @@ class UsageHeatModelTest(UsagePageTestBase):
 class UsageFilterChoicesTest(UsagePageTestBase):
     def test_models_sort_without_regard_to_case(self):
         with mock.patch(
-            "management.request_log.router_models", return_value=["b-model", "A-model", "c-model"]
+            "management.request_log.model_names", return_value=("b-model", "A-model", "c-model")
         ):
             filters = self.page(self.org_admin).context["filters"]
         self.assertEqual(filters.models, ("A-model", "b-model", "c-model"))
 
     def test_the_model_filter_hides_with_one_model(self):
         self.assertContains(self.page(self.org_admin), '<span class="sr-only">Model: </span>')
-        with mock.patch("management.request_log.router_models", return_value=[CHAT]):
+        with mock.patch("management.request_log.model_names", return_value=(CHAT,)):
             response = self.page(self.org_admin)
         self.assertNotContains(response, '<span class="sr-only">Model: </span>')
         self.assertNotContains(response, "Heatmap model")

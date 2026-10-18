@@ -13,7 +13,7 @@ from django.db import connection
 from django.db.models import Count
 from django.test import TestCase, override_settings
 
-from management.key_activity import router_models
+from gateway.config import model_names
 from management.management.commands.seed_demo import Builder, capped
 from management.models import Org, Request, ServiceAccount, Team, Token, UserGroup, UserProfile
 
@@ -104,7 +104,7 @@ class SeedDemoTest(TestCase):
         seeded = Request.objects.exclude(pk=self.request.pk)
         self.assertAlmostEqual(seeded.count(), 500 / 0.95, delta=2)
         self.assertAlmostEqual(seeded.exclude(model="").count(), 500, delta=25)
-        self.assertLessEqual(set(seeded.values_list("model", flat=True)), {"", *router_models()})
+        self.assertLessEqual(set(seeded.values_list("model", flat=True)), {"", *model_names()})
         statuses = Counter(seeded.values_list("status_code", flat=True))
         self.assertGreater(statuses[200] / seeded.count(), 0.9)
         self.assertTrue(any(code and code >= HTTPStatus.BAD_REQUEST for code in statuses))
