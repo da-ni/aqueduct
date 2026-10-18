@@ -152,7 +152,7 @@ async def files(
             FileObject.objects.filter(token.reach()).order_by("-created_at").select_related("token")
         )
 
-        file_models = [file.model async for file in qs]
+        file_models = [file_obj.model async for file_obj in qs]
         return RawJsonResponse(
             {"object": "list", "data": file_models, "has_more": False}, status=200
         )
@@ -234,13 +234,13 @@ async def files(
 @log_request
 @catch_router_exceptions
 @require_files_api_client("Files API")
-@in_reach(FileObject, "file_id", label="File")
+@in_reach(FileObject, "file_id", label="File", inject="file_obj")
 async def file(
-    request: ASGIRequest, file: FileObject, client: AsyncOpenAI, *args: Any, **kwargs: Any
+    request: ASGIRequest, file_obj: FileObject, client: AsyncOpenAI, *args: Any, **kwargs: Any
 ) -> RawJsonResponse:
     """Retrieve or delete a file the key reaches; never falls back to upstream."""
     if request.method == "GET":
-        remote_file = await file.areload_from_upstream(client)
+        remote_file = await file_obj.areload_from_upstream(client)
 
         if remote_file is None:
             return error_response("File not found upstream.", param="file_id", status=404)
@@ -248,10 +248,10 @@ async def file(
         # Return response with upstream ID (same as file_obj.id)
         return RawJsonResponse(remote_file, status=200)
 
-    await file.adelete_upstream(client)
+    await file_obj.adelete_upstream(client)
 
-    deleted_id = file.id
-    await file.adelete()
+    deleted_id = file_obj.id
+    await file_obj.adelete()
 
     response_data = {"id": deleted_id, "object": "file", "deleted": True}
     return RawJsonResponse(response_data, status=200)
@@ -264,11 +264,11 @@ async def file(
 @log_request
 @catch_router_exceptions
 @require_files_api_client("Files API")
-@in_reach(FileObject, "file_id", label="File")
+@in_reach(FileObject, "file_id", label="File", inject="file_obj")
 async def file_content(
-    request: ASGIRequest, file: FileObject, client: AsyncOpenAI, *args: Any, **kwargs: Any
+    request: ASGIRequest, file_obj: FileObject, client: AsyncOpenAI, *args: Any, **kwargs: Any
 ) -> HttpResponse | RawJsonResponse:
     """Retrieve the content of a file the key reaches; never falls back to upstream."""
-    response = await client.files.content(file.id)
+    response = await client.files.content(file_obj.id)
 
     return HttpResponse(response.content, content_type="application/octet-stream", status=200)

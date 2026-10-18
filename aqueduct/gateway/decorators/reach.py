@@ -10,13 +10,19 @@ from gateway.response_error import error_response
 
 
 def in_reach(
-    model: type[models.Model], id_kwarg: str, *, label: str, within: str | None = None
+    model: type[models.Model],
+    id_kwarg: str,
+    *,
+    label: str,
+    within: str | None = None,
+    inject: str | None = None,
 ) -> Decorator:
     """Swap the URL's `<name>_id` for the `<name>` object the key reaches, or answer 404.
 
-    `within` names an object an outer `in_reach` injected that this one must belong to.
+    `inject` overrides the view argument's name. `within` names an object an outer
+    `in_reach` injected that this one must belong to.
     """
-    name = id_kwarg.removesuffix("_id")
+    name = inject or id_kwarg.removesuffix("_id")
 
     def decorator(view_func: AsyncView) -> AsyncView:
         @wraps(view_func)

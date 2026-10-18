@@ -153,11 +153,13 @@ async def vector_store_files(
 @catch_router_exceptions
 @require_files_api_client("Vector Store API")
 @in_reach(VectorStore, "vector_store_id", label="Vector store")
-@in_reach(VectorStoreFile, "file_id", label="Vector store file", within="vector_store")
+@in_reach(
+    VectorStoreFile, "file_id", label="Vector store file", within="vector_store", inject="vs_file"
+)
 async def vector_store_file(
     request: ASGIRequest,
     vector_store: VectorStore,
-    file: VectorStoreFile,
+    vs_file: VectorStoreFile,
     client: AsyncOpenAI,
     pydantic_model: FileUpdateBody | None = None,
     *args: Any,
@@ -170,7 +172,7 @@ async def vector_store_file(
     """
     if request.method == "GET":
         # Retrieve from upstream and sync status
-        remote_vs_file = await file.areload_from_upstream(client)
+        remote_vs_file = await vs_file.areload_from_upstream(client)
 
         if not remote_vs_file:
             return error_response("Vector store file not found.", param="file_id", status=404)
@@ -185,7 +187,7 @@ async def vector_store_file(
                 "Missing required parameter: attributes", param="attributes", status=400
             )
 
-        update_kwargs: dict[str, Any] = {"vector_store_id": vector_store.id, "file_id": file.id}
+        update_kwargs: dict[str, Any] = {"vector_store_id": vector_store.id, "file_id": vs_file.id}
         if pydantic_model.get("attributes"):
             update_kwargs["attributes"] = pydantic_model["attributes"]
 
@@ -194,10 +196,10 @@ async def vector_store_file(
         # Return upstream response directly (IDs already match)
         return RawJsonResponse(remote_vs_file, status=200)
 
-    await file.adelete_upstream(client)
+    await vs_file.adelete_upstream(client)
 
-    deleted_id = file.id
-    await file.adelete()
+    deleted_id = vs_file.id
+    await vs_file.adelete()
 
     response_data = {"id": deleted_id, "object": "vector_store.file.deleted", "deleted": True}
 
@@ -212,11 +214,13 @@ async def vector_store_file(
 @catch_router_exceptions
 @require_files_api_client("Vector Store API")
 @in_reach(VectorStore, "vector_store_id", label="Vector store")
-@in_reach(VectorStoreFile, "file_id", label="Vector store file", within="vector_store")
+@in_reach(
+    VectorStoreFile, "file_id", label="Vector store file", within="vector_store", inject="vs_file"
+)
 async def vector_store_file_content(
     request: ASGIRequest,
     vector_store: VectorStore,
-    file: VectorStoreFile,
+    vs_file: VectorStoreFile,
     client: AsyncOpenAI,
     *args: Any,
     **kwargs: Any,
@@ -226,7 +230,7 @@ async def vector_store_file_content(
     """
     # Get content from upstream
     content_response = await client.vector_stores.files.content(
-        vector_store_id=vector_store.id, file_id=file.id
+        vector_store_id=vector_store.id, file_id=vs_file.id
     )
 
     # FileContentResponse and AsyncPage[FileContentResponse] are both Pydantic models
