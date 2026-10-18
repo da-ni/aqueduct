@@ -117,6 +117,7 @@
       const button = dialog.querySelector(selector);
       button.dataset.idle ??= button.textContent;
       button.textContent = trigger.dataset[label] || button.dataset.idle;
+      button.disabled = false;
     }
     dialog.showModal();
   });
