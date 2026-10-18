@@ -1,11 +1,10 @@
-from django.core.exceptions import ImproperlyConfigured
 from django.db import models, transaction
 from django.db.models import F
 from django.db.models.signals import post_delete, post_save, pre_save
 
 from management.models import Token, UsageRollupState, UserProfile
 from management.models.usage_rollup import HOURLY
-from management.ownership import attribution, reverse_hops
+from management.ownership import attribution
 
 
 def mark_rollups_dirty() -> None:
@@ -34,11 +33,9 @@ def _mark_dirty_on_new_profile(
 
 
 def connect() -> None:
-    if reverse_hops() != {UserProfile}:
-        raise ImproperlyConfigured("Rollup invalidation hooks cover only UserProfile reverse hops.")
     for sender in attribution():
         pre_save.connect(_mark_dirty_on_move, sender=sender, dispatch_uid=f"rollup-{sender}")
-    for sender in (Token, *reverse_hops()):
+    for sender in (Token, UserProfile):
         post_delete.connect(
             _mark_dirty_on_commit, sender=sender, dispatch_uid=f"rollup-delete-{sender}"
         )

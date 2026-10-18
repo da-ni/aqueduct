@@ -90,7 +90,7 @@ def team_of(token: "Token") -> "Team | None":
     return token.service_account.team if token.service_account is not None else None
 
 
-def _hops() -> Iterator[tuple[type[models.Model], str, bool]]:
+def _hops() -> Iterator[tuple[type[models.Model], str]]:
     from management.models import Token
 
     for path in RELATED:
@@ -99,20 +99,15 @@ def _hops() -> Iterator[tuple[type[models.Model], str, bool]]:
             field = model._meta.get_field(name)
             target = cast("type[models.Model]", field.related_model)
             if isinstance(field, models.ForeignObjectRel):
-                yield target, field.field.attname, True
+                yield target, field.field.attname
             elif isinstance(field, models.ForeignObject):
-                yield model, field.attname, False
+                yield model, field.attname
             model = target
 
 
 @cache
 def attribution() -> Mapping[type[models.Model], frozenset[str]]:
     columns: defaultdict[type[models.Model], set[str]] = defaultdict(set)
-    for model, column, _ in _hops():
+    for model, column in _hops():
         columns[model].add(column)
     return {model: frozenset(found) for model, found in columns.items()}
-
-
-@cache
-def reverse_hops() -> frozenset[type[models.Model]]:
-    return frozenset(model for model, _, reverse in _hops() if reverse)

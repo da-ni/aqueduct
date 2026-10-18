@@ -30,7 +30,7 @@ from management.key_activity import (
     personal_tokens,
 )
 from management.models import Token
-from management.ownership import RELATED, is_personal_of, of_teams, org_id
+from management.ownership import RELATED, is_personal_of, of_teams, org_id, team_of
 from management.request_log import Key, Row
 from management.views.base import ONLY_TEAM_ADMINS, BaseAqueductView
 
@@ -69,7 +69,7 @@ class TokenDetailView(BaseAqueductView, DetailView):
         token = self.object
         now = timezone.now()
         report = key_report(token, now)
-        team = token.service_account.team if token.service_account else None
+        team = team_of(token)
         own = is_personal_of(token, self.request.user.id)
         metric = "requests" if self.request.GET.get("metric") == "requests" else "tokens"
         log_query: dict[str, object] = {"key": token.id, "span": "1m"}
@@ -197,7 +197,7 @@ class TokenRegenerateView(BaseAqueductView, View):
             (personal_tokens(request.user) | service).select_related("service_account__team"),
             pk=kwargs.get("id"),
         )
-        team = token.service_account.team if token.service_account else None
+        team = team_of(token)
         back = reverse("team", kwargs={"id": team.id}) if team else reverse("tokens")
         if team is not None and not self.profile.is_team_admin(team):
             messages.error(request, ONLY_TEAM_ADMINS)
