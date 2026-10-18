@@ -43,7 +43,7 @@
                             <tr>
                                 <td>
                                     {% if file.listed %}
-                                        <a class="link-plain row-link font-semibold" href="{% url 'files' %}?file={{ file.entry.file_obj.id }}#{{ file.entry.file_obj.id }}">{{ file.entry.file_obj.filename }}</a>
+                                        <a class="link-plain row-link font-semibold" href="{% url_with 'files' file=file.entry.file_obj.id %}#{{ file.entry.file_obj.id }}">{{ file.entry.file_obj.filename }}</a>
                                     {% else %}
                                         <span class="font-semibold">{{ file.entry.file_obj.filename }}</span>
                                     {% endif %}

@@ -62,7 +62,7 @@
                             </td>
                         </tr>
                     {% empty %}
-                        <tr class="max-lg:block"><td colspan="7" class="muted max-lg:block">{% if query %}{% translate "No team matches." %}{% else %}{% translate "This organization has no teams yet." %}{% endif %}</td></tr>
+                        <tr class="max-lg:block"><td colspan="{% if all_orgs or not is_org_admin %}7{% else %}6{% endif %}" class="muted max-lg:block">{% if query %}{% translate "No team matches." %}{% else %}{% translate "This organization has no teams yet." %}{% endif %}</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

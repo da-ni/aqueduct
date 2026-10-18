@@ -8,7 +8,7 @@
 </div>
 
 <div class="flex flex-wrap items-center gap-3">
-    <nav class="join max-sm:flex-wrap max-sm:gap-1 max-sm:[&>.join-item]:rounded-full!" aria-label="{% translate "Status" %}">
+    <nav class="join max-sm:flex-wrap max-sm:gap-1 max-sm:[&>.join-item]:rounded-full" aria-label="{% translate "Status" %}">
         {% for tab in log.tabs %}
             <a class="btn btn-sm join-item{% if tab.outcome == outcome %} btn-primary{% endif %}"
                href="{% querystring key_q=None status=tab.value before=None after=None page=None request=None %}"
@@ -95,7 +95,7 @@
                             {% endif %}
                         {% endwith %}
                     {% empty %}
-                        <tr class="max-md:block"><td colspan="{{ log.shows_key|yesno:'9,8' }}" class="muted max-md:block">{% if narrowed %}{% translate "No request matches these filters." %}{% else %}{% blocktranslate with span=filters.span.in_the_last %}No requests {{ span }}.{% endblocktranslate %}{% endif %}</td></tr>
+                        <tr class="max-md:block"><td colspan="{{ log.shows_key|yesno:'9,8' }}" class="muted max-md:block">{% if narrowed %}{% translate "No request matches these filters." %}{% else %}{{ no_requests }}{% endif %}</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

@@ -25,9 +25,9 @@
             </td>
             <td>{% include "management/_progress.html" with progress=row.progress %}</td>
             <td>
-                <a class="link-plain font-mono text-[13px]" href="{% url 'files' %}?file={{ row.batch.input_file.id }}#{{ row.batch.input_file.id }}">{{ row.batch.input_file.filename }}</a>
+                <a class="link-plain font-mono text-[13px]" href="{% url_with 'files' file=row.batch.input_file.id %}#{{ row.batch.input_file.id }}">{{ row.batch.input_file.filename }}</a>
                 <div class="muted text-xs">
-                    {% for label, file in row.results %}<a class="link-plain" href="{% url 'files' %}?file={{ file.id }}#{{ file.id }}">{{ label }}</a>{% if not forloop.last %} · {% endif %}{% empty %}{{ row.note }}{% endfor %}
+                    {% for label, file in row.results %}<a class="link-plain" href="{% url_with 'files' file=file.id %}#{{ file.id }}">{{ label }}</a>{% if not forloop.last %} · {% endif %}{% empty %}{{ row.note }}{% endfor %}
                 </div>
             </td>
             <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.created|when|dash }}</td>

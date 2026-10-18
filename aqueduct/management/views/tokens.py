@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import QuerySet
-from django.http import HttpResponse
+from django.http import HttpResponse, QueryDict
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -32,7 +32,7 @@ from management.key_activity import (
 from management.models import Token
 from management.ownership import RELATED, is_personal_of, of_teams, org_id, team_of
 from management.request_log import Key, Row
-from management.views.base import ONLY_TEAM_ADMINS, BaseAqueductView
+from management.views.base import ONLY_TEAM_ADMINS, BaseAqueductView, show_new_key
 
 
 class UserTokensView(BaseAqueductView, TemplateView):
@@ -80,7 +80,7 @@ class TokenDetailView(BaseAqueductView, DetailView):
         context.update(
             report=report,
             latest=tuple(Row(request, Key(token, None, ""), False) for request in report.latest),
-            log_query=urlencode(log_query),
+            log_query=QueryDict(urlencode(log_query)),
             charts=tuple((shown, report.chart(shown)) for shown in ("tokens", "requests")),
             expiry=Expiry.of(token.expires_at, now),
             limits=limits,
@@ -123,7 +123,7 @@ class TokenCreateView(BaseAqueductView, CreateView):
         # This will trigger clean() with the user assigned
         self.object.save()
 
-        messages.info(self.request, f"{secret_key}", extra_tags="token-regenerated-key")
+        show_new_key(self.request, secret_key)
 
         return redirect(self.get_success_url())
 
@@ -202,6 +202,6 @@ class TokenRegenerateView(BaseAqueductView, View):
             messages.error(request, ONLY_TEAM_ADMINS)
             return redirect(back)
         new_key = token.regenerate_key()
-        messages.info(request, new_key, extra_tags="token-regenerated-key")
+        show_new_key(request, new_key)
         returns = (reverse("token_detail", kwargs={"id": token.id}), reverse("tokens"))
         return redirect(request.POST["next"] if request.POST.get("next") in returns else back)

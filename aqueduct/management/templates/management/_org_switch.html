@@ -3,7 +3,7 @@
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ request.get_full_path }}">
     <label for="org-switch" class="label-mono muted flex items-center gap-1.5">{% icon "organization" small=True %}{% translate "Viewing" %}</label>
-    <select id="org-switch" name="org_id" class="select select-sm w-full" aria-describedby="org-switch-hint" onchange="this.form.submit()">
+    <select id="org-switch" name="org_id" class="select select-sm w-full" aria-describedby="org-switch-hint" data-autosubmit>
         <option value="all"{% if not shell.org_switch.chosen %} selected{% endif %}>{% translate "All organizations" %}</option>
         {% for org in shell.org_switch.orgs %}
             <option value="{{ org.id }}"{% if org == shell.org_switch.chosen %} selected{% endif %}>{{ org.name }}</option>

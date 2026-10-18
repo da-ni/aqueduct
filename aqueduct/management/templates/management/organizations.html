@@ -12,7 +12,7 @@
                 <tbody>
                     {% for org in orgs %}
                         <tr>
-                            <td><a class="link-plain font-semibold" href="{% url 'organization' %}?org={{ org.id }}">{{ org.name }}</a></td>
+                            <td><a class="link-plain font-semibold" href="{% url_with 'organization' org=org.id %}">{{ org.name }}</a></td>
                             <td class="text-right font-mono">{{ org.team_count|grouped }}</td>
                         </tr>
                     {% empty %}

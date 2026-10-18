@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
-from django.http import HttpResponse
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext_lazy as _
@@ -12,6 +12,13 @@ from django.views import View
 
 from management.models import Org, ServiceAccount, Team, UserProfile
 from management.request_log import chosen_org
+
+NEW_KEY_TAG = "token-regenerated-key"
+
+
+def show_new_key(request: HttpRequest, secret: str) -> None:
+    """Show `secret` once, in the new-key panel at the top of the next page."""
+    messages.info(request, secret, extra_tags=NEW_KEY_TAG)
 
 
 class BaseAqueductView(LoginRequiredMixin, View):

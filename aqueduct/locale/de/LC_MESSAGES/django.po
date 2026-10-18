@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 15:21+0000\n"
+"POT-Creation-Date: 2026-10-18 15:24+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -708,15 +708,9 @@ msgstr "Token"
 msgid "Access denied"
 msgstr "Zugriff verweigert"
 
-msgid "Aqueduct AI Gateway"
-msgstr "Aqueduct AI Gateway"
-
 msgid "You don't have access. Ask your org admin."
 msgstr ""
 "Sie haben keinen Zugriff. Wenden Sie sich an die Admins Ihrer Organisation."
-
-msgid "Go to Overview"
-msgstr "Zur Übersicht"
 
 msgid "Page not found"
 msgstr "Seite nicht gefunden"
@@ -902,6 +896,9 @@ msgstr "Zwischen hellem und dunklem Design wechseln"
 msgid "Not metered in tokens"
 msgstr "Nicht in Token gemessen"
 
+msgid "Aqueduct AI Gateway"
+msgstr "Aqueduct AI Gateway"
+
 msgid "Skip to content"
 msgstr "Zum Inhalt springen"
 
@@ -999,6 +996,9 @@ msgstr "<span class=\"font-mono\">%(name)s</span> bearbeiten"
 
 msgid "Save"
 msgstr "Speichern"
+
+msgid "Go to Overview"
+msgstr "Zur Übersicht"
 
 msgid "File"
 msgstr "Datei"
@@ -1343,10 +1343,6 @@ msgid "No request matches these filters."
 msgstr "Keine Anfrage passt zu diesen Filtern."
 
 #, python-format
-msgid "No requests %(span)s."
-msgstr "Keine Anfragen %(span)s."
-
-#, python-format
 msgid "%(start)s–%(end)s of %(total)s"
 msgstr "%(start)s–%(end)s von %(total)s"
 
@@ -1532,8 +1528,8 @@ msgid "Unavailable to service accounts"
 msgstr "Für Dienstkonten nicht verfügbar"
 
 #, python-format
-msgid "Created: %(date)s"
-msgstr "Erstellt: %(date)s"
+msgid "Created %(date)s"
+msgstr "Erstellt am %(date)s"
 
 #, python-format
 msgid "Last used: %(time)s"
@@ -1732,10 +1728,6 @@ msgstr "Vektorspeicher nicht gefunden"
 
 msgid "Copy vector store ID"
 msgstr "Vektorspeicher-ID kopieren"
-
-#, python-format
-msgid "Created %(date)s"
-msgstr "Erstellt am %(date)s"
 
 #, python-format
 msgid "Last active %(date)s"
@@ -2001,6 +1993,12 @@ msgstr "Ansicht: %(name)s."
 
 msgid "Viewing all organizations."
 msgstr "Ansicht: alle Organisationen."
+
+msgid "No requests in the last hour."
+msgstr "Keine Anfragen in der letzten Stunde."
+
+msgid "No requests in the last 24 hours."
+msgstr "Keine Anfragen in den letzten 24 Stunden."
 
 msgid "Add a service account"
 msgstr "Dienstkonto hinzufügen"

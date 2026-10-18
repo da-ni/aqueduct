@@ -8,7 +8,7 @@
     <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
         <span>{% if team %}{% translate "Service account" %} · <a class="link-plain" href="{% url 'team' team.id %}">{{ team.name }}</a>{% elif own %}{% translate "Personal" %}{% else %}{% translate "Personal" %} · {{ token.user.email }}{% endif %}</span>
         <span class="font-mono">{{ token.key_preview }}</span>
-        <span>{% blocktranslate with date=token.created_at|when:"date" %}Created: {{ date }}{% endblocktranslate %}</span>
+        <span>{% blocktranslate with date=token.created_at|when:"date" %}Created {{ date }}{% endblocktranslate %}</span>
         <span>{{ expiry|expiry:"sentence" }}</span>
         <span>{% blocktranslate with time=report.totals.last_used|when:"relative"|default:"—" %}Last used: {{ time }}{% endblocktranslate %}</span>
     </div>
@@ -53,7 +53,7 @@
                 {% for model in report.models %}
                     <div class="hover-row flex flex-col gap-1.5 rounded-lg px-2 py-1">
                         <div class="flex items-baseline justify-between gap-3 text-sm">
-                            <a class="link-plain break-all font-mono" href="{% url 'models' %}?model={{ model.name|urlencode }}">{{ model.name }}</a>
+                            <a class="link-plain break-all font-mono" href="{% url_with 'models' model=model.name %}">{{ model.name }}</a>
                             <span class="font-mono">{{ model.value }}</span>
                         </div>
                         <div class="onebar" style="width: {{ model.width|unlocalize }}%"></div>
@@ -75,7 +75,7 @@
     <div class="card-body gap-3 p-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <h2 class="card-title">{% translate "Latest requests" %}</h2>
-            <a class="link-plain text-sm" href="{% url 'requests' %}?{{ log_query }}">{% translate "All requests" %}</a>
+            <a class="link-plain text-sm" href="{% url 'requests' %}{% querystring log_query %}">{% translate "All requests" %}</a>
         </div>
         <div class="overflow-x-auto">
             <table class="table table-sm">
@@ -90,7 +90,7 @@
                     {% for row in latest %}
                         {% with request=row.request %}
                             <tr class="font-mono text-[13px]">
-                                <td><a class="muted row-link" href="{% url 'requests' %}?{{ log_query }}&amp;request={{ request.id }}#request-{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Open request {{ id }} in the log{% endblocktranslate %}">{{ request.timestamp|when }}</a></td>
+                                <td><a class="muted row-link" href="{% url 'requests' %}{% querystring log_query request=request.id %}#request-{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Open request {{ id }} in the log{% endblocktranslate %}">{{ request.timestamp|when }}</a></td>
                                 <td>{{ request.model|default:_("n/a") }}</td>
                                 <td class="muted">{{ request.path }}</td>
                                 <td>

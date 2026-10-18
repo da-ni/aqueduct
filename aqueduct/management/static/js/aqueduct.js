@@ -107,10 +107,12 @@
       else alert.remove();
     }, 5000);
   }
-  // The chart metric stays picked while the reader moves between filters in this tab.
   document.addEventListener('change', (event) => {
-    if (event.target.name !== 'metric') return;
-    try { sessionStorage.setItem('metric', event.target.value); } catch { }
+    if (event.target.matches('[data-autosubmit]')) event.target.form.submit();
+    // The chart metric stays picked while the reader moves between filters in this tab.
+    if (event.target.name === 'metric') {
+      try { sessionStorage.setItem('metric', event.target.value); } catch { }
+    }
   });
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-autodismiss]').forEach(autodismiss);

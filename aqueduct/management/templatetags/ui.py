@@ -3,11 +3,14 @@ from collections.abc import Iterable
 from datetime import UTC, date, datetime
 
 from django import template
+from django.contrib.messages.storage.base import Message
 from django.forms import BoundField
 from django.template.defaultfilters import date as format_date
 from django.template.defaulttags import querystring
+from django.urls import reverse
 from django.utils import dateformat, timezone
 from django.utils.html import format_html, format_html_join
+from django.utils.http import urlencode
 from django.utils.safestring import SafeString
 from django.utils.translation import gettext, ngettext_lazy
 
@@ -16,6 +19,7 @@ from management.icons import Icon
 from management.key_activity import MISSING, Expiry, grouped
 from management.models import FileObject, ServiceAccount, Team, Token
 from management.privacy import render_markdown
+from management.views.base import NEW_KEY_TAG
 
 register = template.Library()
 
@@ -87,6 +91,12 @@ def hidden_params(
 def query_with(context: template.Context, name: str, value: object, dropped: str = "") -> str:
     """`{% querystring %}` with a parameter name that comes from a variable."""
     return querystring(context, **{name: value}, **dict.fromkeys(_names((dropped,))))
+
+
+@register.simple_tag
+def url_with(viewname: str, *args: object, **query: object) -> str:
+    """`{% url %}` with a query string, as in `{% url_with 'files' file=file.id %}`."""
+    return f"{reverse(viewname, args=args)}?{urlencode(query)}"
 
 
 @register.filter
@@ -202,6 +212,16 @@ def confirm(title: str, detail: str = "", action: str = "", dismiss: str = "") -
 def confirm_delete(obj: Token | ServiceAccount | Team | FileObject) -> SafeString:
     question = deletion(obj)
     return confirm(question.title, question.detail, question.action)
+
+
+@register.filter
+def new_keys(messages: Iterable[Message]) -> list[Message]:
+    return [message for message in messages if message.extra_tags == NEW_KEY_TAG]
+
+
+@register.filter
+def notices(messages: Iterable[Message]) -> list[Message]:
+    return [message for message in messages if message.extra_tags != NEW_KEY_TAG]
 
 
 @register.filter
