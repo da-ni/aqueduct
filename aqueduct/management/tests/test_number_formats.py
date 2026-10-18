@@ -1,7 +1,10 @@
 from datetime import UTC, date, datetime
+from importlib import import_module
 
+from django.conf import settings
 from django.test import SimpleTestCase
 from django.utils import translation
+from django.utils.formats import get_format
 
 from management.key_activity import compact, grouped, percent
 from management.templatetags.ui import when
@@ -78,3 +81,19 @@ class DateFormatsTest(SimpleTestCase):
                     self.assertIn(f">{english}</time>", when(value, style))
                 with translation.override("de"):
                     self.assertIn(f">{german}</time>", when(value, style))
+
+
+class FormatModulesTest(SimpleTestCase):
+    """For a name no format module defines, `get_format` returns the name, and a page then
+    formats the date with the name's letters as format characters."""
+
+    def test_every_language_defines_every_format_name(self):
+        modules = {
+            code: import_module(f"aqueduct.formats.{code}.formats")
+            for code, _ in settings.LANGUAGES
+        }
+        names = {name for module in modules.values() for name in vars(module) if name.isupper()}
+        for code in modules:
+            for name in sorted(names):
+                with self.subTest(language=code, name=name):
+                    self.assertNotEqual(get_format(name, lang=code), name)

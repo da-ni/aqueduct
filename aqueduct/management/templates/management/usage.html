@@ -103,13 +103,13 @@
             </div>
             {% if models %}
                 <div class="overflow-x-auto">
-                    <table class="table table-fixed model-table min-w-[640px] de:min-w-[760px] md:min-w-[860px]">
+                    <table class="table table-fixed model-table min-w-[640px] de:max-md:min-w-[760px] md:min-w-[860px]">
                         <thead>
                             <tr>
-                                <th class="w-[28%] md:w-[22%] de:w-[24%] de:md:w-[22%]">{% translate "Model" %}</th><th class="hidden w-[26%] md:table-cell de:w-[21%]">{% translate "Tokens" %}</th>
-                                <th class="w-[10%] text-right md:w-[8%] de:w-[15%] de:md:w-[11%]">{% translate "Input" %}</th><th class="w-[10%] text-right md:w-[8%] de:w-[9%] de:md:w-[7%]">{% translate "Cached" %}</th><th class="w-[10%] text-right md:w-[8%] de:w-[15%] de:md:w-[11%]">{% translate "Output" %}</th>
-                                <th class="w-[13%] text-right md:w-[10%] de:w-[12%] de:md:w-[9%]">{% translate "Requests" %}</th>
-                                <th class="w-[17%] text-right md:w-[10%] de:w-[15%] de:md:w-[11%]">{% if approximate_tip %}<span class="tooltip tooltip-left" data-tip="{{ approximate_tip }}" tabindex="0">{% translate "Median time" %}<span class="sr-only">, {{ approximate_tip }}</span></span>{% else %}{% translate "Median time" %}{% endif %}</th><th class="w-[12%] text-right md:w-[8%] de:w-[10%] de:md:w-[8%]">{% translate "Share" %}</th>
+                                <th class="w-[28%] md:w-[22%] de:max-md:w-[24%] de:md:w-[22%]">{% translate "Model" %}</th><th class="hidden w-[26%] md:table-cell de:md:w-[20%]">{% translate "Tokens" %}</th>
+                                <th class="w-[10%] text-right md:w-[8%] de:max-md:w-[15%] de:md:w-[11%]">{% translate "Input" %}</th><th class="w-[10%] text-right md:w-[8%] de:max-md:w-[9%] de:md:w-[7%]">{% translate "Cached" %}</th><th class="w-[10%] text-right md:w-[8%] de:max-md:w-[15%] de:md:w-[11%]">{% translate "Output" %}</th>
+                                <th class="w-[13%] text-right md:w-[10%] de:max-md:w-[12%] de:md:w-[10%]">{% translate "Requests" %}</th>
+                                <th class="w-[17%] text-right md:w-[10%] de:max-md:w-[15%] de:md:w-[11%]">{% if approximate_tip %}<span class="tooltip tooltip-left" data-tip="{{ approximate_tip }}" tabindex="0">{% translate "Median time" %}<span class="sr-only">, {{ approximate_tip }}</span></span>{% else %}{% translate "Median time" %}{% endif %}</th><th class="w-[12%] text-right md:w-[8%] de:max-md:w-[10%] de:md:w-[8%]">{% translate "Share" %}</th>
                             </tr>
                         </thead>
                         <tbody>

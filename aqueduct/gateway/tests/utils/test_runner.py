@@ -12,6 +12,7 @@ from django.core.cache import caches
 from django.core.signals import setting_changed
 from django.dispatch import receiver
 from django.test.runner import DiscoverRunner
+from django.utils import translation
 
 from gateway import config
 from mock_api.mock_server import MockAPIServer
@@ -115,14 +116,17 @@ def clear_caches_built_from_the_setting(*, setting: str, **kwargs) -> None:
         cached.cache_clear()
 
 
-class _ClearCachesBeforeEachTest(unittest.TestResult):
+class _ResetSharedStateBeforeEachTest(unittest.TestResult):
     """The cache outlives each test's rollback, and object ids repeat across tests, so a key
-    cached by one test can answer the next."""
+    cached by one test can answer the next. The active language outlives each test too:
+    `LocaleMiddleware` activates the language of a test client's request on the test thread
+    and never deactivates it, so a German request would turn the next test German."""
 
     @override
     def startTest(self, test):
         for cache in caches.all(initialized_only=True):
             cache.clear()
+        translation.activate(settings.LANGUAGE_CODE)
         super().startTest(test)
 
 
@@ -136,7 +140,7 @@ class MockServerTestRunner(DiscoverRunner):
 
     def get_resultclass(self):
         result = super().get_resultclass() or unittest.TextTestResult
-        return type("IsolatedTestResult", (_ClearCachesBeforeEachTest, result), {})
+        return type("IsolatedTestResult", (_ResetSharedStateBeforeEachTest, result), {})
 
     def setup_test_environment(self, **kwargs):
         """Set up the test environment, starting the mock API server."""
