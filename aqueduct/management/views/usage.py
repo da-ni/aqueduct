@@ -18,10 +18,12 @@ from django.views.generic import TemplateView
 from management import usage_report as report
 from management import usage_rollup as rollup
 from management.access import EveryOrg, KeyAct, OrgWide, WholeOrg, requests_of
+from management.activity import Activity, model_usage, series, served
+from management.charts import HEAT_CLASSES, HEAT_HOURS, columns, heat, kpis, slots
 from management.ids import parse_id
-from management.key_activity import Activity, served
 from management.model_catalog import model_kinds
 from management.models import Request, Token
+from management.periods import DEFAULT_SPAN, Span
 from management.request_log import (
     PAGE_SIZE,
     Filters,
@@ -35,7 +37,7 @@ from management.views.base import BaseAqueductView
 
 
 def _org_wide(filters: Filters) -> OrgWide | None:
-    return filters.org_wide if filters.span is not report.Span.HOUR else None
+    return filters.org_wide if filters.span is not Span.HOUR else None
 
 
 def _key_windows(filters: Filters) -> dict[int, Activity] | None:
@@ -86,7 +88,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         context = super().get_context_data(**kwargs)
         params = self.request.GET
         now = timezone.now()
-        filters = read_filters(self.viewer, params, default_span=report.DEFAULT_SPAN, now=now)
+        filters = read_filters(self.viewer, params, default_span=DEFAULT_SPAN, now=now)
         chosen, selected_key, period = self.viewer.chosen, filters.key, filters.period
         selected_org = chosen.org if isinstance(chosen, WholeOrg) else None
         reqs = filters.requests
@@ -100,7 +102,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
             timeline = rollup.org_series(org_wide, filters.model, period, sealed, org_requests)
             models = rollup.org_models(org_wide, filters.model, period, sealed, org_requests)
         else:
-            timeline, models = report.series(reqs, period), report.model_usage(in_period)
+            timeline, models = series(reqs, period), model_usage(in_period)
         total = timeline.total
         heat_weeks = max(1, min(4, int(retention_days // 7)))
         heat_model = params.get("heat_model")
@@ -127,21 +129,21 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
             {
                 "filters": filters,
                 "period": period,
-                "kpis": report.kpis(report.slots(timeline.points, period.step)),
+                "kpis": kpis(slots(timeline.points, period.step)),
                 "requests_in_period": total.requests,
                 "charts": tuple(
-                    (shown, report.columns(timeline.points, period.step, shown))
+                    (shown, columns(timeline.points, period.step, shown))
                     for shown in ("tokens", "requests")
                 ),
                 "statuses": report.statuses(timeline, filters.log_url),
                 "heat_org": selected_org,
                 "heat_model": heat_model,
-                "heat": report.heat(
+                "heat": heat(
                     _heat(chosen, heat_model, org_requests, now, heat_weeks, sealed), heat_weeks
                 ),
                 "heat_days": heat_weeks * 7,
-                "heat_legend": report.HEAT_CLASSES[1:],
-                "heat_hours": report.HEAT_HOURS,
+                "heat_legend": HEAT_CLASSES[1:],
+                "heat_hours": HEAT_HOURS,
                 "models": report.model_rows(
                     models, model_kinds(), filters.log_url, approximate=org_wide is not None
                 ),
@@ -169,9 +171,7 @@ class KeyUsageView(BaseAqueductView, TemplateView):
     def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         params = request.GET.copy()
         params.pop("key", None)
-        filters = read_filters(
-            self.viewer, params, default_span=report.DEFAULT_SPAN, now=timezone.now()
-        )
+        filters = read_filters(self.viewer, params, default_span=DEFAULT_SPAN, now=timezone.now())
         only_key = filters.only_key
         if not filters.can_pick_scope and only_key is not None and only_key.href is not None:
             return redirect(only_key.href)

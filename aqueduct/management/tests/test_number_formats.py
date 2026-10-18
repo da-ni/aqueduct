@@ -6,9 +6,8 @@ from django.test import SimpleTestCase
 from django.utils import translation
 from django.utils.formats import get_format
 
-from management.key_activity import compact, grouped, percent
+from management.formatting import compact, duration, grouped, percent
 from management.templatetags.ui import when
-from management.usage_report import duration
 
 NBSP = "\xa0"
 

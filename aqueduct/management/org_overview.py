@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from django.conf import settings
 from django.utils.translation import gettext, ngettext
 
-from management.key_activity import grouped
+from management.formatting import grouped
 from management.models import LimitSet, Org, ServiceAccount, Team
 from management.models.exclusions import Exclusion, excluded
 

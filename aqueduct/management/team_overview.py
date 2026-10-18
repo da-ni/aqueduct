@@ -9,25 +9,10 @@ from django.db.models import Count, OuterRef, QuerySet, Subquery
 from django.db.models.functions import Coalesce
 from django.utils.translation import gettext
 
-from management.key_activity import (
-    TOKEN_SERIES,
-    Activity,
-    Expiry,
-    Stat,
-    Tip,
-    Window,
-    activity_by,
-    as_failed,
-    as_requests,
-    as_tokens,
-    compact,
-    day_label,
-    grouped,
-    key_activity,
-    spark,
-    week,
-    window,
-)
+from management.activity import Activity, activity_by
+from management.charts import TOKEN_SERIES, Stat, Tip, spark
+from management.formatting import as_failed, as_requests, as_tokens, compact, day_label, grouped
+from management.keys import Expiry, key_activity
 from management.models import (
     LimitSet,
     Request,
@@ -40,6 +25,8 @@ from management.models import (
     UserProfile,
 )
 from management.models.exclusions import Exclusion, excluded
+from management.periods import week
+from management.week_window import Window, window
 
 PAGE_SIZE = 50
 

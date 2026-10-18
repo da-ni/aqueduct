@@ -15,8 +15,9 @@ from django.utils.translation import gettext, ngettext
 from django.utils.translation import gettext_lazy as _
 
 from management.access import EveryOrg, Extent, KeyAct, Memberships, TeamAct, Viewer, WholeOrg
+from management.formatting import grouped
 from management.icons import Icon
-from management.key_activity import Expiry, grouped
+from management.keys import Expiry
 from management.models import (
     Batch,
     BatchStatus,

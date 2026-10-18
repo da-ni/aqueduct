@@ -16,7 +16,7 @@ from .availability import (
     Checklist,
     configured_mcp_servers,
 )
-from .key_activity import grouped
+from .formatting import grouped
 from .models import Org, ServiceAccount, Team, Token, UserProfile
 from .ownership import personal
 

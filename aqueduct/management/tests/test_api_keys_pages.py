@@ -11,7 +11,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone, translation
 
-from management.key_activity import Expiry
+from management.keys import Expiry
 from management.models import Request, ServiceAccount, TeamMembership, Token
 from management.tests.helpers import RoleWorld, make_token, secret_on
 

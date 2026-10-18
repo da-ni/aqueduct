@@ -10,7 +10,8 @@ from django.utils import timezone
 from management import usage_report as report
 from management import usage_rollup as rollup
 from management.access import EveryOrg, WholeOrg, requests_of
-from management.key_activity import served
+from management.activity import TOKENS, model_usage, series, served
+from management.charts import columns, heat, kpis, slots
 from management.models import (
     KeyUsageWindow,
     Org,
@@ -95,13 +96,9 @@ class UsageFromRollupsTest(TestCase):
                 page = self.get(user, "usage", **params)
                 filters, period = page["filters"], page["period"]
                 in_period = period.of(filters.requests)
-                timeline = report.series(filters.requests, period)
-                self.assertEqual(
-                    page["kpis"], report.kpis(report.slots(timeline.points, period.step))
-                )
-                self.assertEqual(
-                    page["chart"], report.columns(timeline.points, period.step, "tokens")
-                )
+                timeline = series(filters.requests, period)
+                self.assertEqual(page["kpis"], kpis(slots(timeline.points, period.step)))
+                self.assertEqual(page["chart"], columns(timeline.points, period.step, "tokens"))
                 self.assertEqual(page["statuses"], report.statuses(timeline, filters.log_url))
 
                 if isinstance(filters.viewer.chosen, EveryOrg):
@@ -110,7 +107,7 @@ class UsageFromRollupsTest(TestCase):
                     )
                     self.assertTrue(page["orgs_usage"])
 
-                exact = report.model_usage(in_period)
+                exact = model_usage(in_period)
                 self.assertEqual(
                     {row.name: row.activity for row in page["models"]},
                     {name: usage.activity for name, usage in exact.items()},
@@ -147,19 +144,19 @@ class UsageFromRollupsTest(TestCase):
             with self.subTest(user=user.username, **params):
                 page = self.get(user, "usage", **params)
                 weeks = page["heat_days"] // 7
-                heat = EveryOrg() if page["heat_org"] is None else WholeOrg(page["heat_org"])
+                scope = EveryOrg() if page["heat_org"] is None else WholeOrg(page["heat_org"])
                 raw = {
                     (row["day"], row["at"]): row["tokens"]
-                    for row in served(requests_of(heat))
+                    for row in served(requests_of(scope))
                     .filter(timestamp__gte=timezone.now() - timedelta(weeks=weeks))
                     .values(
                         day=rollup.ExtractIsoWeekDay("timestamp"),
                         at=rollup.ExtractHour("timestamp"),
                     )
-                    .annotate(tokens=rollup.Sum(report.TOKENS))
+                    .annotate(tokens=rollup.Sum(TOKENS))
                     .order_by()
                 }
-                self.assertEqual(page["heat"], report.heat(raw, weeks))
+                self.assertEqual(page["heat"], heat(raw, weeks))
 
     def test_heatmap_is_cached_while_the_rollups_lag_behind(self):
         cache.clear()

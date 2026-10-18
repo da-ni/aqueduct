@@ -25,7 +25,7 @@ from management.access import KeyAct
 from management.availability import Reach, configured_mcp_servers
 from management.deletion import deletion
 from management.forms import TokenCreateForm
-from management.key_activity import Expiry, KeyKind, key_list, key_report
+from management.keys import Expiry, KeyKind, key_list, key_report
 from management.models import LimitSet, Token
 from management.org_choice import EVERY_ORG
 from management.ownership import RELATED, org_id, team_of
