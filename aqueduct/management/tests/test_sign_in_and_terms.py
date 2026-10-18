@@ -9,7 +9,7 @@ from tos.models import TermsOfService
 from aqueduct.urls import terms_of_service
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
 from management.models import Org, UserProfile
-from management.tests.test_api_keys_pages import PAGES
+from management.tests.helpers import PAGES
 
 User = get_user_model()
 

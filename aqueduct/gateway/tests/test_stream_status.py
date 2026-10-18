@@ -94,16 +94,18 @@ class StreamingStatusTests(TestCase):
         self.assertIsNotNone(request_log.response_time_ms)
 
     async def test_cancelled_stream_records_499(self) -> None:
+        waiting = asyncio.Event()
+
         async def slow_stream():
             yield _chunk()
-            await asyncio.sleep(3600)  # Block until cancelled
+            waiting.set()
+            await asyncio.Event().wait()  # Block until cancelled
 
         request_log = await self._make_request_log()
         response = RawStreamingResponse(streaming_content=slow_stream(), request_log=request_log)
 
         task = asyncio.create_task(_consume(_underlying_stream(response)))
-        # Give the task time to consume the first chunk and suspend in sleep()
-        await asyncio.sleep(0.01)
+        await waiting.wait()
         task.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await task

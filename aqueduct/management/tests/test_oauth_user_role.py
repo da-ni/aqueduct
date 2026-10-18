@@ -1,13 +1,12 @@
 """Tests for OAuth user role assignment (_update_user_role and role flows)."""
 
-from unittest.mock import patch
-
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.test import TestCase, override_settings
 
 from management.auth import OIDCBackend
 from management.models import Org, UserProfile
+from management.snippets import DEFAULT_ORG_NAME
 from management.tests.helpers import (
     SNIPPET_USER_GROUP_BASIC,
     SNIPPET_USER_GROUP_INVALID,
@@ -229,30 +228,24 @@ class UpdateUserRoleTestCase(TestCase):
 
 @override_settings(**ROLE_SETTINGS)
 class UserRoleIntegrationTestCase(TestCase):
-    """Test role assignment through create_user and update_user."""
+    """Test role assignment through create_user and update_user. The snippets name no org, so
+    every user lands in the default org."""
 
     def setUp(self):
         self.backend = OIDCBackend()
-        self.org = Org.objects.create(name="test-org")
+        self.org = Org.objects.create(name=DEFAULT_ORG_NAME)
         self.user_group, _ = Group.objects.get_or_create(name="user")
 
     def test_create_user_assigns_admin_role(self):
         seed_active_config(SNIPPET_USER_GROUP_BASIC)
         claims = {"email": "test@example.com", "groups": ["E123-Students"]}
 
-        with patch.object(OIDCBackend, "_org", return_value=self.org):
-            user = User.objects.create_user(username="testuser", email="test@example.com")
-            user.groups.add(self.user_group)
+        user = self.backend.create_user(claims)
 
-            with patch(
-                "mozilla_django_oidc.auth.OIDCAuthenticationBackend.create_user", return_value=user
-            ):
-                result_user = self.backend.create_user(claims)
-
-        self.assertEqual(result_user, user)
-        profile = UserProfile.objects.get(user=user)
+        self.assertEqual(user, User.objects.get(email="test@example.com"))
         user.refresh_from_db()
-        self.assertEqual(profile.group, "admin")
+        self.assertEqual(user.profile.org, self.org)
+        self.assertEqual(user.profile.group, "admin")
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_superuser)
 
@@ -260,19 +253,12 @@ class UserRoleIntegrationTestCase(TestCase):
         seed_active_config(SNIPPET_USER_GROUP_BASIC)
         claims = {"email": "test@example.com", "groups": ["E456-Staff"]}
 
-        with patch.object(OIDCBackend, "_org", return_value=self.org):
-            user = User.objects.create_user(username="testuser", email="test@example.com")
-            user.groups.add(self.user_group)
+        user = self.backend.create_user(claims)
 
-            with patch(
-                "mozilla_django_oidc.auth.OIDCAuthenticationBackend.create_user", return_value=user
-            ):
-                result_user = self.backend.create_user(claims)
-
-        self.assertEqual(result_user, user)
-        profile = UserProfile.objects.get(user=user)
+        self.assertEqual(user, User.objects.get(email="test@example.com"))
         user.refresh_from_db()
-        self.assertEqual(profile.group, "user")
+        self.assertEqual(user.profile.org, self.org)
+        self.assertEqual(user.profile.group, "user")
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
 
@@ -290,8 +276,7 @@ class UserRoleIntegrationTestCase(TestCase):
         # Admin group removed; only a non-admin team remains
         updated_claims = {"email": "test@example.com", "groups": ["E456-Staff"]}
 
-        with patch.object(OIDCBackend, "_org", return_value=self.org):
-            self.backend.update_user(user, updated_claims)
+        self.backend.update_user(user, updated_claims)
 
         profile.refresh_from_db()
         user.refresh_from_db()

@@ -5,7 +5,7 @@ from pathlib import Path
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 
-from gateway.tests.utils.base import INTEGRATION_TEST_BACKEND, GatewayTTSSTTestCase
+from gateway.tests.utils.base import GatewayTTSSTTestCase
 from management.models import Request
 from mock_api.mock_configs import MockPlainTextConfig
 
@@ -15,9 +15,6 @@ class SpeechEndpointTest(GatewayTTSSTTestCase):
 
     async def test_speech_endpoint_basic(self):
         """Test basic speech generation with valid parameters."""
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("TTS tests require OpenAI backend")
-
         payload = {
             "model": self.tts_model,
             "input": "Hello, this is a test of the text-to-speech system.",
@@ -57,9 +54,6 @@ class SpeechEndpointTest(GatewayTTSSTTestCase):
 
     def test_speech_endpoint_invalid_model(self):
         """Test speech endpoint with invalid model."""
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("TTS tests require OpenAI backend")
-
         payload = {
             "model": "invalid-tts-model",
             "input": "Hello, this is a test.",
@@ -80,9 +74,6 @@ class SpeechEndpointTest(GatewayTTSSTTestCase):
 
     def test_speech_endpoint_missing_required_fields(self):
         """Test speech endpoint with missing required fields."""
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("TTS tests require OpenAI backend")
-
         payload = {
             "model": self.tts_model,
             # Missing 'input' field
@@ -104,17 +95,15 @@ class SpeechEndpointTest(GatewayTTSSTTestCase):
     @override_settings(RELAY_REQUEST_TIMEOUT=0.0001)
     def test_speech_endpoint_timeout(self):
         """Test speech endpoint timeout."""
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("TTS tests require OpenAI backend")
-
         payload = {"model": self.tts_model, "input": "Hello, this is a test.", "voice": "alloy"}
 
-        response = self.client.post(
-            self.url_tts,
-            data=json.dumps(payload),
-            headers=self.headers,
-            content_type="application/json",
-        )
+        with self.upstream_too_slow("audio/speech"):
+            response = self.client.post(
+                self.url_tts,
+                data=json.dumps(payload),
+                headers=self.headers,
+                content_type="application/json",
+            )
 
         self.assertEqual(
             response.status_code, 504, f"Expected 504 Gateway Timeout, got {response.status_code}"
@@ -138,9 +127,6 @@ class TranscriptionsEndpointTest(GatewayTTSSTTestCase):
 
     def test_transcriptions_endpoint_basic(self):
         """Test basic transcription with valid audio file."""
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("STT tests require OpenAI backend")
-
         response = self.client.post(
             self.url_stt,
             {"file": self.test_audio_file, "model": self.stt_model},
@@ -167,9 +153,6 @@ class TranscriptionsEndpointTest(GatewayTTSSTTestCase):
 
     def test_transcriptions_endpoint_invalid_model(self):
         """Test transcriptions endpoint with invalid model."""
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("STT tests require OpenAI backend")
-
         response = self.client.post(
             self.url_stt,
             {"file": self.test_audio_file, "model": "invalid-stt-model"},
@@ -183,9 +166,6 @@ class TranscriptionsEndpointTest(GatewayTTSSTTestCase):
 
     def test_transcriptions_endpoint_missing_file(self):
         """Test transcriptions endpoint with missing file."""
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("STT tests require OpenAI backend")
-
         response = self.client.post(
             self.url_stt,
             {"model": self.stt_model},  # Missing file
@@ -202,9 +182,6 @@ class TranscriptionsEndpointTest(GatewayTTSSTTestCase):
 
     def test_transcriptions_endpoint_with_language(self):
         """Test transcriptions endpoint with language parameter."""
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("STT tests require OpenAI backend")
-
         response = self.client.post(
             self.url_stt,
             {"file": self.test_audio_file, "model": self.stt_model, "language": "en"},
@@ -217,9 +194,6 @@ class TranscriptionsEndpointTest(GatewayTTSSTTestCase):
 
     def test_transcriptions_endpoint_with_response_format(self):
         """Test transcriptions endpoint with response_format parameter."""
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("STT tests require OpenAI backend")
-
         response = self.client.post(
             self.url_stt,
             {
@@ -236,9 +210,6 @@ class TranscriptionsEndpointTest(GatewayTTSSTTestCase):
 
     def test_transcriptions_endpoint_with_vtt_format(self):
         """Test transcriptions endpoint with VTT response format."""
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("STT tests require OpenAI backend")
-
         transcription = (
             "WEBVTT\n\n00:00:00.000 --> 00:00:05.880\nHello.\n\n"
             "00:00:05.880 --> 00:00:11.400\nThis is\n\n"
@@ -278,9 +249,6 @@ class TranscriptionsEndpointTest(GatewayTTSSTTestCase):
 
     def test_transcriptions_endpoint_with_srt_format(self):
         """Test transcriptions endpoint with SRT response format."""
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("STT tests require OpenAI backend")
-
         transcription = (
             "1\n00:00:00.000 --> 00:00:05.880\nHello.\n\n"
             "2\n00:00:05.880 --> 00:00:11.400\nThis is\n\n"
@@ -320,9 +288,6 @@ class TranscriptionsEndpointTest(GatewayTTSSTTestCase):
 
     def test_transcriptions_endpoint_with_text_format(self):
         """Test transcriptions endpoint with plain text response format."""
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("STT tests require OpenAI backend")
-
         transcription = "Hello. This is a mock text transcription.\n"
         mock_resp = MockPlainTextConfig(response_data=transcription)
         with self.mock_server.patch_external_api(self.url_stt, mock_resp):
@@ -353,14 +318,12 @@ class TranscriptionsEndpointTest(GatewayTTSSTTestCase):
     @override_settings(RELAY_REQUEST_TIMEOUT=0.0001)
     def test_transcriptions_endpoint_timeout(self):
         """Test transcriptions endpoint timeout."""
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("STT tests require OpenAI backend")
-
-        response = self.client.post(
-            self.url_stt,
-            {"file": self.test_audio_file, "model": self.stt_model},
-            headers=self.multipart_headers,
-        )
+        with self.upstream_too_slow("audio/transcriptions"):
+            response = self.client.post(
+                self.url_stt,
+                {"file": self.test_audio_file, "model": self.stt_model},
+                headers=self.multipart_headers,
+            )
 
         self.assertEqual(
             response.status_code, 504, f"Expected 504 Gateway Timeout, got {response.status_code}"
@@ -375,9 +338,6 @@ class TTSSTTLifecycleTest(GatewayTTSSTTestCase):
         Lifecycle test: TTS model creates an audio clip, then STT model decodes it.
         This tests the complete round-trip functionality.
         """
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("TTS/STT lifecycle tests require OpenAI backend")
-
         original_text = (
             "Hello, this is a test of the complete text-to-speech and speech-to-text lifecycle."
         )
@@ -464,9 +424,6 @@ class TTSSTTLifecycleTest(GatewayTTSSTTestCase):
         """
         Test TTS -> STT lifecycle with different voice options.
         """
-        if INTEGRATION_TEST_BACKEND == "vllm":
-            self.skipTest("TTS/STT lifecycle tests require OpenAI backend")
-
         original_text = "Testing different voice options for text-to-speech conversion."
         voices = ["alloy", "echo", "fable"]
 

@@ -6,7 +6,7 @@ from tos.models import TermsOfService, UserAgreement
 
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
 from management.models import Org, Team, TeamMembership, UserGroup, UserProfile
-from management.tests.test_api_keys_pages import PAGES, make_token
+from management.tests.helpers import PAGES, make_token, make_user
 
 User = get_user_model()
 
@@ -33,9 +33,7 @@ class SettingsPageTest(TestCase):
         make_token(self.outsider, "outsider-key")
 
     def user(self, name: str, group: UserGroup = UserGroup.USER, org: Org | None = None):
-        user = User.objects.create_user(username=name, email=f"{name}@example.com")
-        UserProfile.objects.create(user=user, org=org or self.org).group = group
-        return user
+        return make_user(name, org or self.org, group)
 
     def page(self, user):
         self.client.force_login(user)

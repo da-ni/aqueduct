@@ -1,4 +1,35 @@
-from management.models import Snippet, SnippetType
+import re
+from pathlib import Path
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.test import override_settings
+
+from management.models import Org, Snippet, SnippetType, Token, UserGroup, UserProfile
+
+User = get_user_model()
+
+PAGES = override_settings(
+    LITELLM_ROUTER_CONFIG_FILE_PATH=Path(settings.BASE_DIR).parent / "example_router_config.yaml"
+)
+
+
+def make_user(name: str, org: Org, group: UserGroup = UserGroup.USER):
+    user = User.objects.create_user(username=name, email=f"{name}@example.com")
+    UserProfile.objects.create(user=user, org=org).group = group
+    return user
+
+
+def make_token(user, name: str, **kwargs) -> Token:
+    token = Token(name=name, user=user, **kwargs)
+    token._set_new_key()
+    token.save()
+    return token
+
+
+def secret_on(response) -> str | None:
+    match = re.search(r'data-copy="(sk-[^"]+)"', response.content.decode())
+    return match.group(1) if match else None
 
 
 def seed_active_config(code: str, name: str = "test-config") -> Snippet:

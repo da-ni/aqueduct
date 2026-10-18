@@ -62,6 +62,7 @@ ResponseData = dict[str, Any] | list[dict[str, Any]]
 
 class MockConfig(BaseModel):
     status_code: int = 200
+    delay_seconds: float = 0
     response_data: ResponseData | Callable[[PathIds], ResponseData] | None = {}
     headers: dict[str, str] = {"Content-Type": "application/json"}
 

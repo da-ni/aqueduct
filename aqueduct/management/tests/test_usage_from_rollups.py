@@ -20,10 +20,9 @@ from management.models import (
     Token,
     UsageRollupState,
     UserGroup,
-    UserProfile,
 )
 from management.request_log import Key
-from management.tests.test_api_keys_pages import PAGES, make_token
+from management.tests.helpers import PAGES, make_token, make_user
 
 User = get_user_model()
 CHAT = "gpt-4.1-nano"
@@ -40,30 +39,31 @@ class UsageFromRollupsTest(TestCase):
     """The Overview and All keys pages read the rollups when the viewer sees a whole org, and
     show the figures the requests give."""
 
-    def setUp(self):
-        self.now = timezone.now()
-        self.org = Org.objects.create(name="lab-org")
-        self.other_org = Org.objects.create(name="other-org")
-        self.team = Team.objects.create(name="NLP Lab", org=self.org)
-        self.admin = self.user("admin", self.org, UserGroup.ADMIN)
-        self.org_admin = self.user("org-admin", self.org, UserGroup.ORG_ADMIN)
-        self.member = self.user("member", self.org)
-        TeamMembership.objects.create(user_profile=self.member.profile, team=self.team)
-        foreigner = self.user("foreigner", self.other_org)
-        pipeline = ServiceAccount.objects.create(name="pipeline", team=self.team)
+    @classmethod
+    def setUpTestData(cls):
+        cls.now = timezone.now()
+        cls.org = Org.objects.create(name="lab-org")
+        cls.other_org = Org.objects.create(name="other-org")
+        cls.team = Team.objects.create(name="NLP Lab", org=cls.org)
+        cls.admin = make_user("admin", cls.org, UserGroup.ADMIN)
+        cls.org_admin = make_user("org-admin", cls.org, UserGroup.ORG_ADMIN)
+        cls.member = make_user("member", cls.org)
+        TeamMembership.objects.create(user_profile=cls.member.profile, team=cls.team)
+        foreigner = make_user("foreigner", cls.other_org)
+        pipeline = ServiceAccount.objects.create(name="pipeline", team=cls.team)
         keys = [
-            make_token(self.member, "laptop"),
-            make_token(self.member, "pipeline", service_account=pipeline),
-            make_token(self.org_admin, "Scripts"),
+            make_token(cls.member, "laptop"),
+            make_token(cls.member, "pipeline", service_account=pipeline),
+            make_token(cls.org_admin, "Scripts"),
             make_token(foreigner, "foreign"),
-            *(make_token(self.org_admin, f"batch-{n:02d}") for n in range(12)),
+            *(make_token(cls.org_admin, f"batch-{n:02d}") for n in range(12)),
         ]
         draw = random.Random(7)
         Request.objects.bulk_create(
             Request(
                 token=draw.choice(keys),
                 model=draw.choice((CHAT, CHAT, EMBEDDING, "retired-model")),
-                timestamp=self.now - timedelta(minutes=draw.randrange(1, 35 * 24 * 60)),
+                timestamp=cls.now - timedelta(minutes=draw.randrange(1, 35 * 24 * 60)),
                 status_code=draw.choice((200, 200, 200, 429, 400, 404, 500, 502, None)),
                 response_time_ms=draw.choice((None, int(draw.lognormvariate(5, 1)))),
                 input_tokens=(tokens := draw.randrange(0, 5000)),
@@ -72,11 +72,6 @@ class UsageFromRollupsTest(TestCase):
             )
             for _ in range(1200)
         )
-
-    def user(self, name: str, org: Org, group: UserGroup = UserGroup.USER):
-        user = User.objects.create_user(username=name, email=f"{name}@example.com")
-        UserProfile.objects.create(user=user, org=org).group = group
-        return user
 
     def get(self, user, name: str, **params):
         self.client.force_login(user)
@@ -235,6 +230,13 @@ class UsageFromRollupsTest(TestCase):
             self.assertLess(after[name], before[name], name)
 
     def test_only_whole_org_medians_are_marked_approximate(self):
+        Request.objects.create(
+            token=Token.objects.get(name="Scripts"),
+            model=CHAT,
+            timestamp=timezone.now() - timedelta(minutes=10),
+            status_code=200,
+            response_time_ms=120,
+        )
         self.refresh()
         for user, params, approximate in (
             (self.org_admin, {}, True),

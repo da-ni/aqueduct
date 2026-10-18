@@ -3,7 +3,6 @@ import time
 from datetime import UTC, datetime
 from html import unescape
 from pathlib import Path
-from unittest import mock
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -22,23 +21,16 @@ from management.models import (
     TeamMembership,
     Token,
     UserGroup,
-    UserProfile,
     VectorStore,
     VectorStoreFile,
 )
+from management.tests.helpers import make_token, make_user
 from mock_api.mock_configs import MockConfig
 
 User = get_user_model()
 
 PAGES = override_settings(MCP_CONFIG_FILE_PATH=Path(settings.BASE_DIR).parent / "test-mcp.json")
 NOW = int(time.time())
-
-
-def make_token(user, name: str, **kwargs) -> Token:
-    token = Token(name=name, user=user, **kwargs)
-    token._set_new_key()
-    token.save()
-    return token
 
 
 @PAGES
@@ -68,9 +60,7 @@ class ResourcePagesTestBase(TestCase):
         self.outsider_key = make_token(self.outsider, "outsider-laptop")
 
     def user(self, name: str, org: Org | None = None, group: UserGroup = UserGroup.USER):
-        user = User.objects.create_user(username=name, email=f"{name}@example.com")
-        UserProfile.objects.create(user=user, org=org or self.org).group = group
-        return user
+        return make_user(name, org or self.org, group)
 
     def file(self, token: Token, filename: str, **fields) -> FileObject:
         return FileObject.objects.create(
@@ -103,6 +93,13 @@ class ResourcePagesTestBase(TestCase):
     def as_user(self, user):
         self.client.force_login(user)
         return self.client
+
+    def use_mock_files_api(self):
+        mock_server = get_shared_mock_server()
+        files_api = override_settings(AQUEDUCT_FILES_API_URL=mock_server.base_url)
+        files_api.enable()
+        self.addCleanup(files_api.disable)
+        return mock_server
 
     def assert_goes_to_sign_in(self, response, url: str):
         self.assertRedirects(
@@ -180,10 +177,7 @@ class FileDeleteTest(ResourcePagesTestBase):
         super().setUp()
         self.own_file = self.file(self.owner_key, "prompts.jsonl")
         self.team_file = self.file(self.team_key, "team-corpus.jsonl")
-        self.mock_server = mock_server = get_shared_mock_server()
-        files_api = override_settings(AQUEDUCT_FILES_API_URL=mock_server.base_url)
-        files_api.enable()
-        self.addCleanup(files_api.disable)
+        self.mock_server = self.use_mock_files_api()
 
     def url(self, file: FileObject) -> str:
         return reverse("file_delete", args=[file.id])
@@ -318,10 +312,7 @@ class BatchCancelTest(ResourcePagesTestBase):
     def setUp(self):
         super().setUp()
         self.running = self.batch(self.owner_key, "batch-running", "in_progress")
-        mock_server = get_shared_mock_server()
-        files_api = override_settings(AQUEDUCT_FILES_API_URL=mock_server.base_url)
-        files_api.enable()
-        self.addCleanup(files_api.disable)
+        self.use_mock_files_api()
 
     def status_of(self, batch: Batch) -> str:
         batch.refresh_from_db()
@@ -395,6 +386,7 @@ class VectorStoresPageTest(ResourcePagesTestBase):
         )
         self.team_store = self.store(self.team_key, "group-papers")
         self.outsider_store = self.store(self.outsider_key, "outsider-notes")
+        self.use_mock_files_api()
 
     def test_signed_out_goes_to_sign_in(self):
         for url in (
@@ -580,6 +572,7 @@ class VectorStoreSyncTest(ResourcePagesTestBase):
         super().setUp()
         self.team_store = self.store(self.team_key, "group-papers")
         self.outsider_store = self.store(self.outsider_key, "outsider-notes")
+        self.use_mock_files_api()
 
     def list_page(self, user) -> str:
         return self.as_user(user).get(reverse("vector_stores")).content.decode()
@@ -602,21 +595,24 @@ class VectorStoreSyncTest(ResourcePagesTestBase):
                 response = self.as_user(self.org_admin).post(url, follow=True)
                 self.assertContains(response, "Vector store not found.")
                 self.outsider_store.refresh_from_db()
-                self.assertEqual(self.outsider_store.status, "completed")
-                self.assertEqual(self.outsider_store.name, "outsider-notes")
+                self.assertIsNone(self.outsider_store.last_active_at, "synced")
 
     def test_owner_syncs_their_store(self):
         self.assertIn('aria-label="Sync status of outsider-notes"', self.list_page(self.outsider))
+        url = reverse("vector_store_card_refresh", args=[self.outsider_store.id])
+        self.as_user(self.outsider).post(url)
+        self.outsider_store.refresh_from_db()
+        self.assertIsNotNone(self.outsider_store.last_active_at)
 
     def test_creator_of_a_team_key_cannot_sync_its_store_after_leaving_the_team(self):
         TeamMembership.objects.filter(user_profile=self.teammate.profile).delete()
         client = self.as_user(self.teammate)
-        with mock.patch("management.views.vector_stores._refresh_vector_store") as refresh:
-            for name in ("vector_store_card_refresh", "vector_store_detail_refresh"):
-                with self.subTest(view=name):
-                    url = reverse(name, args=[self.team_store.id])
-                    self.assertContains(client.post(url, follow=True), "Vector store not found.")
-        refresh.assert_not_called()
+        for name in ("vector_store_card_refresh", "vector_store_detail_refresh"):
+            with self.subTest(view=name):
+                url = reverse(name, args=[self.team_store.id])
+                self.assertContains(client.post(url, follow=True), "Vector store not found.")
+                self.team_store.refresh_from_db()
+                self.assertIsNone(self.team_store.last_active_at, "synced")
 
 
 class MCPServersPageTest(ResourcePagesTestBase):

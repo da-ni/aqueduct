@@ -3,7 +3,7 @@ from django.test import SimpleTestCase
 from django.urls import reverse
 
 from management.models import Team, Token
-from management.tests.test_api_keys_pages import make_token
+from management.tests.helpers import make_token
 from management.tests.test_teams_pages import TeamsPagesTestBase
 
 KEY = "Apps using it stop working, and its requests, files, batches, and vector stores are deleted."

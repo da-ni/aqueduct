@@ -25,7 +25,7 @@ from management.models import (
 )
 from management.models.token import of_org
 from management.request_log import visible_tokens
-from management.tests.test_api_keys_pages import PAGES, make_token
+from management.tests.helpers import PAGES, make_token, make_user
 from management.usage_report import DAY, MEDIAN, TOKENS, TOTALS, Period, Span, org_requests, series
 
 User = get_user_model()
@@ -74,27 +74,28 @@ class SplitTest(SimpleTestCase):
 
 @PAGES
 class UsageRollupTest(TestCase):
-    def setUp(self):
-        self.now = timezone.now()
-        self.org = Org.objects.create(name="lab-org")
-        self.other_org = Org.objects.create(name="other-org")
-        self.team = Team.objects.create(name="NLP Lab", org=self.org)
-        self.other_team = Team.objects.create(name="Vision", org=self.other_org)
-        self.member = self.user("member", self.org)
-        self.foreigner = self.user("foreigner", self.other_org)
-        self.member_key = make_token(self.member, "laptop")
-        self.pipeline = ServiceAccount.objects.create(name="pipeline", team=self.team)
-        self.pipeline_key = make_token(self.member, "pipeline", service_account=self.pipeline)
-        self.foreign_key = make_token(self.foreigner, "foreign")
-        self.orphan_key = make_token(User.objects.create_user(username="orphan"), "orphan")
+    @classmethod
+    def setUpTestData(cls):
+        cls.now = timezone.now()
+        cls.org = Org.objects.create(name="lab-org")
+        cls.other_org = Org.objects.create(name="other-org")
+        cls.team = Team.objects.create(name="NLP Lab", org=cls.org)
+        cls.other_team = Team.objects.create(name="Vision", org=cls.other_org)
+        cls.member = make_user("member", cls.org)
+        cls.foreigner = make_user("foreigner", cls.other_org)
+        cls.member_key = make_token(cls.member, "laptop")
+        cls.pipeline = ServiceAccount.objects.create(name="pipeline", team=cls.team)
+        cls.pipeline_key = make_token(cls.member, "pipeline", service_account=cls.pipeline)
+        cls.foreign_key = make_token(cls.foreigner, "foreign")
+        cls.orphan_key = make_token(User.objects.create_user(username="orphan"), "orphan")
 
         draw = random.Random(42)
-        keys = (self.member_key, self.pipeline_key, self.foreign_key, self.orphan_key)
+        keys = (cls.member_key, cls.pipeline_key, cls.foreign_key, cls.orphan_key)
         requests = [
             Request(
                 token=draw.choice(keys),
                 model=draw.choice((CHAT, CHAT, EMBEDDING, UNSERVED, "")),
-                timestamp=self.now - timedelta(minutes=draw.randrange(0, 40 * 24 * 60)),
+                timestamp=cls.now - timedelta(minutes=draw.randrange(0, 40 * 24 * 60)),
                 status_code=draw.choice(STATUSES),
                 response_time_ms=draw.choice((None, 0, int(draw.lognormvariate(6, 2)))),
                 input_tokens=(tokens := draw.randrange(0, 5000)),
@@ -104,11 +105,6 @@ class UsageRollupTest(TestCase):
             for _ in range(1500)
         ]
         Request.objects.bulk_create(requests)
-
-    def user(self, name: str, org: Org):
-        user = User.objects.create_user(username=name, email=f"{name}@example.com")
-        UserProfile.objects.create(user=user, org=org)
-        return user
 
     def log(self, token: Token, ago: timedelta, **fields) -> Request:
         fields.setdefault("model", CHAT)
@@ -306,7 +302,7 @@ class UsageRollupTest(TestCase):
         self.log(key, timedelta(days=2), input_tokens=777, response_time_ms=50)
         rollup.refresh(self.now)
 
-        org_admin = self.user("org-admin", self.org)
+        org_admin = make_user("org-admin", self.org)
         org_admin.profile.group = UserGroup.ORG_ADMIN
         org_admin.profile.save()
         self.assertNotIn(key, visible_tokens(org_admin.profile, self.org, Team.objects.none()))

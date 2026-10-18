@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 from typing import ClassVar, Literal
+from unittest import skipIf
 from unittest.mock import patch
 
 from django.conf import settings
@@ -15,6 +16,7 @@ from tos.models import TermsOfService, UserAgreement
 from gateway.tests.utils import _build_chat_headers, _build_chat_payload
 from gateway.tests.utils.test_runner import get_shared_mock_server
 from management.models import Org, Token, UserProfile
+from mock_api.mock_configs import MockConfig
 from mock_api.mock_server import MockAPIServer
 
 INTEGRATION_TEST_BACKEND: Literal["vllm", "openai"] = os.environ.get(
@@ -92,6 +94,10 @@ class GatewayIntegrationTestCase(TestCase):
             cls._patcher.stop()
         super().tearDownClass()
 
+    def upstream_too_slow(self, path: str):
+        """Make the mock API answer `path` long after any timeout a test sets."""
+        return self.mock_server.patch_external_api(path, MockConfig(delay_seconds=5))
+
     @staticmethod
     def create_new_user() -> tuple[str, int]:
         # Create a new user and a new token for that user
@@ -106,6 +112,41 @@ class GatewayIntegrationTestCase(TestCase):
         token_value = new_token._set_new_key()
         new_token.save()
         return token_value, new_user.id
+
+
+class ChatCompletionsBase(GatewayIntegrationTestCase):
+    MESSAGES: ClassVar[list[dict[str, str]]] = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Write me a short poem!"},
+    ]
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.url = reverse("gateway:chat_completions")
+
+    def _build_chat_completion_request(self, messages, stream=False, **payload_kwargs) -> dict:
+        """
+        Helper to build headers, payload, and endpoint for chat completion requests.
+        """
+        payload = _build_chat_payload(self.model, messages, stream=stream, **payload_kwargs)
+        return {"path": self.url, "data": json.dumps(payload), "headers": self.headers}
+
+    def _send_chat_completion(self, messages, **payload_kwargs):
+        """
+        Helper to send a chat completion request (non-streaming) to the mock server,
+        using Django test client.
+        """
+        request = self._build_chat_completion_request(messages, stream=False, **payload_kwargs)
+        return self.client.post(**request, content_type="application/json")
+
+    async def _send_chat_completion_streaming(self, messages, **payload_kwargs):
+        """
+        Helper to send a streaming chat completion request to the mock server,
+        using Django async test client.
+        """
+        request = self._build_chat_completion_request(messages, stream=True, **payload_kwargs)
+        return await self.async_client.post(**request, content_type="application/json")
 
 
 class GatewayFilesTestCase(GatewayIntegrationTestCase):
@@ -158,6 +199,7 @@ class GatewayBatchesTestCase(GatewayIntegrationTestCase):
         return resp.json()["id"]
 
 
+@skipIf(INTEGRATION_TEST_BACKEND == "vllm", "TTS and STT tests require the OpenAI backend")
 class GatewayTTSSTTestCase(GatewayIntegrationTestCase):
     fixtures: ClassVar[list[str]] = ["gateway_data.json"]
     tts_model = "gpt-4o-mini-tts"

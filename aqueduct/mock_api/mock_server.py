@@ -125,6 +125,10 @@ class MockAPIServer:
         response = requests.post(url, timeout=1)
         response.raise_for_status()
 
+    def forget_requests(self) -> None:
+        response = requests.post(f"{self.base_url}/forget_requests", timeout=1)
+        response.raise_for_status()
+
     def get_last_request(self, path: str) -> dict[str, Any] | None:
         """Return the JSON body of the last POST request made to `path`, or None."""
         normalized_path = path.strip("/").removeprefix("v1/")

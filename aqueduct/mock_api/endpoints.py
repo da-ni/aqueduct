@@ -89,6 +89,13 @@ async def reset_endpoint(path: str) -> dict[str, str]:
     return {"message": f"Reset the special mock response for {path}"}
 
 
+@app.post("/forget_requests")
+async def forget_requests() -> dict[str, str]:
+    """Forget every captured request, so the next test sees only its own."""
+    last_requests.clear()
+    return {"message": "Forgot the captured requests"}
+
+
 @app.get("/last_request/{path:path}")
 async def get_last_request(path: str) -> JSONResponse:
     """Return the JSON body of the last POST request captured for `path`."""
@@ -142,7 +149,9 @@ async def mock_endpoint(path: str, request: Request) -> Response:
 
     logger.debug("Got a request to %s", path)
 
-    if delays_enabled:
+    if config.delay_seconds:
+        await asyncio.sleep(config.delay_seconds)
+    elif delays_enabled:
         delay = 0.1 + (secrets.randbelow(900) / 1000)
         logger.debug("Adding %.2fs delay to request", delay)
         await asyncio.sleep(delay)

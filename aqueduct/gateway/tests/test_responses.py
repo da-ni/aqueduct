@@ -12,7 +12,7 @@ from gateway.decorators.response_cache import register_response_in_cache
 from gateway.response_type import RawJsonResponse
 from gateway.tests.utils import _build_chat_headers, _read_streaming_response_lines
 from gateway.tests.utils.base import GatewayIntegrationTestCase
-from management.models import Request, Token
+from management.models import Org, Request, Token, VectorStore
 from mock_api.mock_configs import MockStreamingConfig, default_post_stream_configs
 
 User = get_user_model()
@@ -389,407 +389,160 @@ class ResponsesIntegrationTest(GatewayIntegrationTestCase):
 
 
 class CheckToolAvailabilityTest(GatewayIntegrationTestCase):
-    """Tests for the check_tool_availability decorator."""
+    """Tests for the check_tool_availability decorator, with the fixture's keys: `My Token`
+    is Me's personal key, and `Initial token for TUna` is a key of the Whale team."""
 
-    @patch("gateway.decorators.responses.get_mcp_config")
-    async def test_check_tool_availability_success(self, mock_get_mcp_config):
-        """
-        Test check_tool_availability decorator with valid tools.
-        Should successfully call the decorated function.
-        """
-        # Mock the decorated view function
-        mock_view_func = AsyncMock()
-        mock_view_func.return_value = RawJsonResponse({"result": "success"})
+    response_id = "test_response_id"
 
-        # Create a mock request and token
-        request = AsyncMock()
-        response_id = "test_response_id"
+    def setUp(self):
+        super().setUp()
+        self.view = AsyncMock(return_value=RawJsonResponse({"result": "success"}))
+        self.request = MagicMock()
+        self.request.build_absolute_uri.side_effect = lambda path: f"http://testserver{path}"
 
-        token = MagicMock()
-        token.service_account = None
-        token.user = MagicMock()
-        pydantic_model = {"tools": [{"type": "function", "function": {"name": "test_function"}}]}
+    async def personal_key(self) -> Token:
+        return await sync_to_async(Token.find_by_key)(self.AQUEDUCT_ACCESS_TOKEN)
 
-        kwargs = {"token": token, "pydantic_model": pydantic_model}
+    async def team_key(self) -> Token:
+        return await Token.objects.select_related("service_account").aget(
+            name="Initial token for TUna"
+        )
 
-        # Apply the decorator
-        decorated_func = check_tool_availability(mock_view_func)
+    async def check(self, token: Token | None, tools: list[dict] | None = None, **kwargs):
+        if token is not None:
+            kwargs["token"] = token
+        if tools is not None:
+            kwargs["pydantic_model"] = {"tools": tools}
+        result = await check_tool_availability(self.view)(self.request, self.response_id, **kwargs)
+        return result, kwargs
 
-        # Call the decorated function
-        result = await decorated_func(request, response_id, **kwargs)
-
-        # Verify the view function was called
-        mock_view_func.assert_called_once_with(request, response_id, **kwargs)
+    def assert_passed_on(self, result, kwargs) -> None:
+        self.view.assert_called_once_with(self.request, self.response_id, **kwargs)
         self.assertEqual(result.status_code, 200)
+
+    def assert_rejected(self, result, status: int, message: str) -> None:
+        self.view.assert_not_called()
+        self.assertIsInstance(result, RawJsonResponse)
+        self.assertEqual(result.status_code, status)
+        self.assertIn(message, result.data["error"]["message"])
+
+    async def store(self, store_id: str, token: Token) -> None:
+        await VectorStore.objects.acreate(id=store_id, token=token, name=store_id, created_at=42)
+
+    async def test_check_tool_availability_success(self):
+        tools = [{"type": "function", "function": {"name": "test_function"}}]
+        self.assert_passed_on(*await self.check(await self.personal_key(), tools))
 
     @patch("gateway.decorators.responses.get_mcp_config")
     async def test_check_tool_availability_mcp_server_success(self, mock_get_mcp_config):
-        """
-        Test check_tool_availability decorator with valid MCP server.
-        Should successfully call the decorated function with server_url added.
-        """
-        mock_view_func = AsyncMock()
-        mock_view_func.return_value = RawJsonResponse({"result": "success"})
-
-        # Mock MCP config
+        """An Aqueduct MCP server URL is rewritten to the server's own URL."""
         mock_get_mcp_config.return_value = {"test_mcp_server": {"url": "http://mcp-server:8080"}}
-
-        request = AsyncMock()
-        # Mock build_absolute_uri as a regular (non-async) method
-        request.build_absolute_uri = MagicMock(side_effect=lambda path: f"http://testserver{path}")
-        response_id = "test_response_id"
-
-        token = MagicMock()
-        token.service_account = None
-        token.user = MagicMock()
         tool = {
             "type": "mcp",
             "server_label": "test_mcp_server",
             "server_url": "http://testserver/mcp-servers/test_mcp_server/mcp",
         }
-        pydantic_model = {"tools": [tool]}
 
-        kwargs = {"token": token, "pydantic_model": pydantic_model}
-
-        # Mock the mcp_server_excluded method to return False
-        with patch.object(token, "mcp_server_excluded", return_value=False):
-            decorated_func = check_tool_availability(mock_view_func)
-            result = await decorated_func(request, response_id, **kwargs)
-
-        # Verify server_url was updated to the MCP server URL
+        self.assert_passed_on(*await self.check(await self.personal_key(), [tool]))
         self.assertEqual(tool["server_url"], "http://mcp-server:8080")
-        mock_view_func.assert_called_once_with(request, response_id, **kwargs)
-        self.assertEqual(result.status_code, 200)
 
     async def test_check_tool_availability_missing_token(self):
-        """
-        Test check_tool_availability decorator with missing token.
-        Should return 400 error.
-        """
-        mock_view_func = AsyncMock()
-
-        request = AsyncMock()
-        response_id = "test_response_id"
-        pydantic_model = {"tools": []}
-
-        kwargs = {"pydantic_model": pydantic_model}  # Missing token
-
-        decorated_func = check_tool_availability(mock_view_func)
-        result = await decorated_func(request, response_id, **kwargs)
-
-        # Should return 400 error without calling the view function
-        mock_view_func.assert_not_called()
-        self.assertIsInstance(result, RawJsonResponse)
-        self.assertEqual(result.status_code, 400)
-        self.assertEqual(result.data["error"]["message"], "Invalid request")
+        result, _ = await self.check(None, [])
+        self.assert_rejected(result, 400, "Invalid request")
 
     async def test_check_tool_availability_missing_pydantic_model(self):
-        """
-        Test check_tool_availability decorator with missing pydantic_model.
-        Should return 400 error.
-        """
-        mock_view_func = AsyncMock()
-
-        request = AsyncMock()
-        response_id = "test_response_id"
-        token = MagicMock()
-        token.service_account = None
-        token.user = MagicMock()
-
-        kwargs = {"token": token}  # Missing pydantic_model
-
-        decorated_func = check_tool_availability(mock_view_func)
-        result = await decorated_func(request, response_id, **kwargs)
-
-        # Should return 400 error without calling the view function
-        mock_view_func.assert_not_called()
-        self.assertIsInstance(result, RawJsonResponse)
-        self.assertEqual(result.status_code, 400)
-        self.assertEqual(result.data["error"]["message"], "Invalid request")
+        result, _ = await self.check(await self.personal_key())
+        self.assert_rejected(result, 400, "Invalid request")
 
     @patch("gateway.decorators.responses.get_mcp_config")
     async def test_check_tool_availability_mcp_server_excluded(self, mock_get_mcp_config):
-        """
-        Test check_tool_availability decorator with excluded MCP server.
-        Should return 404 error.
-        """
-        mock_view_func = AsyncMock()
+        """A server the key's org excludes is not found, even when it is configured."""
+        mock_get_mcp_config.return_value = {"excluded_server": {"url": "http://mcp-server:8080"}}
+        org = await Org.objects.aget(name="E060")
+        await sync_to_async(org.add_excluded_mcp_server)("excluded_server")
+        tool = {
+            "type": "mcp",
+            "server_label": "excluded_server",
+            "server_url": "http://testserver/mcp-servers/excluded_server/mcp",
+        }
 
-        request = AsyncMock()
-        response_id = "test_response_id"
-
-        token = MagicMock()
-        token.service_account = None
-        token.user = MagicMock()
-        tool = {"type": "mcp", "server_label": "excluded_server"}
-        pydantic_model = {"tools": [tool]}
-
-        kwargs = {"token": token, "pydantic_model": pydantic_model}
-
-        # Mock the mcp_server_excluded method to return True
-        with patch.object(token, "mcp_server_excluded", return_value=True):
-            decorated_func = check_tool_availability(mock_view_func)
-            result = await decorated_func(request, response_id, **kwargs)
-
-        # Should return 404 error without calling the view function
-        mock_view_func.assert_not_called()
-        self.assertIsInstance(result, RawJsonResponse)
-        self.assertEqual(result.status_code, 404)
-        self.assertIn("MCP server not found", result.data["error"]["message"])
+        result, _ = await self.check(await self.personal_key(), [tool])
+        self.assert_rejected(result, 404, "MCP server not found")
 
     @patch("gateway.decorators.responses.get_mcp_config")
     async def test_check_tool_availability_mcp_server_not_found(self, mock_get_mcp_config):
-        """
-        Test check_tool_availability decorator with MCP server not in config.
-        Should return 404 error.
-        """
-        mock_view_func = AsyncMock()
-        mock_get_mcp_config.return_value = {}  # Empty config
-
-        request = AsyncMock()
-        response_id = "test_response_id"
-
-        token = MagicMock()
-        token.service_account = None
-        token.user = MagicMock()
+        mock_get_mcp_config.return_value = {}
         tool = {"type": "mcp", "server_label": "nonexistent_server"}
-        pydantic_model = {"tools": [tool]}
 
-        kwargs = {"token": token, "pydantic_model": pydantic_model}
-
-        # Mock the mcp_server_excluded method to return False
-        with patch.object(token, "mcp_server_excluded", return_value=False):
-            decorated_func = check_tool_availability(mock_view_func)
-            result = await decorated_func(request, response_id, **kwargs)
-
-        # Should return 404 error without calling the view function
-        mock_view_func.assert_not_called()
-        self.assertIsInstance(result, RawJsonResponse)
-        self.assertEqual(result.status_code, 404)
-        self.assertIn("MCP server not found", result.data["error"]["message"])
+        result, _ = await self.check(await self.personal_key(), [tool])
+        self.assert_rejected(result, 404, "MCP server not found")
 
     @patch("gateway.decorators.responses.get_mcp_config")
     async def test_check_tool_availability_mcp_server_url_match(self, mock_get_mcp_config):
-        """
-        Test check_tool_availability decorator with server_label different from config key.
-        Should successfully match by URL and rewrite to internal URL.
-        """
-        mock_view_func = AsyncMock()
-        mock_view_func.return_value = RawJsonResponse({"result": "success"})
-
+        """A server is matched by URL, whatever label the client gives it."""
         mock_get_mcp_config.return_value = {
             "brave": {"url": "http://mcp-server:8080"},
             "other_server": {"url": "http://other:9000"},
         }
-
-        request = AsyncMock()
-        request.build_absolute_uri = MagicMock(side_effect=lambda path: f"http://testserver{path}")
-        response_id = "test_response_id"
-
-        token = MagicMock()
-        token.service_account = None
-        token.user = MagicMock()
         tool = {
             "type": "mcp",
             "server_label": "websearch",
             "server_url": "http://testserver/mcp-servers/brave/mcp",
         }
-        pydantic_model = {"tools": [tool]}
 
-        kwargs = {"token": token, "pydantic_model": pydantic_model}
-
-        with patch.object(token, "mcp_server_excluded", return_value=False):
-            decorated_func = check_tool_availability(mock_view_func)
-            result = await decorated_func(request, response_id, **kwargs)
-
+        self.assert_passed_on(*await self.check(await self.personal_key(), [tool]))
         self.assertEqual(tool["server_url"], "http://mcp-server:8080")
-        mock_view_func.assert_called_once_with(request, response_id, **kwargs)
-        self.assertEqual(result.status_code, 200)
 
     @override_settings(RESPONSES_API_ALLOWED_NATIVE_TOOLS=["allowed_tool"])
     async def test_check_tool_availability_invalid_tool_type(self):
-        """
-        Test check_tool_availability decorator with invalid tool type.
-        Should return 400 error.
-        """
-        mock_view_func = AsyncMock()
-
-        request = AsyncMock()
-        response_id = "test_response_id"
-
-        token = MagicMock()
-        token.service_account = None
-        token.user = MagicMock()
-        tool = {"type": "invalid_tool_type"}
-        pydantic_model = {"tools": [tool]}
-
-        kwargs = {"token": token, "pydantic_model": pydantic_model}
-
-        decorated_func = check_tool_availability(mock_view_func)
-        result = await decorated_func(request, response_id, **kwargs)
-
-        # Should return 400 error without calling the view function
-        mock_view_func.assert_not_called()
-        self.assertIsInstance(result, RawJsonResponse)
-        self.assertEqual(result.status_code, 400)
-        self.assertEqual(result.data["error"]["message"], "Invalid tool type: invalid_tool_type")
+        result, _ = await self.check(await self.personal_key(), [{"type": "invalid_tool_type"}])
+        self.assert_rejected(result, 400, "Invalid tool type: invalid_tool_type")
 
     @override_settings(RESPONSES_API_ALLOWED_NATIVE_TOOLS=["allowed_native_tool"])
     async def test_check_tool_availability_allowed_native_tool(self):
-        """
-        Test check_tool_availability decorator with allowed native tool type.
-        Should successfully call the decorated function.
-        """
-        mock_view_func = AsyncMock()
-        mock_view_func.return_value = RawJsonResponse({"result": "success"})
+        tools = [{"type": "allowed_native_tool"}]
+        self.assert_passed_on(*await self.check(await self.personal_key(), tools))
 
-        request = AsyncMock()
-        response_id = "test_response_id"
-
-        token = MagicMock()
-        token.service_account = None
-        token.user = MagicMock()
-        tool = {"type": "allowed_native_tool"}
-        pydantic_model = {"tools": [tool]}
-
-        kwargs = {"token": token, "pydantic_model": pydantic_model}
-
-        decorated_func = check_tool_availability(mock_view_func)
-        result = await decorated_func(request, response_id, **kwargs)
-
-        # Should call the view function
-        mock_view_func.assert_called_once_with(request, response_id, **kwargs)
-        self.assertEqual(result.status_code, 200)
-
-    @patch("gateway.decorators.responses.VectorStore")
-    async def test_check_tool_availability_file_search_success(self, mock_vector_store_class):
-        """
-        Test check_tool_availability decorator with file_search tool for user token.
-        Should resolve vector store IDs to remote IDs.
-        """
-        mock_view_func = AsyncMock()
-        mock_view_func.return_value = RawJsonResponse({"result": "success"})
-
-        request = AsyncMock()
-        response_id = "test_response_id"
-
-        token = MagicMock()
-        token.service_account = None
-        token.user = MagicMock()
-
+    async def test_check_tool_availability_file_search_success(self):
+        """A personal key may search the stores of its owner's personal keys."""
+        key = await self.personal_key()
+        await self.store("vs_remote_abc", key)
+        await self.store("vs_remote_def", key)
         tool = {"type": "file_search", "vector_store_ids": ["vs_remote_abc", "vs_remote_def"]}
-        pydantic_model = {"tools": [tool]}
-        kwargs = {"token": token, "pydantic_model": pydantic_model}
 
-        mock_queryset = MagicMock()
-        mock_queryset.acount = AsyncMock(return_value=2)
-        mock_vector_store_class.objects.filter.return_value = mock_queryset
-
-        decorated_func = check_tool_availability(mock_view_func)
-        result = await decorated_func(request, response_id, **kwargs)
-
-        self.assertEqual(result.status_code, 200)
-        # IDs remain unchanged since we use upstream IDs directly
+        self.assert_passed_on(*await self.check(key, [tool]))
         self.assertEqual(tool["vector_store_ids"], ["vs_remote_abc", "vs_remote_def"])
-        mock_vector_store_class.objects.filter.assert_called_once()
-        call_kwargs = mock_vector_store_class.objects.filter.call_args.kwargs
-        self.assertEqual(sorted(call_kwargs["id__in"]), ["vs_remote_abc", "vs_remote_def"])
 
-    @patch("gateway.decorators.responses.VectorStore")
-    async def test_check_tool_availability_file_search_service_account(
-        self, mock_vector_store_class
-    ):
-        """
-        Test check_tool_availability decorator with file_search tool for service account.
-        Should resolve vector store IDs to remote IDs using team filter.
-        """
-        mock_view_func = AsyncMock()
-        mock_view_func.return_value = RawJsonResponse({"result": "success"})
+    async def test_check_tool_availability_file_search_service_account(self):
+        """A team key may search its team's stores, not the personal stores of its creator."""
+        team_key, personal_key = await self.team_key(), await self.personal_key()
+        await self.store("vs_team", team_key)
+        await self.store("vs_personal", personal_key)
 
-        request = AsyncMock()
-        response_id = "test_response_id"
+        self.assert_passed_on(
+            *await self.check(team_key, [{"type": "file_search", "vector_store_ids": ["vs_team"]}])
+        )
+        self.view.reset_mock()
+        result, _ = await self.check(
+            team_key, [{"type": "file_search", "vector_store_ids": ["vs_personal"]}]
+        )
+        self.assert_rejected(result, 404, "One or more vector stores not found")
 
-        mock_team = MagicMock()
-        mock_team.id = "team_123"
+    async def test_check_tool_availability_file_search_not_found(self):
+        """A store that does not exist, or that another user's key made, is not found."""
+        someone = await User.objects.aget(username="Someone")
+        others_key = Token(name="someone's key", user=someone)
+        others_key._set_new_key()
+        await others_key.asave()
+        await self.store("vs_someone", others_key)
+        key = await self.personal_key()
 
-        mock_service_account = MagicMock()
-        mock_service_account.team = mock_team
-
-        token = MagicMock()
-        token.service_account = mock_service_account
-        token.user = MagicMock()
-
-        tool = {"type": "file_search", "vector_store_ids": ["vs_remote_abc"]}
-        pydantic_model = {"tools": [tool]}
-        kwargs = {"token": token, "pydantic_model": pydantic_model}
-
-        mock_queryset = MagicMock()
-        mock_queryset.acount = AsyncMock(return_value=1)
-        mock_vector_store_class.objects.filter.return_value = mock_queryset
-
-        decorated_func = check_tool_availability(mock_view_func)
-        result = await decorated_func(request, response_id, **kwargs)
-
-        self.assertEqual(result.status_code, 200)
-        # IDs remain unchanged since we use upstream IDs directly
-        self.assertEqual(tool["vector_store_ids"], ["vs_remote_abc"])
-        mock_vector_store_class.objects.filter.assert_called_once()
-        call_kwargs = mock_vector_store_class.objects.filter.call_args.kwargs
-        self.assertEqual(mock_vector_store_class.objects.filter.call_args.args, (token.reach(),))
-        self.assertEqual(call_kwargs["id__in"], ["vs_remote_abc"])
-
-    @patch("gateway.decorators.responses.VectorStore")
-    async def test_check_tool_availability_file_search_not_found(self, mock_vector_store_class):
-        """
-        Test check_tool_availability decorator with file_search tool when vector store not found.
-        Should return 404 error.
-        """
-        mock_view_func = AsyncMock()
-
-        request = AsyncMock()
-        response_id = "test_response_id"
-
-        token = MagicMock()
-        token.service_account = None
-        token.user = MagicMock()
-
-        tool = {"type": "file_search", "vector_store_ids": ["vs_nonexistent"]}
-        pydantic_model = {"tools": [tool]}
-        kwargs = {"token": token, "pydantic_model": pydantic_model}
-
-        mock_queryset = MagicMock()
-        mock_queryset.acount = AsyncMock(return_value=0)
-        mock_vector_store_class.objects.filter.return_value = mock_queryset
-
-        decorated_func = check_tool_availability(mock_view_func)
-        result = await decorated_func(request, response_id, **kwargs)
-
-        self.assertIsInstance(result, RawJsonResponse)
-        self.assertEqual(result.status_code, 404)
-        mock_view_func.assert_not_called()
-        self.assertIn("One or more vector stores not found", result.data["error"]["message"])
+        for store_id in ("vs_nonexistent", "vs_someone"):
+            with self.subTest(store=store_id):
+                tool = {"type": "file_search", "vector_store_ids": [store_id]}
+                result, _ = await self.check(key, [tool])
+                self.assert_rejected(result, 404, "One or more vector stores not found")
 
     async def test_check_tool_availability_file_search_empty_ids(self):
-        """
-        Test check_tool_availability decorator with file_search tool and empty vector_store_ids.
-        Should pass through without error.
-        """
-        mock_view_func = AsyncMock()
-        mock_view_func.return_value = RawJsonResponse({"result": "success"})
-
-        request = AsyncMock()
-        response_id = "test_response_id"
-
-        token = MagicMock()
-        token.service_account = None
-        token.user = MagicMock()
-
-        tool = {"type": "file_search", "vector_store_ids": []}
-        pydantic_model = {"tools": [tool]}
-        kwargs = {"token": token, "pydantic_model": pydantic_model}
-
-        decorated_func = check_tool_availability(mock_view_func)
-        result = await decorated_func(request, response_id, **kwargs)
-
-        self.assertEqual(result.status_code, 200)
-        mock_view_func.assert_called_once()
+        tools = [{"type": "file_search", "vector_store_ids": []}]
+        self.assert_passed_on(*await self.check(await self.personal_key(), tools))

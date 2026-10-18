@@ -12,7 +12,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from management.models import Org, ServiceAccount, Team, Token, UserGroup, UserProfile
-from management.tests.test_api_keys_pages import PAGES
+from management.tests.helpers import PAGES
 
 User = get_user_model()
 
