@@ -14,6 +14,7 @@ from gateway.authentication import token_from_request, usable_token
 from gateway.decorators.types import AsyncView, Decorator, ViewResult
 from gateway.response_error import error_response
 from management.models import Token
+from management.ownership import RELATED, personal
 
 log = logging.getLogger("aqueduct")
 
@@ -64,10 +65,8 @@ def token_authenticated(token_auth_only: bool) -> Decorator:
             else:
                 # user authenticated but not via token -> use Token.objects for async ORM
                 token = (
-                    await Token.objects.select_related(
-                        "user__profile__org", "service_account__team__org"
-                    )
-                    .filter(user=request.user, service_account__isnull=True)
+                    await Token.objects.select_related(*RELATED)
+                    .filter(personal(request.user.pk))
                     .order_by("pk")
                     .afirst()
                 )

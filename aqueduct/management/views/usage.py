@@ -20,7 +20,7 @@ from management import usage_rollup as rollup
 from management.key_activity import Activity
 from management.model_catalog import model_kinds
 from management.models import Org, Request, Token
-from management.models.token import of_org
+from management.ownership import of_orgs
 from management.request_log import (
     PAGE_SIZE,
     Filters,
@@ -43,7 +43,7 @@ def _key_windows(filters: Filters) -> dict[int, Activity] | None:
     if not _org_wide(filters) or filters.span not in rollup.KEY_WINDOWS.values():
         return None
     org = filters.org
-    tokens = None if org is None else Token.objects.filter(of_org(org))
+    tokens = None if org is None else Token.objects.filter(of_orgs({org.pk}))
     return rollup.key_window_totals(tokens, filters.model, filters.period)
 
 
@@ -70,7 +70,11 @@ def _heat(
 
 
 def _org_tokens(filters: Filters) -> QuerySet[Token]:
-    return Token.objects.all() if filters.org is None else Token.objects.filter(of_org(filters.org))
+    return (
+        Token.objects.all()
+        if filters.org is None
+        else Token.objects.filter(of_orgs({filters.org.pk}))
+    )
 
 
 def _describe(filters: Filters) -> Callable[[Token], Key]:

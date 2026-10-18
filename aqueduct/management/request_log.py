@@ -20,7 +20,7 @@ from gateway.config import model_names
 from management.key_activity import FAILED, KeyAccess, grouped, of_keys, served
 from management.model_catalog import scopes_for, usable_models
 from management.models import Org, Request, Team, Token, UserProfile
-from management.models.token import of_org
+from management.ownership import RELATED, of_orgs, of_teams, owner, personal
 from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
 from management.usage_rollup import org_series
 
@@ -66,10 +66,8 @@ def visible_tokens(profile: UserProfile, org: Org | None, teams: QuerySet[Team])
     if org is None:
         return Token.objects.all()
     if profile.is_org_admin(org):
-        return Token.objects.filter(of_org(org))
-    return Token.objects.filter(
-        Q(user=profile.user, service_account__isnull=True) | Q(service_account__team__in=teams)
-    )
+        return Token.objects.filter(of_orgs({org.pk}))
+    return Token.objects.filter(personal(profile.user_id) | of_teams(teams))
 
 
 def visible_requests(
@@ -163,8 +161,8 @@ def describe_key(token: Token, access: KeyAccess, *, with_org: bool = False) -> 
     else:
         note = token.user.email
     if with_org:
-        owner = account.team if account is not None else getattr(token.user, "profile", None)
-        note += f" · {owner.org.name if owner is not None else NO_ORG}"
+        found = owner(token)
+        note += f" · {found.org.name if found is not None else NO_ORG}"
     return Key(token, href, note, own)
 
 
@@ -243,20 +241,14 @@ def read_filters(
         names = {*usable_models(scopes_for(profile)), *used}
     models = tuple(sorted(names, key=lambda name: (name.casefold(), name)))
     team_ids = set(teams.values_list("id", flat=True))
-    tokens = (
-        visible_tokens(profile, org, teams)
-        .select_related("user__profile__org", "service_account__team__org")
-        .order_by("name", "id")
-    )
+    tokens = visible_tokens(profile, org, teams).select_related(*RELATED).order_by("name", "id")
 
     access = KeyAccess.of(profile)
 
     def describe(token: Token) -> Key:
         return describe_key(token, access, with_org=org is None)
 
-    own = Q(user=profile.user, service_account__isnull=True) | Q(
-        service_account__team__in=profile.teams.all()
-    )
+    own = personal(profile.user_id) | of_teams(profile.teams.all())
     keys = tuple(describe(token) for token in tokens.filter(own))
     first_two = list(tokens[:2])
     only_key = describe(first_two[0]) if len(first_two) == 1 else None

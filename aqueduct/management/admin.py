@@ -25,7 +25,6 @@ from management.availability import INHERIT_HELP, INHERIT_LABELS, AvailabilityFo
 from management.models import (
     Batch,
     FileObject,
-    LimitSet,
     Org,
     PrivacyNotice,
     Request,
@@ -40,6 +39,7 @@ from management.models import (
     VectorStoreFile,
     VectorStoreFileBatch,
 )
+from management.ownership import RELATED
 from management.snippets import ConfigSnippet, compile_snippet, get_config_snippet
 
 log = logging.getLogger("aqueduct")
@@ -571,8 +571,7 @@ class TokenAdmin(admin.ModelAdmin):
         "user",
         "service_account",
         "service_account__team",
-        "user__profile__org",
-        "service_account__team__org",
+        *RELATED,
     ]
     list_filter: ClassVar[list] = ["service_account__team__name"]
 
@@ -597,21 +596,8 @@ class TokenAdmin(admin.ModelAdmin):
             request._aqueduct_usage_map = usage_map
         return usage_map
 
-    def _token_limits(self, token: Token) -> LimitSet:
-        """Resolve the effective ``LimitSet`` from already-selected-related data.
-
-        Equivalent to ``token.get_limit()`` but reuses the prefetched
-        ``user__profile__org`` / ``service_account__team__org`` relations instead
-        of re-fetching the token (avoids an N+1 on the changelist).
-        """
-        if token.service_account:
-            team = token.service_account.team
-            return LimitSet.from_objects(team, team.org)
-        profile = token.user.profile
-        return LimitSet.from_objects(profile, profile.org)
-
     def _usage_percent(self, token: Token, window_name: str, window_index: int) -> str:
-        limits = self._token_limits(token)
+        limits = token.get_limit()
         # windows()[window_index] = (name, secs, rpm, itpm, otpm); [2] = requests-per-minute.
         limit = limits.windows()[window_index][2]
         used = self._usage_map().get(token.id, {}).get(window_name, {}).get("req", 0.0)

@@ -27,9 +27,9 @@ from management.models import (
     UsageRollupState,
 )
 from management.models.usage_rollup import HOURLY
+from management.ownership import key_org
 from management.usage_report import (
     HOUR,
-    ORG,
     STATUS_COUNTS,
     STATUSES,
     TOKENS,
@@ -130,7 +130,7 @@ def refresh(now: datetime | None = None, *, full: bool = False) -> None:
         recounted = Request.objects.filter(timestamp__lt=sealed).order_by()
         if start is not None:
             recounted = recounted.filter(timestamp__gte=start)
-        by_hour = {"hour": _local_hour(), "org_id": ORG}
+        by_hour = {"hour": _local_hour(), "org_id": key_org("token__")}
         _insert(
             OrgUsageHour,
             recounted.values("model", **by_hour).annotate(**_COUNT_STATUSES, **_SUM_TOKENS),
@@ -286,7 +286,7 @@ def org_tokens(
         lambda rows: rows.values("org_id").annotate(
             tokens=Sum(F("input_tokens") + F("output_tokens"))
         ),
-        lambda rows: rows.values(org_id=ORG).annotate(tokens=Sum(TOKENS)),
+        lambda rows: rows.values(org_id=key_org("token__")).annotate(tokens=Sum(TOKENS)),
         sealed,
     )
     return {org_id: counts["tokens"] for (org_id,), counts in found.items()}

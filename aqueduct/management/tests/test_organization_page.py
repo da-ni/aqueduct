@@ -8,12 +8,12 @@ from django.urls import reverse
 from gateway.config import model_names
 from management.availability import configured_mcp_servers
 from management.models import Org, ServiceAccount, Token, UserGroup
-from management.models.token import HIERARCHY
+from management.ownership import RELATED
 from management.tests.helpers import RoleWorld, make_token, mcp_config
 
 
 def enforced(key: Token) -> Token:
-    return Token.objects.select_related(*HIERARCHY).get(pk=key.pk)
+    return Token.objects.select_related(*RELATED).get(pk=key.pk)
 
 
 LIMITS = {

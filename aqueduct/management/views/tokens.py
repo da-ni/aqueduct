@@ -30,7 +30,7 @@ from management.key_activity import (
     personal_tokens,
 )
 from management.models import Token
-from management.models.token import HIERARCHY
+from management.ownership import RELATED, is_personal_of, of_teams, org_id, team_of
 from management.request_log import Key, Row
 from management.views.base import ONLY_TEAM_ADMINS, BaseAqueductView
 
@@ -62,20 +62,19 @@ class TokenDetailView(BaseAqueductView, DetailView):
     context_object_name = "token"
 
     def get_queryset(self) -> QuerySet:
-        return KeyAccess.of(self.profile).tokens().select_related(*HIERARCHY)
+        return KeyAccess.of(self.profile).tokens().select_related(*RELATED)
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         token = self.object
         now = timezone.now()
         report = key_report(token, now)
-        team = token.service_account.team if token.service_account else None
-        own = team is None and token.user_id == self.request.user.id
+        team = team_of(token)
+        own = is_personal_of(token, self.request.user.id)
         metric = "requests" if self.request.GET.get("metric") == "requests" else "tokens"
         log_query: dict[str, object] = {"key": token.id, "span": "1m"}
         if self.profile.is_admin() and self.viewed_org is not None:
-            owner = team or getattr(token.user, "profile", None)
-            key_org = owner.org_id if owner else None
+            key_org = org_id(token)
             if key_org != self.viewed_org.id:
                 log_query["org"] = key_org or "all"
         context.update(
@@ -193,12 +192,12 @@ class TokenRegenerateView(BaseAqueductView, View):
     http_method_names: ClassVar[list] = ["post"]
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
-        service = Token.objects.filter(service_account__team__in=self.profile.openable_teams())
+        service = Token.objects.filter(of_teams(self.profile.openable_teams()))
         token = get_object_or_404(
             (personal_tokens(request.user) | service).select_related("service_account__team"),
             pk=kwargs.get("id"),
         )
-        team = token.service_account.team if token.service_account else None
+        team = team_of(token)
         back = reverse("team", kwargs={"id": team.id}) if team else reverse("tokens")
         if team is not None and not self.profile.is_team_admin(team):
             messages.error(request, ONLY_TEAM_ADMINS)

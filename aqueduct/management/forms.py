@@ -18,6 +18,7 @@ from .availability import (
 )
 from .key_activity import grouped
 from .models import Org, ServiceAccount, Team, Token, UserProfile
+from .ownership import personal
 
 NAME_INPUT = "input w-full max-w-md"
 DESCRIPTION_INPUT = "textarea w-full max-w-2xl"
@@ -213,7 +214,7 @@ class TokenCreateForm(forms.ModelForm):
         from django.conf import settings
 
         max_tokens = getattr(settings, "MAX_USER_TOKENS", 3)
-        token_count = Token.objects.filter(user=self.user, service_account__isnull=True)
+        token_count = Token.objects.filter(personal(self.user.pk))
         if self.instance.pk:
             token_count = token_count.exclude(pk=self.instance.pk)
         if token_count.count() >= max_tokens:
