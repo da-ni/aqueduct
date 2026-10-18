@@ -128,3 +128,15 @@ class TestObjectRoutes(GatewayFilesTestCase):
         self.assertEqual(FileObject.objects.count(), 1)
         self.assertEqual(Batch.objects.count(), 1)
 
+    def test_without_a_files_api_every_object_route_answers_503(self):
+        with self.settings(AQUEDUCT_FILES_API_URL=None):
+            for method, name, kwargs, body, _ in self._routes():
+                api = "Vector Store API" if name.startswith("vector_store") else "Files API"
+                with self.subTest(method=method, name=name, kwargs=kwargs):
+                    resp = self._send(method, name, kwargs, body)
+
+                    self.assertEqual(resp.status_code, 503, resp.content)
+                    self.assertEqual(
+                        resp.json(),
+                        {"error": {"message": f"{api} not configured", "type": "server_error"}},
+                    )

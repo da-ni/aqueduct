@@ -1,6 +1,5 @@
 import json
 import logging
-import sys
 from functools import wraps
 from typing import TYPE_CHECKING, Any
 
@@ -8,8 +7,9 @@ import litellm
 from asgiref.sync import sync_to_async
 from django.core.handlers.asgi import ASGIRequest
 
-from gateway.config import get_files_api_client, get_router, model_names, resolve_model_alias
-from gateway.decorators.types import AsyncView, ViewResult
+from gateway import config
+from gateway.config import get_router, model_names, resolve_model_alias
+from gateway.decorators.types import AsyncView, Decorator, ViewResult
 from gateway.response_error import error_response
 
 if TYPE_CHECKING:
@@ -18,28 +18,19 @@ if TYPE_CHECKING:
 log = logging.getLogger("aqueduct")
 
 
-def require_files_api_client(view_func: AsyncView) -> AsyncView:
-    """Decorator that injects a files API client into the view kwargs, or returns 503.
+def require_files_api_client(api: str) -> Decorator:
+    def decorator(view_func: AsyncView) -> AsyncView:
+        @wraps(view_func)
+        async def wrapper(request: ASGIRequest, *args: Any, **kwargs: Any) -> ViewResult:
+            try:
+                kwargs["client"] = config.get_files_api_client()
+            except ValueError:
+                return error_response(f"{api} not configured", status=503)
+            return await view_func(request, *args, **kwargs)
 
-    Uses late-bound import of get_files_api_client so that tests can
-    patch it on the calling module (e.g. gateway.views.vector_stores).
-    """
+        return wrapper
 
-    @wraps(view_func)
-    async def wrapper(request: ASGIRequest, *args: Any, **kwargs: Any) -> ViewResult:
-        # Look up get_files_api_client from the module where view_func is defined,
-        # so tests patching that module's reference will be respected.
-        view_module = sys.modules.get(view_func.__module__)
-        _get_client = getattr(view_module, "get_files_api_client", get_files_api_client)
-
-        try:
-            client = _get_client()
-        except ValueError:
-            return error_response("Vector Store API not configured", status=503)
-        kwargs["client"] = client
-        return await view_func(request, *args, **kwargs)
-
-    return wrapper
+    return decorator
 
 
 def _lookup_relay_model_name(model_name: str) -> str | None:

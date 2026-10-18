@@ -8,14 +8,16 @@ from django.db import transaction
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
+from openai import AsyncOpenAI
 from openai.types.vector_stores.file_batch_create_params import FileBatchCreateParams
 from pydantic import TypeAdapter
 
-from gateway.config import get_files_api_client
 from gateway.decorators import (
     catch_router_exceptions,
+    in_reach,
     log_request,
     parse_body,
+    require_files_api_client,
     token_authenticated,
     tos_accepted,
 )
@@ -69,10 +71,13 @@ async def mark_orphaned_files(
 @parse_body(model=TypeAdapter(FileBatchCreateParams))
 @log_request
 @catch_router_exceptions
+@require_files_api_client("Vector Store API")
+@in_reach(VectorStore, "vector_store_id", label="Vector store")
 async def vector_store_file_batches(
     request: ASGIRequest,
     token: Token,
-    vector_store_id: str,
+    vector_store: VectorStore,
+    client: AsyncOpenAI,
     pydantic_model: FileBatchCreateParams,
     *args: Any,
     **kwargs: Any,
@@ -80,17 +85,6 @@ async def vector_store_file_batches(
     """
     POST /v1/vector_stores/{vector_store_id}/file_batches - Create file batch
     """
-    try:
-        client = get_files_api_client()
-    except ValueError:
-        return error_response("Vector Store API not configured", status=503)
-
-    # Check vector store ownership
-    try:
-        vs_obj = await VectorStore.objects.aget(token.reach(), id=vector_store_id)
-    except VectorStore.DoesNotExist:
-        return error_response("Vector store not found.", param="vector_store_id", status=404)
-
     params = pydantic_model if pydantic_model else {}
     file_ids = params.get("file_ids", [])
     files = params.get("files", [])
@@ -116,7 +110,7 @@ async def vector_store_file_batches(
         file_objs.append(file_obj)
 
     # Create batch on upstream
-    create_kwargs: dict[str, Any] = {"vector_store_id": vs_obj.id}
+    create_kwargs: dict[str, Any] = {"vector_store_id": vector_store.id}
     if files:
         # Pass full files dicts with attributes and chunking_strategy
         create_kwargs["files"] = files
@@ -130,9 +124,9 @@ async def vector_store_file_batches(
 
     # Create local batch record with upstream ID
     now = timezone.now()
-    batch_obj = VectorStoreFileBatch(
+    batch = VectorStoreFileBatch(
         id=remote_batch.id,
-        vector_store=vs_obj,
+        vector_store=vector_store,
         status=remote_batch.status or VectorStoreFileBatchStatus.IN_PROGRESS,
         file_counts=(
             remote_batch.file_counts.model_dump(mode="json")
@@ -147,7 +141,7 @@ async def vector_store_file_batches(
         ),
         created_at=int(now.timestamp()),
     )
-    await batch_obj.asave()
+    await batch.asave()
 
     # Create VectorStoreFile records for each file in the batch
     # Use transaction and check file limit
@@ -155,15 +149,15 @@ async def vector_store_file_batches(
     def create_batch_files() -> list[VectorStoreFile] | None:
         with transaction.atomic():
             max_files = settings.MAX_VECTOR_STORE_FILES
-            current_count = VectorStoreFile.objects.filter(vector_store=vs_obj).count()
+            current_count = VectorStoreFile.objects.filter(vector_store=vector_store).count()
             if current_count + len(file_objs) > max_files:
                 return None
             records = [
                 VectorStoreFile(
                     id=file_obj.id,
-                    vector_store=vs_obj,
+                    vector_store=vector_store,
                     file_obj=file_obj,
-                    batch=batch_obj,
+                    batch=batch,
                     status=VectorStoreFileStatus.IN_PROGRESS,
                     usage_bytes=0,
                     created_at=int(now.timestamp()),
@@ -186,51 +180,32 @@ async def vector_store_file_batches(
 @tos_accepted
 @log_request
 @catch_router_exceptions
+@require_files_api_client("Vector Store API")
+@in_reach(VectorStore, "vector_store_id", label="Vector store")
+@in_reach(VectorStoreFileBatch, "batch_id", label="File batch", within="vector_store")
 async def vector_store_file_batch(
     request: ASGIRequest,
-    token: Token,
-    vector_store_id: str,
-    batch_id: str,
+    vector_store: VectorStore,
+    batch: VectorStoreFileBatch,
+    client: AsyncOpenAI,
     *args: Any,
     **kwargs: Any,
 ) -> RawJsonResponse:
     """
     GET /v1/vector_stores/{vector_store_id}/file_batches/{batch_id} - Retrieve batch
     """
-    try:
-        client = get_files_api_client()
-    except ValueError:
-        return error_response("Vector Store API not configured", status=503)
-
-    # Check vector store ownership
-    try:
-        vs_obj = await VectorStore.objects.aget(token.reach(), id=vector_store_id)
-    except VectorStore.DoesNotExist:
-        return error_response("Vector store not found.", param="vector_store_id", status=404)
-
-    # Get the batch
-    try:
-        batch_obj = await VectorStoreFileBatch.objects.select_related("vector_store").aget(
-            id=batch_id, vector_store=vs_obj
-        )
-    except VectorStoreFileBatch.DoesNotExist:
-        return error_response("File batch not found.", param="batch_id", status=404)
-
     # Retrieve from upstream and sync status
-    remote_batch = await batch_obj.areload_from_upstream(client)
+    remote_batch = await batch.areload_from_upstream(client)
 
     if not remote_batch:
         return error_response("File batch not found.", param="batch_id", status=404)
 
     # Handle orphaned VectorStoreFile records when batch fails or is cancelled
-    if batch_obj.status in (
-        VectorStoreFileBatchStatus.FAILED,
-        VectorStoreFileBatchStatus.CANCELLED,
-    ):
+    if batch.status in (VectorStoreFileBatchStatus.FAILED, VectorStoreFileBatchStatus.CANCELLED):
         await mark_orphaned_files(
-            batch_obj,
+            batch,
             status=VectorStoreFileStatus.FAILED,
-            error_msg=f"Batch {batch_obj.status}: files were not processed",
+            error_msg=f"Batch {batch.status}: files were not processed",
         )
 
     # Return upstream response directly (IDs already match)
@@ -243,50 +218,34 @@ async def vector_store_file_batch(
 @tos_accepted
 @log_request
 @catch_router_exceptions
+@require_files_api_client("Vector Store API")
+@in_reach(VectorStore, "vector_store_id", label="Vector store")
+@in_reach(VectorStoreFileBatch, "batch_id", label="File batch", within="vector_store")
 async def vector_store_file_batch_cancel(
     request: ASGIRequest,
-    token: Token,
-    vector_store_id: str,
-    batch_id: str,
+    vector_store: VectorStore,
+    batch: VectorStoreFileBatch,
+    client: AsyncOpenAI,
     *args: Any,
     **kwargs: Any,
 ) -> RawJsonResponse:
     """
     POST /v1/vector_stores/{vector_store_id}/file_batches/{batch_id}/cancel - Cancel batch
     """
-    try:
-        client = get_files_api_client()
-    except ValueError:
-        return error_response("Vector Store API not configured", status=503)
-
-    # Check vector store ownership
-    try:
-        vs_obj = await VectorStore.objects.aget(token.reach(), id=vector_store_id)
-    except VectorStore.DoesNotExist:
-        return error_response("Vector store not found.", param="vector_store_id", status=404)
-
-    # Get the batch
-    try:
-        batch_obj = await VectorStoreFileBatch.objects.select_related("vector_store").aget(
-            id=batch_id, vector_store=vs_obj
-        )
-    except VectorStoreFileBatch.DoesNotExist:
-        return error_response("File batch not found.", param="batch_id", status=404)
-
     # Cancel on upstream
     remote_batch = await client.vector_stores.file_batches.cancel(
-        vector_store_id=vs_obj.id, batch_id=batch_obj.id
+        vector_store_id=vector_store.id, batch_id=batch.id
     )
 
     # Update local record
-    batch_obj.status = remote_batch.status or VectorStoreFileBatchStatus.CANCELLED
+    batch.status = remote_batch.status or VectorStoreFileBatchStatus.CANCELLED
     if hasattr(remote_batch, "file_counts") and remote_batch.file_counts:
-        batch_obj.file_counts = remote_batch.file_counts.model_dump(mode="json")
-    await batch_obj.asave()
+        batch.file_counts = remote_batch.file_counts.model_dump(mode="json")
+    await batch.asave()
 
     # Handle orphaned VectorStoreFile records when batch is cancelled
     await mark_orphaned_files(
-        batch_obj,
+        batch,
         status=VectorStoreFileStatus.CANCELLED,
         error_msg="Batch cancelled: files were not processed",
     )
@@ -301,39 +260,23 @@ async def vector_store_file_batch_cancel(
 @tos_accepted
 @log_request
 @catch_router_exceptions
+@require_files_api_client("Vector Store API")
+@in_reach(VectorStore, "vector_store_id", label="Vector store")
+@in_reach(VectorStoreFileBatch, "batch_id", label="File batch", within="vector_store")
 async def vector_store_file_batch_files(
     request: ASGIRequest,
-    token: Token,
-    vector_store_id: str,
-    batch_id: str,
+    vector_store: VectorStore,
+    batch: VectorStoreFileBatch,
+    client: AsyncOpenAI,
     *args: Any,
     **kwargs: Any,
 ) -> RawJsonResponse:
     """
     GET /v1/vector_stores/{vector_store_id}/file_batches/{batch_id}/files - List files in batch
     """
-    try:
-        client = get_files_api_client()
-    except ValueError:
-        return error_response("Vector Store API not configured", status=503)
-
-    # Check vector store ownership
-    try:
-        vs_obj = await VectorStore.objects.aget(token.reach(), id=vector_store_id)
-    except VectorStore.DoesNotExist:
-        return error_response("Vector store not found.", param="vector_store_id", status=404)
-
-    # Get the batch
-    try:
-        batch_obj = await VectorStoreFileBatch.objects.select_related("vector_store").aget(
-            id=batch_id, vector_store=vs_obj
-        )
-    except VectorStoreFileBatch.DoesNotExist:
-        return error_response("File batch not found.", param="batch_id", status=404)
-
     # Get files in batch from upstream
     remote_files_response = await client.vector_stores.file_batches.list_files(
-        vector_store_id=vs_obj.id, batch_id=batch_obj.id
+        vector_store_id=vector_store.id, batch_id=batch.id
     )
 
     # Return upstream response directly (IDs already match)

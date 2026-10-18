@@ -8,15 +8,17 @@ from django.db import transaction
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods
+from openai import AsyncOpenAI
 from openai.types.vector_stores.file_create_params import FileCreateParams
 from openai.types.vector_stores.vector_store_file import VectorStoreFile as OpenAIVectorStoreFile
 from pydantic import TypeAdapter
 
-from gateway.config import get_files_api_client
 from gateway.decorators import (
     catch_router_exceptions,
+    in_reach,
     log_request,
     parse_body,
+    require_files_api_client,
     token_authenticated,
     tos_accepted,
 )
@@ -69,10 +71,13 @@ def _create_local_file_with_recheck(
 @parse_body(model=TypeAdapter(FileCreateParams))
 @log_request
 @catch_router_exceptions
+@require_files_api_client("Vector Store API")
+@in_reach(VectorStore, "vector_store_id", label="Vector store")
 async def vector_store_files(
     request: ASGIRequest,
     token: Token,
-    vector_store_id: str,
+    vector_store: VectorStore,
+    client: AsyncOpenAI,
     pydantic_model: FileCreateParams | None = None,
     *args: Any,
     **kwargs: Any,
@@ -81,20 +86,10 @@ async def vector_store_files(
     GET /v1/vector_stores/{vector_store_id}/files - List files in vector store
     POST /v1/vector_stores/{vector_store_id}/files - Add file to vector store
     """
-    try:
-        client = get_files_api_client()
-    except ValueError:
-        return error_response("Vector Store API not configured", status=503)
-
-    # Check vector store ownership
-    try:
-        vs_obj = await VectorStore.objects.aget(token.reach(), id=vector_store_id)
-    except VectorStore.DoesNotExist:
-        return error_response("Vector store not found.", param="vector_store_id", status=404)
-
     if request.method == "GET":
-        # List files in vector store - return upstream data directly
-        remote_files_response = await client.vector_stores.files.list(vector_store_id=vs_obj.id)
+        remote_files_response = await client.vector_stores.files.list(
+            vector_store_id=vector_store.id
+        )
         remote_files = remote_files_response.data if hasattr(remote_files_response, "data") else []
 
         # Return upstream data directly (IDs already match)
@@ -119,7 +114,7 @@ async def vector_store_files(
 
     # Create upstream file first, then atomically check the limit and insert locally.
     # If a concurrent request filled the last slot, we clean up the upstream file.
-    create_kwargs: dict[str, Any] = {"vector_store_id": vs_obj.id, "file_id": file_obj.id}
+    create_kwargs: dict[str, Any] = {"vector_store_id": vector_store.id, "file_id": file_obj.id}
     if pydantic_model.get("chunking_strategy"):
         create_kwargs["chunking_strategy"] = pydantic_model["chunking_strategy"]
     if pydantic_model.get("attributes"):
@@ -130,7 +125,7 @@ async def vector_store_files(
     # If a concurrent request filled the last slot while the upstream call was in flight,
     # we reject and clean up the upstream file below.
     _result, recheck_status = await _create_local_file_with_recheck(
-        vs_obj=vs_obj, file_obj=file_obj, max_files=max_files, remote_vs_file=remote_vs_file
+        vs_obj=vector_store, file_obj=file_obj, max_files=max_files, remote_vs_file=remote_vs_file
     )
 
     if recheck_status == "not_found":
@@ -141,7 +136,7 @@ async def vector_store_files(
         # Clean up the upstream file.
         with suppress(Exception):
             await client.vector_stores.files.delete(
-                vector_store_id=vs_obj.id, file_id=remote_vs_file.id
+                vector_store_id=vector_store.id, file_id=remote_vs_file.id
             )
         return error_response(f"Vector store file limit reached ({max_files})", status=403)
 
@@ -156,11 +151,14 @@ async def vector_store_files(
 @parse_body(model=TypeAdapter(FileUpdateBody))
 @log_request
 @catch_router_exceptions
+@require_files_api_client("Vector Store API")
+@in_reach(VectorStore, "vector_store_id", label="Vector store")
+@in_reach(VectorStoreFile, "file_id", label="Vector store file", within="vector_store")
 async def vector_store_file(
     request: ASGIRequest,
-    token: Token,
-    vector_store_id: str,
-    file_id: str,
+    vector_store: VectorStore,
+    file: VectorStoreFile,
+    client: AsyncOpenAI,
     pydantic_model: FileUpdateBody | None = None,
     *args: Any,
     **kwargs: Any,
@@ -170,28 +168,9 @@ async def vector_store_file(
     POST /v1/vector_stores/{vector_store_id}/files/{file_id} - Update file attributes
     DELETE /v1/vector_stores/{vector_store_id}/files/{file_id} - Delete file
     """
-    try:
-        client = get_files_api_client()
-    except ValueError:
-        return error_response("Vector Store API not configured", status=503)
-
-    # Check vector store ownership
-    try:
-        vs_obj = await VectorStore.objects.aget(token.reach(), id=vector_store_id)
-    except VectorStore.DoesNotExist:
-        return error_response("Vector store not found.", param="vector_store_id", status=404)
-
-    # Get the vector store file
-    try:
-        vs_file_obj = await VectorStoreFile.objects.select_related("file_obj", "vector_store").aget(
-            id=file_id, vector_store=vs_obj
-        )
-    except VectorStoreFile.DoesNotExist:
-        return error_response("Vector store file not found.", param="file_id", status=404)
-
     if request.method == "GET":
         # Retrieve from upstream and sync status
-        remote_vs_file = await vs_file_obj.areload_from_upstream(client)
+        remote_vs_file = await file.areload_from_upstream(client)
 
         if not remote_vs_file:
             return error_response("Vector store file not found.", param="file_id", status=404)
@@ -206,7 +185,7 @@ async def vector_store_file(
                 "Missing required parameter: attributes", param="attributes", status=400
             )
 
-        update_kwargs: dict[str, Any] = {"vector_store_id": vs_obj.id, "file_id": vs_file_obj.id}
+        update_kwargs: dict[str, Any] = {"vector_store_id": vector_store.id, "file_id": file.id}
         if pydantic_model.get("attributes"):
             update_kwargs["attributes"] = pydantic_model["attributes"]
 
@@ -215,13 +194,12 @@ async def vector_store_file(
         # Return upstream response directly (IDs already match)
         return RawJsonResponse(remote_vs_file, status=200)
 
-    await vs_file_obj.adelete_upstream(client)
+    await file.adelete_upstream(client)
 
-    # Delete local record
-    await vs_file_obj.adelete()
+    deleted_id = file.id
+    await file.adelete()
 
-    # Return response with upstream ID
-    response_data = {"id": file_id, "object": "vector_store.file.deleted", "deleted": True}
+    response_data = {"id": deleted_id, "object": "vector_store.file.deleted", "deleted": True}
 
     return RawJsonResponse(response_data, status=200)
 
@@ -232,39 +210,23 @@ async def vector_store_file(
 @tos_accepted
 @log_request
 @catch_router_exceptions
+@require_files_api_client("Vector Store API")
+@in_reach(VectorStore, "vector_store_id", label="Vector store")
+@in_reach(VectorStoreFile, "file_id", label="Vector store file", within="vector_store")
 async def vector_store_file_content(
     request: ASGIRequest,
-    token: Token,
-    vector_store_id: str,
-    file_id: str,
+    vector_store: VectorStore,
+    file: VectorStoreFile,
+    client: AsyncOpenAI,
     *args: Any,
     **kwargs: Any,
 ) -> RawJsonResponse:
     """
     GET /v1/vector_stores/{vector_store_id}/files/{file_id}/content - Get file content
     """
-    try:
-        client = get_files_api_client()
-    except ValueError:
-        return error_response("Vector Store API not configured", status=503)
-
-    # Check vector store ownership
-    try:
-        vs_obj = await VectorStore.objects.aget(token.reach(), id=vector_store_id)
-    except VectorStore.DoesNotExist:
-        return error_response("Vector store not found.", param="vector_store_id", status=404)
-
-    # Get the vector store file
-    try:
-        vs_file_obj = await VectorStoreFile.objects.select_related("file_obj").aget(
-            id=file_id, vector_store=vs_obj
-        )
-    except VectorStoreFile.DoesNotExist:
-        return error_response("Vector store file not found.", param="file_id", status=404)
-
     # Get content from upstream
     content_response = await client.vector_stores.files.content(
-        vector_store_id=vs_obj.id, file_id=vs_file_obj.id
+        vector_store_id=vector_store.id, file_id=file.id
     )
 
     # FileContentResponse and AsyncPage[FileContentResponse] are both Pydantic models

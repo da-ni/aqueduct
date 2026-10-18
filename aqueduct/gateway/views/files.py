@@ -14,12 +14,13 @@ from openai import AsyncOpenAI
 from openai.types.file_create_params import FileCreateParams as OpenAIFileCreateParams
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
-from gateway.config import get_files_api_client
 from gateway.decorators import (
     catch_router_exceptions,
+    in_reach,
     log_request,
     parse_body,
     process_batch_file,
+    require_files_api_client,
     token_authenticated,
     tos_accepted,
 )
@@ -77,7 +78,7 @@ async def sync_batch_file_if_needed(
 
     When a batch completes, the upstream provider creates output_file_id and
     error_file_id. These files need local FileObject records for:
-    1. Access control (user can only access files they own)
+    1. Access control (a key reaches only the files in its reach)
     2. Consistent ID mapping (users use Aqueduct IDs, not remote IDs)
 
     This function is called when retrieving a batch to lazily create
@@ -98,7 +99,6 @@ async def sync_batch_file_if_needed(
         # File may have been deleted upstream, skip
         return None
 
-    # Create local record with same ownership as batch.
     # Use get_or_create to prevent duplicate records from concurrent requests
     # (e.g., two GET /batches/{id} requests polling the same completed batch).
     local_expires_at = calculate_expires_at(remote_file.expires_at)
@@ -136,20 +136,17 @@ async def sync_batch_file_if_needed(
 @process_batch_file
 @log_request
 @catch_router_exceptions
+@require_files_api_client("Files API")
 async def files(
     request: ASGIRequest,
     token: Token,
+    client: AsyncOpenAI,
     pydantic_model: OpenAIFileCreateParams | None = None,
     file_content: bytes | None = None,
     file_preview: str | None = None,
     *args: Any,
     **kwargs: Any,
 ) -> RawJsonResponse:
-    try:
-        client = get_files_api_client()
-    except ValueError:
-        return error_response("Files API not configured", status=503)
-
     if request.method == "GET":
         qs = (
             FileObject.objects.filter(token.reach()).order_by("-created_at").select_related("token")
@@ -236,28 +233,14 @@ async def files(
 @tos_accepted
 @log_request
 @catch_router_exceptions
+@require_files_api_client("Files API")
+@in_reach(FileObject, "file_id", label="File")
 async def file(
-    request: ASGIRequest, token: Token, file_id: str, *args: Any, **kwargs: Any
+    request: ASGIRequest, file: FileObject, client: AsyncOpenAI, *args: Any, **kwargs: Any
 ) -> RawJsonResponse:
-    """
-    Retrieve or delete a specific file.
-
-    Requires local FileObject record with matching ownership.
-    Returns 404 if file not found or not owned by user - NEVER falls back to upstream.
-    """
-    try:
-        file_obj = await FileObject.objects.aget(token.reach(), id=file_id)
-    except FileObject.DoesNotExist:
-        return error_response("File not found.", param="file_id", status=404)
-
-    try:
-        client = get_files_api_client()
-    except ValueError:
-        return error_response("Files API not configured", status=503)
-
+    """Retrieve or delete a file the key reaches; never falls back to upstream."""
     if request.method == "GET":
-        # Fetch current status from upstream
-        remote_file = await file_obj.areload_from_upstream(client)
+        remote_file = await file.areload_from_upstream(client)
 
         if remote_file is None:
             return error_response("File not found upstream.", param="file_id", status=404)
@@ -265,13 +248,12 @@ async def file(
         # Return response with upstream ID (same as file_obj.id)
         return RawJsonResponse(remote_file, status=200)
 
-    await file_obj.adelete_upstream(client)
+    await file.adelete_upstream(client)
 
-    # Delete local record
-    await file_obj.adelete()
+    deleted_id = file.id
+    await file.adelete()
 
-    # Return response with upstream ID
-    response_data = {"id": file_id, "object": "file", "deleted": True}
+    response_data = {"id": deleted_id, "object": "file", "deleted": True}
     return RawJsonResponse(response_data, status=200)
 
 
@@ -281,26 +263,12 @@ async def file(
 @tos_accepted
 @log_request
 @catch_router_exceptions
+@require_files_api_client("Files API")
+@in_reach(FileObject, "file_id", label="File")
 async def file_content(
-    request: ASGIRequest, token: Token, file_id: str, *args: Any, **kwargs: Any
+    request: ASGIRequest, file: FileObject, client: AsyncOpenAI, *args: Any, **kwargs: Any
 ) -> HttpResponse | RawJsonResponse:
-    """
-    Retrieve the content of a specific file.
-
-    Requires local FileObject record with matching ownership.
-    Returns 404 if file not found or not owned by user - NEVER falls back to upstream.
-    """
-    try:
-        file_obj = await FileObject.objects.aget(token.reach(), id=file_id)
-    except FileObject.DoesNotExist:
-        return error_response("File not found.", param="file_id", status=404)
-
-    try:
-        client = get_files_api_client()
-    except ValueError:
-        return error_response("Files API not configured", status=503)
-
-    # Returns HttpxBinaryResponseContent, use .content to get bytes
-    response = await client.files.content(file_obj.id)
+    """Retrieve the content of a file the key reaches; never falls back to upstream."""
+    response = await client.files.content(file.id)
 
     return HttpResponse(response.content, content_type="application/octet-stream", status=200)

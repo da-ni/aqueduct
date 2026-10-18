@@ -10,6 +10,7 @@ from gateway.decorators.mcp import (
     mcp_transport_security,
     parse_jsonrpc_message,
 )
+from gateway.decorators.reach import in_reach
 from gateway.decorators.response_type import normalize_reasoning_fields, process_file_content
 from gateway.decorators.responses import check_tool_availability, validate_response_id
 
@@ -21,6 +22,7 @@ __all__ = [
     "check_model_availability",
     "check_tool_availability",
     "ensure_usage",
+    "in_reach",
     "log_request",
     "mcp_transport_security",
     "normalize_reasoning_fields",
