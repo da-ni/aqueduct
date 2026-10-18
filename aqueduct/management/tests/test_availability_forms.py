@@ -10,9 +10,7 @@ from gateway.config import get_router_config, model_names
 from management.admin import TeamAdminForm, UserProfileAdminForm
 from management.availability import Reach
 from management.models import Org, Team, Token, UserGroup
-from management.tests.helpers import make_token
-from management.tests.test_organization_page import TEST_MCP_CONFIG, mcp_config
-from management.tests.test_teams_pages import TeamsPagesTestBase
+from management.tests.helpers import RoleWorld, make_token, mcp_config
 
 
 def posted(form) -> dict:
@@ -36,7 +34,7 @@ class TeamAvailabilityAdminFormTest(TestCase):
     def test_saving_unchanged_keeps_what_is_stored(self):
         self.team.excluded_models = ["retired-model", "whisper-1"]
         self.team.save()
-        with mcp_config(TEST_MCP_CONFIG):
+        with mcp_config():
             self.team.excluded_mcp_servers = ["retired-server", "aqueduct"]
             self.team.save()
             form = TeamAdminForm(posted(TeamAdminForm(instance=self.team)), instance=self.team)
@@ -120,7 +118,7 @@ class RepeatedModelNameTest(TestCase):
         self.assertEqual(Reach.of(list(model_names()), ["a"]).usable, 1)
 
 
-class ProfileAvailabilityAdminFormTest(TeamsPagesTestBase):
+class ProfileAvailabilityAdminFormTest(RoleWorld):
     def test_a_cleared_box_is_what_the_gateway_refuses(self):
         profile = self.member.profile
         data = posted(UserProfileAdminForm(instance=profile))
@@ -133,7 +131,7 @@ class ProfileAvailabilityAdminFormTest(TeamsPagesTestBase):
         self.assertFalse(key.model_excluded("dall-e-2"))
 
 
-class TeamAvailabilityPageTest(TeamsPagesTestBase):
+class TeamAvailabilityPageTest(RoleWorld):
     def url(self, team: Team | None = None) -> str:
         return reverse("team_availability", args=[(team or self.team).id])
 
@@ -147,7 +145,7 @@ class TeamAvailabilityPageTest(TeamsPagesTestBase):
         return Team.objects.get(pk=self.team.pk).excluded_models
 
     def test_members_team_admins_and_other_orgs_get_404_and_change_nothing(self):
-        for user in (self.member, self.team_admin, self.outsider, self.other_org_admin):
+        for user in (self.member, self.team_admin, self.solo, self.other_org_admin):
             with self.subTest(user=user.username):
                 client = self.as_user(user)
                 self.assertEqual(client.get(self.url()).status_code, HTTPStatus.NOT_FOUND)
@@ -156,7 +154,7 @@ class TeamAvailabilityPageTest(TeamsPagesTestBase):
         self.assertEqual(self.stored(), [])
 
     def test_org_admin_and_admin_make_a_model_unavailable_to_service_accounts(self):
-        admin = self.user("admin", UserGroup.ADMIN, self.other_org)
+        admin = self.user("far-admin", UserGroup.ADMIN, self.other_org)
         for user in (self.org_admin, admin):
             with self.subTest(user=user.username):
                 response = self.as_user(user).post(self.url(), self.unavailable_dall_e())

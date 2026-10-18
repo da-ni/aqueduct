@@ -2,7 +2,6 @@ import json
 import time
 from datetime import UTC, datetime
 from html import unescape
-from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -24,18 +23,15 @@ from management.models import (
     VectorStore,
     VectorStoreFile,
 )
-from management.tests.helpers import make_token, make_user
+from management.tests.helpers import make_token, make_user, mcp_config
 from mock_api.mock_configs import MockConfig
 
 User = get_user_model()
 
-TEST_MCP_SERVERS = override_settings(
-    MCP_CONFIG_FILE_PATH=Path(settings.BASE_DIR).parent / "test-mcp.json"
-)
 NOW = int(time.time())
 
 
-@TEST_MCP_SERVERS
+@mcp_config()
 class ResourcePagesTestBase(TestCase):
     def setUp(self):
         self.org = Org.objects.create(name="lab-org")

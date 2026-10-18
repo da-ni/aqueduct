@@ -7,7 +7,7 @@ from django.contrib.auth import SESSION_KEY, get_user_model
 from django.test import override_settings
 from django.urls import reverse
 
-from management.tests.test_usage_page import UsagePageTestBase
+from management.tests.helpers import RoleWorld
 
 User = get_user_model()
 
@@ -17,7 +17,7 @@ OIDC = override_settings(
 
 
 @OIDC
-class LandingTest(UsagePageTestBase):
+class LandingTest(RoleWorld):
     def roles(self):
         return {"admin": self.admin, "org admin": self.org_admin, "user": self.solo}
 

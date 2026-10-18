@@ -6,48 +6,17 @@ from unittest.mock import patch
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import connection
-from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
-from management.models import Org, Request, ServiceAccount, Team, TeamMembership, Token, UserGroup
-from management.tests.helpers import make_token, make_user, secret_on
+from management.models import Request, ServiceAccount, Team, TeamMembership, Token, UserGroup
+from management.tests.helpers import RoleWorld, make_token, secret_on
 
 User = get_user_model()
 
 
-class TeamsPagesTestBase(TestCase):
-    def setUp(self):
-        self.org = Org.objects.create(name="lab-org")
-        self.other_org = Org.objects.create(name="other-org")
-        self.team = Team.objects.create(name="NLP Lab", org=self.org, description="Language tech")
-        self.side_team = Team.objects.create(name="Robotics", org=self.org)
-        self.foreign_team = Team.objects.create(name="Foreign", org=self.other_org)
-
-        self.org_admin = self.user("org-admin", UserGroup.ORG_ADMIN)
-        self.team_admin = self.user("team-admin")
-        self.member = self.user("member")
-        self.outsider = self.user("outsider")
-        self.other_org_admin = self.user("other-org-admin", UserGroup.ORG_ADMIN, self.other_org)
-        self.join(self.team_admin, self.team, is_admin=True)
-        self.join(self.member, self.team)
-
-        self.pipeline = ServiceAccount.objects.create(name="pipeline", team=self.team)
-        self.pipeline_key = make_token(self.team_admin, "pipeline", service_account=self.pipeline)
-
-    def user(self, name: str, group: UserGroup = UserGroup.USER, org: Org | None = None):
-        return make_user(name, org or self.org, group)
-
-    def join(self, user, team: Team, is_admin: bool = False) -> None:
-        TeamMembership.objects.create(user_profile=user.profile, team=team, is_admin=is_admin)
-
-    def as_user(self, user):
-        self.client.force_login(user)
-        return self.client
-
-
-class TeamListTest(TeamsPagesTestBase):
+class TeamListTest(RoleWorld):
     def test_member_sees_only_their_teams_and_team_admins_see_a_badge(self):
         badge = '<span class="badge badge-sm whitespace-nowrap bg-base-100">Team admin</span>'
         response = self.as_user(self.member).get(reverse("org"))
@@ -60,7 +29,7 @@ class TeamListTest(TeamsPagesTestBase):
         self.assertContains(self.as_user(self.team_admin).get(reverse("org")), badge, html=True)
 
     def test_user_outside_every_team_is_told_whom_to_ask(self):
-        response = self.as_user(self.outsider).get(reverse("org"))
+        response = self.as_user(self.solo).get(reverse("org"))
         self.assertContains(response, "You're not in a team. Ask your org admin to add you.")
         self.assertNotContains(response, "NLP Lab")
         self.assertNotContains(response, 'name="q"')
@@ -139,7 +108,7 @@ class TeamListTest(TeamsPagesTestBase):
         self.assertNotContains(response, reverse("admin:management_org_change", args=[self.org.id]))
 
 
-class TeamDetailTest(TeamsPagesTestBase):
+class TeamDetailTest(RoleWorld):
     def url(self, team: Team | None = None) -> str:
         return reverse("team", args=[(team or self.team).id])
 
@@ -176,7 +145,7 @@ class TeamDetailTest(TeamsPagesTestBase):
         self.assertNotContains(response, reverse("team_delete", args=[self.team.id]))
         self.assertNotContains(response, reverse("team_admins_manage", args=[self.team.id]))
         self.assertContains(response, 'name="email"')
-        self.assertNotContains(response, "outsider@example.com")
+        self.assertNotContains(response, "solo@example.com")
         self.assertNotContains(response, "<option")
 
     def test_owner_of_a_service_account_is_pointed_to_the_transfer(self):
@@ -351,7 +320,7 @@ class TeamDetailTest(TeamsPagesTestBase):
 
     def test_outsiders_get_404_without_the_team_name(self):
         for user, team in [
-            (self.outsider, self.team),
+            (self.solo, self.team),
             (self.member, self.side_team),
             (self.other_org_admin, self.team),
         ]:
@@ -361,7 +330,7 @@ class TeamDetailTest(TeamsPagesTestBase):
                 self.assertNotContains(response, team.name, status_code=404)
 
 
-class TeamMembershipTest(TeamsPagesTestBase):
+class TeamMembershipTest(RoleWorld):
     def url(self) -> str:
         return reverse("team", args=[self.team.id])
 
@@ -370,11 +339,11 @@ class TeamMembershipTest(TeamsPagesTestBase):
 
     def test_team_admin_adds_by_email_ignoring_case_and_removes_a_member(self):
         client = self.as_user(self.team_admin)
-        response = client.post(self.url(), {"email": "Outsider@Example.com"})
+        response = client.post(self.url(), {"email": "Solo@Example.com"})
         self.assertRedirects(response, self.url(), fetch_redirect_response=False)
-        self.assertIn("outsider", self.members())
-        client.post(self.url(), {"user_profile_to_remove_id": self.outsider.profile.id})
-        self.assertNotIn("outsider", self.members())
+        self.assertIn("solo", self.members())
+        client.post(self.url(), {"user_profile_to_remove_id": self.solo.profile.id})
+        self.assertNotIn("solo", self.members())
 
     def test_team_admin_who_leaves_lands_on_the_teams_page(self):
         TeamMembership.objects.filter(user_profile=self.member.profile).update(is_admin=True)
@@ -418,17 +387,17 @@ class TeamMembershipTest(TeamsPagesTestBase):
 
     def test_member_and_outsider_cannot_change_membership(self):
         before = self.members()
-        for user in (self.member, self.outsider, self.other_org_admin):
+        for user in (self.member, self.solo, self.other_org_admin):
             for data in (
                 {"user_profile_to_remove_id": self.member.profile.id},
-                {"email": "outsider@example.com"},
+                {"email": "solo@example.com"},
             ):
                 with self.subTest(user=user.username, data=data):
                     self.as_user(user).post(self.url(), data)
                     self.assertEqual(self.members(), before)
 
 
-class TeamFormsTest(TeamsPagesTestBase):
+class TeamFormsTest(RoleWorld):
     def test_org_admin_creates_a_team(self):
         client = self.as_user(self.org_admin)
         page = client.get(reverse("team_create"))
@@ -469,7 +438,7 @@ class TeamFormsTest(TeamsPagesTestBase):
 
     def test_member_and_outsiders_cannot_edit_the_team(self):
         url = reverse("team_edit", args=[self.team.id])
-        for user in (self.member, self.outsider, self.other_org_admin):
+        for user in (self.member, self.solo, self.other_org_admin):
             with self.subTest(user=user.username):
                 response = self.as_user(user).post(url, {"name": "Hijacked"})
                 self.assertEqual(response.status_code, 302 if user == self.member else 404)
@@ -477,7 +446,7 @@ class TeamFormsTest(TeamsPagesTestBase):
         self.assertEqual(self.team.name, "NLP Lab")
 
 
-class TeamLimitsEditTest(TeamsPagesTestBase):
+class TeamLimitsEditTest(RoleWorld):
     LIMITS: ClassVar[dict] = {
         "requests_per_minute": "120",
         "input_tokens_per_minute": "50000",
@@ -537,7 +506,7 @@ class TeamLimitsEditTest(TeamsPagesTestBase):
         self.assertEqual(self.team.name, "NLP Group")
 
     def test_member_and_other_org_admin_change_nothing(self):
-        for user, status in [(self.member, 302), (self.other_org_admin, 404), (self.outsider, 404)]:
+        for user, status in [(self.member, 302), (self.other_org_admin, 404), (self.solo, 404)]:
             with self.subTest(user=user.username):
                 self.assertEqual(self.post(user).status_code, status)
         self.assertEqual(self.limits(), (None, None, None))
@@ -548,7 +517,7 @@ class TeamLimitsEditTest(TeamsPagesTestBase):
         self.assertNotContains(self.as_user(self.team_admin).get(self.url()), delete)
 
 
-class ServiceAccountFormsTest(TeamsPagesTestBase):
+class ServiceAccountFormsTest(RoleWorld):
     def test_team_admin_creates_a_service_account_and_sees_its_key_once(self):
         client = self.as_user(self.team_admin)
         url = reverse("service_account_create", args=[self.team.id])
@@ -589,7 +558,7 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
 
     def test_member_and_outsiders_cannot_create_a_service_account(self):
         url = reverse("service_account_create", args=[self.team.id])
-        for user in (self.member, self.outsider, self.other_org_admin):
+        for user in (self.member, self.solo, self.other_org_admin):
             with self.subTest(user=user.username):
                 response = self.as_user(user).post(url, {"name": "rag", "token_expires_at": ""})
                 self.assertEqual(response.status_code, 302 if user == self.member else 404)
@@ -620,7 +589,7 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
 
     def test_member_and_outsiders_cannot_edit_a_service_account(self):
         url = reverse("service_account_edit", args=[self.pipeline.id])
-        for user in (self.member, self.outsider, self.other_org_admin):
+        for user in (self.member, self.solo, self.other_org_admin):
             with self.subTest(user=user.username):
                 response = self.as_user(user).post(
                     url, {"name": "hijacked", "token_expires_at": ""}
@@ -667,7 +636,7 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
         url = reverse("service_account_transfer", args=[self.pipeline.id])
         client = self.as_user(self.team_admin)
         for email, error in [
-            ("outsider@example.com", "outsider@example.com is not a member of NLP Lab."),
+            ("solo@example.com", "solo@example.com is not a member of NLP Lab."),
             (
                 "other-org-admin@example.com",
                 "other-org-admin@example.com is not a member of NLP Lab.",
@@ -684,19 +653,19 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
 
     def test_member_and_outsiders_cannot_transfer_the_key(self):
         url = reverse("service_account_transfer", args=[self.pipeline.id])
-        for user in (self.member, self.outsider, self.other_org_admin):
+        for user in (self.member, self.solo, self.other_org_admin):
             with self.subTest(user=user.username):
                 self.as_user(user).post(url, {"email": "member@example.com"})
         self.pipeline_key.refresh_from_db()
         self.assertEqual(self.pipeline_key.user, self.team_admin)
 
 
-class TeamScopeTest(TeamsPagesTestBase):
+class TeamScopeTest(RoleWorld):
     def requests(self) -> list[tuple[str, str, dict]]:
         team, sa = [self.team.id], [self.pipeline.id]
         return [
             ("get", reverse("team", args=team), {}),
-            ("post", reverse("team", args=team), {"email": "outsider@example.com"}),
+            ("post", reverse("team", args=team), {"email": "solo@example.com"}),
             (
                 "post",
                 reverse("team", args=team),
@@ -743,7 +712,7 @@ class TeamScopeTest(TeamsPagesTestBase):
     def test_admin_of_another_org_and_outsiders_get_404_on_every_url(self):
         before = self.state()
         availability = reverse("team_availability", args=[self.team.id])
-        for user in (self.other_org_admin, self.outsider):
+        for user in (self.other_org_admin, self.solo):
             for method, url, data in [*self.requests(), ("get", availability, {})]:
                 with self.subTest(user=user.username, method=method, url=url, data=data):
                     response = getattr(self.as_user(user), method)(url, data)
@@ -793,7 +762,7 @@ class TeamScopeTest(TeamsPagesTestBase):
         self.assertFalse(Team.objects.filter(id=self.team.id).exists())
 
 
-class TeamMessagesTest(TeamsPagesTestBase):
+class TeamMessagesTest(RoleWorld):
     def toasts(self, user, url: str, data: dict) -> list[str]:
         response = self.as_user(user).post(url, data, follow=True)
         return [str(message) for message in response.context["messages"]]
@@ -802,17 +771,12 @@ class TeamMessagesTest(TeamsPagesTestBase):
         team = reverse("team", args=[self.team.id])
         admins = reverse("team_admins_manage", args=[self.team.id])
         for user, url, data, toast in [
+            (self.team_admin, team, {"email": "solo@example.com"}, "solo@example.com added."),
             (
                 self.team_admin,
                 team,
-                {"email": "outsider@example.com"},
-                "outsider@example.com added.",
-            ),
-            (
-                self.team_admin,
-                team,
-                {"user_profile_to_remove_id": self.outsider.profile.id},
-                "outsider@example.com removed.",
+                {"user_profile_to_remove_id": self.solo.profile.id},
+                "solo@example.com removed.",
             ),
             (
                 self.org_admin,

@@ -79,6 +79,8 @@ class VisibilityMatrixTest(RoleWorld):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
+        side_account = ServiceAccount.objects.create(name="side-sa", team=cls.side_team)
+        make_token(cls.team_admin, "side-sa", service_account=side_account)
         make_token(cls.org_admin, "org-admin-laptop")
         foreign_account = ServiceAccount.objects.create(name="foreign-sa", team=cls.foreign_team)
         make_token(cls.foreigner, "foreign-sa", service_account=foreign_account)

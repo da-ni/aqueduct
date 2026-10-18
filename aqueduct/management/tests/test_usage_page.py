@@ -3,97 +3,16 @@ from datetime import timedelta
 from unittest import mock
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from management import usage_rollup as rollup
-from management.models import Org, Request, ServiceAccount, Team, TeamMembership, Token, UserGroup
-from management.tests.helpers import make_token, make_user
+from management.models import Request
+from management.tests.helpers import CHAT, EMBEDDING, KEY_NAMES, UsagePageTestBase, make_token
 from management.usage_report import APPROXIMATE_MEDIAN
 
 User = get_user_model()
-CHAT = "gpt-4.1-nano"
-EMBEDDING = "text-embedding-ada-002"
-KEY_NAMES = ("solo-laptop", "member-laptop", "pipeline", "foreign-laptop")
-
-
-class UsagePageTestBase(TestCase):
-    def setUp(self):
-        self.org = Org.objects.create(name="lab-org")
-        self.other_org = Org.objects.create(name="other-org")
-        self.team = Team.objects.create(name="NLP Lab", org=self.org)
-
-        self.admin = self.user("admin", UserGroup.ADMIN)
-        self.org_admin = self.user("org-admin", UserGroup.ORG_ADMIN)
-        self.team_admin = self.user("team-admin")
-        self.member = self.user("member")
-        self.solo = self.user("solo")
-        self.other_org_admin = self.user("other-org-admin", UserGroup.ORG_ADMIN, self.other_org)
-        self.foreigner = self.user("foreigner", org=self.other_org)
-        TeamMembership.objects.create(
-            user_profile=self.team_admin.profile, team=self.team, is_admin=True
-        )
-        TeamMembership.objects.create(user_profile=self.member.profile, team=self.team)
-
-        self.solo_key = make_token(self.solo, "solo-laptop")
-        self.member_key = make_token(self.member, "member-laptop")
-        sa = ServiceAccount.objects.create(name="pipeline", team=self.team)
-        self.pipeline_key = make_token(self.team_admin, "pipeline", service_account=sa)
-        self.foreign_key = make_token(self.foreigner, "foreign-laptop")
-
-        hour = timedelta(hours=1)
-        self.log(
-            self.solo_key, hour, 200, input_tokens=1000, cached_input_tokens=250, output_tokens=500
-        )
-        self.log(self.member_key, hour, 429, input_tokens=2000)
-        self.log(self.pipeline_key, hour, 500, input_tokens=3000, output_tokens=1000)
-        self.log(self.foreign_key, hour, 200, input_tokens=7000)
-
-    def user(self, name: str, group: UserGroup = UserGroup.USER, org: Org | None = None):
-        return make_user(name, org or self.org, group)
-
-    def log(
-        self, token: Token, ago: timedelta, status: int, model: str = CHAT, **fields
-    ) -> Request:
-        return Request.objects.create(
-            token=token,
-            timestamp=timezone.now() - ago,
-            status_code=status,
-            model=model,
-            response_time_ms=100,
-            **fields,
-        )
-
-    def page(self, user, **params):
-        self.client.force_login(user)
-        return self.client.get(reverse("usage"), params)
-
-    def kpi(self, response, label: str) -> str:
-        match = re.search(
-            rf'{label}</span>\s*<span class="text-2xl font-semibold">([^<]*)</span>',
-            response.content.decode(),
-        )
-        self.assertIsNotNone(match, f"no {label} figure on the page")
-        return match.group(1)
-
-    def status_count(self, response, label: str) -> str:
-        match = re.search(
-            rf'<span class="font-medium">{label}</span>.*?'
-            r'<span class="ml-auto font-mono">([^<]*)</span>',
-            response.content.decode(),
-            re.S,
-        )
-        self.assertIsNotNone(match, f"no {label} row on the page")
-        return match.group(1)
-
-    def assert_keys(self, response, *visible: str) -> None:
-        self.assertEqual(response.status_code, 200)
-        for name in KEY_NAMES:
-            if name in visible:
-                self.assertContains(response, name)
-            else:
-                self.assertNotContains(response, name)
 
 
 class UsageAccessTest(UsagePageTestBase):

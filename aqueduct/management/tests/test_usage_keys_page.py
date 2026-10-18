@@ -3,8 +3,7 @@ from unittest import mock
 
 from django.urls import reverse
 
-from management.tests.helpers import make_token
-from management.tests.test_usage_page import EMBEDDING, UsagePageTestBase
+from management.tests.helpers import EMBEDDING, UsagePageTestBase, make_token
 from management.usage_report import TOP_KEYS
 
 

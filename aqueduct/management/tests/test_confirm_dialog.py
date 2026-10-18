@@ -3,8 +3,7 @@ from django.test import SimpleTestCase
 from django.urls import reverse
 
 from management.models import Team, Token
-from management.tests.helpers import make_token
-from management.tests.test_teams_pages import TeamsPagesTestBase
+from management.tests.helpers import RoleWorld, make_token
 
 KEY = "Apps using it stop working, and its requests, files, batches, and vector stores are deleted."
 SERVICE_ACCOUNT = (
@@ -17,7 +16,7 @@ def asks(title: str, detail: str, action: str = "Delete") -> str:
     return f'data-confirm="{title}" data-confirm-detail="{detail}" data-confirm-action="{action}"'
 
 
-class ConfirmDialogTest(TeamsPagesTestBase):
+class ConfirmDialogTest(RoleWorld):
     def test_signed_in_pages_carry_one_dialog_and_signed_out_pages_none(self):
         page = self.as_user(self.member).get(reverse("tokens"))
         self.assertContains(page, '<dialog id="confirm-dialog"', count=1)
