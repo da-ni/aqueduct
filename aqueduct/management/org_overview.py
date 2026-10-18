@@ -4,7 +4,8 @@ from django.conf import settings
 from django.utils.translation import gettext, ngettext
 
 from management.key_activity import grouped
-from management.models import LimitSet, Org, ServiceAccount, Team, Token
+from management.models import LimitSet, Org, ServiceAccount, Team
+from management.models.token import Exclusion, excluded
 
 
 @dataclass(frozen=True)
@@ -38,8 +39,8 @@ def org_page(org: Org) -> OrgPage:
     teams = list(org.teams.order_by("name"))
     everyone = UnavailableRow(
         team=None,
-        models=tuple(sorted(Token.exclusion_list_from_objects(org, Org()))),
-        mcp_servers=tuple(sorted(Token._mcp_server_exclusion_list_from_objects(org, Org()))),
+        models=tuple(sorted(excluded(org, Exclusion.MODELS))),
+        mcp_servers=tuple(sorted(excluded(org, Exclusion.MCP_SERVERS))),
     )
     team_rows = tuple(
         UnavailableRow(
