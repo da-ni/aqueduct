@@ -1,10 +1,11 @@
 # Settings
 
-Every signed-in user has a Settings page. It shows the account the user signed in with, the organization, the role, and the teams the user is in with the role in each. It shows when the user accepted the current terms of service and the limits of the user's personal keys with how many keys the user has. The page changes no stored data. Sign out is the only form on it.
+Every signed-in user has a Settings page. It shows the account the user signed in with, the organization, the role, and the teams the user is in with the role in each. It shows when the user accepted the current terms of service and the limits of the user's personal keys with how many keys the user has. The Language card saves the user's language to their profile. Sign out is the other form on the page.
 
 ## Sub-features
 
 - `settings-account` shows the rows `Email`, `Organization` with the note `Set by your sign-in provider.`, `Role`, and `Teams`, each team with `Team admin` or `Member`, the labels the team page uses, or `None`. A team name links to the team page.
+- `settings-language` is the `Language` card with a `Deutsch` and an `English` button; the current language is pressed. Until the user chooses one, the card reads `Follows your browser until you choose one.` Choosing one reloads the page in that language and stores it on the profile.
 - `settings-terms` shows `Accepted <date>` or `Not accepted`. It appears only when the terms of service are switched on.
 - `settings-limits` is the `Personal key limits` card. It shows the requests, input tokens, and output tokens per minute for personal keys, the count of personal keys against the maximum, and the note `Organization default`, or `Set for your account. Others use the organization default.` when the account has limits of its own.
 
@@ -23,7 +24,8 @@ Preconditions:
 - **No team.** Run `aqv login user --next /aqueduct/management/settings/`. `Teams` shows `None`, and `Personal keys` shows `1 of 3`.
 - **Roles.** `org-admin` shows `Org admin`. `admin` shows `Platform admin` and `0 of 3` personal keys.
 - **Limits from the account.** Run `aqv shell -c "from management.models import UserProfile; p = UserProfile.objects.get(user__username='user'); p.requests_per_minute = 30; p.save()"`, then `aqv login user --next /aqueduct/management/settings/`. `Requests per minute` shows `30` and the note says `Set for your account. Others use the organization default.`
-- **Sign out.** Run `aqv click --selector 'main button[type=submit]'`. The browser lands on `/login/`.
+- **Language.** Run `aqv login user --next /aqueduct/management/settings/`, then `aqv click --role button --name Deutsch --exact`. The page reloads in German, and `aqv shell -c "from management.models import UserProfile; print(UserProfile.objects.get(user__username='user').language)"` prints `de`.
+- **Sign out.** Run `aqv click --selector "main button:has-text('Sign out')"`; the sidebar has a second `Sign out` button. The browser lands on `/login/`.
 
 ## Gotchas
 

@@ -32,7 +32,7 @@ Seeded accounts, all with the email `<username>@verify.invalid`:
 | `other-org-admin` | org admin | Other Org | For cross-org checks. |
 | `new-user` | user | Verify Org | Has not accepted the terms of service. |
 
-The router config is `example_router_config.yaml` from the main checkout, set by the quartz dev overlay. Seeded requests use its model names.
+The router config is `example_router_config.yaml` and the MCP config is `test-mcp.json`, both from the checkout `aqv` runs from. Set `LITELLM_ROUTER_CONFIG_FILE_PATH` or `MCP_CONFIG_FILE_PATH` for `aqv launch` and every `aqv shell` call on that run to use another file. Seeded requests use the router config's model names.
 
 ## Call the gateway
 

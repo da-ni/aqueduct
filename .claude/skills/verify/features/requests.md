@@ -42,7 +42,7 @@ Preconditions:
 
 - The dropdown entries, the status tabs, the model names, and the row arrows are links. A model name is a link both in the `Model:` dropdown and in each row, so pick one with `--nth`: `0` is the dropdown entry.
 - The seeded requests spread over a week, so counts in these recipes use `?span=1m`; the 24-hour default holds whatever the seed placed in the last day.
-- Below 768 px the table is a list of cards. `aqv` fixes the viewport at 1440 px; drive a 390 px check through Playwright over the run's `cdp_port` with a new context of that width.
+- Below 768 px the table is a list of cards. Check it with `aqv shot requests/phone --width 390`.
 - All requests of `user` are 2xx, so its `Rate-limited`, client error, and server error tabs read 0. Use `team-member` or `org-admin` for failed requests.
 - The page counts only requests to models in the router config, as the usage page does.
 - The browser keeps the theme between logins. Choose `Switch between light and dark` to change it before a screenshot.

@@ -17,7 +17,7 @@ The MCP servers page shows one card per server in the MCP config, with its initi
 
 Preconditions:
 
-- A fresh launch. The MCP config is `test-mcp.json` from the main checkout, with the servers `test-server` and `aqueduct`.
+- A fresh launch. The MCP config is `test-mcp.json` from the checkout `aqv` runs from, with the servers `test-server` and `aqueduct`.
 
 - **List.** Run `aqv login user --next /aqueduct/management/mcp-servers/`. The cards show `test-server` and `aqueduct`, with no tags. Each copy field reads `<base>/mcp-servers/<name>/mcp`. The client configuration lists both servers under `mcpServers`. Run `aqv shot mcp-servers/list-user`.
 - **Availability.** Run `aqv shell -c "from management.models import Team; t = Team.objects.get(name='Verify Team'); t.excluded_mcp_servers = ['aqueduct']; t.save()"`, then `aqv login team-member --next /aqueduct/management/mcp-servers/`. The `aqueduct` card says `Available with your personal keys.` Exclude `aqueduct` on the `team-member` profile too, and the card and its entry in the client configuration are gone.
