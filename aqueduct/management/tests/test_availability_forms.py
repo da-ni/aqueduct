@@ -6,6 +6,7 @@ import yaml
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from gateway.config import get_router_config
 from management.admin import TeamAdminForm, UserProfileAdminForm
 from management.availability import Reach, configured_models
 from management.models import Org, Team, Token, UserGroup
@@ -18,7 +19,11 @@ ROUTER_CONFIG = Path(__file__).resolve().parents[3] / "example_router_config.yam
 
 def posted(form) -> dict:
     data = {name: form[name].value() for name in form.fields}
-    data |= {f"{name}-shown": "1" for name in form.fields if name.startswith("available_")}
+    data |= {
+        f"{name}-shown": [value for value, _ in form.fields[name].choices]
+        for name in form.fields
+        if name.startswith("available_")
+    }
     return {name: value for name, value in data.items() if value not in (None, False)}
 
 
@@ -81,12 +86,26 @@ class RepeatedModelNameTest(TestCase):
         self.team = Team.objects.create(name="Whale", org=Org.objects.create(name="E060"))
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        config = Path(directory.name) / "router.yaml"
-        entries = [{"model_name": n, "litellm_params": {"model": f"openai/{n}"}} for n in "aab"]
-        config.write_text(yaml.safe_dump({"model_list": entries}))
-        settings = override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=str(config))
+        self.config = Path(directory.name) / "router.yaml"
+        self.configure("aab")
+        settings = override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=str(self.config))
         settings.enable()
         self.addCleanup(settings.disable)
+
+    def configure(self, names: str) -> None:
+        entries = [{"model_name": n, "litellm_params": {"model": f"openai/{n}"}} for n in names]
+        self.config.write_text(yaml.safe_dump({"model_list": entries}))
+        get_router_config.cache_clear()
+
+    def test_a_model_added_while_the_form_is_open_stays_available(self):
+        data = posted(TeamAdminForm(instance=self.team))
+        data["available_models"] = ["b"]
+        self.configure("abc")
+        form = TeamAdminForm(data, instance=self.team)
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.excluded_models, ["a"])
 
     def test_a_repeated_name_is_one_box(self):
         form = TeamAdminForm(instance=self.team)
@@ -126,7 +145,7 @@ class TeamAvailabilityPageTest(TeamsPagesTestBase):
     def unavailable_dall_e(self) -> dict:
         return {
             "available_models": [m for m in configured_models() if m != "dall-e-2"],
-            "available_models-shown": "1",
+            "available_models-shown": configured_models(),
         }
 
     def stored(self) -> list[str]:
