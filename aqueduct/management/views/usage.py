@@ -93,7 +93,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         selected_org = chosen.org if isinstance(chosen, WholeOrg) else None
         reqs = filters.requests
 
-        retention_days = getattr(settings, "REQUEST_RETENTION_DAYS", 30)
+        retention_days = settings.REQUEST_RETENTION_DAYS
         in_period = period.of(reqs)
         org_wide = _org_wide(filters)
         sealed = rollup.Sealed.read()

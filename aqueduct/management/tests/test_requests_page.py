@@ -363,7 +363,7 @@ class RequestsRollupCountsTest(RequestsPageTestBase):
                 status_code=statuses[i % len(statuses)],
                 model=(CHAT, EMBEDDING, "not-in-the-router")[i % 3],
             )
-        rollup.rebuild()
+        rollup.refresh(full=True)
 
     def raw_tabs(self, requests: QuerySet[Request]) -> dict[str | None, int]:
         requests = Period.last(Span.MONTH, timezone.now()).of(requests)

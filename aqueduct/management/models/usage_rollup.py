@@ -54,6 +54,8 @@ class OrgLatencyHour(models.Model):
 
 class KeyUsageWindow(models.Model):
     days = models.PositiveSmallIntegerField()
+    window_start = models.DateTimeField()
+    sealed_until = models.DateTimeField()
     token = models.ForeignKey(
         Token, on_delete=models.DO_NOTHING, related_name="+", db_constraint=False
     )
@@ -78,7 +80,6 @@ class KeyUsageWindow(models.Model):
 class UsageRollupState(models.Model):
     name = models.CharField(max_length=32, primary_key=True)
     sealed_until = models.DateTimeField(null=True)
-    window_start = models.DateTimeField(null=True)
     dirty = models.BooleanField(default=False)
     changes = models.PositiveBigIntegerField(default=0)
     time_zone = models.CharField(max_length=64)

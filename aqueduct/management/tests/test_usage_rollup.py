@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from unittest import mock
 
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.db.models import Q, QuerySet
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
@@ -348,6 +349,62 @@ class UsageRollupTest(TestCase):
         across_cutoff = Period(DAY.floor(now - timedelta(days=32)), DAY.floor(now) + DAY.size, DAY)
         self.assert_matches_raw(across_cutoff, now)
 
+    def test_pruning_gives_the_rows_of_a_full_recount(self):
+        draw = random.Random(7)
+        cutoffs = sorted(
+            self.now - timedelta(days=34, minutes=draw.randrange(0, 4 * 24 * 60)) for _ in range(4)
+        )
+        for cutoff in cutoffs:
+            for minutes in range(-90, 91, 7):
+                late = self.log(self.member_key, self.now - cutoff - timedelta(minutes=minutes))
+                late.status_code, late.response_time_ms = draw.choice(STATUSES), minutes + 90
+                late.save()
+        for zone in ("UTC", "Asia/Kolkata"):
+            for cutoff in cutoffs:
+                with (
+                    self.subTest(zone=zone, cutoff=cutoff),
+                    override_settings(TIME_ZONE=zone),
+                    transaction.atomic(),
+                ):
+                    rollup.refresh(self.now, full=True)
+                    Request.objects.filter(timestamp__lt=cutoff).delete()
+                    rollup.prune(cutoff)
+                    pruned = self.rollup_rows()
+                    rollup.refresh(self.now, full=True)
+                    self.assertEqual(pruned, self.rollup_rows())
+                    self.assertTrue(
+                        OrgUsageHour.objects.filter(hour=rollup.floor_hour(cutoff)).exists()
+                    )
+                    transaction.set_rollback(True)
+
+    def test_a_change_marked_during_a_prune_keeps_the_rollups_dirty(self):
+        rollup.refresh(self.now)
+        insert, marked = rollup._insert, []
+
+        def insert_then_mark(*args, **kwargs):
+            insert(*args, **kwargs)
+            marked.append(True)
+            mark_rollups_dirty()
+
+        with mock.patch.object(rollup, "_insert", insert_then_mark):
+            rollup.prune(self.now - timedelta(days=35, minutes=30))
+        self.assertTrue(marked)
+        self.assertTrue(self.dirty())
+        rollup.refresh(self.now)
+        self.assertFalse(self.dirty())
+        self.assert_matches_raw()
+
+    @override_settings(REQUEST_RETENTION_DAYS=30)
+    def test_retention_leaves_the_kept_hours_untouched(self):
+        rollup.refresh(timezone.now())
+        kept = OrgUsageHour.objects.filter(
+            hour__gt=rollup.floor_hour(timezone.now() - timedelta(days=30, hours=-1))
+        )
+        before = sorted(kept.values_list("pk", flat=True))
+        delete_old_requests()
+        self.assertTrue(before)
+        self.assertEqual(sorted(kept.values_list("pk", flat=True)), before)
+
     def test_key_windows_give_each_keys_raw_activity(self):
         rollup.refresh_key_windows(self.now)
         self.assertTrue(KeyUsageWindow.objects.exists())
@@ -378,16 +435,15 @@ class UsageRollupTest(TestCase):
         self.log(self.member_key, self.now - just_sealed, input_tokens=99)
         rollup.refresh_key_windows(self.now)
         period = Period.last(Span.WEEK, self.now)
-        first, raced = QuerySet.first, []
+        fetch_all, raced = QuerySet._fetch_all, []
 
-        def first_then_refresh(rows):
-            found = first(rows)
-            if rows.model is UsageRollupState and not raced:
+        def fetch_then_refresh(rows):
+            fetch_all(rows)
+            if rows.model is KeyUsageWindow and not raced:
                 raced.append(True)
                 rollup.refresh_key_windows(self.now + timedelta(hours=1))
-            return found
 
-        with mock.patch.object(QuerySet, "first", first_then_refresh):
+        with mock.patch.object(QuerySet, "_fetch_all", fetch_then_refresh):
             totals = rollup.key_window_totals(EveryOrg(), None, period)
         self.assertTrue(raced)
         raw = {
