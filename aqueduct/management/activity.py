@@ -9,7 +9,7 @@ from django.db.models.functions import Trunc
 from gateway.config import model_names
 from management.formatting import compact, percent
 from management.models import Request
-from management.outcomes import FAILED, STATUS_COUNTS, STATUSES
+from management.outcomes import FAILED, OUTCOME_COUNTS, Outcome
 from management.periods import Period
 
 TOKENS = F("input_tokens") + F("output_tokens")
@@ -103,7 +103,7 @@ MEDIAN = Median("response_time_ms")
 @dataclass(frozen=True)
 class Series:
     points: list[tuple[datetime, Activity]]
-    status_counts: tuple[int, ...]
+    outcomes: dict[Outcome, int]
 
     @property
     def total(self) -> Activity:
@@ -115,18 +115,16 @@ def series(requests: QuerySet[Request], period: Period) -> Series:
         period.of(requests)
         .annotate(bucket=Trunc("timestamp", period.step.kind))
         .values("bucket")
-        .annotate(**TOTALS, **STATUS_COUNTS)
+        .annotate(**TOTALS, **OUTCOME_COUNTS)
         .order_by()
     )
-    found, status_counts = {}, [0] * len(STATUSES)
+    found, outcomes = {}, dict.fromkeys(Outcome, 0)
     for row in rows:
         bucket = row.pop("bucket")
-        for i in range(len(STATUSES)):
-            status_counts[i] += row.pop(f"s{i}")
+        for outcome in Outcome:
+            outcomes[outcome] += row.pop(outcome.name)
         found[bucket] = Activity(**row)
-    return Series(
-        [(bucket, found.get(bucket, Activity())) for bucket in period.buckets], tuple(status_counts)
-    )
+    return Series([(bucket, found.get(bucket, Activity())) for bucket in period.buckets], outcomes)
 
 
 @dataclass(frozen=True)

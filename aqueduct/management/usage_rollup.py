@@ -28,7 +28,7 @@ from management.models import (
     UsageRollupState,
 )
 from management.models.usage_rollup import HOURLY
-from management.outcomes import FAILED, STATUS_COUNTS, STATUSES
+from management.outcomes import FAILED, OUTCOME_COUNTS, Outcome
 from management.ownership import key_org
 from management.periods import HOUR, Period, Span
 
@@ -46,25 +46,23 @@ BUCKET = Case(
     ),
 )
 
-STATUS_COLUMNS = ("ok", "rate_limited", "client_error", "server_error")
-_COUNT_STATUSES = {
-    column: Count("id", filter=match)
-    for column, (*_, match) in zip(STATUS_COLUMNS, STATUSES, strict=True)
-} | {"unfinished": Count("id", filter=Q(status_code__isnull=True))}
+_COUNT_OUTCOMES = {o.column: Count("id", filter=o.matches) for o in Outcome} | {
+    "unfinished": Count("id", filter=Q(status_code__isnull=True))
+}
 _SUM_TOKENS = {
     field: Sum(field, default=0)
     for field in ("input_tokens", "cached_input_tokens", "output_tokens")
 }
 
-_FAILED_COLUMNS = F("rate_limited") + F("client_error") + F("server_error")
+_FAILED_COLUMNS = reduce(operator.add, (F(o.column) for o in Outcome if o.failed))
 _HOUR_TOTALS = {
-    "requests": Sum(F("ok") + _FAILED_COLUMNS + F("unfinished"), default=0),
+    "requests": Sum(F(Outcome.OK.column) + _FAILED_COLUMNS + F("unfinished"), default=0),
     "failed": Sum(_FAILED_COLUMNS, default=0),
     "input": Sum("input_tokens", default=0),
     "cached": Sum("cached_input_tokens", default=0),
     "output": Sum("output_tokens", default=0),
 }
-_HOUR_STATUS_COUNTS = {f"s{i}": Sum(column, default=0) for i, column in enumerate(STATUS_COLUMNS)}
+_HOUR_OUTCOME_COUNTS = {o.name: Sum(o.column, default=0) for o in Outcome}
 
 
 Row = dict[str, Any]
@@ -124,7 +122,7 @@ def refresh(now: datetime | None = None, *, full: bool = False) -> None:
         by_hour = {"hour": _local_hour(), "org_id": key_org("token__")}
         _insert(
             OrgUsageHour,
-            recounted.values("model", **by_hour).annotate(**_COUNT_STATUSES, **_SUM_TOKENS),
+            recounted.values("model", **by_hour).annotate(**_COUNT_OUTCOMES, **_SUM_TOKENS),
         )
         _insert(
             OrgLatencyHour,
@@ -211,16 +209,16 @@ def org_series(
         ("bucket",),
         OrgUsageHour,
         lambda rows: rows.values(bucket=Trunc("hour", period.step.kind)).annotate(
-            **_HOUR_TOTALS, **_HOUR_STATUS_COUNTS
+            **_HOUR_TOTALS, **_HOUR_OUTCOME_COUNTS
         ),
         lambda rows: rows.values(bucket=Trunc("timestamp", period.step.kind)).annotate(
-            **TOTALS, **STATUS_COUNTS
+            **TOTALS, **OUTCOME_COUNTS
         ),
         sealed if period.step.size >= HOUR.size else Sealed(None),
     )
     return Series(
         [(bucket, _activity(found.get((bucket,), Counter()))) for bucket in period.buckets],
-        tuple(sum(c[f"s{i}"] for c in found.values()) for i in range(len(STATUSES))),
+        {o: sum(c[o.name] for c in found.values()) for o in Outcome},
     )
 
 

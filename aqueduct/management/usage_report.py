@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 
 from django.db.models import Count, Max, OuterRef, QuerySet, Subquery, Sum
 from django.db.models.functions import Lower
-from django.utils.functional import Promise
 from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 
@@ -13,7 +12,7 @@ from management.activity import TOKENS, TOTALS, Activity, ModelUsage, Series
 from management.charts import Share, scaled
 from management.formatting import MISSING, NO_ORG, compact, duration, percent
 from management.models import Org, Request, Token
-from management.outcomes import STATUSES
+from management.outcomes import Outcome
 from management.ownership import RELATED, key_org
 
 if TYPE_CHECKING:
@@ -26,10 +25,7 @@ APPROXIMATE_MEDIAN = _("Approximate")
 
 @dataclass(frozen=True)
 class StatusRow:
-    label: str | Promise
-    codes: str
-    icon: str
-    tone: str
+    outcome: Outcome
     count: int
     share: str
     href: str
@@ -38,10 +34,8 @@ class StatusRow:
 def statuses(timeline: Series, link: Callable[..., str]) -> tuple[StatusRow, ...]:
     total = timeline.total.requests
     return tuple(
-        StatusRow(label, codes, icon, tone, count, percent(count, total), link(status=codes))
-        for (label, codes, icon, tone, _), count in zip(
-            STATUSES, timeline.status_counts, strict=True
-        )
+        StatusRow(outcome, count, percent(count, total), link(status=outcome.codes))
+        for outcome, count in timeline.outcomes.items()
     )
 
 

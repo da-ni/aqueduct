@@ -20,8 +20,8 @@ class RequestLogView(BaseAqueductView, TemplateView):
         context.update(
             log=log,
             filters=filters,
-            outcome=log.outcome,
-            narrowed=log.outcome is not None
+            status=log.status,
+            narrowed=log.status is not None
             or bool(log.search)
             or filters.span is not Span.DAY
             or bool(filters.mine or filters.key or filters.model),
