@@ -5,6 +5,8 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models import QuerySet
 from django.utils import timezone
+from django.utils.translation import gettext, ngettext
+from django.utils.translation import gettext_lazy as _
 
 from .availability import (
     INHERIT_HELP,
@@ -178,12 +180,14 @@ class TokenCreateForm(forms.ModelForm):
         model = Token
         fields: ClassVar[list] = ["name", "expires_at"]
         widgets: ClassVar[dict] = {
-            "name": forms.TextInput(attrs={"placeholder": "e.g. thesis-eval", "class": NAME_INPUT}),
+            "name": forms.TextInput(
+                attrs={"placeholder": _("e.g. thesis-eval"), "class": NAME_INPUT}
+            ),
             "expires_at": forms.DateTimeInput(
                 attrs={"type": "datetime-local", "class": EXPIRY_INPUT}, format="%Y-%m-%dT%H:%M"
             ),
         }
-        labels: ClassVar[dict] = {"name": "Name", "expires_at": "Expires (UTC, optional)"}
+        labels: ClassVar[dict] = {"name": _("Name"), "expires_at": _("Expires (UTC, optional)")}
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
@@ -202,11 +206,18 @@ class TokenCreateForm(forms.ModelForm):
         if self.instance.pk:
             token_count = token_count.exclude(pk=self.instance.pk)
         if token_count.count() >= max_tokens:
-            raise ValidationError(f"You can only have {max_tokens} API keys.")
+            raise ValidationError(
+                ngettext(
+                    "You can only have %(count)s API key.",
+                    "You can only have %(count)s API keys.",
+                    max_tokens,
+                )
+                % {"count": max_tokens}
+            )
 
         expires_at = cleaned_data.get("expires_at")
         if expires_at and expires_at <= timezone.now():
-            self.add_error("expires_at", "Expiration date must be in the future.")
+            self.add_error("expires_at", gettext("Expiration date must be in the future."))
 
         return cleaned_data
 

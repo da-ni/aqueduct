@@ -14,6 +14,7 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.http import urlencode
 from django.utils.translation import gettext
+from django.utils.translation import gettext_lazy as _
 
 from management.key_activity import FAILED, KeyAccess, of_keys, router_models, served
 from management.model_catalog import scopes_for, usable_models
@@ -142,9 +143,11 @@ class Outcome(StrEnum):
 
 
 _ERROR_MEANINGS = {
-    Outcome.RATE_LIMITED: "The key or the provider was over a limit.",
-    Outcome.REFUSED: "The request was not valid, for example an unknown model or a malformed body.",
-    Outcome.FAILED: "The model or the provider failed or timed out.",
+    Outcome.RATE_LIMITED: _("The key or the provider was over a limit."),
+    Outcome.REFUSED: _(
+        "The request was not valid, for example an unknown model or a malformed body."
+    ),
+    Outcome.FAILED: _("The model or the provider failed or timed out."),
 }
 
 
@@ -370,12 +373,12 @@ class Row:
         """What a failed request's status means, `None` for a successful one."""
         outcome = self.outcome
         if outcome is None:
-            return "No status was recorded."
+            return gettext("No status was recorded.")
         if outcome is Outcome.OK:
             return None
         phrase = self.status_phrase
-        code = f"{self.request.status_code} {phrase}. " if phrase else ""
-        return code + _ERROR_MEANINGS[outcome]
+        meaning = str(_ERROR_MEANINGS[outcome])
+        return f"{self.request.status_code} {phrase}. {meaning}" if phrase else meaning
 
     @property
     def response_time(self) -> str:
@@ -391,7 +394,7 @@ class Row:
         tokens, ms = self.request.output_tokens, self.request.response_time_ms
         if not tokens or not ms:
             return None
-        return f"{round(tokens * 1000 / ms):,} tok/s"
+        return gettext("%(speed)s tok/s") % {"speed": f"{round(tokens * 1000 / ms):,}"}
 
 
 @dataclass(frozen=True)
@@ -586,10 +589,10 @@ class Pager:
     @property
     def links(self) -> tuple[tuple[str, Place | None], ...]:
         return (
-            ("First", self.first),
-            ("Previous", self.previous),
-            ("Next", self.next),
-            ("Last", self.last),
+            (gettext("First"), self.first),
+            (gettext("Previous"), self.previous),
+            (gettext("Next"), self.next),
+            (gettext("Last"), self.last),
         )
 
 
@@ -794,7 +797,7 @@ def request_log(filters: Filters, params: Mapping[str, str]) -> RequestLog:
     if search:
         filtered = filtered.filter(request_search(search, by_text=free))
     counts = _tab_counts(filters, filtered, search)
-    tabs = (Tab(None, "All", counts[None]), *(Tab(o, o.label, counts[o]) for o in Outcome))
+    tabs = (Tab(None, gettext("All"), counts[None]), *(Tab(o, o.label, counts[o]) for o in Outcome))
 
     if outcome is not None:
         filtered = filtered.filter(outcome.matches)

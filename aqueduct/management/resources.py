@@ -6,7 +6,7 @@ keys created, as with a personal key on the API, and syncs what `syncable` allow
 """
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from django.conf import settings
@@ -381,16 +381,6 @@ def batch_list(
     )
 
 
-def expires(expiry: Expiry, now: datetime) -> Expiry:
-    """`expiry` worded to stand alone after "Created <date>": "Never expires", "Expires today",
-    "Expires 3 Nov 2026", or "Expired"."""
-    if expiry.at is None:
-        return replace(expiry, label="Never expires")
-    if expiry.at <= now:
-        return expiry
-    return replace(expiry, label=f"Expires {expiry.label[0].lower()}{expiry.label[1:]}")
-
-
 def store_expiry(store: VectorStore, now: datetime) -> Expiry:
     policy = store.expires_after or {}
     days = policy.get("days")
@@ -482,7 +472,6 @@ class StoreBatchRow:
 @dataclass(frozen=True)
 class StoreDetail:
     row: StoreRow
-    expires: Expiry
     files: tuple[StoreFileRow, ...]
     pages: Page
     batches: tuple[StoreBatchRow, ...]
@@ -516,7 +505,6 @@ def store_detail(
     )
     return StoreDetail(
         row=row,
-        expires=expires(row.expiry, now),
         files=tuple(
             StoreFileRow(
                 entry,

@@ -78,7 +78,7 @@ class KeyKind(StrEnum):
 
     @property
     def label(self) -> str:
-        return "Personal" if self is KeyKind.PERSONAL else "Service accounts"
+        return gettext("Personal") if self is KeyKind.PERSONAL else gettext("Service accounts")
 
     @classmethod
     def parse(cls, raw: str) -> "KeyKind | None":
@@ -90,21 +90,32 @@ class KeyKind(StrEnum):
 
 @dataclass(frozen=True)
 class Expiry:
+    """When something expires, as a table cell words it in `label` ("In 3 days") and as a
+    sentence of its own in `sentence` ("Expires in 3 days")."""
+
     label: str
+    sentence: str
     tone: str = "muted"
     at: datetime | None = None
 
     @classmethod
     def of(cls, expires_at: datetime | None, now: datetime) -> "Expiry":
         if expires_at is None:
-            return cls("No expiry")
+            return cls(gettext("No expiry"), gettext("Never expires"))
         if expires_at <= now:
-            return cls("Expired", "st-err font-semibold", expires_at)
+            return cls(gettext("Expired"), gettext("Expired"), "st-err font-semibold", expires_at)
         if expires_at - now <= EXPIRY_WARNING:
             days = (expires_at - now).days
-            label = "Today" if days == 0 else f"In {days} day{'s' if days > 1 else ''}"
-            return cls(label, "st-warn font-semibold", expires_at)
-        return cls(f"{timezone.localtime(expires_at):%-d %b %Y}", at=expires_at)
+            if days == 0:
+                label, sentence = gettext("Today"), gettext("Expires today")
+            else:
+                label = ngettext("In %(days)s day", "In %(days)s days", days) % {"days": days}
+                sentence = ngettext("Expires in %(days)s day", "Expires in %(days)s days", days) % {
+                    "days": days
+                }
+            return cls(label, sentence, "st-warn font-semibold", expires_at)
+        day = dateformat.format(timezone.localtime(expires_at), "j M Y")
+        return cls(day, gettext("Expires %(date)s") % {"date": day}, at=expires_at)
 
 
 @dataclass(frozen=True)

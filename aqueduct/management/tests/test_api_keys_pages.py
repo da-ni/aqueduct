@@ -10,7 +10,7 @@ from django.db import connection
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
-from django.utils import timezone
+from django.utils import timezone, translation
 
 from management.key_activity import Expiry, KeyAccess
 from management.models import (
@@ -282,7 +282,7 @@ class KeyDetailTest(ApiKeysPagesTestBase):
     def test_requests_metric_charts_failed_requests(self):
         self.request_log(self.key, timedelta(minutes=5), status_code=500)
         response = self.get(self.owner, "token_detail", self.key.id, metric="requests")
-        self.assertContains(response, '<span data-metric="requests">Requests</span> per day')
+        self.assertContains(response, '<span data-metric="requests">Requests per day</span>')
         self.assertContains(response, '<i class="f" style="height: 100%"></i>', html=True)
 
     def test_chart_holds_both_series_so_the_switch_needs_no_reload(self):
@@ -325,7 +325,7 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         self.assertContains(
             response,
             f'<time datetime="{expires.isoformat()}" title="{expires:%Y-%m-%d %H:%M:%S} UTC">'
-            f"{expires:%-d %b %Y}</time>",
+            f"Expires {expires:%-d %b %Y}</time>",
         )
 
     def test_other_users_key_is_not_found(self):
@@ -451,18 +451,30 @@ class KeyEditAndDeleteReturnTest(ApiKeysPagesTestBase):
 
 
 class ExpiryTest(SimpleTestCase):
-    def test_labels(self):
+    def test_labels_and_sentences(self):
         now = timezone.now()
+        later = now + timedelta(days=30)
+        day = f"{timezone.localtime(later):%-d %b %Y}"
+        warn, err = "st-warn font-semibold", "st-err font-semibold"
         cases = [
-            (None, "No expiry", "muted"),
-            (now - timedelta(minutes=1), "Expired", "st-err font-semibold"),
-            (now + timedelta(hours=3), "Today", "st-warn font-semibold"),
-            (now + timedelta(days=5, hours=1), "In 5 days", "st-warn font-semibold"),
-            (now + timedelta(days=30), f"{now + timedelta(days=30):%-d %b %Y}", "muted"),
+            (None, "No expiry", "Never expires", "muted"),
+            (now - timedelta(minutes=1), "Expired", "Expired", err),
+            (now + timedelta(hours=3), "Today", "Expires today", warn),
+            (now + timedelta(days=1, hours=1), "In 1 day", "Expires in 1 day", warn),
+            (now + timedelta(days=5, hours=1), "In 5 days", "Expires in 5 days", warn),
+            (later, day, f"Expires {day}", "muted"),
         ]
-        for expires_at, label, tone in cases:
+        for expires_at, label, sentence, tone in cases:
             with self.subTest(label=label):
-                self.assertEqual(Expiry.of(expires_at, now), Expiry(label, tone, expires_at))
+                self.assertEqual(
+                    Expiry.of(expires_at, now), Expiry(label, sentence, tone, expires_at)
+                )
+
+    def test_german(self):
+        now = timezone.now()
+        with translation.override("de"):
+            soon = Expiry.of(now + timedelta(days=3, hours=1), now)
+            self.assertEqual((soon.label, soon.sentence), ("In 3 Tagen", "Läuft in 3 Tagen ab"))
 
 
 class OrgAdminKeyAccessTest(ApiKeysPagesTestBase):

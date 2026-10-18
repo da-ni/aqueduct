@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-17 23:33+0000\n"
+"POT-Creation-Date: 2026-10-17 23:58+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -59,6 +59,24 @@ msgstr "%(name)s löschen?"
 msgid "Delete"
 msgstr "Löschen"
 
+msgid "e.g. thesis-eval"
+msgstr "z. B. thesis-eval"
+
+msgid "Name"
+msgstr "Name"
+
+msgid "Expires (UTC, optional)"
+msgstr "Ablauf (UTC, optional)"
+
+#, python-format
+msgid "You can only have %(count)s API key."
+msgid_plural "You can only have %(count)s API keys."
+msgstr[0] "Sie können nur %(count)s API-Schlüssel haben."
+msgstr[1] "Sie können nur %(count)s API-Schlüssel haben."
+
+msgid "Expiration date must be in the future."
+msgstr "Das Ablaufdatum muss in der Zukunft liegen."
+
 #, python-format
 msgid "%(count)s token"
 msgid_plural "%(count)s tokens"
@@ -97,6 +115,43 @@ msgstr "OK"
 
 msgid "Failed"
 msgstr "Fehlgeschlagen"
+
+msgid "Personal"
+msgstr "Persönlich"
+
+msgid "Service accounts"
+msgstr "Dienstkonten"
+
+msgid "No expiry"
+msgstr "Kein Ablauf"
+
+msgid "Never expires"
+msgstr "Läuft nie ab"
+
+msgid "Expired"
+msgstr "Abgelaufen"
+
+msgid "Today"
+msgstr "Heute"
+
+msgid "Expires today"
+msgstr "Läuft heute ab"
+
+#, python-format
+msgid "In %(days)s day"
+msgid_plural "In %(days)s days"
+msgstr[0] "In %(days)s Tag"
+msgstr[1] "In %(days)s Tagen"
+
+#, python-format
+msgid "Expires in %(days)s day"
+msgid_plural "Expires in %(days)s days"
+msgstr[0] "Läuft in %(days)s Tag ab"
+msgstr[1] "Läuft in %(days)s Tagen ab"
+
+#, python-format
+msgid "Expires %(date)s"
+msgstr "Läuft am %(date)s ab"
 
 msgid "Input tokens"
 msgstr "Eingabe-Token"
@@ -180,12 +235,45 @@ msgstr "Matrix-Supportkanal"
 msgid "GitHub repository"
 msgstr "GitHub-Repository"
 
+msgid "The key or the provider was over a limit."
+msgstr "Der Schlüssel oder der Anbieter hat ein Limit überschritten."
+
+msgid ""
+"The request was not valid, for example an unknown model or a malformed body."
+msgstr ""
+"Die Anfrage war ungültig, zum Beispiel wegen eines unbekannten Modells oder "
+"eines fehlerhaften Inhalts."
+
+msgid "The model or the provider failed or timed out."
+msgstr ""
+"Das Modell oder der Anbieter ist ausgefallen oder hat nicht rechtzeitig "
+"geantwortet."
+
 #, python-format
 msgid "Service account · %(team)s"
 msgstr "Dienstkonto · %(team)s"
 
-msgid "Personal"
-msgstr "Persönlich"
+msgid "No status was recorded."
+msgstr "Es wurde kein Status erfasst."
+
+#, python-format
+msgid "%(speed)s tok/s"
+msgstr "%(speed)s Token/s"
+
+msgid "First"
+msgstr "Erste"
+
+msgid "Previous"
+msgstr "Zurück"
+
+msgid "Next"
+msgstr "Weiter"
+
+msgid "Last"
+msgstr "Letzte"
+
+msgid "All"
+msgstr "Alle"
 
 msgid "Access denied"
 msgstr "Zugriff verweigert"
@@ -252,6 +340,31 @@ msgstr "Gateway-URL kopieren"
 msgid "Help"
 msgstr "Hilfe"
 
+#, python-format
+msgid "Rotate %(name)s?"
+msgstr "%(name)s erneuern?"
+
+#, python-format
+msgid "Rotate %(name)s"
+msgstr "%(name)s erneuern"
+
+#, python-format
+msgid "Edit %(name)s"
+msgstr "%(name)s bearbeiten"
+
+#, python-format
+msgid "Delete %(name)s"
+msgstr "%(name)s löschen"
+
+msgid "Rotate"
+msgstr "Erneuern"
+
+msgid "The current key stops working immediately."
+msgstr "Der bisherige Schlüssel funktioniert sofort nicht mehr."
+
+msgid "Edit"
+msgstr "Bearbeiten"
+
 msgid "Tokens"
 msgstr "Token"
 
@@ -261,11 +374,35 @@ msgstr "Eingabe"
 msgid "Share"
 msgstr "Anteil"
 
+msgid "No limits"
+msgstr "Keine Limits"
+
+msgid "Requests per minute"
+msgstr "Anfragen pro Minute"
+
+msgid "Input tokens per minute"
+msgstr "Eingabe-Token pro Minute"
+
+msgid "Output tokens per minute"
+msgstr "Ausgabe-Token pro Minute"
+
+msgid "Your key is ready"
+msgstr "Ihr Schlüssel ist bereit"
+
 msgid "Copied"
 msgstr "Kopiert"
 
 msgid "Copy failed"
 msgstr "Kopieren fehlgeschlagen"
+
+msgid "Copy key"
+msgstr "Schlüssel kopieren"
+
+msgid "Copy it now. You won't see it again."
+msgstr "Kopieren Sie ihn jetzt. Er wird nur dieses eine Mal angezeigt."
+
+msgid "Copy command"
+msgstr "Befehl kopieren"
 
 msgid "Viewing"
 msgstr "Ansicht"
@@ -286,14 +423,29 @@ msgstr "%(first)s–%(last)s von %(total)s"
 msgid "Pages"
 msgstr "Seiten"
 
-msgid "Previous"
-msgstr "Zurück"
-
-msgid "Next"
-msgstr "Weiter"
-
 msgid "Aqueduct"
 msgstr "Aqueduct"
+
+#, python-format
+msgid "%(used)s / %(limit)s request this hour"
+msgid_plural "%(used)s / %(limit)s requests this hour"
+msgstr[0] "%(used)s / %(limit)s Anfrage in dieser Stunde"
+msgstr[1] "%(used)s / %(limit)s Anfragen in dieser Stunde"
+
+msgid "Hourly limit"
+msgstr "Stundenlimit"
+
+#, python-format
+msgid "%(used)s / %(limit)s request today"
+msgid_plural "%(used)s / %(limit)s requests today"
+msgstr[0] "%(used)s / %(limit)s Anfrage heute"
+msgstr[1] "%(used)s / %(limit)s Anfragen heute"
+
+msgid "Daily limit"
+msgstr "Tageslimit"
+
+msgid "n/a"
+msgstr "k. A."
 
 msgid "Main"
 msgstr "Hauptmenü"
@@ -318,6 +470,19 @@ msgstr "Navigation öffnen"
 
 msgid "Dismiss"
 msgstr "Schließen"
+
+msgid "New"
+msgstr "Neu"
+
+msgid "Create"
+msgstr "Erstellen"
+
+#, python-format
+msgid "Edit <span class=\"font-mono\">%(name)s</span>"
+msgstr "<span class=\"font-mono\">%(name)s</span> bearbeiten"
+
+msgid "Save"
+msgstr "Speichern"
 
 msgid "Menu"
 msgstr "Menü"
@@ -346,9 +511,107 @@ msgstr "Zuletzt aktualisiert am %(date)s"
 msgid "No privacy information has been published yet."
 msgstr "Es wurden noch keine Datenschutzhinweise veröffentlicht."
 
+msgid "Status"
+msgstr "Status"
+
+msgid "Request ID, path, user ID or user agent"
+msgstr "Anfrage-ID, Pfad, User-ID oder User-Agent"
+
+msgid "Search requests"
+msgstr "Anfragen durchsuchen"
+
+msgid "Request ID"
+msgstr "Anfrage-ID"
+
+msgid "Clear"
+msgstr "Zurücksetzen"
+
+msgid "Narrow to 7 days or pick a key or model to search text."
+msgstr ""
+"Grenzen Sie auf 7 Tage ein oder wählen Sie einen Schlüssel oder ein Modell, "
+"um Text zu durchsuchen."
+
+msgid "Details"
+msgstr "Details"
+
+msgid "Time"
+msgstr "Zeit"
+
+msgid "Key"
+msgstr "Schlüssel"
+
+msgid "Model"
+msgstr "Modell"
+
+msgid "(input + output)"
+msgstr "(Eingabe + Ausgabe)"
+
+msgid "Response"
+msgstr "Dauer"
+
+msgid "From cache"
+msgstr "Aus dem Cache"
+
+#, python-format
+msgid "Hide details of request %(id)s"
+msgstr "Details der Anfrage %(id)s ausblenden"
+
+#, python-format
+msgid "Show details of request %(id)s"
+msgstr "Details der Anfrage %(id)s anzeigen"
+
+#, python-format
+msgid "Show only %(model)s"
+msgstr "Nur %(model)s anzeigen"
+
+#, python-format
+msgid "Details of request %(id)s"
+msgstr "Details der Anfrage %(id)s"
+
+#, python-format
+msgid "Copy request ID %(id)s"
+msgstr "Anfrage-ID %(id)s kopieren"
+
+msgid "Copy request ID"
+msgstr "Anfrage-ID kopieren"
+
+msgid "Error"
+msgstr "Fehler"
+
+msgid "User agent"
+msgstr "User-Agent"
+
+msgid "User ID"
+msgstr "User-ID"
+
+msgid "Gateway overhead"
+msgstr "Gateway-Overhead"
+
+msgid "Output speed"
+msgstr "Ausgabegeschwindigkeit"
+
+msgid "No request matches these filters."
+msgstr "Keine Anfrage passt zu diesen Filtern."
+
 #, python-format
 msgid "No requests %(span)s."
 msgstr "Keine Anfragen %(span)s."
+
+#, python-format
+msgid "%(start)s–%(end)s of %(total)s"
+msgstr "%(start)s–%(end)s von %(total)s"
+
+#, python-format
+msgid "%(total)s request"
+msgid_plural "%(total)s requests"
+msgstr[0] "%(total)s Anfrage"
+msgstr[1] "%(total)s Anfragen"
+
+#, python-format
+msgid "Requests are kept for %(days)s day"
+msgid_plural "Requests are kept for %(days)s days"
+msgstr[0] "Anfragen werden %(days)s Tag lang aufbewahrt"
+msgstr[1] "Anfragen werden %(days)s Tage lang aufbewahrt"
 
 msgid "Email"
 msgstr "E-Mail"
@@ -396,6 +659,106 @@ msgstr ""
 msgid "Organization default"
 msgstr "Vorgabe der Organisation"
 
+msgid "Service account"
+msgstr "Dienstkonto"
+
+#, python-format
+msgid "Created: %(date)s"
+msgstr "Erstellt: %(date)s"
+
+#, python-format
+msgid "Last used: %(time)s"
+msgstr "Zuletzt genutzt: %(time)s"
+
+msgid "Last 7 days"
+msgstr "Letzte 7 Tage"
+
+msgid "Tokens per day"
+msgstr "Token pro Tag"
+
+msgid "Requests per day"
+msgstr "Anfragen pro Tag"
+
+msgid "Chart metric"
+msgstr "Kennzahl im Diagramm"
+
+msgid "No requests in the last 7 days."
+msgstr "Keine Anfragen in den letzten 7 Tagen."
+
+msgid "Clients"
+msgstr "Clients"
+
+msgid "Latest requests"
+msgstr "Neueste Anfragen"
+
+msgid "All requests"
+msgstr "Alle Anfragen"
+
+msgid "Path"
+msgstr "Pfad"
+
+#, python-format
+msgid "Open request %(id)s in the log"
+msgstr "Anfrage %(id)s im Anfrageprotokoll öffnen"
+
+msgid "No requests in the last 30 days."
+msgstr "Keine Anfragen in den letzten 30 Tagen."
+
+msgid "Limits"
+msgstr "Limits"
+
+msgid "Can call every model"
+msgstr "Kann jedes Modell aufrufen"
+
+#, python-format
+msgid "Can call %(n)s model"
+msgid_plural "Can call %(n)s models"
+msgstr[0] "Kann %(n)s Modell aufrufen"
+msgstr[1] "Kann %(n)s Modelle aufrufen"
+
+msgid "Can call every MCP server"
+msgstr "Kann jeden MCP-Server aufrufen"
+
+#, python-format
+msgid "Can call %(n)s MCP server"
+msgid_plural "Can call %(n)s MCP servers"
+msgstr[0] "Kann %(n)s MCP-Server aufrufen"
+msgstr[1] "Kann %(n)s MCP-Server aufrufen"
+
+msgid "Create API key"
+msgstr "API-Schlüssel erstellen"
+
+#, python-format
+msgid "%(n)s of %(n)s key used"
+msgid_plural "%(n)s of %(n)s keys used"
+msgstr[0] "%(n)s von %(n)s Schlüssel genutzt"
+msgstr[1] "%(n)s von %(n)s Schlüsseln genutzt"
+
+msgid "Key type"
+msgstr "Schlüsselart"
+
+msgid "Last used"
+msgstr "Zuletzt genutzt"
+
+msgid "Tokens, 7 days"
+msgstr "Token, 7 Tage"
+
+msgid "Expires"
+msgstr "Ablauf"
+
+msgid "Actions"
+msgstr "Aktionen"
+
+#, python-format
+msgid "Actions for %(name)s"
+msgstr "Aktionen für %(name)s"
+
+msgid "No key matches."
+msgstr "Kein Schlüssel passt."
+
+msgid "No keys yet."
+msgstr "Noch keine Schlüssel."
+
 #, python-format
 msgid "for the key <span class=\"font-mono\">%(name)s</span>"
 msgstr "für den Schlüssel <span class=\"font-mono\">%(name)s</span>"
@@ -420,9 +783,6 @@ msgstr[1] ""
 msgid "Totals"
 msgstr "Summen"
 
-msgid "Chart metric"
-msgstr "Kennzahl im Diagramm"
-
 msgid "No requests in this time frame."
 msgstr "Keine Anfragen in diesem Zeitraum."
 
@@ -431,9 +791,6 @@ msgstr "Protokoll öffnen"
 
 msgid "By model"
 msgstr "Nach Modell"
-
-msgid "Model"
-msgstr "Modell"
 
 msgid "Median time"
 msgstr "Median der Antwortzeit"
@@ -453,12 +810,6 @@ msgstr "Meistgenutzte Schlüssel"
 
 msgid "View all keys"
 msgstr "Alle Schlüssel ansehen"
-
-msgid "User ID"
-msgstr "User-ID"
-
-msgid "Key"
-msgstr "Schlüssel"
 
 msgid "By organization"
 msgstr "Nach Organisation"
@@ -588,20 +939,11 @@ msgstr "Näherungswert"
 msgid "Tokens per minute"
 msgstr "Token pro Minute"
 
-msgid "Requests per minute"
-msgstr "Anfragen pro Minute"
-
 msgid "Tokens per hour"
 msgstr "Token pro Stunde"
 
 msgid "Requests per hour"
 msgstr "Anfragen pro Stunde"
-
-msgid "Tokens per day"
-msgstr "Token pro Tag"
-
-msgid "Requests per day"
-msgstr "Anfragen pro Tag"
 
 msgid "1 hour"
 msgstr "1 Stunde"
@@ -635,9 +977,6 @@ msgstr "Clientfehler"
 
 msgid "Server error"
 msgstr "Serverfehler"
-
-msgid "n/a"
-msgstr "k. A."
 
 #, python-format
 msgid "%(first)s to %(last)s"
@@ -688,6 +1027,17 @@ msgstr "Ansicht: alle Organisationen."
 
 msgid "Choose one of the offered languages."
 msgstr "Wählen Sie eine der angebotenen Sprachen."
+
+msgid "New API key"
+msgstr "Neuer API-Schlüssel"
+
+#, python-format
+msgid "API key %(name)s saved."
+msgstr "API-Schlüssel %(name)s gespeichert."
+
+#, python-format
+msgid "API key %(name)s deleted."
+msgstr "API-Schlüssel %(name)s gelöscht."
 
 msgid "You"
 msgstr "Sie"

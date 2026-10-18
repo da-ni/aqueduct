@@ -163,8 +163,17 @@ def markdown(text: str) -> SafeString:
 
 
 @register.filter
-def expiry(value: Expiry) -> SafeString:
-    label = _time(value.at, value.label) if value.at else value.label
+def percent_of(part: float, whole: float) -> int:
+    """`part` as a whole percentage of `whole`, a number to compare, where `{% widthratio %}`
+    gives text."""
+    return round(part * 100 / whole)
+
+
+@register.filter
+def expiry(value: Expiry, wording: str = "label") -> SafeString:
+    """`value` as a table cell words it, or with `wording` "sentence" as a sentence of its own."""
+    text = value.sentence if wording == "sentence" else value.label
+    label = _time(value.at, text) if value.at else text
     return format_html('<span class="{}">{}</span>', value.tone, label)
 
 

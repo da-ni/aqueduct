@@ -110,6 +110,17 @@ The management pages come in English and German, in the formal "Sie". The langua
 | Accept, Decline | Akzeptieren, Ablehnen |
 | Version of (a date) | Fassung vom |
 | Previous, Next | Zurück, Weiter |
+| First, Last (page) | Erste, Letzte |
+| Create, Edit | Erstellen, Bearbeiten |
+| Rotate (a key) | Erneuern |
+| Expires, No expiry, Expired | Ablauf, Kein Ablauf, Abgelaufen |
+| Hourly limit, Daily limit | Stundenlimit, Tageslimit |
+| Request ID | Anfrage-ID |
+| User agent | User-Agent |
+| Response (time) | Dauer |
+| Gateway overhead | Gateway-Overhead |
+| Error | Fehler |
+| Clear (a search) | Zurücksetzen |
 | Aqueduct, Aqueduct AI Gateway | unchanged, as product names |
 
 German compact numbers use "Tsd.", "Mio.", "Mrd.", and "Bio.".

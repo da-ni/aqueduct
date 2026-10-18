@@ -6,7 +6,7 @@
 {% block content %}
 <div class="flex flex-col gap-6">
     <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
-        <h1 class="text-3xl font-semibold">Requests</h1>
+        <h1 class="text-3xl font-semibold">{% translate "Requests" %}</h1>
     </header>
 
     <div class="flex flex-wrap items-center gap-3">
@@ -14,7 +14,7 @@
     </div>
 
     <div class="flex flex-wrap items-center gap-3">
-        <nav class="join max-sm:flex-wrap max-sm:gap-1 max-sm:[&>.join-item]:rounded-full!" aria-label="Status">
+        <nav class="join max-sm:flex-wrap max-sm:gap-1 max-sm:[&>.join-item]:rounded-full!" aria-label="{% translate "Status" %}">
             {% for tab in log.tabs %}
                 <a class="btn btn-sm join-item{% if tab.outcome == outcome %} btn-primary{% endif %}"
                    href="{% querystring key_q=None status=tab.value before=None after=None page=None request=None %}"
@@ -25,12 +25,12 @@
             {% for name, value in search_params %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
             <label class="input input-sm w-full sm:w-96">
                 {% icon "search" small=True %}
-                <input type="search" name="q" value="{{ log.search }}" maxlength="256" {% if log.searches_text %}placeholder="Request ID, path, user ID or user agent" aria-label="Search requests"{% else %}placeholder="Request ID" aria-label="Request ID"{% endif %}>
-                <button type="submit" class="btn btn-ghost btn-xs -me-2">Search</button>
+                <input type="search" name="q" value="{{ log.search }}" maxlength="256" {% if log.searches_text %}placeholder="{% translate "Request ID, path, user ID or user agent" %}" aria-label="{% translate "Search requests" %}"{% else %}placeholder="{% translate "Request ID" %}" aria-label="{% translate "Request ID" %}"{% endif %}>
+                <button type="submit" class="btn btn-ghost btn-xs -me-2">{% translate "Search" %}</button>
             </label>
-            {% if log.search %}<a class="btn btn-ghost btn-sm" href="{% querystring q=None key_q=None before=None after=None page=None request=None %}">Clear</a>{% endif %}
+            {% if log.search %}<a class="btn btn-ghost btn-sm" href="{% querystring q=None key_q=None before=None after=None page=None request=None %}">{% translate "Clear" %}</a>{% endif %}
         </form>
-        {% if log.text_blocked %}<p class="w-full text-sm opacity-70 sm:text-right">Narrow to 7 days or pick a key or model to search text.</p>{% endif %}
+        {% if log.text_blocked %}<p class="w-full text-sm opacity-70 sm:text-right">{% translate "Narrow to 7 days or pick a key or model to search text." %}</p>{% endif %}
     </div>
 
     <section class="card bg-base-200">
@@ -42,18 +42,18 @@
                     </colgroup>
                     <thead class="max-md:hidden">
                         <tr>
-                            <th rowspan="2"><span class="sr-only">Details</span></th>
-                            <th rowspan="2"{% if log.headers.time.aria_sort %} aria-sort="{{ log.headers.time.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.time label="Time" %}</th>
-                            {% if log.shows_key %}<th rowspan="2">Key</th>{% endif %}
-                            <th rowspan="2"{% if log.headers.model.aria_sort %} aria-sort="{{ log.headers.model.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.model label="Model" %}</th>
-                            <th rowspan="2"{% if log.headers.status.aria_sort %} aria-sort="{{ log.headers.status.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.status label="Status" %}</th>
-                            <th colspan="3" class="text-center"{% if log.headers.tokens.aria_sort %} aria-sort="{{ log.headers.tokens.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.tokens label="Tokens" %}<span class="muted font-normal"> (input + output)</span></th>
-                            <th rowspan="2" class="text-right"{% if log.headers.response.aria_sort %} aria-sort="{{ log.headers.response.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.response label="Response" %}</th>
+                            <th rowspan="2"><span class="sr-only">{% translate "Details" %}</span></th>
+                            <th rowspan="2"{% if log.headers.time.aria_sort %} aria-sort="{{ log.headers.time.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.time label=_("Time") %}</th>
+                            {% if log.shows_key %}<th rowspan="2">{% translate "Key" %}</th>{% endif %}
+                            <th rowspan="2"{% if log.headers.model.aria_sort %} aria-sort="{{ log.headers.model.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.model label=_("Model") %}</th>
+                            <th rowspan="2"{% if log.headers.status.aria_sort %} aria-sort="{{ log.headers.status.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.status label=_("Status") %}</th>
+                            <th colspan="3" class="text-center"{% if log.headers.tokens.aria_sort %} aria-sort="{{ log.headers.tokens.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.tokens label=_("Tokens") %}<span class="muted font-normal"> {% translate "(input + output)" %}</span></th>
+                            <th rowspan="2" class="text-right"{% if log.headers.response.aria_sort %} aria-sort="{{ log.headers.response.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.response label=_("Response") %}</th>
                         </tr>
                         <tr>
-                            <th class="text-right">Input</th>
-                            <th class="text-right">From cache</th>
-                            <th class="text-right">Output</th>
+                            <th class="text-right">{% translate "Input" %}</th>
+                            <th class="text-right">{% translate "From cache" %}</th>
+                            <th class="text-right">{% translate "Output" %}</th>
                         </tr>
                     </thead>
                     <tbody class="max-md:block">
@@ -64,11 +64,11 @@
                                         <a class="btn btn-ghost btn-xs btn-square" data-row-toggle-link
                                            href="{% with here=log.pager.here %}{% if row.is_open %}{% querystring key_q=None request=None before=here.before after=here.after page=here.page %}{% else %}{% querystring key_q=None request=request.id before=here.before after=here.after page=here.page %}#request-{{ request.id }}{% endif %}{% endwith %}"
                                            aria-expanded="{{ row.is_open|yesno:'true,false' }}"
-                                           aria-label="{% if row.is_open %}Hide{% else %}Show{% endif %} details of request {{ request.id }}">{% if row.is_open %}{% icon "chevron" small=True extra_class="rotate-90" %}{% else %}{% icon "chevron" small=True %}{% endif %}</a>
+                                           aria-label="{% if row.is_open %}{% blocktranslate with id=request.id %}Hide details of request {{ id }}{% endblocktranslate %}{% else %}{% blocktranslate with id=request.id %}Show details of request {{ id }}{% endblocktranslate %}{% endif %}">{% if row.is_open %}{% icon "chevron" small=True extra_class="rotate-90" %}{% else %}{% icon "chevron" small=True %}{% endif %}</a>
                                     </td>
                                     <td class="min-w-0 flex-1 md:hidden">
                                         <div class="flex items-center gap-1.5 whitespace-nowrap"><span class="muted">{{ request.timestamp|when:"recent" }}</span> · {% include "management/_request_status.html" %} · {{ row.response_time }}</div>
-                                        <div class="flex gap-1.5 whitespace-nowrap"><span class="truncate">{{ request.model|default:"n/a" }}</span><span class="shrink-0">· {{ request.input_tokens|intcomma }} → {{ request.output_tokens|intcomma }}</span></div>
+                                        <div class="flex gap-1.5 whitespace-nowrap"><span class="truncate">{{ request.model|default:_("n/a") }}</span><span class="shrink-0">· {{ request.input_tokens|intcomma }} → {{ request.output_tokens|intcomma }}</span></div>
                                         {% if log.shows_key %}<div class="muted truncate font-sans text-xs">{{ row.key.name }}</div>{% endif %}
                                     </td>
                                     <td class="muted whitespace-nowrap max-md:hidden">{{ request.timestamp|when:"recent" }}</td>
@@ -79,7 +79,7 @@
                                         </td>
                                     {% endif %}
                                     <td class="truncate max-md:hidden">
-                                        {% if request.model %}<a class="link-plain" href="{% querystring key_q=None model=request.model before=None after=None page=None request=None %}" title="Show only {{ request.model }}">{{ request.model }}</a>{% else %}n/a{% endif %}
+                                        {% if request.model %}<a class="link-plain" href="{% querystring key_q=None model=request.model before=None after=None page=None request=None %}" title="{% blocktranslate with model=request.model %}Show only {{ model }}{% endblocktranslate %}">{{ request.model }}</a>{% else %}{% translate "n/a" %}{% endif %}
                                         <div class="muted truncate text-xs" title="{{ request.path }}">{{ request.path }}</div>
                                     </td>
                                     <td class="max-md:hidden">
@@ -94,31 +94,31 @@
                                     <tr class="max-md:block">
                                         <td class="max-md:hidden"></td>
                                         <td colspan="{{ log.shows_key|yesno:'8,7' }}" class="max-md:block">
-                                            <dl class="grid grid-cols-1 gap-2 pb-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6" aria-label="Details of request {{ request.id }}">
-                                                <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">Request ID</dt><dd class="flex items-center gap-1 font-mono text-[13px]">{{ request.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ request.id }}" aria-label="Copy request ID {{ request.id }}" title="Copy request ID">{% icon "copy" small=True %}</button></dd></div>
-                                                {% if row.error %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">Error</dt><dd class="text-[13px]">{{ row.error }}</dd></div>{% endif %}
-                                                {% if request.user_agent %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">User agent</dt><dd class="break-all font-mono text-[13px]">{{ request.user_agent }}</dd></div>{% endif %}
-                                                {% if request.user_id %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">User ID</dt><dd class="break-all font-mono text-[13px]">{{ request.user_id }}</dd></div>{% endif %}
-                                                {% if log.shows_overhead and row.overhead %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">Gateway overhead</dt><dd class="font-mono text-[13px]">{{ row.overhead }}</dd></div>{% endif %}
-                                                {% if row.output_speed %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">Output speed</dt><dd class="font-mono text-[13px]">{{ row.output_speed }}</dd></div>{% endif %}
+                                            <dl class="grid grid-cols-1 gap-2 pb-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6" aria-label="{% blocktranslate with id=request.id %}Details of request {{ id }}{% endblocktranslate %}">
+                                                <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "Request ID" %}</dt><dd class="flex items-center gap-1 font-mono text-[13px]">{{ request.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Copy request ID {{ id }}{% endblocktranslate %}" title="{% translate "Copy request ID" %}">{% icon "copy" small=True %}</button></dd></div>
+                                                {% if row.error %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "Error" %}</dt><dd class="text-[13px]">{{ row.error }}</dd></div>{% endif %}
+                                                {% if request.user_agent %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "User agent" %}</dt><dd class="break-all font-mono text-[13px]">{{ request.user_agent }}</dd></div>{% endif %}
+                                                {% if request.user_id %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "User ID" %}</dt><dd class="break-all font-mono text-[13px]">{{ request.user_id }}</dd></div>{% endif %}
+                                                {% if log.shows_overhead and row.overhead %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "Gateway overhead" %}</dt><dd class="font-mono text-[13px]">{{ row.overhead }}</dd></div>{% endif %}
+                                                {% if row.output_speed %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "Output speed" %}</dt><dd class="font-mono text-[13px]">{{ row.output_speed }}</dd></div>{% endif %}
                                             </dl>
                                         </td>
                                     </tr>
                                 {% endif %}
                             {% endwith %}
                         {% empty %}
-                            <tr class="max-md:block"><td colspan="{{ log.shows_key|yesno:'9,8' }}" class="muted max-md:block">{% if narrowed %}No request matches these filters.{% else %}{% blocktranslate with span=filters.span.in_the_last %}No requests {{ span }}.{% endblocktranslate %}{% endif %}</td></tr>
+                            <tr class="max-md:block"><td colspan="{{ log.shows_key|yesno:'9,8' }}" class="muted max-md:block">{% if narrowed %}{% translate "No request matches these filters." %}{% else %}{% blocktranslate with span=filters.span.in_the_last %}No requests {{ span }}.{% endblocktranslate %}{% endif %}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
             <div class="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-1">
                 <span class="muted font-mono text-xs">
-                    {% if log.pager.start and log.rows %}{{ log.pager.start|intcomma }}–{{ log.end|intcomma }} of {{ log.count|intcomma }}{% else %}{{ log.count|intcomma }} request{{ log.count|pluralize }}{% endif %}
-                    {% if not log.pager.next %}· Requests are kept for {{ retention_days }} days{% endif %}
+                    {% if log.pager.start and log.rows %}{% blocktranslate with start=log.pager.start|intcomma end=log.end|intcomma total=log.count|intcomma %}{{ start }}–{{ end }} of {{ total }}{% endblocktranslate %}{% else %}{% blocktranslate count n=log.count with total=log.count|intcomma %}{{ total }} request{% plural %}{{ total }} requests{% endblocktranslate %}{% endif %}
+                    {% if not log.pager.next %}· {% blocktranslate count days=retention_days %}Requests are kept for {{ days }} day{% plural %}Requests are kept for {{ days }} days{% endblocktranslate %}{% endif %}
                 </span>
                 {% if log.pager.previous or log.pager.next %}
-                    <nav class="join" aria-label="Pages">
+                    <nav class="join" aria-label="{% translate "Pages" %}">
                         {% for label, place in log.pager.links %}
                             {% if place %}
                                 <a class="btn btn-sm join-item" href="{% querystring key_q=None request=None before=place.before after=place.after page=place.page %}">{{ label }}</a>

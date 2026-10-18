@@ -21,7 +21,7 @@
                         <span>{{ row.owner }}</span>
                         <span>Created {{ detail.created|when:"date" }}</span>
                         {% if detail.last_active %}<span>Last active {{ detail.last_active|when:"date" }}</span>{% endif %}
-                        <span>{{ detail.expires|expiry }}</span>
+                        <span>{{ detail.row.expiry|expiry:"sentence" }}</span>
                     </div>
                 </div>
                 {% if row.syncable %}

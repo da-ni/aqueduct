@@ -4,17 +4,17 @@
     <div class="card-body gap-5 p-6">
         <div class="flex items-center gap-3">
             <span class="st-ok">{% icon "ok" %}</span>
-            <h2 id="new-key-title" class="text-2xl font-semibold">Your key is ready</h2>
+            <h2 id="new-key-title" class="text-2xl font-semibold">{% translate "Your key is ready" %}</h2>
         </div>
         <div class="flex flex-wrap items-center gap-3 rounded-xl bg-base-100 p-4">
             <span class="min-w-0 flex-1 break-all font-mono text-sm">{{ secret }}</span>
-            <button type="button" class="btn btn-primary" data-copy="{{ secret }}">{% icon "copy" small=True %}<span class="copy-label" data-copied="{% translate 'Copied' %}" data-copy-failed="{% translate 'Copy failed' %}">Copy key</span></button>
+            <button type="button" class="btn btn-primary" data-copy="{{ secret }}">{% icon "copy" small=True %}<span class="copy-label" data-copied="{% translate 'Copied' %}" data-copy-failed="{% translate 'Copy failed' %}">{% translate "Copy key" %}</span></button>
         </div>
-        <div class="st-warn flex items-center gap-2 text-sm font-medium">{% icon "warning" small=True %}Copy it now. You won't see it again.</div>
+        <div class="st-warn flex items-center gap-2 text-sm font-medium">{% icon "warning" small=True %}{% translate "Copy it now. You won't see it again." %}</div>
         <div class="relative">
             <pre class="overflow-x-auto rounded-lg bg-base-100 p-4 pr-12 font-mono text-xs leading-relaxed">{{ snippet }}</pre>
             <button type="button" class="btn btn-ghost btn-sm btn-square absolute right-2 top-2" data-copy="{{ snippet }}"
-                    aria-label="Copy command" title="Copy command">{% icon "copy" small=True %}</button>
+                    aria-label="{% translate "Copy command" %}" title="{% translate "Copy command" %}">{% icon "copy" small=True %}</button>
         </div>
     </div>
 </section>

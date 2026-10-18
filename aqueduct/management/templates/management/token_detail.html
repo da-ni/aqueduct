@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load humanize l10n ui %}
+{% load humanize i18n l10n ui %}
 {% block title %}{{ token.name }} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
@@ -8,11 +8,11 @@
 <div class="flex flex-col gap-6">
     <div class="breadcrumbs p-0 text-sm">
         {% if team %}
-            <ul><li><a href="{% url 'org' %}">Teams</a></li><li><a href="{% url 'team' team.id %}">{{ team.name }}</a></li><li class="font-mono">{{ token.name }}</li></ul>
+            <ul><li><a href="{% url 'org' %}">{% translate "Teams" %}</a></li><li><a href="{% url 'team' team.id %}">{{ team.name }}</a></li><li class="font-mono">{{ token.name }}</li></ul>
         {% elif own %}
-            <ul><li><a href="{% url 'tokens' %}">API keys</a></li><li class="font-mono">{{ token.name }}</li></ul>
+            <ul><li><a href="{% url 'tokens' %}">{% translate "API keys" %}</a></li><li class="font-mono">{{ token.name }}</li></ul>
         {% else %}
-            <ul><li><a href="{% url 'usage_keys' %}">All keys</a></li><li class="font-mono">{{ token.name }}</li></ul>
+            <ul><li><a href="{% url 'usage_keys' %}">{% translate "All keys" %}</a></li><li class="font-mono">{{ token.name }}</li></ul>
         {% endif %}
     </div>
 
@@ -20,34 +20,35 @@
         <div class="flex flex-col gap-2">
             <h1 class="break-all font-mono text-3xl font-semibold">{{ token.name }}</h1>
             <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-                <span>{% if team %}Service account · <a class="link-plain" href="{% url 'team' team.id %}">{{ team.name }}</a>{% elif own %}Personal{% else %}Personal · {{ token.user.email }}{% endif %}</span>
+                <span>{% if team %}{% translate "Service account" %} · <a class="link-plain" href="{% url 'team' team.id %}">{{ team.name }}</a>{% elif own %}{% translate "Personal" %}{% else %}{% translate "Personal" %} · {{ token.user.email }}{% endif %}</span>
                 <span class="font-mono">{{ token.key_preview }}</span>
-                <span>Created: {{ token.created_at|when:"date" }}</span>
-                <span>Expires: {{ expiry|expiry }}</span>
-                <span>Last used: {{ report.totals.last_used|when:"relative"|default:"—" }}</span>
+                <span>{% blocktranslate with date=token.created_at|when:"date" %}Created: {{ date }}{% endblocktranslate %}</span>
+                <span>{{ expiry|expiry:"sentence" }}</span>
+                <span>{% blocktranslate with time=report.totals.last_used|when:"relative"|default:"—" %}Last used: {{ time }}{% endblocktranslate %}</span>
             </div>
         </div>
         {% if can_manage %}
             <div class="flex flex-wrap gap-2">
+                {% blocktranslate with name=token.name asvar rotate_question %}Rotate {{ name }}?{% endblocktranslate %}
                 <form action="{% url 'token_regenerate' token.id %}" method="post">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{% url 'token_detail' token.id %}">
                     <button type="submit" class="btn btn-outline btn-primary"
-                            {% confirm "Rotate "|add:token.name|add:"?" "The current key stops working immediately." "Rotate" %}>{% icon "rotate" small=True %}Rotate</button>
+                            {% confirm rotate_question _("The current key stops working immediately.") _("Rotate") %}>{% icon "rotate" small=True %}{% translate "Rotate" %}</button>
                 </form>
                 {% if team %}
-                    <a class="btn btn-outline btn-primary" href="{% url 'service_account_edit' token.service_account.id %}">{% icon "admin" small=True %}Edit</a>
-                    <a class="btn btn-ghost st-err" href="{% url 'service_account_delete' token.service_account.id %}" {% confirm_delete token.service_account %}>{% icon "delete" small=True %}Delete</a>
+                    <a class="btn btn-outline btn-primary" href="{% url 'service_account_edit' token.service_account.id %}">{% icon "admin" small=True %}{% translate "Edit" %}</a>
+                    <a class="btn btn-ghost st-err" href="{% url 'service_account_delete' token.service_account.id %}" {% confirm_delete token.service_account %}>{% icon "delete" small=True %}{% translate "Delete" %}</a>
                 {% else %}
-                    <a class="btn btn-outline btn-primary" href="{% url 'token_edit' token.id %}">{% icon "admin" small=True %}Edit</a>
-                    <a class="btn btn-ghost st-err" href="{% url 'token_delete' token.id %}" {% confirm_delete token %}>{% icon "delete" small=True %}Delete</a>
+                    <a class="btn btn-outline btn-primary" href="{% url 'token_edit' token.id %}">{% icon "admin" small=True %}{% translate "Edit" %}</a>
+                    <a class="btn btn-ghost st-err" href="{% url 'token_delete' token.id %}" {% confirm_delete token %}>{% icon "delete" small=True %}{% translate "Delete" %}</a>
                 {% endif %}
             </div>
         {% endif %}
     </header>
 
     <section aria-labelledby="totals-title" class="flex flex-col gap-3">
-        <h2 id="totals-title" class="muted text-sm font-medium">Last 7 days</h2>
+        <h2 id="totals-title" class="muted text-sm font-medium">{% translate "Last 7 days" %}</h2>
         <div class="grid grid-cols-2 gap-4 md:grid-cols-5">
             {% for stat in report.stats %}
                 <div class="card bg-base-200">
@@ -65,18 +66,18 @@
         <div class="card bg-base-200 lg:col-span-2" data-metric-scope>
             <div class="card-body gap-4 p-5">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h2 class="text-xl font-semibold"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>Tokens</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>Requests</span> per day</h2>
+                    <h2 class="text-xl font-semibold"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>{% translate "Tokens per day" %}</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>{% translate "Requests per day" %}</span></h2>
                     <div class="flex flex-wrap items-center gap-4">
                         <div class="flex items-center gap-4 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
                             {% include "management/_token_legend.html" %}
                         </div>
                         <div class="flex items-center gap-4 text-sm" data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>
-                            <span class="flex items-center gap-2"><span class="sw i"></span>OK</span>
-                            <span class="flex items-center gap-2"><span class="sw f"></span>Failed</span>
+                            <span class="flex items-center gap-2"><span class="sw i"></span>{% translate "OK" %}</span>
+                            <span class="flex items-center gap-2"><span class="sw f"></span>{% translate "Failed" %}</span>
                         </div>
-                        <nav class="join" aria-label="Chart metric">
-                            <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None %}" data-metric-show="tokens"{% if metric == 'tokens' %} aria-current="page"{% endif %}>Tokens</a>
-                            <a class="btn btn-sm join-item{% if metric == 'requests' %} btn-primary{% endif %}" href="{% querystring metric='requests' %}" data-metric-show="requests"{% if metric == 'requests' %} aria-current="page"{% endif %}>Requests</a>
+                        <nav class="join" aria-label="{% translate "Chart metric" %}">
+                            <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None %}" data-metric-show="tokens"{% if metric == 'tokens' %} aria-current="page"{% endif %}>{% translate "Tokens" %}</a>
+                            <a class="btn btn-sm join-item{% if metric == 'requests' %} btn-primary{% endif %}" href="{% querystring metric='requests' %}" data-metric-show="requests"{% if metric == 'requests' %} aria-current="page"{% endif %}>{% translate "Requests" %}</a>
                         </nav>
                     </div>
                 </div>
@@ -92,7 +93,7 @@
 
         <div class="card bg-base-200">
             <div class="card-body gap-4 p-5">
-                <h2 class="text-xl font-semibold">Models</h2>
+                <h2 class="text-xl font-semibold">{% translate "Models" %}</h2>
                 <div class="-mx-2 flex flex-col gap-1">
                     {% for model in report.models %}
                         <div class="hover-row flex flex-col gap-1.5 rounded-lg px-2 py-1">
@@ -103,12 +104,12 @@
                             <div class="onebar" style="width: {{ model.width|unlocalize }}%"></div>
                         </div>
                     {% empty %}
-                        <p class="muted text-sm">No requests in the last 7 days.</p>
+                        <p class="muted text-sm">{% translate "No requests in the last 7 days." %}</p>
                     {% endfor %}
                 </div>
                 {% if report.clients %}
                     <div class="mt-auto flex flex-col gap-1 border-t border-base-300 pt-4 text-sm">
-                        <span class="muted">Clients</span><span>{{ report.clients }}</span>
+                        <span class="muted">{% translate "Clients" %}</span><span>{{ report.clients }}</span>
                     </div>
                 {% endif %}
             </div>
@@ -118,24 +119,24 @@
     <section class="card bg-base-200">
         <div class="card-body gap-3 p-5">
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 class="text-xl font-semibold">Latest requests</h2>
-                <a class="link-plain text-sm" href="{% url 'requests' %}?key={{ token.id }}&amp;span=1m">All requests</a>
+                <h2 class="text-xl font-semibold">{% translate "Latest requests" %}</h2>
+                <a class="link-plain text-sm" href="{% url 'requests' %}?key={{ token.id }}&amp;span=1m">{% translate "All requests" %}</a>
             </div>
             <div class="overflow-x-auto">
                 <table class="table table-sm">
                     <thead>
                         <tr>
-                            <th>Time</th><th>Model</th><th>Path</th><th>Status</th>
-                            <th class="text-right">Input</th><th class="text-right">From cache</th>
-                            <th class="text-right">Output</th><th class="text-right">Response</th>
+                            <th>{% translate "Time" %}</th><th>{% translate "Model" %}</th><th>{% translate "Path" %}</th><th>{% translate "Status" %}</th>
+                            <th class="text-right">{% translate "Input" %}</th><th class="text-right">{% translate "From cache" %}</th>
+                            <th class="text-right">{% translate "Output" %}</th><th class="text-right">{% translate "Response" %}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in latest %}
                             {% with request=row.request %}
                                 <tr class="font-mono text-[13px]">
-                                    <td><a class="muted row-link" href="{% url 'requests' %}?key={{ token.id }}&amp;span=1m&amp;request={{ request.id }}#request-{{ request.id }}" aria-label="Open request {{ request.id }} in the log">{{ request.timestamp|when }}</a></td>
-                                    <td>{{ request.model|default:"n/a" }}</td>
+                                    <td><a class="muted row-link" href="{% url 'requests' %}?key={{ token.id }}&amp;span=1m&amp;request={{ request.id }}#request-{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Open request {{ id }} in the log{% endblocktranslate %}">{{ request.timestamp|when }}</a></td>
+                                    <td>{{ request.model|default:_("n/a") }}</td>
                                     <td class="muted">{{ request.path }}</td>
                                     <td>
                                         {% include "management/_request_status.html" %}
@@ -147,7 +148,7 @@
                                 </tr>
                             {% endwith %}
                         {% empty %}
-                            <tr><td colspan="8" class="muted">No requests in the last 30 days.</td></tr>
+                            <tr><td colspan="8" class="muted">{% translate "No requests in the last 30 days." %}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -158,15 +159,15 @@
     <section class="card bg-base-200" aria-labelledby="limits-title">
         <div class="card-body gap-3 p-5">
             <div class="flex flex-wrap items-baseline gap-x-4 gap-y-2">
-                <h2 id="limits-title" class="text-xl font-semibold">Limits</h2>
+                <h2 id="limits-title" class="text-xl font-semibold">{% translate "Limits" %}</h2>
                 {% include "management/_limits.html" %}
             </div>
             {% if limits.requests_per_minute is not None %}
                 {% include "management/_rate_usage.html" with usage=usage limits=limits %}
             {% endif %}
             <p class="muted text-sm">
-                {% if models.every %}Can call every model{% else %}Can call {{ models.usable }} model{{ models.usable|pluralize }}{% endif %}
-                {% if mcp_servers.configured %}· {% if mcp_servers.every %}Can call every MCP server{% else %}Can call {{ mcp_servers.usable }} MCP server{{ mcp_servers.usable|pluralize }}{% endif %}{% endif %}
+                {% if models.every %}{% translate "Can call every model" %}{% else %}{% blocktranslate count n=models.usable %}Can call {{ n }} model{% plural %}Can call {{ n }} models{% endblocktranslate %}{% endif %}
+                {% if mcp_servers.configured %}· {% if mcp_servers.every %}{% translate "Can call every MCP server" %}{% else %}{% blocktranslate count n=mcp_servers.usable %}Can call {{ n }} MCP server{% plural %}Can call {{ n }} MCP servers{% endblocktranslate %}{% endif %}{% endif %}
             </p>
         </div>
     </section>
