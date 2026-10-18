@@ -4,63 +4,80 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from http import HTTPStatus
 from itertools import accumulate, chain
-from typing import NamedTuple
+from typing import Any, NamedTuple
 from zoneinfo import ZoneInfo
 
-from management.demo.catalog import SHAPES, Kind, ModelSpec, Spread
+from management.demo.catalog import API_PATHS, Kind, ModelSpec, Spread
 
-MODELLESS = (
-    ("GET", "/v1/models", 70),
-    ("GET", "/v1/files", 8),
-    ("POST", "/v1/files", 8),
-    ("GET", "/v1/batches", 6),
-    ("GET", "/v1/vector_stores", 5),
-    ("GET", "/models", 3),
-)
-MODELLESS_CUM = list(accumulate(w for *_, w in MODELLESS))
-MODELLESS_SHARE = 0.05
-MODELLESS_NOT_FOUND = 0.02
-MODELLESS_MS = Spread(40, 0.8, 30_000)
-PRIMARY_MODEL_SHARE = 0.6
-CACHE_BLOCK = 128
-CACHE_NOISE = 0.08
-RESPONSES_API_SHARE = 0.1
-OTHER_AGENT_SHARE = 0.1
-PROCESSING_MS = Spread(6, 0.6, 5000)
-FAILED_MS = (Spread(120, 1.0, 600_000), Spread(30, 1.0, 10_000))
-FAILURES = (
-    (0.006, (400, 400, 401, 404, 413, 422)),
-    (0.0015, (500, 502, 503, 504)),
-    (0.001, (499,)),
-)
-THROTTLED = (0.01, 0.04)
-BUSY_WEIGHT = 20
-UNFINISHED_WINDOW = timedelta(seconds=90)
-UNFINISHED_SHARE = 0.6
-
-LOCAL_HOUR_LOAD: tuple[float, ...] = (
-    *(2303, 2222, 2143, 2144, 1976, 1797, 1673, 1545, 1704, 2120, 2898, 3160),
-    *(3601, 3534, 3177, 3282, 3372, 3460, 3219, 3003, 2521, 2673, 2466, 2201),
-)
-WEEKDAY_LOAD = (1, 1, 1, 1, 1, 0.8, 0.6)
-DAY_NOISE = (0.75, 1.3)
-SERVICE_SHARE = 0.4
-PERSONAL_KEY_CAP = 0.025
+RESPONSES_API_PATH = "/v1/responses"
 CAP_ROUNDS = 100
 CAP_TOLERANCE = 1.001
 
-USER_AGENTS = (
-    "OpenAI/Python 1.82.0",
-    "OpenAI/Python 1.99.9",
-    "AsyncOpenAI/Python 1.97.1",
-    "langchain-openai/0.3.28",
-    "OpenAI/JS 5.10.2",
-    "python-requests/2.32.4",
-    "curl/8.5.0",
-    "LibreChat/0.7.9",
-    "Continue/1.0.21 (vscode)",
-    "litellm/1.74.3",
-)
+
+@dataclass(frozen=True)
+class Endpoint:
+    method: str
+    path: str
+    weight: float
+
+
+@dataclass(frozen=True)
+class Failure:
+    share: float
+    codes: Sequence[int]
+
+
+@dataclass(frozen=True)
+class TrafficProfile:
+    local_hour_load: Sequence[float]
+    weekday_load: Sequence[float]
+    day_noise: tuple[float, float]
+    service_share: float
+    personal_key_cap: float
+    idle_key_share: float
+    personal_weight_alpha: float
+    personal_user_id_share: float
+    service_weight_scale: float
+    service_weight_alpha: float
+    service_end_users: tuple[int, int]
+    service_user_id_share: float
+    throttled_share: float
+    busy_throttled_share: float
+    busy_weight: float
+    primary_model_share: float
+    responses_api_share: float
+    other_agent_share: float
+    processing_ms: Spread
+    reasoning_share: tuple[float, float]
+    cache_block_tokens: int
+    cache_min_blocks: int
+    cache_noise: float
+    max_cached_share: float
+    unfinished_window_s: float
+    unfinished_share: float
+    failures: Sequence[Failure]
+    failed_ms: Spread
+    throttled_ms: Spread
+    modelless_share: float
+    modelless_not_found: float
+    modelless_ms: Spread
+    modelless_endpoints: Sequence[Endpoint]
+    user_agents: Sequence[str]
+
+    @classmethod
+    def parse(cls, raw: dict[str, Any]) -> "TrafficProfile":
+        spreads = ("processing_ms", "failed_ms", "throttled_ms", "modelless_ms")
+        return cls(
+            **raw
+            | {name: Spread(**raw[name]) for name in spreads}
+            | {
+                "failures": [Failure(**f) for f in raw["failures"]],
+                "modelless_endpoints": [Endpoint(**e) for e in raw["modelless_endpoints"]],
+            }
+        )
+
+    def log_size(self, requests_per_day: int, days: int) -> int:
+        return round(requests_per_day * days / (1 - self.modelless_share))
 
 
 class LogRow(NamedTuple):
@@ -105,10 +122,6 @@ class Slot(NamedTuple):
     load: float
 
 
-def log_size(requests_per_day: int, days: int) -> int:
-    return round(requests_per_day * days / (1 - MODELLESS_SHARE))
-
-
 def capped(weights: list[float], share: float) -> list[float]:
     if share * len(weights) <= 1:
         return weights
@@ -122,9 +135,16 @@ def capped(weights: list[float], share: float) -> list[float]:
 
 class Traffic:
     def __init__(
-        self, rng: random.Random, models: Sequence[ModelSpec], now: datetime, zone: ZoneInfo
+        self,
+        profile: TrafficProfile,
+        rng: random.Random,
+        models: Sequence[ModelSpec],
+        now: datetime,
+        zone: ZoneInfo,
     ) -> None:
+        self.profile = profile
         self.rng = rng
+        self.modelless_weights = list(accumulate(e.weight for e in profile.modelless_endpoints))
         self.models = models
         self.model_weights = list(accumulate(m.weight for m in models))
         self.now = now
@@ -132,15 +152,16 @@ class Traffic:
 
     def log(self, keys: SeededKeys, start: datetime, total: int) -> Iterator[LogRow]:
         slots = self.hours(start)
-        service = round(total * SERVICE_SHARE) if keys.service else 0
+        service = round(total * self.profile.service_share) if keys.service else 0
         personal = total - service
-        personal_cap = PERSONAL_KEY_CAP * total / max(personal, 1)
+        personal_cap = self.profile.personal_key_cap * total / max(personal, 1)
         return chain(
             self.rows(keys.personal, personal, slots, personal_cap),
             self.rows(keys.service, service, slots, 1.0),
         )
 
     def hours(self, start: datetime) -> list[Slot]:
+        p = self.profile
         slots = []
         day_noise: dict[date, float] = {}
         slot = start
@@ -149,8 +170,8 @@ class Traffic:
                 slot.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1), self.now
             )
             local = slot.astimezone(self.zone)
-            load = LOCAL_HOUR_LOAD[local.hour] * WEEKDAY_LOAD[local.weekday()]
-            noise = day_noise.setdefault(local.date(), self.rng.uniform(*DAY_NOISE))
+            load = p.local_hour_load[local.hour] * p.weekday_load[local.weekday()]
+            noise = day_noise.setdefault(local.date(), self.rng.uniform(*p.day_noise))
             seconds = (end - slot).total_seconds()
             slots.append(Slot(slot, seconds, load * noise * seconds / 3600))
             slot = end
@@ -174,39 +195,40 @@ class Traffic:
                 )
 
     def row(self, key: KeyTraffic, at: datetime) -> LogRow:
-        rng = self.rng
-        agent = rng.choice(USER_AGENTS) if rng.random() < OTHER_AGENT_SHARE else key.user_agent
+        rng, p = self.rng, self.profile
+        agent = rng.choice(p.user_agents) if rng.random() < p.other_agent_share else key.user_agent
         user_id = rng.choice(key.user_ids) if rng.random() < key.user_id_share else ""
         common = (agent, key.ip_address)
-        processing: int | None = PROCESSING_MS.draw(rng)
-        if rng.random() < MODELLESS_SHARE:
-            method, path, _ = rng.choices(MODELLESS, cum_weights=MODELLESS_CUM)[0]
-            found = rng.random() >= MODELLESS_NOT_FOUND
+        processing: int | None = p.processing_ms.draw(rng)
+        if rng.random() < p.modelless_share:
+            endpoint = rng.choices(p.modelless_endpoints, cum_weights=self.modelless_weights)[0]
+            found = rng.random() >= p.modelless_not_found
             return LogRow(
                 key.id,
                 "",
                 at,
-                method,
+                endpoint.method,
                 HTTPStatus.OK if found else HTTPStatus.NOT_FOUND,
-                MODELLESS_MS.draw(rng),
+                p.modelless_ms.draw(rng),
                 processing,
                 *common,
-                path,
+                endpoint.path,
                 user_id,
             )
         model = key.primary_model
-        if rng.random() > PRIMARY_MODEL_SHARE:
+        if rng.random() > p.primary_model_share:
             model = rng.choices(self.models, cum_weights=self.model_weights)[0]
-        path = SHAPES[model.kind].path
-        if model.kind is Kind.CHAT and rng.random() < RESPONSES_API_SHARE:
-            path = "/v1/responses"
+        path = API_PATHS[model.kind]
+        if model.kind is Kind.CHAT and rng.random() < p.responses_api_share:
+            path = RESPONSES_API_PATH
         status = self.status(key, at)
         latency: int | None
         usage: list[int] = []
         if status is None:
             latency = processing = None
         elif status >= HTTPStatus.BAD_REQUEST:
-            latency = FAILED_MS[status == HTTPStatus.TOO_MANY_REQUESTS].draw(rng)
+            throttled = status == HTTPStatus.TOO_MANY_REQUESTS
+            latency = (p.throttled_ms if throttled else p.failed_ms).draw(rng)
         else:
             latency, *usage = self.served(model)
         return LogRow(
@@ -224,23 +246,26 @@ class Traffic:
         )
 
     def status(self, key: KeyTraffic, at: datetime) -> int | None:
-        if self.now - at < UNFINISHED_WINDOW and self.rng.random() < UNFINISHED_SHARE:
+        p = self.profile
+        unfinished = self.now - at < timedelta(seconds=p.unfinished_window_s)
+        if unfinished and self.rng.random() < p.unfinished_share:
             return None
         r = self.rng.random() - key.throttled
         if r < 0:
             return HTTPStatus.TOO_MANY_REQUESTS
-        for share, codes in FAILURES:
-            r -= share
+        for failure in p.failures:
+            r -= failure.share
             if r < 0:
-                return self.rng.choice(codes)
+                return self.rng.choice(failure.codes)
         return HTTPStatus.OK
 
     def served(self, model: ModelSpec) -> tuple[int, int, int, int, int]:
-        rng = self.rng
+        rng, p = self.rng, self.profile
+        block = p.cache_block_tokens
         inp, out = model.input_tokens.draw(rng), model.output_tokens.draw(rng)
         cached = 0
-        if model.cached_share and inp >= CACHE_BLOCK * 8:
-            share = min(max(rng.gauss(model.cached_share, CACHE_NOISE), 0), 0.99)
-            cached = int(inp * share) // CACHE_BLOCK * CACHE_BLOCK
-        reasoning = int(out * rng.uniform(0.2, 0.7)) if model.reasoning else 0
+        if model.cached_share and inp >= block * p.cache_min_blocks:
+            share = min(max(rng.gauss(model.cached_share, p.cache_noise), 0), p.max_cached_share)
+            cached = int(inp * share) // block * block
+        reasoning = int(out * rng.uniform(*p.reasoning_share)) if model.reasoning else 0
         return model.latency_ms.draw(rng), inp, cached, out, reasoning

@@ -12,7 +12,7 @@ from django.core.management.base import CommandError
 from django.db.models import Q
 
 from management.demo.catalog import ModelSpec, Spread
-from management.demo.traffic import BUSY_WEIGHT, THROTTLED, USER_AGENTS, KeyTraffic, SeededKeys
+from management.demo.traffic import KeyTraffic, SeededKeys, TrafficProfile
 from management.models import (
     Batch,
     FileObject,
@@ -33,7 +33,6 @@ SEED_DOMAIN = "seed.invalid"
 ORG_PREFIX = "seed-demo-"
 LISTED_STRANGERS = 20
 
-IDLE_KEY_SHARE = 0.15
 SECOND_TEAM_SHARE = 0.1
 TEAMS_PER_ORG_ADMIN = 100
 TEAM_SIZE = (3, 5)
@@ -118,7 +117,14 @@ class SeededUser:
 
 
 class Builder:
-    def __init__(self, rng: random.Random, models: Sequence[ModelSpec], start: datetime) -> None:
+    def __init__(
+        self,
+        profile: TrafficProfile,
+        rng: random.Random,
+        models: Sequence[ModelSpec],
+        start: datetime,
+    ) -> None:
+        self.profile = profile
         self.rng = rng
         self.models = models
         self.model_weights = list(accumulate(m.weight for m in models))
@@ -197,11 +203,13 @@ class Builder:
     def personal_keys(self, users: Sequence[SeededUser]) -> None:
         owners = [u for u in users for _ in range(self.rng.choices(*KEYS_PER_USER)[0])]
         tokens = self.tokens(Token(user_id=u.id, name=self.rng.choice(KEY_NAMES)) for u in owners)
+        p = self.profile
         for token, owner in zip(tokens, owners, strict=True):
-            idle = self.rng.random() < IDLE_KEY_SHARE
-            weight = 0.0 if idle else self.rng.paretovariate(1.1)
+            idle = self.rng.random() < p.idle_key_share
+            weight = 0.0 if idle else self.rng.paretovariate(p.personal_weight_alpha)
             local_part = owner.email.split("@")[0]
-            self.keys.personal.append(self.key(token.pk, weight, (local_part,), 0.03))
+            key = self.key(token.pk, weight, (local_part,), p.personal_user_id_share)
+            self.keys.personal.append(key)
 
     def service_accounts(
         self,
@@ -224,12 +232,14 @@ class Builder:
             Token(user_id=users[rosters[t][0]].id, service_account=sa, name=sa.name)
             for sa, t in zip(accounts, homes, strict=True)
         )
+        p = self.profile
         for token in tokens:
             end_users = tuple(
-                f"u-{self.rng.getrandbits(32):08x}" for _ in range(self.rng.randint(20, 400))
+                f"u-{self.rng.getrandbits(32):08x}"
+                for _ in range(self.rng.randint(*p.service_end_users))
             )
-            weight = 10 * self.rng.paretovariate(1.3)
-            self.keys.service.append(self.key(token.pk, weight, end_users, 0.7))
+            weight = p.service_weight_scale * self.rng.paretovariate(p.service_weight_alpha)
+            self.keys.service.append(self.key(token.pk, weight, end_users, p.service_user_id_share))
 
     def tokens(self, unsaved: Iterable[Token]) -> list[Token]:
         rows = list(unsaved)
@@ -243,16 +253,16 @@ class Builder:
     def key(
         self, pk: int, weight: float, user_ids: Sequence[str], user_id_share: float
     ) -> KeyTraffic:
-        rng = self.rng
+        rng, p = self.rng, self.profile
         return KeyTraffic(
             id=pk,
             weight=weight,
             primary_model=rng.choices(self.models, cum_weights=self.model_weights)[0],
-            user_agent=rng.choice(USER_AGENTS),
+            user_agent=rng.choice(p.user_agents),
             ip_address=f"10.{rng.randrange(256)}.{rng.randrange(256)}.{rng.randrange(1, 255)}",
             user_ids=user_ids,
             user_id_share=user_id_share,
-            throttled=THROTTLED[weight > BUSY_WEIGHT],
+            throttled=p.busy_throttled_share if weight > p.busy_weight else p.throttled_share,
         )
 
     def storage(self, now: datetime) -> dict[str, int]:

@@ -15,8 +15,16 @@ from django.utils import timezone
 from gateway.config import model_names
 from management.demo.builder import Builder, delete_seeded, seed_exists
 from management.demo.bulk import insert_log
-from management.demo.catalog import Kind, ModelSpec, read_model_mix, router_config_for
-from management.demo.traffic import Traffic, log_size
+from management.demo.catalog import (
+    DATALAB_PROFILE,
+    Kind,
+    KindDefaults,
+    ModelSpec,
+    kind_defaults,
+    read_model_mix,
+    router_config_for,
+)
+from management.demo.traffic import Traffic, TrafficProfile
 
 DEFAULTS: dict[str, Any] = {
     "teams": 300,
@@ -25,7 +33,7 @@ DEFAULTS: dict[str, Any] = {
     "requests_per_day": 60_000,
     "days": 30,
     "local_time_zone": "Europe/Vienna",
-    "models_file": Path(__file__).with_name("seed_demo_models.datalab.yaml"),
+    "models_file": DATALAB_PROFILE,
 }
 SQLITE_WARN_ROWS = 500_000
 SMALL_ORG_SERVICE_ACCOUNTS = 3
@@ -55,7 +63,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--models-file",
             type=Path,
-            help="YAML or JSON model mix. Defaults to seed_demo_models.datalab.yaml.",
+            help="YAML or JSON model mix. Defaults to the models of management/demo/datalab.yaml.",
         )
         parser.add_argument(
             "--write-router-config",
@@ -74,9 +82,11 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: object, **options: Any) -> None:
+        profile = yaml.safe_load(DATALAB_PROFILE.read_text())
+        kinds = kind_defaults(profile["kinds"])
         if options["write_router_config"]:
             self.write_router_config(
-                self.model_mix(options["models_file"]), options["write_router_config"]
+                self.model_mix(options["models_file"], kinds), options["write_router_config"]
             )
             return
         self.check_target(force=options["force"])
@@ -84,7 +94,8 @@ class Command(BaseCommand):
             with transaction.atomic():
                 self.delete()
         else:
-            models = self.checked(self.model_mix(options["models_file"]))
+            models = self.checked(self.model_mix(options["models_file"], kinds))
+            traffic = TrafficProfile.parse(profile["traffic"])
             zone = self.zone(options["local_time_zone"])
             with transaction.atomic():
                 if options["reset"]:
@@ -92,7 +103,7 @@ class Command(BaseCommand):
                 if seed_exists():
                     msg = "Seeded data already exists. Pass --reset to replace it or --delete."
                     raise CommandError(msg)
-                self.seed(models, zone, options)
+                self.seed(traffic, models, zone, options)
         call_command("rebuild_usage_rollups", stdout=self.stdout)
 
     def check_target(self, *, force: bool) -> None:
@@ -112,9 +123,9 @@ class Command(BaseCommand):
         self.stdout.write(f"Deleted {self.summary(counts)} in {time.monotonic() - started:.1f} s")
 
     @staticmethod
-    def model_mix(path: Path) -> list[ModelSpec]:
+    def model_mix(path: Path, kinds: dict[Kind, KindDefaults]) -> list[ModelSpec]:
         try:
-            models = read_model_mix(path)
+            models = read_model_mix(path, kinds)
         except (OSError, yaml.YAMLError, KeyError, TypeError, ValueError, ZeroDivisionError) as exc:
             msg = (
                 f"Cannot read {path}: {exc!r}. Expected `models:` as a list like "
@@ -151,17 +162,23 @@ class Command(BaseCommand):
             raise CommandError(msg)
         return models
 
-    def seed(self, models: list[ModelSpec], zone: ZoneInfo, options: dict[str, Any]) -> None:
+    def seed(
+        self,
+        traffic: TrafficProfile,
+        models: list[ModelSpec],
+        zone: ZoneInfo,
+        options: dict[str, Any],
+    ) -> None:
         rng = random.Random(options["seed"])  # noqa: S311
         now = timezone.now()
         start = now - timedelta(days=options["days"])
-        total = log_size(options["requests_per_day"], options["days"])
+        total = traffic.log_size(options["requests_per_day"], options["days"])
         if connection.vendor == "sqlite" and total > SQLITE_WARN_ROWS:
             self.stderr.write(
                 f"{total:,} requests on SQLite will take a while. Postgres is faster."
             )
         started = time.monotonic()
-        builder = Builder(rng, models, start - KEY_AGE)
+        builder = Builder(traffic, rng, models, start - KEY_AGE)
         cap = settings.MAX_SERVICE_ACCOUNTS_PER_TEAM
         builder.org(
             "campus", options["teams"], min(options["service_accounts"], cap * options["teams"])
@@ -174,7 +191,7 @@ class Command(BaseCommand):
             f"keys, {len(keys.service)} service account keys, "
             f"{self.summary(builder.storage(now))} in {time.monotonic() - started:.1f} s"
         )
-        rows = Traffic(rng, models, now, zone).log(keys, start, total)
+        rows = Traffic(traffic, rng, models, now, zone).log(keys, start, total)
         written = insert_log(rows, total, self.stdout.write)
         self.stdout.write(f"Wrote {written:,} requests in {time.monotonic() - started:.1f} s")
 
