@@ -49,6 +49,16 @@ def as_tokens(count: float) -> str:
     return ngettext("%(count)s token", "%(count)s tokens", n) % {"count": compact(n)}
 
 
+def as_input(count: float) -> str:
+    n = round(count)
+    return ngettext("%(count)s input token", "%(count)s input tokens", n) % {"count": compact(n)}
+
+
+def as_output(count: float) -> str:
+    n = round(count)
+    return ngettext("%(count)s output token", "%(count)s output tokens", n) % {"count": compact(n)}
+
+
 def as_cached(count: float) -> str:
     n = round(count)
     return ngettext("%(count)s cached token", "%(count)s cached tokens", n) % {"count": compact(n)}

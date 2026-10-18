@@ -1,5 +1,4 @@
 from collections import defaultdict
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -10,8 +9,8 @@ from django.db.models.functions import Coalesce
 from django.utils.translation import gettext
 
 from management.activity import Activity, activity_by
-from management.charts import TOKEN_SERIES, Stat, Tip, spark
-from management.formatting import as_failed, as_requests, as_tokens, compact, day_label, grouped
+from management.charts import TEAM_STATS, TOKEN_SERIES, Stat, Tip, stats, token_widths
+from management.formatting import as_tokens, grouped
 from management.keys import Expiry, key_activity
 from management.models import (
     LimitSet,
@@ -26,7 +25,7 @@ from management.models import (
 )
 from management.models.exclusions import Exclusion, excluded
 from management.periods import week
-from management.week_window import Window, window
+from management.week_window import window
 
 PAGE_SIZE = 50
 
@@ -39,11 +38,6 @@ def role_of(groups: set[str], membership: TeamMembership) -> Role:
             return Role.ORG_ADMIN
         case _:
             return membership.role
-
-
-def _bar_widths(activity: dict[int, Activity]) -> dict[int, int]:
-    busiest = max((a.tokens for a in activity.values()), default=0)
-    return {key: round(100 * a.tokens / busiest) if busiest else 0 for key, a in activity.items()}
 
 
 @dataclass(frozen=True)
@@ -87,7 +81,7 @@ def team_rows(
     ).get_page(page)
     found = list(pages)
     activity = activity_by("token__service_account__team_id", (t.id for t in found), week(now))
-    widths = _bar_widths(activity)
+    widths = token_widths(activity)
     rows = tuple(
         TeamRow(
             team=team,
@@ -130,25 +124,6 @@ class ServiceAccountRow:
         )
 
 
-def team_stats(week_window: Window) -> tuple[Stat, ...]:
-    totals = week_window.totals
-
-    def daily(count: Callable[[Activity], int]) -> list[tuple[str, float]]:
-        return [(day_label(d.day), count(d.activity)) for d in week_window.days]
-
-    return (
-        Stat(
-            gettext("Tokens"), compact(totals.tokens), spark(daily(lambda a: a.tokens), as_tokens)
-        ),
-        Stat(
-            gettext("Requests"),
-            grouped(totals.requests),
-            spark(daily(lambda a: a.requests), as_requests),
-        ),
-        Stat(gettext("Failed"), totals.failed_share, spark(daily(lambda a: a.failed), as_failed)),
-    )
-
-
 @dataclass(frozen=True)
 class TeamPage:
     stats: tuple[Stat, ...]
@@ -173,7 +148,7 @@ def team_page(
     accounts = list(team.service_accounts.select_related("token__user").order_by("name"))
     tokens = {sa.id: getattr(sa, "token", None) for sa in accounts}
     activity = key_activity((t.id for t in tokens.values() if t is not None), now)
-    widths = _bar_widths(activity)
+    widths = token_widths(activity)
     service_accounts = tuple(
         ServiceAccountRow(
             service_account=sa,
@@ -223,7 +198,10 @@ def team_page(
 
     limits = LimitSet.from_objects(team, org)
     return TeamPage(
-        stats=team_stats(window(Request.objects.filter(token__service_account__team=team), now)),
+        stats=stats(
+            window(Request.objects.filter(token__service_account__team=team), now).points,
+            TEAM_STATS,
+        ),
         service_accounts=service_accounts,
         members=tuple(members),
         member_pages=member_pages,

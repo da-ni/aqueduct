@@ -3,6 +3,8 @@ from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.db.models import Sum
+from django.db.models.functions import ExtractHour, ExtractIsoWeekDay
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -10,8 +12,8 @@ from django.utils import timezone
 from management import usage_report as report
 from management import usage_rollup as rollup
 from management.access import EveryOrg, WholeOrg, requests_of
-from management.activity import TOKENS, model_usage, series, served
-from management.charts import columns, heat, kpis, slots
+from management.activity import TOKENS, model_usage, served
+from management.charts import OVERVIEW_STATS, columns, heat, slots, stats
 from management.models import (
     KeyUsageWindow,
     Org,
@@ -26,6 +28,7 @@ from management.models import (
 )
 from management.request_log import Key
 from management.tests.helpers import make_token, make_user, median_error
+from management.usage_source import UsageSource
 
 User = get_user_model()
 CHAT = "gpt-4.1-nano"
@@ -96,15 +99,16 @@ class UsageFromRollupsTest(TestCase):
                 page = self.get(user, "usage", **params)
                 filters, period = page["filters"], page["period"]
                 in_period = period.of(filters.requests)
-                timeline = series(filters.requests, period)
-                self.assertEqual(page["kpis"], kpis(slots(timeline.points, period.step)))
+                raw = UsageSource(filters.requests, period)
+                timeline = raw.series()
+                self.assertEqual(
+                    page["kpis"], stats(slots(timeline.points, period.step), OVERVIEW_STATS)
+                )
                 self.assertEqual(page["chart"], columns(timeline.points, period.step, "tokens"))
                 self.assertEqual(page["statuses"], report.statuses(timeline, filters.log_url))
 
                 if isinstance(filters.viewer.chosen, EveryOrg):
-                    self.assertEqual(
-                        page["orgs_usage"], report.org_shares(report.org_tokens(in_period))
-                    )
+                    self.assertEqual(page["orgs_usage"], report.org_shares(raw.org_tokens()))
                     self.assertTrue(page["orgs_usage"])
 
                 exact = model_usage(in_period)
@@ -121,7 +125,11 @@ class UsageFromRollupsTest(TestCase):
                     [
                         (key.name, key.activity, key.share)
                         for key in report.key_shares(
-                            report.top_keys(in_period), timeline.total.tokens, named
+                            report.ranked(
+                                raw.key_totals(), report.KeyOrder.TOKENS, Token.objects.all()
+                            )[: report.TOP_KEYS],
+                            timeline.total.tokens,
+                            named,
                         )
                     ],
                 )
@@ -149,11 +157,8 @@ class UsageFromRollupsTest(TestCase):
                     (row["day"], row["at"]): row["tokens"]
                     for row in served(requests_of(scope))
                     .filter(timestamp__gte=timezone.now() - timedelta(weeks=weeks))
-                    .values(
-                        day=rollup.ExtractIsoWeekDay("timestamp"),
-                        at=rollup.ExtractHour("timestamp"),
-                    )
-                    .annotate(tokens=rollup.Sum(TOKENS))
+                    .values(day=ExtractIsoWeekDay("timestamp"), at=ExtractHour("timestamp"))
+                    .annotate(tokens=Sum(TOKENS))
                     .order_by()
                 }
                 self.assertEqual(page["heat"], heat(raw, weeks))
@@ -180,14 +185,13 @@ class UsageFromRollupsTest(TestCase):
                 with self.subTest(user=user.username, **params, **extra):
                     page = self.get(user, "usage_keys", **params, **extra)
                     filters = page["filters"]
-                    in_period = filters.period.of(filters.requests)
-                    listed = in_period.filter(token__name__contains=extra.get("q", ""))
+                    totals = UsageSource(filters.requests, filters.period).key_totals()
+                    everyone = report.KeyTotals.of(totals)
+                    named_like = Token.objects.filter(name__contains=extra.get("q", ""))
+                    listed = {k: a for k, a in totals.items() if named_like.filter(pk=k).exists()}
                     order = report.KeyOrder.parse(extra.get("sort", "")) or report.KeyOrder.TOKENS
-                    rows = report.CountedKeys(
-                        report.ranked_keys(listed, order), report.key_totals(listed).keys
-                    )
-                    everyone = report.key_totals(in_period)
-                    expected = report.key_shares(rows[:], everyone.tokens, named, everyone.busiest)
+                    rows = report.ranked(listed, order, Token.objects.all())
+                    expected = report.key_shares(rows, everyone.tokens, named, everyone.busiest)
                     self.assertEqual(page["count"], len(expected))
                     self.assertEqual(
                         [(k.name, k.activity, k.share, k.width) for k in page["keys"]],

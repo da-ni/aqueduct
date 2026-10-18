@@ -410,7 +410,7 @@ class ExpiryTest(SimpleTestCase):
                 )
 
     def test_german(self):
-        now = timezone.now()
+        now = datetime(2026, 10, 18, 20, tzinfo=UTC)
         with translation.override("de"):
             soon = Expiry.of(now + timedelta(days=3, hours=1), now)
             self.assertEqual((soon.label, soon.sentence), ("In 3 Tagen", "Läuft in 3 Tagen ab"))

@@ -4,19 +4,10 @@ from datetime import date, datetime
 from django.db.models import QuerySet
 from django.db.models.functions import TruncDate
 from django.utils import timezone
-from django.utils.translation import gettext
 
 from management.activity import TOTALS, Activity, served, summed
-from management.charts import Stat, spark
-from management.formatting import (
-    as_cached,
-    as_failed,
-    as_requests,
-    as_tokens,
-    compact,
-    day_label,
-    grouped,
-)
+from management.charts import WINDOW_STATS, Stat, stats
+from management.formatting import day_label
 from management.models import Request
 from management.periods import week
 
@@ -33,23 +24,12 @@ class Window:
     days: tuple[Day, ...]
 
     @property
+    def points(self) -> list[tuple[str, Activity]]:
+        return [(day_label(d.day), d.activity) for d in self.days]
+
+    @property
     def stats(self) -> tuple[Stat, ...]:
-        totals = self.totals
-
-        def daily(field: str) -> list[tuple[str, float]]:
-            return [(day_label(d.day), getattr(d.activity, field)) for d in self.days]
-
-        return (
-            Stat(gettext("Input tokens"), compact(totals.input), spark(daily("input"), as_tokens)),
-            Stat(
-                gettext("Output tokens"), compact(totals.output), spark(daily("output"), as_tokens)
-            ),
-            Stat(gettext("Cache hits"), totals.cache_hits, spark(daily("cached"), as_cached)),
-            Stat(
-                gettext("Requests"), grouped(totals.requests), spark(daily("requests"), as_requests)
-            ),
-            Stat(gettext("Failed"), totals.failed_share, spark(daily("failed"), as_failed)),
-        )
+        return stats(self.points, WINDOW_STATS)
 
 
 def window(requests: QuerySet[Request], now: datetime) -> Window:

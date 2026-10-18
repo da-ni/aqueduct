@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from django.db.models import Count, Max, OuterRef, QuerySet, Subquery, Sum
+from django.db.models import QuerySet, Sum
 from django.db.models.functions import Lower
 from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
@@ -13,7 +13,7 @@ from management.charts import Share, scaled
 from management.formatting import MISSING, NO_ORG, compact, duration, percent
 from management.models import Org, Request, Token
 from management.outcomes import Outcome
-from management.ownership import RELATED, key_org
+from management.ownership import RELATED
 
 if TYPE_CHECKING:
     from management.request_log import Key
@@ -131,32 +131,12 @@ class KeyOrder(StrEnum):
     def ascending(self) -> bool:
         return self is KeyOrder.NAME
 
-    @property
-    def ordering(self) -> tuple[str | Subquery, ...]:
-        if self is KeyOrder.NAME:
-            name = Token.objects.filter(pk=OuterRef("token_id")).values(lower=Lower("name"))
-            return (Subquery(name), "token_id")
-        if self is KeyOrder.REQUESTS:
-            return ("-requests", "-tokens", "token_id")
-        return ("-tokens", "-requests", "token_id")
-
     @classmethod
     def parse(cls, raw: str) -> "KeyOrder | None":
         try:
             return cls(raw)
         except ValueError:
             return None
-
-
-KeyRow = tuple[int, Activity]
-
-
-def _key_row(row: Mapping[str, Any]) -> KeyRow:
-    return row["token_id"], _activity(row)
-
-
-def _by_key(requests: QuerySet[Request]) -> QuerySet[Request, dict[str, Any]]:
-    return requests.values("token_id").annotate(**TOTALS, tokens=Sum(TOKENS, default=0))
 
 
 @dataclass(frozen=True)
@@ -171,28 +151,9 @@ class KeyTotals:
         return cls(len(tokens), max(tokens, default=0), sum(tokens))
 
 
-def key_totals(requests: QuerySet[Request]) -> KeyTotals:
-    found = (
-        _by_key(requests)
-        .order_by()
-        .aggregate(n=Count("token_id"), top=Max("tokens", default=0), all=Sum("tokens", default=0))
-    )
-    return KeyTotals(found["n"], found["top"], found["all"])
-
-
-def ranked_keys(
-    requests: QuerySet[Request], order: KeyOrder = KeyOrder.TOKENS
-) -> QuerySet[Request, dict[str, Any]]:
-    return _by_key(requests).order_by(*order.ordering)
-
-
-def top_keys(requests: QuerySet[Request], limit: int = TOP_KEYS) -> list[KeyRow]:
-    return [_key_row(row) for row in ranked_keys(requests)[:limit]]
-
-
-def ranked_totals(
+def ranked(
     totals: Mapping[int, Activity], order: KeyOrder, tokens: QuerySet[Token]
-) -> list[KeyRow]:
+) -> list[tuple[int, Activity]]:
     if order is KeyOrder.NAME:
         named = [
             token_id
@@ -206,20 +167,8 @@ def ranked_totals(
     return sorted(totals.items(), key=lambda r: (-r[1].tokens, -r[1].requests, r[0]))
 
 
-@dataclass(frozen=True)
-class CountedKeys:
-    rows: QuerySet[Request, dict[str, Any]]
-    size: int
-
-    def __len__(self) -> int:
-        return self.size
-
-    def __getitem__(self, page: slice) -> list[KeyRow]:
-        return [_key_row(row) for row in self.rows[page]]
-
-
 def key_shares(
-    rows: Sequence[KeyRow],
+    rows: Sequence[tuple[int, Activity]],
     total: int,
     describe: Callable[[Token], "Key"],
     busiest: int | None = None,
@@ -245,15 +194,6 @@ def user_id_shares(requests: QuerySet[Request], total: int) -> tuple[KeyShare, .
         KeyShare(row["user_id"] or gettext("Not sent"), "", None, *figure)
         for row, figure in zip(rows, figures, strict=True)
     )
-
-
-def org_tokens(requests: QuerySet[Request]) -> dict[int | None, int]:
-    return {
-        row["org_id"]: row["tokens"]
-        for row in requests.values(org_id=key_org("token__"))
-        .annotate(tokens=Sum(TOKENS, default=0))
-        .order_by()
-    }
 
 
 def org_shares(tokens: Mapping[int | None, int]) -> tuple[Share, ...]:

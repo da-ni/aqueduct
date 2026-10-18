@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 21:26+0000\n"
+"POT-Creation-Date: 2026-10-18 22:58+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -61,23 +61,23 @@ msgstr "Fehlgeschlagen"
 msgid "%(first)s to %(last)s"
 msgstr "%(first)s bis %(last)s"
 
-#, python-format
-msgid "%(count)s input token"
-msgid_plural "%(count)s input tokens"
-msgstr[0] "%(count)s Eingabe-Token"
-msgstr[1] "%(count)s Eingabe-Token"
-
-#, python-format
-msgid "%(count)s output token"
-msgid_plural "%(count)s output tokens"
-msgstr[0] "%(count)s Ausgabe-Token"
-msgstr[1] "%(count)s Ausgabe-Token"
+msgid "Requests"
+msgstr "Anfragen"
 
 msgid "Input"
 msgstr "Eingabe"
 
-msgid "Requests"
-msgstr "Anfragen"
+msgid "Input tokens"
+msgstr "Eingabe-Token"
+
+msgid "Output tokens"
+msgstr "Ausgabe-Token"
+
+msgid "Cache hits"
+msgstr "Cache-Treffer"
+
+msgid "Tokens"
+msgstr "Token"
 
 #, python-format
 msgid "%(day)s %(start)s to %(end)s"
@@ -168,6 +168,18 @@ msgid "%(count)s token"
 msgid_plural "%(count)s tokens"
 msgstr[0] "%(count)s Token"
 msgstr[1] "%(count)s Token"
+
+#, python-format
+msgid "%(count)s input token"
+msgid_plural "%(count)s input tokens"
+msgstr[0] "%(count)s Eingabe-Token"
+msgstr[1] "%(count)s Eingabe-Token"
+
+#, python-format
+msgid "%(count)s output token"
+msgid_plural "%(count)s output tokens"
+msgstr[0] "%(count)s Ausgabe-Token"
+msgstr[1] "%(count)s Ausgabe-Token"
 
 #, python-format
 msgid "%(count)s cached token"
@@ -752,9 +764,6 @@ msgstr "Vektorspeicher: %(quotas)s"
 
 msgid "Tokens, 7 days"
 msgstr "Token, 7 Tage"
-
-msgid "Tokens"
-msgstr "Token"
 
 msgid "Access denied"
 msgstr "Zugriff verweigert"
@@ -2087,15 +2096,6 @@ msgid "Could not sync vector store %(name)s. Try again later."
 msgstr ""
 "Vektorspeicher %(name)s konnte nicht abgeglichen werden. Versuchen Sie es "
 "später erneut."
-
-msgid "Input tokens"
-msgstr "Eingabe-Token"
-
-msgid "Output tokens"
-msgstr "Ausgabe-Token"
-
-msgid "Cache hits"
-msgstr "Cache-Treffer"
 
 #, python-format
 msgid "Version of %(date)s"
