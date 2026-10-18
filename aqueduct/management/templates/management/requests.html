@@ -95,7 +95,7 @@
                             {% endif %}
                         {% endwith %}
                     {% empty %}
-                        <tr class="max-md:block"><td colspan="{{ log.shows_key|yesno:'9,8' }}" class="muted max-md:block">{% if narrowed %}{% translate "No request matches these filters." %}{% else %}{{ no_requests }}{% endif %}</td></tr>
+                        <tr class="max-md:block"><td colspan="{{ log.shows_key|yesno:'9,8' }}" class="muted max-md:block">{% if narrowed %}{% translate "No request matches these filters." %}{% else %}{{ filters.span.no_requests }}{% endif %}</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
