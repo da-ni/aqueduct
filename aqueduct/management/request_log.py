@@ -328,22 +328,13 @@ class Row:
         return Outcome.of(self.request.status_code)
 
     @property
-    def status_phrase(self) -> str:
-        try:
-            return HTTPStatus(self.request.status_code or 0).phrase
-        except ValueError:
-            return ""
-
-    @property
     def error(self) -> str | None:
         outcome = self.outcome
         if outcome is None:
             return gettext("No status was recorded.")
         if outcome is Outcome.OK:
             return None
-        phrase = self.status_phrase
-        meaning = str(_ERROR_MEANINGS[outcome])
-        return f"{self.request.status_code} {phrase}. {meaning}" if phrase else meaning
+        return str(_ERROR_MEANINGS[outcome])
 
     @property
     def response_time(self) -> str:

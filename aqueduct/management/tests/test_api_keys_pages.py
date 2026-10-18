@@ -235,8 +235,7 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         )
         response = self.get(self.owner, "token_detail", self.key.id)
         self.assertContains(
-            response,
-            '<span class="st-warn inline-flex items-center gap-1.5" title="Too Many Requests">',
+            response, '<span class="st-warn inline-flex items-center gap-1.5" title="Rate-limited">'
         )
         self.assertContains(
             response, '<td class="whitespace-nowrap text-right">5.6 s</td>', html=True
