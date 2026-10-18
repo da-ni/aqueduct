@@ -25,6 +25,7 @@ from management.models import (
 )
 from management.models.token import of_org
 from management.request_log import visible_tokens
+from management.signals import mark_rollups_dirty
 from management.tests.helpers import PAGES, make_token, make_user
 from management.usage_report import DAY, MEDIAN, TOKENS, TOTALS, Period, Span, org_requests, series
 
@@ -33,12 +34,26 @@ CHAT = "gpt-4.1-nano"
 EMBEDDING = "text-embedding-ada-002"
 UNSERVED = "retired-model"
 STATUSES = (200, 200, 302, 429, 404, 400, 500, 503, None)
-MEDIAN_BOUND = 2 ** (1 / 16)
 
 
-class ApproximateMedianTest(SimpleTestCase):
+def median_error(exact: int) -> float:
+    return max(2, 0.05 * exact)
+
+
+class ApproximateMedianTest(TestCase):
     def test_no_requests_have_no_median(self):
         self.assertIsNone(rollup.approximate_median({}))
+
+    def test_the_median_is_within_five_percent_or_two_ms(self):
+        token = make_token(make_user("timer", Org.objects.create(name="timing")), "timer")
+        Request.objects.bulk_create(
+            Request(token=token, timestamp=timezone.now(), response_time_ms=ms)
+            for ms in range(5000)
+        )
+        for ms, bucket in Request.objects.values_list("response_time_ms", rollup.BUCKET):
+            with self.subTest(ms=ms):
+                approximate = rollup.approximate_median({bucket: 1})
+                self.assertLessEqual(abs(approximate - ms), median_error(ms))
 
 
 class SplitTest(SimpleTestCase):
@@ -143,9 +158,7 @@ class UsageRollupTest(TestCase):
             if exact is None:
                 self.assertIsNone(usage.median_ms)
             else:
-                self.assertLessEqual(
-                    abs(usage.median_ms - exact), max(1, (MEDIAN_BOUND - 1) * exact)
-                )
+                self.assertLessEqual(abs(usage.median_ms - exact), median_error(exact))
 
         start = now - timedelta(weeks=4)
         self.assertEqual(
@@ -255,6 +268,20 @@ class UsageRollupTest(TestCase):
         for callback in pending:
             callback()
         self.assertTrue(self.dirty())
+
+    def test_a_change_marked_during_a_refresh_keeps_the_rollups_dirty(self):
+        rollup.refresh(self.now)
+        insert = rollup._insert
+
+        def insert_then_mark(*args, **kwargs):
+            insert(*args, **kwargs)
+            mark_rollups_dirty()
+
+        with mock.patch.object(rollup, "_insert", insert_then_mark):
+            rollup.refresh(self.now)
+        self.assertTrue(self.dirty())
+        rollup.refresh(self.now)
+        self.assertFalse(self.dirty())
 
     def test_moving_an_owner_to_another_org_marks_the_rollups_dirty(self):
         rollup.refresh(self.now)
@@ -392,7 +419,33 @@ class UsageRollupTest(TestCase):
         }
         self.assertEqual(totals, raw)
 
-    def test_deleting_a_key_drops_its_windows(self):
+    def test_the_next_refresh_drops_a_deleted_keys_windows(self):
         rollup.refresh_key_windows(self.now)
+        gone = self.foreign_key.pk
         self.foreign_key.delete()
-        self.assertFalse(KeyUsageWindow.objects.filter(token_id=self.foreign_key.pk).exists())
+        rollup.refresh_key_windows(self.now)
+        self.assertFalse(KeyUsageWindow.objects.filter(token_id=gone).exists())
+
+    def test_rows_left_for_a_deleted_key_or_org_are_not_read(self):
+        org = Org.objects.create(name="short-lived")
+        account = ServiceAccount.objects.create(
+            name="gone", team=Team.objects.create(name="gone", org=org)
+        )
+        key = make_token(self.member, "gone", service_account=account)
+        self.log(key, timedelta(hours=3), input_tokens=500, response_time_ms=40)
+        rollup.refresh(self.now)
+        rollup.refresh_key_windows(self.now)
+        key_id, org_id = key.pk, org.pk
+        org.delete()
+        self.assertTrue(KeyUsageWindow.objects.filter(token_id=key_id).exists())
+        self.assertTrue(OrgUsageHour.objects.filter(org_id=org_id).exists())
+        self.assertTrue(OrgLatencyHour.objects.filter(org_id=org_id).exists())
+
+        self.assert_matches_raw()
+        period = Period.last(Span.WEEK, self.now)
+        self.assertNotIn(org_id, rollup.org_tokens(None, period))
+        raw = {
+            row.pop("token_id"): Activity(**row)
+            for row in period.of(org_requests(None)).values("token_id").annotate(**TOTALS)
+        }
+        self.assertEqual(rollup.key_window_totals(None, None, period), raw)

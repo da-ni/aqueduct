@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 
 from django.db import models, transaction
+from django.db.models import F
 from django.db.models.signals import post_delete, post_save, pre_save
 
 from management.models import ServiceAccount, Team, Token, UsageRollupState, UserProfile
@@ -15,7 +16,7 @@ ATTRIBUTION: Mapping[type[models.Model], tuple[str, ...]] = {
 
 
 def mark_rollups_dirty() -> None:
-    UsageRollupState.objects.filter(name=HOURLY).update(dirty=True)
+    UsageRollupState.objects.filter(name=HOURLY).update(dirty=True, changes=F("changes") + 1)
 
 
 def _mark_dirty_on_commit(**_: object) -> None:

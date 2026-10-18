@@ -58,10 +58,14 @@ ORDER = (
 )
 
 
+SHOWN = forms.MultipleHiddenInput()
+
+
 class Checklist(forms.CheckboxSelectMultiple):
     def render(self, name, value, attrs=None, renderer=None) -> SafeString:
         checklist = super().render(name, value, attrs, renderer)
-        return format_html('{}<input type="hidden" name="{}-shown" value="1">', checklist, name)
+        shown = [choice for choice, _ in self.choices]
+        return format_html("{}{}", checklist, SHOWN.render(f"{name}-shown", shown))
 
 
 class AvailabilityForm(forms.ModelForm):
@@ -96,12 +100,15 @@ class AvailabilityForm(forms.ModelForm):
 
     def save(self, commit: bool = True) -> Any:
         for name, (stored, _configured) in CHECKLISTS.items():
-            if name not in self.cleaned_data or f"{self.add_prefix(name)}-shown" not in self.data:
+            shown = SHOWN.value_from_datadict(
+                self.data, self.files, f"{self.add_prefix(name)}-shown"
+            )
+            if name not in self.cleaned_data or not shown:
                 continue
             checked = set(self.cleaned_data[name])
-            offered = [value for value, _ in self.fields[name].choices]
+            offered = {value for value, _ in self.fields[name].choices}
             excluded: list[str] = getattr(self.instance, stored)
             kept = [n for n in excluded if n not in checked]
-            cleared = [n for n in offered if n not in checked]
+            cleared = [n for n in dict.fromkeys(shown) if n in offered and n not in checked]
             setattr(self.instance, stored, list(dict.fromkeys(kept + cleared)))
         return super().save(commit)

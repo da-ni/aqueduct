@@ -117,7 +117,7 @@ def refresh(now: datetime | None = None, *, full: bool = False) -> None:
         return
     sealed = floor_hour((now or timezone.now()) - SETTLE)
     with transaction.atomic():
-        state = _locked(HOURLY)
+        state = _claimed(HOURLY)
         stale = full or state.dirty or state.time_zone != settings.TIME_ZONE
         start = None if stale or state.sealed_until is None else state.sealed_until
         if start is not None:
@@ -140,8 +140,11 @@ def refresh(now: datetime | None = None, *, full: bool = False) -> None:
             .values("model", **by_hour, bucket=BUCKET)
             .annotate(requests=Count("id")),
         )
-        state.sealed_until, state.dirty, state.time_zone = sealed, False, settings.TIME_ZONE
-        state.save()
+        UsageRollupState.objects.filter(name=HOURLY).update(
+            sealed_until=sealed,
+            time_zone=settings.TIME_ZONE,
+            dirty=Case(When(changes=state.changes, then=Value(False)), default=Value(True)),
+        )
 
 
 def rebuild(now: datetime | None = None) -> None:
@@ -174,6 +177,15 @@ def _locked(name: str) -> UsageRollupState:
         name=name, defaults={"dirty": True, "time_zone": settings.TIME_ZONE}
     )
     return UsageRollupState.objects.select_for_update().get(name=name)
+
+
+def _claimed(name: str) -> UsageRollupState:
+    if connection.vendor == "postgresql":
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", [name])
+    return UsageRollupState.objects.get_or_create(
+        name=name, defaults={"dirty": True, "time_zone": settings.TIME_ZONE}
+    )[0]
 
 
 def _insert(table: type[models.Model], rows: QuerySet[Any, Row], **fixed: int) -> None:
@@ -310,9 +322,11 @@ def key_window_totals(
     tokens: QuerySet[Token] | None, model: str | None, period: Period
 ) -> dict[int, Activity]:
     requests = served(Request.objects.all())
-    kept = KeyUsageWindow.objects.filter(model__in=router_models())
     if tokens is not None:
-        requests, kept = requests.filter(token__in=tokens), kept.filter(token__in=tokens)
+        requests = requests.filter(token__in=tokens)
+    kept = KeyUsageWindow.objects.filter(
+        model__in=router_models(), token__in=Token.objects.all() if tokens is None else tokens
+    )
     if model is not None:
         requests, kept = requests.filter(model=model), kept.filter(model=model)
     windows = UsageRollupState.objects.filter(
@@ -419,9 +433,11 @@ def _gather(
         requests = requests.filter(model=model)
     rows = [] if rest is None else list(from_requests(requests.filter(rest).order_by()))
     if hours is not None:
-        kept = table.objects.filter(hours, model__in=router_models())
-        if org is not None:
-            kept = kept.filter(org=org)
+        kept = table.objects.filter(
+            hours,
+            Q(org=None) | Q(org__in=Org.objects.all()) if org is None else Q(org=org),
+            model__in=router_models(),
+        )
         if model is not None:
             kept = kept.filter(model=model)
         rows += from_rollup(kept.order_by())

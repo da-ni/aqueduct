@@ -23,11 +23,11 @@ from management.models import (
 )
 from management.request_log import Key
 from management.tests.helpers import PAGES, make_token, make_user
+from management.tests.test_usage_rollup import median_error
 
 User = get_user_model()
 CHAT = "gpt-4.1-nano"
 EMBEDDING = "text-embedding-ada-002"
-MEDIAN_BOUND = 2 ** (1 / 16)
 
 
 def named(token) -> Key:
@@ -116,9 +116,8 @@ class UsageFromRollupsTest(TestCase):
                     {name: usage.activity for name, usage in exact.items()},
                 )
                 for row in page["models"]:
-                    shown = int(row.median.removesuffix(" ms"))
-                    self.assertLessEqual(shown, exact[row.name].median_ms * MEDIAN_BOUND)
-                    self.assertGreaterEqual(shown, exact[row.name].median_ms / MEDIAN_BOUND)
+                    shown, ms = int(row.median.removesuffix(" ms")), exact[row.name].median_ms
+                    self.assertLessEqual(abs(shown - ms), median_error(ms))
 
                 self.assertEqual(
                     [(key.name, key.activity, key.share) for key in page["keys"]],
