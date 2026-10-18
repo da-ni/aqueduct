@@ -2,46 +2,40 @@
 {% load i18n ui %}
 {% block title %}{% translate "All keys" %} · {{ block.super }}{% endblock %}
 
-{% block page_background %}{% endblock %}
-
-{% block content %}
-<div class="flex flex-col gap-6">
-    <div class="breadcrumbs p-0 text-sm">
-        <ul><li><a href="{{ overview_url }}">{% translate "Overview" %}</a></li><li>{% translate "All keys" %}</li></ul>
-    </div>
-
-    <header class="flex min-h-12 flex-wrap items-baseline gap-x-4 gap-y-1">
+{% block breadcrumbs %}<li><a href="{{ overview_url }}">{% translate "Overview" %}</a></li><li>{% translate "All keys" %}</li>{% endblock %}
+{% block header %}
+    <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 class="text-3xl font-semibold">{% translate "All keys" %}</h1>
         <span class="muted">{% blocktranslate with shown=count|grouped count n=count %}{{ shown }} key{% plural %}{{ shown }} keys{% endblocktranslate %}</span>
-    </header>
-
-    <div class="flex flex-wrap items-center gap-3">
-        {% include "management/_filters.html" with scope_only=True %}
     </div>
-
-    <section class="card bg-base-200">
-        <div class="card-body gap-3 p-5">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <form method="get" role="search" class="w-full sm:w-80">
-                    {% for name, value in filters.query.items %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
-                    {% if order.value != "tokens" %}<input type="hidden" name="sort" value="{{ order.value }}">{% endif %}
-                    <label class="input input-sm w-full">
-                        {% icon "search" small=True %}
-                        <input type="search" name="q" value="{{ q }}" placeholder="{% if filters.can_pick_scope %}{% translate "Key name or owner email" %}{% else %}{% translate "Key name" %}{% endif %}" aria-label="{% translate "Search keys" %}">
-                        <button type="submit" class="btn btn-ghost btn-xs -me-2">{% translate "Search" %}</button>
-                    </label>
-                </form>
-            </div>
-            {% if keys %}
-                {% translate "Key" as first_column %}
-                {% include "management/_key_table.html" with first_column=first_column headers=headers %}
-            {% elif q %}
-                <p class="muted text-sm">{% blocktranslate %}No key that matches “{{ q }}” has requests in this time frame.{% endblocktranslate %}</p>
-            {% else %}
-                <p class="muted text-sm">{% translate "No requests in this time frame." %}</p>
-            {% endif %}
-            {% include "management/_pager.html" %}
-        </div>
-    </section>
+{% endblock %}
+{% block body %}
+<div class="flex flex-wrap items-center gap-3">
+    {% include "management/_filters.html" with scope_only=True %}
 </div>
+
+<section class="card bg-base-200">
+    <div class="card-body gap-3 p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <form method="get" role="search" class="w-full sm:w-80">
+                {% for name, value in filters.query.items %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+                {% if order.value != "tokens" %}<input type="hidden" name="sort" value="{{ order.value }}">{% endif %}
+                <label class="input input-sm w-full">
+                    {% icon "search" small=True %}
+                    <input type="search" name="q" value="{{ q }}" placeholder="{% if filters.can_pick_scope %}{% translate "Key name or owner email" %}{% else %}{% translate "Key name" %}{% endif %}" aria-label="{% translate "Search keys" %}">
+                    <button type="submit" class="btn btn-ghost btn-xs -me-2">{% translate "Search" %}</button>
+                </label>
+            </form>
+        </div>
+        {% if keys %}
+            {% translate "Key" as first_column %}
+            {% include "management/_key_table.html" with first_column=first_column headers=headers %}
+        {% elif q %}
+            <p class="muted text-sm">{% blocktranslate %}No key that matches “{{ q }}” has requests in this time frame.{% endblocktranslate %}</p>
+        {% else %}
+            <p class="muted text-sm">{% translate "No requests in this time frame." %}</p>
+        {% endif %}
+        {% include "management/_pager.html" %}
+    </div>
+</section>
 {% endblock %}

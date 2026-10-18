@@ -2,38 +2,29 @@
 {% load i18n ui %}
 {% block title %}{% blocktranslate with name=team.name %}Edit {{ name }}{% endblocktranslate %} · {{ block.super }}{% endblock %}
 
-{% block page_background %}{% endblock %}
-
-{% block content %}
-<div class="flex flex-col gap-6">
-    <div class="breadcrumbs p-0 text-sm">
-        <ul><li><a href="{% url 'org' %}">{% translate "Teams" %}</a></li><li><a href="{{ cancel_url }}">{{ team.name }}</a></li><li>{% if breadcrumb %}{{ breadcrumb }}{% else %}{% translate "Edit" %}{% endif %}</li></ul>
-    </div>
-    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
-        <h1 class="text-3xl font-semibold">{{ view_title }}</h1>
-    </header>
-
-    <form method="post" class="card max-w-2xl bg-base-200">
-        {% csrf_token %}
-        <div class="card-body gap-6 p-6">
-            {% include "management/_form_fields.html" %}
-            <div class="flex flex-wrap gap-3 border-t border-base-300 pt-5">
-                <button type="submit" class="btn btn-primary">{% translate "Save changes" %}</button>
-                <a class="btn btn-outline btn-primary" href="{{ cancel_url }}">{% translate "Cancel" %}</a>
-            </div>
+{% block breadcrumbs %}<li><a href="{% url 'org' %}">{% translate "Teams" %}</a></li><li><a href="{{ cancel_url }}">{{ team.name }}</a></li><li>{% if breadcrumb %}{{ breadcrumb }}{% else %}{% translate "Edit" %}{% endif %}</li>{% endblock %}
+{% block heading %}{{ view_title }}{% endblock %}
+{% block body %}
+<form method="post" class="card max-w-2xl bg-base-200">
+    {% csrf_token %}
+    <div class="card-body gap-6 p-6">
+        {% include "management/_form_fields.html" %}
+        <div class="flex flex-wrap gap-3 border-t border-base-300 pt-5">
+            <button type="submit" class="btn btn-primary">{% translate "Save changes" %}</button>
+            <a class="btn btn-outline btn-primary" href="{{ cancel_url }}">{% translate "Cancel" %}</a>
         </div>
-    </form>
+    </div>
+</form>
 
-    {% if can_delete %}
-        <section class="card max-w-2xl border border-error/40 bg-base-200" aria-labelledby="danger-title">
-            <div class="card-body flex-row flex-wrap items-center justify-between gap-4 p-6">
-                <div class="flex flex-col gap-1">
-                    <h2 id="danger-title" class="font-semibold">{% translate "Delete team" %}</h2>
-                    <p class="muted text-sm">{% translate "This can't be undone." %}</p>
-                </div>
-                <a class="btn btn-outline btn-error" href="{% url 'team_delete' team.id %}" {% confirm_delete team %}>{% icon "delete" small=True %}{% translate "Delete team" %}</a>
+{% if can_delete %}
+    <section class="card max-w-2xl border border-error/40 bg-base-200" aria-labelledby="danger-title">
+        <div class="card-body flex-row flex-wrap items-center justify-between gap-4 p-6">
+            <div class="flex flex-col gap-1">
+                <h2 id="danger-title" class="font-semibold">{% translate "Delete team" %}</h2>
+                <p class="muted text-sm">{% translate "This can't be undone." %}</p>
             </div>
-        </section>
-    {% endif %}
-</div>
+            <a class="btn btn-outline btn-error" href="{% url 'team_delete' team.id %}" {% confirm_delete team %}>{% icon "delete" small=True %}{% translate "Delete team" %}</a>
+        </div>
+    </section>
+{% endif %}
 {% endblock %}

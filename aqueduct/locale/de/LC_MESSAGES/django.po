@@ -1727,6 +1727,9 @@ msgstr "Kein Schlüssel, der zu „%(q)s“ passt, hat Anfragen in diesem Zeitra
 msgid "Not found"
 msgstr "Nicht gefunden"
 
+msgid "Vector store not found"
+msgstr "Vektorspeicher nicht gefunden"
+
 msgid "Copy vector store ID"
 msgstr "Vektorspeicher-ID kopieren"
 
@@ -1762,9 +1765,6 @@ msgid "%(count)s in progress"
 msgid_plural "%(count)s in progress"
 msgstr[0] "%(count)s in Bearbeitung"
 msgstr[1] "%(count)s in Bearbeitung"
-
-msgid "Vector store not found"
-msgstr "Vektorspeicher nicht gefunden"
 
 msgid "It doesn't exist or you don't have access."
 msgstr "Er existiert nicht, oder Sie haben keinen Zugriff."

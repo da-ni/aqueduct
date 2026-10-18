@@ -51,7 +51,7 @@ class OrgSwitchTest(OrgSwitchTestBase):
                 org = "other-org" if team == "Foreign" else "lab-org"
                 self.assertIn(f'<td class="truncate max-lg:hidden">{org}</td>', row)
         self.assertContains(
-            teams, '<span class="muted text-sm">All organizations</span>', html=True
+            teams, '<span class="muted -mt-1 text-sm">All organizations</span>', html=True
         )
 
     def test_all_organizations_lists_every_org_to_pick_one(self):

@@ -1,217 +1,212 @@
 {% extends "management/base.html" %}
 {% load i18n l10n ui %}
 
-{% block page_background %}{% endblock %}
+{% block header %}
+    <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <h1 class="text-3xl font-semibold">{% translate "Overview" %}</h1>
+        {% if filters.key %}
+            <span class="muted">{% blocktranslate with name=filters.key.name %}for the key <span class="font-mono">{{ name }}</span>{% endblocktranslate %}</span>
+            <a class="link-plain text-sm" href="{% querystring key=None key_q=None %}">{% translate "Show all keys" %}</a>
+        {% endif %}
+    </div>
+{% endblock %}
+{% block body %}
+<div class="flex flex-wrap items-center gap-3">
+    {% include "management/_filters.html" %}
+</div>
 
-{% block content %}
-<div class="flex flex-col gap-6">
-    <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
-        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <h1 class="text-3xl font-semibold">{% translate "Overview" %}</h1>
-            {% if filters.key %}
-                <span class="muted">{% blocktranslate with name=filters.key.name %}for the key <span class="font-mono">{{ name }}</span>{% endblocktranslate %}</span>
-                <a class="link-plain text-sm" href="{% querystring key=None key_q=None %}">{% translate "Show all keys" %}</a>
+{% if retention_warning %}
+    <div class="alert alert-warning" role="alert">{% icon "warning" %}<span>{% blocktranslate count days=retention_days %}The time frame reaches back further than the {{ days }} day requests are kept. Older requests are missing from these figures.{% plural %}The time frame reaches back further than the {{ days }} days requests are kept. Older requests are missing from these figures.{% endblocktranslate %}</span></div>
+{% endif %}
+
+<section aria-label="{% translate "Totals" %}" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+    {% for kpi in kpis %}
+        <div class="card bg-base-200">
+            <div class="card-body gap-1 p-4">
+                <span class="muted text-sm">{{ kpi.label }}</span>
+                <span class="text-2xl font-semibold">{{ kpi.value }}</span>
+                {% include "management/_spark.html" with bars=kpi.spark %}
+            </div>
+        </div>
+    {% endfor %}
+</section>
+
+<section class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+    <div class="card bg-base-200 lg:col-span-2" data-metric-scope>
+        <div class="card-body gap-4 p-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>{{ period.step.tokens_title }}</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>{{ period.step.requests_title }}</span></h2>
+                <div class="flex flex-wrap items-center gap-4">
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
+                        {% include "management/_token_legend.html" %}
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>
+                        <span class="flex items-center gap-2"><span class="sw i"></span>{% translate "OK" %}</span>
+                        <span class="flex items-center gap-2 whitespace-nowrap"><span class="sw f"></span>{% translate "Failed" %}</span>
+                    </div>
+                    <nav class="join" aria-label="{% translate "Chart metric" %}">
+                        <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None key_q=None %}" data-metric-show="tokens"{% if metric == 'tokens' %} aria-current="page"{% endif %}>{% translate "Tokens" %}</a>
+                        <a class="btn btn-sm join-item{% if metric == 'requests' %} btn-primary{% endif %}" href="{% querystring metric='requests' key_q=None %}" data-metric-show="requests"{% if metric == 'requests' %} aria-current="page"{% endif %}>{% translate "Requests" %}</a>
+                    </nav>
+                </div>
+            </div>
+            {% if requests_in_period %}
+                {% for shown, chart in charts %}
+                    <div class="flex h-72 gap-px sm:gap-1" data-metric="{{ shown }}"{% if shown != metric %} hidden{% endif %}>
+                        {% for column in chart %}
+                            {% include "management/_chart_column.html" %}
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="muted flex h-72 items-center justify-center text-sm">{% translate "No requests in this time frame." %}</p>
             {% endif %}
         </div>
-    </header>
-
-    <div class="flex flex-wrap items-center gap-3">
-        {% include "management/_filters.html" %}
     </div>
 
-    {% if retention_warning %}
-        <div class="alert alert-warning" role="alert">{% icon "warning" %}<span>{% blocktranslate count days=retention_days %}The time frame reaches back further than the {{ days }} day requests are kept. Older requests are missing from these figures.{% plural %}The time frame reaches back further than the {{ days }} days requests are kept. Older requests are missing from these figures.{% endblocktranslate %}</span></div>
-    {% endif %}
-
-    <section aria-label="{% translate "Totals" %}" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-        {% for kpi in kpis %}
-            <div class="card bg-base-200">
-                <div class="card-body gap-1 p-4">
-                    <span class="muted text-sm">{{ kpi.label }}</span>
-                    <span class="text-2xl font-semibold">{{ kpi.value }}</span>
-                    {% include "management/_spark.html" with bars=kpi.spark %}
-                </div>
+    <div class="card bg-base-200">
+        <div class="card-body gap-4 p-5">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-xl font-semibold">{% translate "Requests" %}</h2>
+                <a class="link-plain text-sm" href="{{ filters.log_url }}">{% translate "Open the log" %}</a>
             </div>
-        {% endfor %}
-    </section>
+            <div class="flex h-3 gap-0.5 overflow-hidden rounded-full bg-base-300">
+                {% for row in statuses %}{% if row.count %}<div class="{{ row.tone }} min-w-1 bg-current" style="flex: {{ row.count|unlocalize }} 1 0%"></div>{% endif %}{% endfor %}
+            </div>
+            <ul class="-mx-2 flex flex-col">
+                {% for row in statuses %}
+                    <li class="border-t border-base-300">
+                        <a class="hover-row flex items-center gap-3 rounded-lg px-2 py-2.5 text-sm" href="{{ row.href }}">
+                            <span class="{{ row.tone }}">{% icon row.icon %}</span>
+                            <span class="flex flex-col leading-tight"><span class="font-medium">{{ row.label }}</span><span class="muted font-mono text-xs">{{ row.codes }}</span></span>
+                            <span class="ml-auto font-mono">{{ row.count|grouped }}</span>
+                            <span class="muted w-12 text-right font-mono text-xs">{{ row.share }}</span>
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</section>
 
-    <section class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div class="card bg-base-200 lg:col-span-2" data-metric-scope>
-            <div class="card-body gap-4 p-5">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h2 class="text-xl font-semibold"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>{{ period.step.tokens_title }}</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>{{ period.step.requests_title }}</span></h2>
-                    <div class="flex flex-wrap items-center gap-4">
-                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
-                            {% include "management/_token_legend.html" %}
-                        </div>
-                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>
-                            <span class="flex items-center gap-2"><span class="sw i"></span>{% translate "OK" %}</span>
-                            <span class="flex items-center gap-2 whitespace-nowrap"><span class="sw f"></span>{% translate "Failed" %}</span>
-                        </div>
-                        <nav class="join" aria-label="{% translate "Chart metric" %}">
-                            <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None key_q=None %}" data-metric-show="tokens"{% if metric == 'tokens' %} aria-current="page"{% endif %}>{% translate "Tokens" %}</a>
-                            <a class="btn btn-sm join-item{% if metric == 'requests' %} btn-primary{% endif %}" href="{% querystring metric='requests' key_q=None %}" data-metric-show="requests"{% if metric == 'requests' %} aria-current="page"{% endif %}>{% translate "Requests" %}</a>
-                        </nav>
-                    </div>
-                </div>
-                {% if requests_in_period %}
-                    {% for shown, chart in charts %}
-                        <div class="flex h-72 gap-px sm:gap-1" data-metric="{{ shown }}"{% if shown != metric %} hidden{% endif %}>
-                            {% for column in chart %}
-                                {% include "management/_chart_column.html" %}
-                            {% endfor %}
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="muted flex h-72 items-center justify-center text-sm">{% translate "No requests in this time frame." %}</p>
-                {% endif %}
+<section class="card bg-base-200">
+    <div class="card-body gap-3 p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-xl font-semibold">{% translate "By model" %}</h2>
+            <div class="hidden items-center gap-4 text-sm md:flex">
+                {% include "management/_token_legend.html" %}
             </div>
         </div>
-
-        <div class="card bg-base-200">
-            <div class="card-body gap-4 p-5">
-                <div class="flex items-center justify-between gap-3">
-                    <h2 class="text-xl font-semibold">{% translate "Requests" %}</h2>
-                    <a class="link-plain text-sm" href="{{ filters.log_url }}">{% translate "Open the log" %}</a>
-                </div>
-                <div class="flex h-3 gap-0.5 overflow-hidden rounded-full bg-base-300">
-                    {% for row in statuses %}{% if row.count %}<div class="{{ row.tone }} min-w-1 bg-current" style="flex: {{ row.count|unlocalize }} 1 0%"></div>{% endif %}{% endfor %}
-                </div>
-                <ul class="-mx-2 flex flex-col">
-                    {% for row in statuses %}
-                        <li class="border-t border-base-300">
-                            <a class="hover-row flex items-center gap-3 rounded-lg px-2 py-2.5 text-sm" href="{{ row.href }}">
-                                <span class="{{ row.tone }}">{% icon row.icon %}</span>
-                                <span class="flex flex-col leading-tight"><span class="font-medium">{{ row.label }}</span><span class="muted font-mono text-xs">{{ row.codes }}</span></span>
-                                <span class="ml-auto font-mono">{{ row.count|grouped }}</span>
-                                <span class="muted w-12 text-right font-mono text-xs">{{ row.share }}</span>
-                            </a>
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-    </section>
-
-    <section class="card bg-base-200">
-        <div class="card-body gap-3 p-5">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 class="text-xl font-semibold">{% translate "By model" %}</h2>
-                <div class="hidden items-center gap-4 text-sm md:flex">
-                    {% include "management/_token_legend.html" %}
-                </div>
-            </div>
-            {% if models %}
-                <div class="overflow-x-auto">
-                    <table class="table table-fixed model-table min-w-[640px] de:max-md:min-w-[760px] md:min-w-[860px]">
-                        <thead>
+        {% if models %}
+            <div class="overflow-x-auto">
+                <table class="table table-fixed model-table min-w-[640px] de:max-md:min-w-[760px] md:min-w-[860px]">
+                    <thead>
+                        <tr>
+                            <th class="w-[28%] md:w-[22%] de:max-md:w-[24%] de:md:w-[22%]">{% translate "Model" %}</th><th class="hidden w-[26%] md:table-cell de:md:w-[18%]">{% translate "Tokens" %}</th>
+                            <th class="w-[10%] text-right md:w-[8%] de:max-md:w-[15%] de:md:w-[11%]">{% translate "Input" %}</th><th class="w-[10%] text-right md:w-[8%] de:max-md:w-[9%] de:md:w-[7%]">{% translate "Cached" %}</th><th class="w-[10%] text-right md:w-[8%] de:max-md:w-[15%] de:md:w-[11%]">{% translate "Output" %}</th>
+                            <th class="w-[13%] text-right md:w-[10%] de:max-md:w-[12%] de:md:w-[10%]">{% translate "Requests" %}</th>
+                            <th class="w-[17%] whitespace-normal text-right md:w-[10%] de:max-md:w-[15%] de:md:w-[13%]">{% if approximate_tip %}<span class="tooltip tooltip-left" data-tip="{{ approximate_tip }}" tabindex="0">{% translate "Median time" %}<span class="sr-only">, {{ approximate_tip }}</span></span>{% else %}{% translate "Median time" %}{% endif %}</th><th class="w-[12%] text-right md:w-[8%] de:max-md:w-[10%] de:md:w-[8%]">{% translate "Share" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in models %}
                             <tr>
-                                <th class="w-[28%] md:w-[22%] de:max-md:w-[24%] de:md:w-[22%]">{% translate "Model" %}</th><th class="hidden w-[26%] md:table-cell de:md:w-[18%]">{% translate "Tokens" %}</th>
-                                <th class="w-[10%] text-right md:w-[8%] de:max-md:w-[15%] de:md:w-[11%]">{% translate "Input" %}</th><th class="w-[10%] text-right md:w-[8%] de:max-md:w-[9%] de:md:w-[7%]">{% translate "Cached" %}</th><th class="w-[10%] text-right md:w-[8%] de:max-md:w-[15%] de:md:w-[11%]">{% translate "Output" %}</th>
-                                <th class="w-[13%] text-right md:w-[10%] de:max-md:w-[12%] de:md:w-[10%]">{% translate "Requests" %}</th>
-                                <th class="w-[17%] whitespace-normal text-right md:w-[10%] de:max-md:w-[15%] de:md:w-[13%]">{% if approximate_tip %}<span class="tooltip tooltip-left" data-tip="{{ approximate_tip }}" tabindex="0">{% translate "Median time" %}<span class="sr-only">, {{ approximate_tip }}</span></span>{% else %}{% translate "Median time" %}{% endif %}</th><th class="w-[12%] text-right md:w-[8%] de:max-md:w-[10%] de:md:w-[8%]">{% translate "Share" %}</th>
+                                <td>
+                                    <a class="link-plain row-link break-all font-mono" href="{{ row.log_url }}" aria-label="{% blocktranslate with name=row.name %}{{ name }}, open its requests in the request log{% endblocktranslate %}">{{ row.name }}</a>
+                                    <div class="muted text-xs">{{ row.kind }}</div>
+                                </td>
+                                <td class="hidden md:table-cell">{% include "management/_token_bar.html" with activity=row.activity width=row.width %}</td>
+                                <td class="text-right font-mono">{{ row.input }}</td>
+                                <td class="text-right font-mono">{{ row.cached }}</td>
+                                <td class="text-right font-mono">{{ row.output }}</td>
+                                <td class="text-right font-mono">{{ row.activity.requests|grouped }}</td>
+                                <td class="whitespace-nowrap text-right font-mono">{% if row.approximate %}<span aria-hidden="true">≈ </span><span class="sr-only">{% translate "approximately" %} </span>{% endif %}{{ row.median }}</td>
+                                <td class="muted text-right font-mono">{{ row.share }}</td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in models %}
-                                <tr>
-                                    <td>
-                                        <a class="link-plain row-link break-all font-mono" href="{{ row.log_url }}" aria-label="{% blocktranslate with name=row.name %}{{ name }}, open its requests in the request log{% endblocktranslate %}">{{ row.name }}</a>
-                                        <div class="muted text-xs">{{ row.kind }}</div>
-                                    </td>
-                                    <td class="hidden md:table-cell">{% include "management/_token_bar.html" with activity=row.activity width=row.width %}</td>
-                                    <td class="text-right font-mono">{{ row.input }}</td>
-                                    <td class="text-right font-mono">{{ row.cached }}</td>
-                                    <td class="text-right font-mono">{{ row.output }}</td>
-                                    <td class="text-right font-mono">{{ row.activity.requests|grouped }}</td>
-                                    <td class="whitespace-nowrap text-right font-mono">{% if row.approximate %}<span aria-hidden="true">≈ </span><span class="sr-only">{% translate "approximately" %} </span>{% endif %}{{ row.median }}</td>
-                                    <td class="muted text-right font-mono">{{ row.share }}</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <p class="muted text-sm">{% translate "No requests in this time frame." %}</p>
-            {% endif %}
-        </div>
-    </section>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="muted text-sm">{% translate "No requests in this time frame." %}</p>
+        {% endif %}
+    </div>
+</section>
 
-    {% if filters.key or not filters.only_key %}
+{% if filters.key or not filters.only_key %}
+<section class="card bg-base-200">
+    <div class="card-body gap-3 p-5">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 class="text-xl font-semibold">{% if filters.key %}{% translate "By user ID" %}{% else %}{% translate "Top keys" %}{% endif %}</h2>
+            {% if more_keys %}<a class="link-plain text-sm" href="{{ all_keys_url }}">{% translate "View all keys" %}</a>{% endif %}
+        </div>
+        {% if keys %}
+            {% if filters.key %}{% translate "User ID" as first_column %}{% else %}{% translate "Key" as first_column %}{% endif %}
+            {% include "management/_key_table.html" with first_column=first_column %}
+        {% else %}
+            <p class="muted text-sm">{% translate "No requests in this time frame." %}</p>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+
+{% if orgs_usage %}
     <section class="card bg-base-200">
         <div class="card-body gap-3 p-5">
-            <div class="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 class="text-xl font-semibold">{% if filters.key %}{% translate "By user ID" %}{% else %}{% translate "Top keys" %}{% endif %}</h2>
-                {% if more_keys %}<a class="link-plain text-sm" href="{{ all_keys_url }}">{% translate "View all keys" %}</a>{% endif %}
+            <h2 class="text-xl font-semibold">{% translate "By organization" %}</h2>
+            <div class="-mx-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto">
+                {% for org in orgs_usage %}
+                    <div class="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_4rem] de:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_5.5rem] items-center gap-4 rounded-lg px-2 py-1 text-sm">
+                        <span class="truncate" title="{{ org.name }}">{{ org.name }}</span>
+                        <div><div class="onebar" style="width: {{ org.width|unlocalize }}%"></div></div>
+                        <span class="text-right font-mono">{{ org.value }}</span>
+                    </div>
+                {% endfor %}
             </div>
-            {% if keys %}
-                {% if filters.key %}{% translate "User ID" as first_column %}{% else %}{% translate "Key" as first_column %}{% endif %}
-                {% include "management/_key_table.html" with first_column=first_column %}
-            {% else %}
-                <p class="muted text-sm">{% translate "No requests in this time frame." %}</p>
-            {% endif %}
         </div>
     </section>
-    {% endif %}
+{% endif %}
 
-    {% if orgs_usage %}
-        <section class="card bg-base-200">
-            <div class="card-body gap-3 p-5">
-                <h2 class="text-xl font-semibold">{% translate "By organization" %}</h2>
-                <div class="-mx-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto">
-                    {% for org in orgs_usage %}
-                        <div class="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_4rem] de:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_5.5rem] items-center gap-4 rounded-lg px-2 py-1 text-sm">
-                            <span class="truncate" title="{{ org.name }}">{{ org.name }}</span>
-                            <div><div class="onebar" style="width: {{ org.width|unlocalize }}%"></div></div>
-                            <span class="text-right font-mono">{{ org.value }}</span>
-                        </div>
+<section id="org-activity" aria-labelledby="org-activity-heading" class="flex scroll-mt-24 flex-col gap-4 border-t border-base-300 pt-6">
+    <div>
+        <h2 id="org-activity-heading" class="text-xl font-semibold">{% if heat_org %}{% blocktranslate with name=heat_org.name %}Activity across {{ name }}{% endblocktranslate %}{% else %}{% translate "Activity across all organizations" %}{% endif %}</h2>
+        <p class="muted text-sm">{% blocktranslate count days=heat_days %}All users and keys, last {{ days }} day.{% plural %}All users and keys, last {{ days }} days.{% endblocktranslate %}</p>
+    </div>
+    <div class="card bg-base-200">
+        <div class="card-body gap-4 p-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-3">
+                    <h3 class="font-semibold">{% translate "Usage by weekday and hour" %}</h3>
+                    {% if filters.models|length > 1 %}
+                    <details class="dropdown">
+                        <summary class="btn btn-sm">{% icon "models" small=True %}<span class="sr-only">{% translate "Heatmap model:" %} </span>{% if heat_model %}{{ heat_model }}{% else %}{% translate "All models" %}{% endif %}</summary>
+                        <ul class="menu dropdown-content z-10 mt-1 max-h-80 w-64 flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow">
+                            <li><a href="{% querystring heat_model=None key_q=None %}#org-activity"{% if not heat_model %} aria-current="true" class="menu-active"{% endif %}>{% translate "All models" %}</a></li>
+                            {% for name in filters.models %}
+                                <li><a class="font-mono{% if name == heat_model %} menu-active{% endif %}" href="{% querystring heat_model=name key_q=None %}#org-activity"{% if name == heat_model %} aria-current="true"{% endif %}>{{ name }}</a></li>
+                            {% endfor %}
+                        </ul>
+                    </details>
+                    {% endif %}
+                </div>
+                <div class="muted flex flex-wrap items-center gap-2 font-mono text-xs">
+                    <span class="mr-3">{% translate "Average tokens per hour" %}</span>
+                    <span>{% translate "Less" %}</span>
+                    {% for css in heat_legend %}<span class="sw {{ css }}"></span>{% endfor %}
+                    <span>{% translate "More" %}</span>
+                </div>
+            </div>
+            <div class="overflow-x-auto lg:overflow-visible">
+                <div class="grid min-w-[640px] grid-cols-[2.5rem_repeat(24,minmax(0,1fr))] gap-1">
+                    {% for row in heat %}
+                        <span class="muted self-center font-mono text-xs">{{ row.day }}</span>
+                        {% for cell in row.cells %}<span class="aq-tip-host heat-cell {{ cell.css }}{% if forloop.parentloop.counter0 < 3 %} tip-below{% endif %}{% if forloop.counter0 < 12 %} tip-start{% else %} tip-end{% endif %} relative h-6 rounded" role="img" aria-label="{{ cell.tip }}">{% include "management/_tip.html" with tip=cell.tip %}</span>{% endfor %}
                     {% endfor %}
-                </div>
-            </div>
-        </section>
-    {% endif %}
-
-    <section id="org-activity" aria-labelledby="org-activity-heading" class="flex scroll-mt-24 flex-col gap-4 border-t border-base-300 pt-6">
-        <div>
-            <h2 id="org-activity-heading" class="text-xl font-semibold">{% if heat_org %}{% blocktranslate with name=heat_org.name %}Activity across {{ name }}{% endblocktranslate %}{% else %}{% translate "Activity across all organizations" %}{% endif %}</h2>
-            <p class="muted text-sm">{% blocktranslate count days=heat_days %}All users and keys, last {{ days }} day.{% plural %}All users and keys, last {{ days }} days.{% endblocktranslate %}</p>
-        </div>
-        <div class="card bg-base-200">
-            <div class="card-body gap-4 p-5">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div class="flex flex-wrap items-center gap-3">
-                        <h3 class="font-semibold">{% translate "Usage by weekday and hour" %}</h3>
-                        {% if filters.models|length > 1 %}
-                        <details class="dropdown">
-                            <summary class="btn btn-sm">{% icon "models" small=True %}<span class="sr-only">{% translate "Heatmap model:" %} </span>{% if heat_model %}{{ heat_model }}{% else %}{% translate "All models" %}{% endif %}</summary>
-                            <ul class="menu dropdown-content z-10 mt-1 max-h-80 w-64 flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow">
-                                <li><a href="{% querystring heat_model=None key_q=None %}#org-activity"{% if not heat_model %} aria-current="true" class="menu-active"{% endif %}>{% translate "All models" %}</a></li>
-                                {% for name in filters.models %}
-                                    <li><a class="font-mono{% if name == heat_model %} menu-active{% endif %}" href="{% querystring heat_model=name key_q=None %}#org-activity"{% if name == heat_model %} aria-current="true"{% endif %}>{{ name }}</a></li>
-                                {% endfor %}
-                            </ul>
-                        </details>
-                        {% endif %}
-                    </div>
-                    <div class="muted flex flex-wrap items-center gap-2 font-mono text-xs">
-                        <span class="mr-3">{% translate "Average tokens per hour" %}</span>
-                        <span>{% translate "Less" %}</span>
-                        {% for css in heat_legend %}<span class="sw {{ css }}"></span>{% endfor %}
-                        <span>{% translate "More" %}</span>
-                    </div>
-                </div>
-                <div class="overflow-x-auto lg:overflow-visible">
-                    <div class="grid min-w-[640px] grid-cols-[2.5rem_repeat(24,minmax(0,1fr))] gap-1">
-                        {% for row in heat %}
-                            <span class="muted self-center font-mono text-xs">{{ row.day }}</span>
-                            {% for cell in row.cells %}<span class="aq-tip-host heat-cell {{ cell.css }}{% if forloop.parentloop.counter0 < 3 %} tip-below{% endif %}{% if forloop.counter0 < 12 %} tip-start{% else %} tip-end{% endif %} relative h-6 rounded" role="img" aria-label="{{ cell.tip }}">{% include "management/_tip.html" with tip=cell.tip %}</span>{% endfor %}
-                        {% endfor %}
-                        <span></span>
-                        {% for hour in heat_hours %}<span class="muted text-center font-mono text-xs">{{ hour }}</span>{% endfor %}
-                    </div>
+                    <span></span>
+                    {% for hour in heat_hours %}<span class="muted text-center font-mono text-xs">{{ hour }}</span>{% endfor %}
                 </div>
             </div>
         </div>
-    </section>
-</div>
+    </div>
+</section>
 {% endblock %}
