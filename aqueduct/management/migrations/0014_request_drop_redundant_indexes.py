@@ -3,17 +3,39 @@
 import django.db.models.deletion
 from django.db import migrations, models
 
-TOKEN_INDEX = "management_request_token_id_e3a3de29"
+
+def drop_request_index(name: str, columns: str, postgres_only: bool = False) -> migrations.RunPython:
+    def applies(schema_editor) -> bool:
+        return not postgres_only or schema_editor.connection.vendor == "postgresql"
+
+    def concurrently(schema_editor) -> str:
+        return "CONCURRENTLY " if schema_editor.connection.vendor == "postgresql" else ""
+
+    def forwards(apps, schema_editor):
+        if applies(schema_editor):
+            schema_editor.execute(f'DROP INDEX {concurrently(schema_editor)}IF EXISTS "{name}"')
+
+    def backwards(apps, schema_editor):
+        if applies(schema_editor):
+            forwards(apps, schema_editor)
+            schema_editor.execute(
+                f'CREATE INDEX {concurrently(schema_editor)}"{name}" '
+                f'ON "management_request" ({columns})'
+            )
+
+    return migrations.RunPython(forwards, backwards)
 
 
 class Migration(migrations.Migration):
+    atomic = False
 
     dependencies = [("management", "0013_request_cached_and_reasoning_tokens")]
 
     operations = [
-        # A plain AlterField drops and re-adds the token foreign key, which on
-        # Postgres re-checks every request row while holding an exclusive lock.
-        # Dropping only the index leaves the constraint untouched.
+        # AlterField would drop these indexes with a plain DROP INDEX, and re-add the token
+        # foreign key, under an exclusive lock on the busiest table. Each index is dropped
+        # concurrently instead; a failed concurrent build leaves an INVALID index, so the
+        # reverse drops it before building it again.
         migrations.SeparateDatabaseAndState(
             state_operations=[
                 migrations.AlterField(
@@ -25,24 +47,27 @@ class Migration(migrations.Migration):
                         related_name="requests",
                         to="management.token",
                     ),
-                )
+                ),
+                migrations.AlterField(
+                    model_name="request",
+                    name="user_id",
+                    field=models.CharField(
+                        blank=True,
+                        help_text="A string (user ID, email address, username, etc.) "
+                        "identifying the particular user who made the request, and who may "
+                        "be a different user than the token owner.",
+                        max_length=256,
+                    ),
+                ),
             ],
             database_operations=[
-                migrations.RunSQL(
-                    f'DROP INDEX IF EXISTS "{TOKEN_INDEX}"',
-                    f'CREATE INDEX "{TOKEN_INDEX}" ON "management_request" ("token_id")',
-                )
+                drop_request_index("management_request_token_id_e3a3de29", '"token_id"'),
+                drop_request_index("management_request_user_id_c8c031fb", '"user_id"'),
+                drop_request_index(
+                    "management_request_user_id_c8c031fb_like",
+                    '"user_id" varchar_pattern_ops',
+                    postgres_only=True,
+                ),
             ],
-        ),
-        migrations.AlterField(
-            model_name="request",
-            name="user_id",
-            field=models.CharField(
-                blank=True,
-                help_text="A string (user ID, email address, username, etc.) identifying "
-                "the particular user who made the request, and who may be a different "
-                "user than the token owner.",
-                max_length=256,
-            ),
         ),
     ]
