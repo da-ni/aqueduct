@@ -26,6 +26,7 @@ from management.usage_rollup import org_series
 PAGE_SIZE = 50
 _MAX_ID = 2**63 - 2
 _MAX_DIGITS = len(str(_MAX_ID))
+_MAX_PAGE = _MAX_ID // PAGE_SIZE
 
 
 def parse_id(raw: str | None) -> int | None:
@@ -668,7 +669,7 @@ def _page_by_offset(
     listed: QuerySet[Request], sort: Sort, raw_page: str | None, count: int
 ) -> tuple[list[Request], Pager]:
     pages = max(1, -(-count // PAGE_SIZE))
-    number = pages if raw_page == LAST else max(parse_id(raw_page) or 1, 1)
+    number = pages if raw_page == LAST else min(max(parse_id(raw_page) or 1, 1), _MAX_PAGE)
     offset = (number - 1) * PAGE_SIZE
     found = list(listed.order_by(*sort.ordering)[offset : offset + PAGE_SIZE + 1])
     page, has_next = found[:PAGE_SIZE], len(found) > PAGE_SIZE or number < pages

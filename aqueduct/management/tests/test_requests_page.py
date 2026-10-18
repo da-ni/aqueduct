@@ -539,7 +539,7 @@ class RequestsPaginationTest(RequestsPageTestBase):
             with self.subTest(cursor=cursor[:12]):
                 self.assertEqual(self.paths_on(self.get(self.owner, before=cursor)), {"/own"})
         self.assertEqual(self.get(self.owner, before=f"1,1,{endless}").status_code, 200)
-        for page in (endless, "0", "-1", "abc"):
+        for page in (endless, str(2**63 - 2), "0", "-1", "abc"):
             with self.subTest(page=page[:12]):
                 self.assertEqual(self.get(self.owner, sort="-response", page=page).status_code, 200)
         for raw in ("\N{SUPERSCRIPT ONE}", huge, endless):
