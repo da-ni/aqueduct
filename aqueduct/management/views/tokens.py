@@ -29,7 +29,8 @@ from management.keys import Expiry, KeyKind, key_list, key_report
 from management.models import LimitSet, Token
 from management.org_choice import EVERY_ORG
 from management.ownership import RELATED, org_id, team_of
-from management.request_log import Key, Row
+from management.request_filters import Key
+from management.request_rows import Row
 from management.views.base import BaseAqueductView, show_new_key
 
 

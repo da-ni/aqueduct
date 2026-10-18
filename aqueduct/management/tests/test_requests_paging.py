@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.utils.http import urlencode
 
 from management.models import Request, TeamMembership, UserGroup
-from management.request_log import PAGE_SIZE, Place
+from management.request_paging import PAGE_SIZE, Place
 from management.tests.helpers import CHAT, EMBEDDING, RequestsPageTestBase, join, listed
 
 
