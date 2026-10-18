@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
+from statistics import NormalDist
 from typing import Any
 
 import yaml
@@ -50,7 +51,7 @@ API_PATHS = {
     Kind.SPEECH: "/v1/audio/speech",
     Kind.IMAGE: "/v1/images/generations",
 }
-Z90 = 1.2816
+Z90 = NormalDist().inv_cdf(0.9)
 
 
 @dataclass(frozen=True)
