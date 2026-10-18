@@ -60,36 +60,17 @@ class ServiceAccountCreateView(BaseTeamView, TeamAdminRequiredMixin, CreateView)
 
     @transaction.atomic
     def form_valid(self, form) -> HttpResponse:
-        # self.team is available from BaseTeamView
         form.instance.team = self.team
-        self.object = form.save()  # self.object is the new ServiceAccount
-
-        try:
-            user = self.request.user
-            token_name = f"Initial token for {self.object.name}"
-
-            # Create a new Token instance
-            new_token = Token(name=token_name, user=user, service_account=self.object)
-            # Generate and set key data on the new token instance
-            secret_key = new_token._set_new_key()
-            expires_at = form.cleaned_data.get("token_expires_at")
-            if expires_at:
-                new_token.expires_at = expires_at
-
-            # Save the token (hash and preview are now set)
-            new_token.save()
-
-            messages.info(self.request, f"{secret_key}", extra_tags="token-regenerated-key")
-
-        except Exception as e:
-            # Log error e
-            messages.error(
-                self.request,
-                gettext("Could not create the service account's key: %(error)s") % {"error": e},
-            )
-            # Consider if the SA should be rolled back if token creation fails
-            # Since it's atomic, the SA save won't commit if token creation fails here.
-
+        self.object = form.save()
+        token = Token(
+            name=f"Initial token for {self.object.name}",
+            user=self.request.user,
+            service_account=self.object,
+            expires_at=form.cleaned_data.get("token_expires_at"),
+        )
+        secret_key = token._set_new_key()
+        token.save()
+        messages.info(self.request, secret_key, extra_tags="token-regenerated-key")
         return redirect(self.get_success_url())
 
     def get_success_url(self) -> str:

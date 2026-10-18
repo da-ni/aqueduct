@@ -1,6 +1,7 @@
 import re
 from datetime import timedelta
 from typing import ClassVar
+from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -584,6 +585,16 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
         self.assertNotContains(response, 'class="alert ')
         sa = ServiceAccount.objects.get(name="rag", team=self.team)
         self.assertEqual(Token.find_by_key(secret_on(response)), sa.token)
+
+    def test_a_failed_key_leaves_no_service_account_behind(self):
+        url = reverse("service_account_create", args=[self.team.id])
+        client = self.as_user(self.team_admin)
+        with (
+            patch.object(Token, "_set_new_key", side_effect=RuntimeError("no entropy")),
+            self.assertRaises(RuntimeError),
+        ):
+            client.post(url, {"name": "rag", "description": "", "token_expires_at": ""})
+        self.assertFalse(ServiceAccount.objects.filter(name="rag").exists())
 
     def test_member_and_outsiders_cannot_create_a_service_account(self):
         url = reverse("service_account_create", args=[self.team.id])

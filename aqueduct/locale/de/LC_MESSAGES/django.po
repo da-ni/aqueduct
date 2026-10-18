@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 08:33+0000\n"
+"POT-Creation-Date: 2026-10-18 09:23+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -2004,10 +2004,6 @@ msgstr "Ansicht: alle Organisationen."
 
 msgid "Add a service account"
 msgstr "Dienstkonto hinzufügen"
-
-#, python-format
-msgid "Could not create the service account's key: %(error)s"
-msgstr "Der Schlüssel des Dienstkontos konnte nicht erstellt werden: %(error)s"
 
 #, python-format
 msgid "Service account %(name)s deleted."
