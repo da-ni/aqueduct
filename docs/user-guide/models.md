@@ -15,7 +15,7 @@ nav_order: 2
 
 ---
 
-The Models page lists every model of the gateway and shows how to call it. Choose **Models** in the sidebar.
+The Models page lists the models that your keys can use and shows how to call them. Choose **Models** in the sidebar.
 
 ![Models page](../assets/user_guide/models.png)
 

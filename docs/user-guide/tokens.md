@@ -17,7 +17,7 @@ nav_order: 4
 
 An API key authenticates your requests to the gateway. A key works for every model that is available to you. Aqueduct passes requests through to OpenAI-compatible APIs, such as the OpenAI API or local models served by vLLM.
 
-Choose **API keys** in the sidebar to open the list. Signing in opens the same page.
+Choose **API keys** in the sidebar to open the list.
 
 ![API keys page](../assets/user_guide/api_keys.png)
 

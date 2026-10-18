@@ -192,4 +192,4 @@ client can make any request look like HTTPS. See Django's
 
 ## Notes
 
-- User and admin management will be covered in the User Guide.
+- The User Guide covers [roles](user-guide/index.md#roles) and [user and admin management](user-guide/admin.md).
