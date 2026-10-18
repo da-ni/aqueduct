@@ -6,7 +6,6 @@ from typing import Any
 from django.conf import settings
 from django.core.cache import cache
 from django.core.paginator import Paginator
-from django.db.models import QuerySet
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -16,14 +15,12 @@ from django.utils.translation import gettext
 from django.views.generic import TemplateView
 
 from management import usage_report as report
-from management import usage_rollup as rollup
-from management.access import EveryOrg, KeyAct, OrgWide, WholeOrg, requests_of
-from management.activity import Activity, model_usage, series, served
+from management.access import EveryOrg, KeyAct, OrgWide, WholeOrg
 from management.charts import HEAT_CLASSES, HEAT_HOURS, columns, heat, kpis, slots
 from management.ids import parse_id
 from management.model_catalog import model_kinds
-from management.models import Request, Token
-from management.periods import DEFAULT_SPAN, Span
+from management.models import Token
+from management.periods import DEFAULT_SPAN, HOUR, Period
 from management.request_log import (
     PAGE_SIZE,
     Filters,
@@ -33,38 +30,24 @@ from management.request_log import (
     key_search,
     read_filters,
 )
+from management.usage_source import Sealed, UsageSource
 from management.views.base import BaseAqueductView
-
-
-def _org_wide(filters: Filters) -> OrgWide | None:
-    return filters.org_wide if filters.span is not Span.HOUR else None
-
-
-def _key_windows(filters: Filters) -> dict[int, Activity] | None:
-    extent = _org_wide(filters)
-    if extent is None or filters.span not in rollup.KEY_WINDOWS.values():
-        return None
-    return rollup.key_window_totals(extent, filters.model, filters.period)
-
 
 HEAT_CACHE_SECONDS = 60 * 60
 
 
 def _heat(
-    extent: OrgWide,
-    model: str | None,
-    requests: QuerySet[Request],
-    now: datetime,
-    weeks: int,
-    sealed: rollup.Sealed,
+    extent: OrgWide, model: str | None, now: datetime, weeks: int, sealed: Sealed
 ) -> dict[tuple[int, int], int]:
-    start = now - timedelta(weeks=weeks)
+    source = UsageSource.whole(
+        extent, model, Period(now - timedelta(weeks=weeks), now, HOUR), sealed
+    )
     if sealed.current(now):
-        return rollup.org_heat(extent, start, now, sealed, requests, model)
+        return source.heat()
     key = f"usage-heat:{extent.param}:{weeks}:{model or ''}"
     tokens = cache.get(key)
     if tokens is None:
-        tokens = rollup.org_heat(extent, start, now, sealed, requests, model)
+        tokens = source.heat()
         cache.set(key, tokens, HEAT_CACHE_SECONDS)
     return tokens
 
@@ -91,18 +74,11 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         filters = read_filters(self.viewer, params, default_span=DEFAULT_SPAN, now=now)
         chosen, selected_key, period = self.viewer.chosen, filters.key, filters.period
         selected_org = chosen.org if isinstance(chosen, WholeOrg) else None
-        reqs = filters.requests
 
         retention_days = settings.REQUEST_RETENTION_DAYS
-        in_period = period.of(reqs)
-        org_wide = _org_wide(filters)
-        sealed = rollup.Sealed.read()
-        org_requests = served(requests_of(chosen))
-        if org_wide is not None:
-            timeline = rollup.org_series(org_wide, filters.model, period, sealed, org_requests)
-            models = rollup.org_models(org_wide, filters.model, period, sealed, org_requests)
-        else:
-            timeline, models = series(reqs, period), model_usage(in_period)
+        sealed = Sealed.read()
+        source = UsageSource.of(filters, sealed)
+        timeline = source.series()
         total = timeline.total
         heat_weeks = max(1, min(4, int(retention_days // 7)))
         heat_model = params.get("heat_model")
@@ -110,17 +86,12 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
 
         more_keys = False
         if selected_key is not None:
-            keys = report.user_id_shares(in_period, total.tokens)
+            keys = report.user_id_shares(period.of(filters.requests), total.tokens)
         elif filters.only_key is not None:
             keys = ()
         else:
-            windows = _key_windows(filters)
-            ranked = (
-                report.top_keys(in_period, report.TOP_KEYS + 1)
-                if windows is None
-                else report.ranked_totals(
-                    windows, report.KeyOrder.TOKENS, filters.viewer.keys(KeyAct.SEE)
-                )
+            ranked = report.ranked(
+                source.key_totals(), report.KeyOrder.TOKENS, filters.viewer.keys(KeyAct.SEE)
             )
             more_keys = len(ranked) > report.TOP_KEYS
             keys = report.key_shares(ranked[: report.TOP_KEYS], total.tokens, _describe(filters))
@@ -138,26 +109,20 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 "statuses": report.statuses(timeline, filters.log_url),
                 "heat_org": selected_org,
                 "heat_model": heat_model,
-                "heat": heat(
-                    _heat(chosen, heat_model, org_requests, now, heat_weeks, sealed), heat_weeks
-                ),
+                "heat": heat(_heat(chosen, heat_model, now, heat_weeks, sealed), heat_weeks),
                 "heat_days": heat_weeks * 7,
                 "heat_legend": HEAT_CLASSES[1:],
                 "heat_hours": HEAT_HOURS,
                 "models": report.model_rows(
-                    models, model_kinds(), filters.log_url, approximate=org_wide is not None
+                    source.models(), model_kinds(), filters.log_url, approximate=source.approximate
                 ),
-                "approximate_tip": report.APPROXIMATE_MEDIAN if org_wide is not None else "",
+                "approximate_tip": report.APPROXIMATE_MEDIAN if source.approximate else "",
                 "keys": keys,
                 "more_keys": more_keys,
                 "all_keys_url": f"{reverse('usage_keys')}?{urlencode(filters.query)}",
                 "orgs_usage": ()
                 if selected_org is not None
-                else report.org_shares(
-                    rollup.org_tokens(filters.model, period, sealed)
-                    if org_wide is not None
-                    else report.org_tokens(in_period)
-                ),
+                else report.org_shares(source.org_tokens()),
                 "retention_warning": period.start < now - timedelta(days=retention_days),
                 "retention_days": int(retention_days),
             }
@@ -183,21 +148,14 @@ class KeyUsageView(BaseAqueductView, TemplateView):
         q = params.get("q", "").strip()
         search = key_search(q, by_owner=filters.can_pick_scope)
         order = report.KeyOrder.parse(params.get("sort", "")) or report.KeyOrder.TOKENS
-        rows: list[report.KeyRow] | report.CountedKeys
-        if (windows := _key_windows(filters)) is not None:
-            everyone = report.KeyTotals.of(windows)
-            tokens = filters.viewer.keys(KeyAct.SEE)
-            if q:
-                ids = set(tokens.filter(search).values_list("id", flat=True))
-                windows = {token_id: a for token_id, a in windows.items() if token_id in ids}
-            rows = report.ranked_totals(windows, order, tokens)
-            count = len(rows)
-        else:
-            in_period = filters.period.of(filters.requests)
-            everyone = report.key_totals(in_period)
-            listed = in_period.filter(token__in=Token.objects.filter(search)) if q else in_period
-            count = report.key_totals(listed).keys if q else everyone.keys
-            rows = report.CountedKeys(report.ranked_keys(listed, order), count)
+        totals = UsageSource.of(filters).key_totals()
+        everyone = report.KeyTotals.of(totals)
+        tokens = filters.viewer.keys(KeyAct.SEE)
+        if q:
+            ids = set(tokens.filter(search).values_list("id", flat=True))
+            totals = {token_id: a for token_id, a in totals.items() if token_id in ids}
+        rows = report.ranked(totals, order, tokens)
+        count = len(rows)
 
         pages = Paginator(rows, PAGE_SIZE).get_page(parse_id(params.get("page")) or 1)
         keys = report.key_shares(

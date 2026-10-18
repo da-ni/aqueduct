@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 
 from django.core.cache import cache
-from django.db.models import Count, F, Q, QuerySet
+from django.db.models import F, Q, QuerySet
 from django.db.models.expressions import CombinedExpression, OrderBy
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -20,10 +20,10 @@ from management.formatting import NO_ORG, duration, grouped
 from management.ids import MAX_ID, parse_id
 from management.model_catalog import scopes_for, usable_models
 from management.models import Request, Token
-from management.outcomes import FAILED, OUTCOME_COUNTS, Outcome
+from management.outcomes import FAILED, Outcome
 from management.ownership import RELATED, owner
 from management.periods import Period, Span
-from management.usage_rollup import org_series
+from management.usage_source import UsageSource
 
 PAGE_SIZE = 50
 _MAX_PAGE = MAX_ID // PAGE_SIZE
@@ -433,21 +433,13 @@ def request_search(text: str, *, by_text: bool) -> Q:
 COUNTS_SECONDS = 60
 
 
-def _tab_counts(
-    filters: Filters, filtered: QuerySet[Request], search: str
-) -> dict[str | None, int]:
+def _tab_counts(filters: Filters, search: Q | None) -> dict[str | None, int]:
 
     def count() -> dict[str | None, int]:
-        if (extent := filters.org_wide) is not None and not search:
-            found = org_series(extent, filters.model, filters.period, requests=filters.requests)
-            requests, failed, outcomes = found.total.requests, found.total.failed, found.outcomes
-        else:
-            counts = filtered.aggregate(
-                requests=Count("id"), failed=Count("id", filter=FAILED), **OUTCOME_COUNTS
-            )
-            requests, failed = counts["requests"], counts["failed"]
-            outcomes = {o: counts[o.name] for o in Outcome}
-        return {None: requests, FAILED_TAB: failed} | {o.codes: n for o, n in outcomes.items()}
+        found = UsageSource.of(filters, narrower=search).series()
+        return {None: found.total.requests, FAILED_TAB: found.total.failed} | {
+            o.codes: n for o, n in found.outcomes.items()
+        }
 
     period = filters.period
     scope = (filters.visibility, period.start.isoformat(), period.end.isoformat(), search)
@@ -564,9 +556,10 @@ def request_log(filters: Filters, params: Mapping[str, str]) -> RequestLog:
     open_id = parse_id(params.get("request"))
 
     filtered = filters.period.of(filters.requests)
-    if search:
-        filtered = filtered.filter(request_search(search, by_text=free))
-    counts = _tab_counts(filters, filtered, search)
+    searched = request_search(search, by_text=free) if search else None
+    if searched is not None:
+        filtered = filtered.filter(searched)
+    counts = _tab_counts(filters, searched)
     tabs = (
         Tab(None, gettext("All"), counts[None]),
         Tab(FAILED_TAB, gettext("Failed"), counts[FAILED_TAB]),

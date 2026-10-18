@@ -4,14 +4,16 @@ from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Q, QuerySet
+from django.db.models import Q, QuerySet, Sum
+from django.db.models.functions import ExtractHour, ExtractIsoWeekDay
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
 from aqueduct.celery import delete_old_requests
 from management import usage_rollup as rollup
+from management import usage_source
 from management.access import EveryOrg, KeyAct, OrgWide, Viewer, WholeOrg, requests_of
-from management.activity import MEDIAN, TOKENS, TOTALS, Activity, series, served
+from management.activity import MEDIAN, TOKENS, TOTALS, Activity, served
 from management.models import (
     KeyUsageWindow,
     Org,
@@ -25,9 +27,10 @@ from management.models import (
     UserGroup,
     UserProfile,
 )
-from management.periods import DAY, Period, Span
+from management.periods import DAY, HOUR, Period, Span
 from management.signals import mark_rollups_dirty
 from management.tests.helpers import make_token, make_user, median_error
+from management.usage_source import Sealed, UsageSource
 
 User = get_user_model()
 CHAT = "gpt-4.1-nano"
@@ -38,7 +41,7 @@ STATUSES = (200, 200, 302, 429, 404, 400, 500, 503, None)
 
 class ApproximateMedianTest(TestCase):
     def test_no_requests_have_no_median(self):
-        self.assertIsNone(rollup.approximate_median({}))
+        self.assertIsNone(usage_source.approximate_median({}))
 
     def test_the_median_is_within_five_percent_or_two_ms(self):
         token = make_token(make_user("timer", Org.objects.create(name="timing")), "timer")
@@ -48,7 +51,7 @@ class ApproximateMedianTest(TestCase):
         )
         for ms, bucket in Request.objects.values_list("response_time_ms", rollup.BUCKET):
             with self.subTest(ms=ms):
-                approximate = rollup.approximate_median({bucket: 1})
+                approximate = usage_source.approximate_median({bucket: 1})
                 self.assertLessEqual(abs(approximate - ms), median_error(ms))
 
 
@@ -61,25 +64,25 @@ class SplitTest(SimpleTestCase):
         return Q(timestamp__gte=low, timestamp__lt=high)
 
     def test_a_start_on_the_hour_leaves_one_raw_range(self):
-        hours, rest = rollup._split(self.start, self.end, self.sealed)
+        hours, rest = usage_source._split(self.start, self.end, self.sealed)
         self.assertEqual(hours, Q(hour__gte=self.start, hour__lt=self.sealed))
         self.assertEqual(rest, self.raw(self.sealed, self.end))
 
     def test_a_start_within_an_hour_reads_the_rest_of_that_hour_raw(self):
         start = self.start + timedelta(minutes=23)
-        hours, rest = rollup._split(start, self.end, self.sealed)
+        hours, rest = usage_source._split(start, self.end, self.sealed)
         first = self.start + timedelta(hours=1)
         self.assertEqual(hours, Q(hour__gte=first, hour__lt=self.sealed))
         self.assertEqual(rest, self.raw(start, first) | self.raw(self.sealed, self.end))
 
     def test_rollups_up_to_the_end_leave_no_raw_range(self):
-        hours, rest = rollup._split(self.start, self.sealed, self.sealed)
+        hours, rest = usage_source._split(self.start, self.sealed, self.sealed)
         self.assertEqual(hours, Q(hour__gte=self.start, hour__lt=self.sealed))
         self.assertIsNone(rest)
 
     def test_without_rollups_everything_is_raw(self):
         self.assertEqual(
-            rollup._split(self.start, self.end, None), (None, self.raw(self.start, self.end))
+            usage_source._split(self.start, self.end, None), (None, self.raw(self.start, self.end))
         )
 
 
@@ -137,13 +140,16 @@ class UsageRollupTest(TestCase):
 
     def assert_figures(self, extent, model, period: Period, now):
         requests = self.scoped(extent, model)
-        self.assertEqual(rollup.org_series(extent, model, period), series(requests, period))
+        self.assertEqual(
+            UsageSource.whole(extent, model, period).series(),
+            UsageSource(requests, period).series(),
+        )
 
         raw_models = {
             row.pop("model"): row
             for row in period.of(requests).values("model").annotate(**TOTALS, median=MEDIAN)
         }
-        found = rollup.org_models(extent, model, period)
+        found = UsageSource.whole(extent, model, period).models()
         self.assertEqual(
             {name: usage.activity for name, usage in found.items()},
             {name: Activity(**{f: row[f] for f in TOTALS}) for name, row in raw_models.items()},
@@ -157,7 +163,7 @@ class UsageRollupTest(TestCase):
 
         start = now - timedelta(weeks=4)
         self.assertEqual(
-            rollup.org_heat(extent, start, now, model=model),
+            UsageSource.whole(extent, model, Period(start, now, HOUR)).heat(),
             self.raw_heat(extent, model, start, now),
         )
 
@@ -166,8 +172,8 @@ class UsageRollupTest(TestCase):
             (row["day"], row["at"]): row["tokens"]
             for row in self.scoped(extent, model)
             .filter(timestamp__gte=start, timestamp__lt=end)
-            .values(day=rollup.ExtractIsoWeekDay("timestamp"), at=rollup.ExtractHour("timestamp"))
-            .annotate(tokens=rollup.Sum(TOKENS))
+            .values(day=ExtractIsoWeekDay("timestamp"), at=ExtractHour("timestamp"))
+            .annotate(tokens=Sum(TOKENS))
             .order_by()
         }
 
@@ -194,14 +200,14 @@ class UsageRollupTest(TestCase):
         for ago in (timedelta(minutes=5), timedelta(hours=2)):
             self.log(self.member_key, ago, input_tokens=7000, output_tokens=11)
             self.log(self.member_key, ago, input_tokens=9000, model=EMBEDDING)
-        sealed = rollup.Sealed.read()
+        sealed = Sealed.read()
         self.assertLess(sealed.until, self.now - timedelta(hours=2))
         start = self.now - timedelta(weeks=4)
         self.assertTrue(OrgUsageHour.objects.filter(model=CHAT, hour__gte=start).exists())
         for extent in (WholeOrg(self.org), EveryOrg()):
             with self.subTest(extent=extent):
                 self.assertEqual(
-                    rollup.org_heat(extent, start, self.now, sealed, model=CHAT),
+                    UsageSource.whole(extent, CHAT, Period(start, self.now, HOUR), sealed).heat(),
                     self.raw_heat(extent, CHAT, start, self.now),
                 )
 
@@ -212,9 +218,9 @@ class UsageRollupTest(TestCase):
     def test_sealed_hours_are_read_from_the_rollups(self):
         rollup.refresh(self.now)
         period = Period.last(Span.WEEK, self.now)
-        before = rollup.org_series(WholeOrg(self.org), None, period).total
+        before = UsageSource.whole(WholeOrg(self.org), None, period).series().total
         Request.objects.filter(timestamp__lt=self.now - timedelta(hours=2)).update(output_tokens=0)
-        self.assertEqual(rollup.org_series(WholeOrg(self.org), None, period).total, before)
+        self.assertEqual(UsageSource.whole(WholeOrg(self.org), None, period).series().total, before)
 
     def test_refreshing_twice_keeps_the_same_rows(self):
         rollup.refresh(self.now)
@@ -320,7 +326,9 @@ class UsageRollupTest(TestCase):
         self.assertTrue(requests_of(WholeOrg(self.other_org)).filter(token=key).exists())
         week = Period.last(Span.WEEK, self.now)
         rollup.refresh_key_windows(self.now)
-        totals = rollup.key_window_totals(WholeOrg(self.other_org), None, week)
+        totals = UsageSource.whole(
+            WholeOrg(self.other_org), None, week, key_windows=True
+        ).key_totals()
         self.assertEqual(totals[key.pk].input, 777)
         self.assert_matches_raw()
 
@@ -421,14 +429,19 @@ class UsageRollupTest(TestCase):
                             .annotate(**TOTALS)
                             .order_by()
                         }
-                        self.assertEqual(rollup.key_window_totals(extent, model, period), raw)
+                        self.assertEqual(
+                            UsageSource.whole(extent, model, period, key_windows=True).key_totals(),
+                            raw,
+                        )
 
     def test_key_windows_are_read_where_they_start_with_the_period(self):
         rollup.refresh_key_windows(self.now)
         period = Period.last(Span.WEEK, self.now)
-        before = rollup.key_window_totals(EveryOrg(), None, period)
+        before = UsageSource.whole(EveryOrg(), None, period, key_windows=True).key_totals()
         Request.objects.filter(timestamp__lt=self.now - timedelta(hours=2)).update(output_tokens=0)
-        self.assertEqual(rollup.key_window_totals(EveryOrg(), None, period), before)
+        self.assertEqual(
+            UsageSource.whole(EveryOrg(), None, period, key_windows=True).key_totals(), before
+        )
 
     def test_a_refresh_between_the_reads_counts_nothing_twice(self):
         just_sealed = rollup.floor_hour(self.now - rollup.SETTLE) + timedelta(seconds=1)
@@ -444,7 +457,7 @@ class UsageRollupTest(TestCase):
                 rollup.refresh_key_windows(self.now + timedelta(hours=1))
 
         with mock.patch.object(QuerySet, "_fetch_all", fetch_then_refresh):
-            totals = rollup.key_window_totals(EveryOrg(), None, period)
+            totals = UsageSource.whole(EveryOrg(), None, period, key_windows=True).key_totals()
         self.assertTrue(raced)
         raw = {
             row.pop("token_id"): Activity(**row)
@@ -479,11 +492,13 @@ class UsageRollupTest(TestCase):
 
         self.assert_matches_raw()
         period = Period.last(Span.WEEK, self.now)
-        self.assertNotIn(org_id, rollup.org_tokens(None, period))
+        self.assertNotIn(org_id, UsageSource.whole(EveryOrg(), None, period).org_tokens())
         raw = {
             row.pop("token_id"): Activity(**row)
             for row in period.of(served(Request.objects.all()))
             .values("token_id")
             .annotate(**TOTALS)
         }
-        self.assertEqual(rollup.key_window_totals(EveryOrg(), None, period), raw)
+        self.assertEqual(
+            UsageSource.whole(EveryOrg(), None, period, key_windows=True).key_totals(), raw
+        )
