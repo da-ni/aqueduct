@@ -37,8 +37,6 @@ class TeamCreateView(BaseAqueductView, OrgAdminRequiredMixin, CreateView):
 
     @cached_property
     def target_org(self) -> Org:
-        """The org the form was opened for. The form posts it, so switching the org in another
-        tab before submitting does not move the team."""
         if self.request.method != "POST":
             return self.org
         org = Org.objects.filter(pk=parse_id(self.request.POST.get("org"))).first()
@@ -68,9 +66,6 @@ class TeamCreateView(BaseAqueductView, OrgAdminRequiredMixin, CreateView):
 
 
 class TeamUpdateView(BaseTeamView, TeamAdminRequiredMixin, UpdateView):
-    """Edits a team's name and description, for its team admins. An admin of the team's org
-    also edits its limits there, and finds the team's Delete."""
-
     model = Team
     template_name = "management/edit/team.html"
     pk_url_kwarg = "id"
@@ -109,9 +104,6 @@ class TeamUpdateView(BaseTeamView, TeamAdminRequiredMixin, UpdateView):
 
 
 class TeamAvailabilityEditView(BaseTeamView, UpdateView):
-    """Edits what a team's service account keys may use. Only an org admin of the team's org
-    may, others get 404."""
-
     model = Team
     form_class = TeamAvailabilityForm
     template_name = "management/edit/team.html"
@@ -143,8 +135,6 @@ class TeamAvailabilityEditView(BaseTeamView, UpdateView):
 
 
 class TeamDeleteView(BaseTeamView, TeamAdminRequiredMixin, DeleteView):
-    """Deletes a team. Only an admin of the team's org may."""
-
     model = Team
     org_admin_only = True
     template_name = "management/common/confirm_delete.html"
@@ -165,9 +155,6 @@ class TeamDeleteView(BaseTeamView, TeamAdminRequiredMixin, DeleteView):
 
 
 class TeamAdminManagementView(BaseTeamView, TeamAdminRequiredMixin, View):
-    """Makes a member a team admin, or takes the rights away. Only an admin of the team's org
-    may."""
-
     org_admin_only = True
 
     def post(self, request, *args, **kwargs) -> HttpResponse:

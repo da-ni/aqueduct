@@ -1,14 +1,3 @@
-{% comment %}
-The one confirm dialog of every page. A link or submit button asks in it first when it carries
-the attributes of {% confirm title detail action dismiss %} or {% confirm_delete obj %} from `ui`:
-
-    <a href="{% url 'token_delete' token.id %}" {% confirm_delete token %}>Delete</a>
-    <button type="submit" name="remove" value="7" {% confirm "Remove ana@example.com?" "She loses access." "Remove" %}>Remove</button>
-
-Only an `<a href>` or a `<button type="submit">` asks. A confirmed link posts to its own address, so it must point at a page whose POST does the
-action, such as a DeleteView. Without JavaScript the link opens that page, which asks the same
-question. A confirmed button submits its own form.
-{% endcomment %}
 {% load i18n %}
 <dialog id="confirm-dialog" class="modal" aria-labelledby="confirm-title" aria-describedby="confirm-detail">
     <form method="post" class="modal-box flex max-w-md flex-col gap-3">

@@ -17,7 +17,6 @@ ROUTER_CONFIG = Path(__file__).resolve().parents[3] / "example_router_config.yam
 
 
 def posted(form) -> dict:
-    """What the browser sends for `form` when nobody changes a box."""
     data = {name: form[name].value() for name in form.fields}
     data |= {f"{name}-shown": "1" for name in form.fields if name.startswith("available_")}
     return {name: value for name, value in data.items() if value not in (None, False)}
@@ -78,8 +77,6 @@ class TeamAvailabilityAdminFormTest(TestCase):
 
 
 class RepeatedModelNameTest(TestCase):
-    """LiteLLM balances load over router entries that share a `model_name`."""
-
     def setUp(self):
         self.team = Team.objects.create(name="Whale", org=Org.objects.create(name="E060"))
         directory = tempfile.TemporaryDirectory()

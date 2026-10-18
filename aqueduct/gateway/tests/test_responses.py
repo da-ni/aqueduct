@@ -389,9 +389,6 @@ class ResponsesIntegrationTest(GatewayIntegrationTestCase):
 
 
 class CheckToolAvailabilityTest(GatewayIntegrationTestCase):
-    """Tests for the check_tool_availability decorator, with the fixture's keys: `My Token`
-    is Me's personal key, and `Initial token for TUna` is a key of the Whale team."""
-
     response_id = "test_response_id"
 
     def setUp(self):
@@ -435,7 +432,6 @@ class CheckToolAvailabilityTest(GatewayIntegrationTestCase):
 
     @patch("gateway.decorators.responses.get_mcp_config")
     async def test_check_tool_availability_mcp_server_success(self, mock_get_mcp_config):
-        """An Aqueduct MCP server URL is rewritten to the server's own URL."""
         mock_get_mcp_config.return_value = {"test_mcp_server": {"url": "http://mcp-server:8080"}}
         tool = {
             "type": "mcp",
@@ -456,7 +452,6 @@ class CheckToolAvailabilityTest(GatewayIntegrationTestCase):
 
     @patch("gateway.decorators.responses.get_mcp_config")
     async def test_check_tool_availability_mcp_server_excluded(self, mock_get_mcp_config):
-        """A server the key's org excludes is not found, even when it is configured."""
         mock_get_mcp_config.return_value = {"excluded_server": {"url": "http://mcp-server:8080"}}
         org = await Org.objects.aget(name="E060")
         await sync_to_async(org.add_excluded_mcp_server)("excluded_server")
@@ -479,7 +474,6 @@ class CheckToolAvailabilityTest(GatewayIntegrationTestCase):
 
     @patch("gateway.decorators.responses.get_mcp_config")
     async def test_check_tool_availability_mcp_server_url_match(self, mock_get_mcp_config):
-        """A server is matched by URL, whatever label the client gives it."""
         mock_get_mcp_config.return_value = {
             "brave": {"url": "http://mcp-server:8080"},
             "other_server": {"url": "http://other:9000"},
@@ -504,7 +498,6 @@ class CheckToolAvailabilityTest(GatewayIntegrationTestCase):
         self.assert_passed_on(*await self.check(await self.personal_key(), tools))
 
     async def test_check_tool_availability_file_search_success(self):
-        """A personal key may search the stores of its owner's personal keys."""
         key = await self.personal_key()
         await self.store("vs_remote_abc", key)
         await self.store("vs_remote_def", key)
@@ -514,7 +507,6 @@ class CheckToolAvailabilityTest(GatewayIntegrationTestCase):
         self.assertEqual(tool["vector_store_ids"], ["vs_remote_abc", "vs_remote_def"])
 
     async def test_check_tool_availability_file_search_service_account(self):
-        """A team key may search its team's stores, not the personal stores of its creator."""
         team_key, personal_key = await self.team_key(), await self.personal_key()
         await self.store("vs_team", team_key)
         await self.store("vs_personal", personal_key)
@@ -529,7 +521,6 @@ class CheckToolAvailabilityTest(GatewayIntegrationTestCase):
         self.assert_rejected(result, 404, "One or more vector stores not found")
 
     async def test_check_tool_availability_file_search_not_found(self):
-        """A store that does not exist, or that another user's key made, is not found."""
         someone = await User.objects.aget(username="Someone")
         others_key = Token(name="someone's key", user=someone)
         others_key._set_new_key()

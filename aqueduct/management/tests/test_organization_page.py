@@ -14,7 +14,6 @@ from management.tests.test_teams_pages import TeamsPagesTestBase
 
 
 def enforced(key: Token) -> Token:
-    """The key as the gateway loads it on each request (`Token.find_by_key`)."""
     return Token.objects.select_related(*HIERARCHY).get(pk=key.pk)
 
 
@@ -30,7 +29,6 @@ LIMITS = {
 
 
 def available(*unavailable: str, mcp: tuple[str, ...] | None = None) -> dict:
-    """The availability form as posted with every box checked except `unavailable`."""
     data: dict = {
         "available_models": [m for m in configured_models() if m not in unavailable],
         "available_models-shown": "1",
@@ -295,8 +293,6 @@ class OrganizationEditFormTest(OrganizationTestBase):
 
 
 class OrganizationEditGatewayTest(OrganizationTestBase):
-    """An edit here changes what the gateway enforces for keys in the org."""
-
     def save(self, user, org: Org, data: dict):
         url = reverse("organization_availability", args=[org.id])
         return self.as_user(user).post(url, data)

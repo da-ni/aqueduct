@@ -44,7 +44,6 @@ def server_cards(
 
 
 def client_config(cards: Sequence[MCPServerCard]) -> str:
-    """An MCP client config with every server in `cards`, for the viewer to paste."""
     servers = {
         card.name: {"url": card.url, "headers": {"Authorization": "Bearer sk-..."}}
         for card in cards

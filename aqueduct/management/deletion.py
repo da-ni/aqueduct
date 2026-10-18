@@ -7,17 +7,12 @@ from management.models import FileObject, ServiceAccount, Team, Token
 
 @dataclass(frozen=True)
 class Confirmation:
-    """The question the confirm dialog, or the confirm page without JavaScript, asks before an
-    action that cannot be undone."""
-
     title: str
     detail: str
     action: str
 
 
 def deletion(obj: Token | ServiceAccount | Team | FileObject) -> Confirmation:
-    """What deleting `obj` takes with it. The cascades of `Token`, `ServiceAccount`, `Team`,
-    and `FileObject` decide each sentence."""
     match obj:
         case Token():
             name = obj.name

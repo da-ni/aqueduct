@@ -1,10 +1,3 @@
-"""Rows for the Files, Batches, and Vector stores pages.
-
-Each page lists what the keys of the viewer's `Scope` created, newest first, 50 rows per page.
-Seeing a row grants no action on it. The viewer deletes and cancels only what their personal
-keys created, as with a personal key on the API, and syncs what `syncable` allows.
-"""
-
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -57,16 +50,11 @@ class Whose(Enum):
 
 @dataclass(frozen=True)
 class Scope:
-    """The keys whose files, batches, and vector stores the viewer sees, the same keys whose
-    requests the request log shows. `whose` says which keys they are, so an empty page can name
-    them, and `org` names the org for `Whose.ORG`."""
-
     keys: QuerySet[Token]
     whose: Whose
     org: str = ""
 
     def empty(self, every_org: str, org: str, yours: str) -> str:
-        """The sentence of an empty page for this scope, one per `Whose`; `org` holds `%(org)s`."""
         match self.whose:
             case Whose.EVERY_ORG:
                 return every_org
@@ -77,8 +65,6 @@ class Scope:
 
 
 def scope(profile: UserProfile, org: Org | None) -> Scope:
-    """Every key of `org` for its admins, every key for an admin viewing every org (`org=None`),
-    otherwise the viewer's personal keys and the service account keys of their teams."""
     keys = visible_tokens(profile, org, profile.teams.all())
     if org is None:
         return Scope(keys, Whose.EVERY_ORG)
@@ -88,9 +74,6 @@ def scope(profile: UserProfile, org: Org | None) -> Scope:
 
 
 def syncable(user: AbstractBaseUser, teams: Iterable[Team], seen: Scope) -> Q:
-    """The vector stores the viewer may sync from upstream: those of the keys of `seen` that they
-    created or that belong to `teams`, every team of the org for an org admin. A service account
-    key the viewer created for a team they have left is out of `seen`."""
     return Q(token__in=seen.keys) & (
         Q(token__user=user) | Q(token__service_account__team__in=teams)
     )
@@ -109,8 +92,6 @@ def moment(timestamp: int | None) -> datetime | None:
 
 
 def owner_of(token: Token, viewer: AbstractBaseUser) -> str:
-    """The team of a service account's key, "You" for the viewer's personal key, or the email
-    of another user's personal key, which only an org admin sees."""
     if token.service_account:
         return token.service_account.team.name
     return gettext("You") if token.user_id == viewer.pk else token.user.email
@@ -172,8 +153,6 @@ PURPOSES: Mapping[str, str | Promise] = {
 
 
 def paged(rows: QuerySet, page: str | int | None) -> tuple[Page, QuerySet]:
-    """The page of `rows` in `NEWEST_FIRST` order, and a query by id that loads only its rows,
-    so joins and annotations run on 50 rows rather than on all of them."""
     pages = Paginator(
         rows.order_by(*NEWEST_FIRST).values_list("id", flat=True), PAGE_SIZE
     ).get_page(page)
@@ -181,12 +160,10 @@ def paged(rows: QuerySet, page: str | int | None) -> tuple[Page, QuerySet]:
 
 
 def list_url(name: str, page: str | None) -> str:
-    """The list page `name` at `page`, so delete and cancel return the viewer to their page."""
     return f"{reverse(name)}?{urlencode({'page': page})}" if page else reverse(name)
 
 
 def page_holding(rows: QuerySet, row_id: str) -> int | None:
-    """The number of the page that holds row `row_id` of `rows`, `None` when `rows` lacks it."""
     row = rows.filter(id=row_id).values("created_at").first()
     if row is None:
         return None
@@ -203,9 +180,6 @@ def quotas(
     teams: QuerySet[Team],
     limits: tuple[int, int],
 ) -> str:
-    """What `rows` holds against the viewer's limit and against the limit of each team they
-    belong to, the limits the API enforces when it creates more, as "you 1/10 · <team> 0/25"
-    put into `line` at `%(quotas)s`."""
     user_limit, team_limit = limits
     per_team = dict(
         rows.filter(token__service_account__team__in=teams)
@@ -249,7 +223,6 @@ class Progress:
 
     @property
     def parts(self) -> tuple[str, ...]:
-        """The label's phrases; a narrow column breaks the label between them, never inside one."""
         done = gettext("%(done)s of %(total)s") % {
             "done": grouped(self.completed + self.failed),
             "total": grouped(self.total),
@@ -272,7 +245,6 @@ class FileRow:
     created: datetime | None
     expiry: Expiry
     mine: bool
-    """Whether the viewer's personal key created it, which lets them delete it."""
 
 
 @dataclass(frozen=True)
@@ -311,7 +283,6 @@ def file_list(
     page: str | int | None = None,
     file_id: str | None = None,
 ) -> FileList:
-    """`file_id` opens the page that holds that file, so a link to it lands on its row."""
     visible = FileObject.objects.filter(token__in=keys.keys)
     size = visible.aggregate(size=Coalesce(Sum("bytes"), 0))["size"]
     pages, files = paged(visible, (file_id and page_holding(visible, file_id)) or page)
@@ -342,10 +313,8 @@ class BatchRow:
     progress: Progress
     created: datetime | None
     deadline: datetime | None
-    """When a running batch must finish, `None` once it stopped running."""
     deadline_today: bool
     mine: bool
-    """Whether the viewer's personal key created it."""
     cancellable: bool
 
     @property
@@ -410,8 +379,6 @@ def batch_list(
     now: datetime,
     page: str | None = None,
 ) -> BatchList:
-    """Lists the batches of `keys`; the summary counts running batches of the viewer and of
-    the `teams` they belong to."""
     pages, batches = paged(Batch.objects.filter(token__in=keys.keys), page)
     batches = batches.select_related(
         "token__user", "token__service_account__team", "input_file", "output_file", "error_file"
@@ -467,7 +434,6 @@ class StoreList:
 def store_rows(
     stores: QuerySet[VectorStore], user: AbstractBaseUser, sync: Q, now: datetime
 ) -> tuple[StoreRow, ...]:
-    """A row for each of `stores`, counting its files and their size. `sync` is `syncable`."""
     stores = stores.select_related("token__user", "token__service_account__team").annotate(
         file_count=Count("files"), size=Coalesce(Sum("files__file_obj__bytes"), 0)
     )
@@ -494,8 +460,6 @@ def store_list(
     now: datetime,
     page: str | None = None,
 ) -> StoreList:
-    """Lists the stores of `keys`; the summary covers the viewer and the `teams` they belong
-    to, which they create stores for."""
     pages, stores = paged(VectorStore.objects.filter(token__in=keys.keys), page)
     limits = (settings.MAX_USER_VECTOR_STORES, settings.MAX_TEAM_VECTOR_STORES)
     return StoreList(
@@ -543,8 +507,6 @@ def store_detail(
     now: datetime,
     page: str | None = None,
 ) -> StoreDetail | None:
-    """The store `store_id` of `keys`, `None` when `keys` did not create it. A file links to
-    the Files page, which lists the files of the same `keys`, only when its row is there."""
     found = store_rows(
         VectorStore.objects.filter(token__in=keys.keys, id=store_id), user, sync, now
     )

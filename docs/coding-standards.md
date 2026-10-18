@@ -55,7 +55,7 @@ The management pages come in English and German, in the formal "Sie". The langua
 - Render a number inside a `style` attribute through `|unlocalize` from `{% load l10n %}`. German writes 12.5 as 12,5, which is no CSS number.
 - Script text comes from data attributes that the template renders, as the copy button's `data-copied` does. `aqueduct.js` holds no visible text.
 
-`management/tests/test_i18n.py` enforces these. Its docstring names the commands that refresh `aqueduct/locale/de/LC_MESSAGES/django.po` and the compiled `django.mo`; commit both. Its two lists only shrink. A template leaves `UNTRANSLATED_TEMPLATES` once all its text is wrapped, and a msgid in `UNTRANSLATED` is waiting for its German text.
+`management/tests/test_i18n.py` enforces these; its catalog checks need GNU gettext on PATH and skip without it. After changing a translatable string, run `uv run python manage.py makemessages -l de --no-obsolete --no-location` from `aqueduct/`, translate every new entry in `locale/de/LC_MESSAGES/django.po`, run `uv run python manage.py compilemessages -l de`, and commit both files. Its two lists only shrink. A template leaves `UNTRANSLATED_TEMPLATES` once all its text is wrapped, and a msgid in `UNTRANSLATED` is waiting for its German text.
 
 ### Glossary
 

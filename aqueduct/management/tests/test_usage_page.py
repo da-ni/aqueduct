@@ -198,11 +198,11 @@ class UsageAccessTest(UsagePageTestBase):
 class UsageFiguresTest(UsagePageTestBase):
     def test_totals_count_tokens_cache_hits_and_failures(self):
         response = self.page(self.org_admin)
-        self.assertEqual(self.kpi(response, "Input"), "6K")  # cached input included
+        self.assertEqual(self.kpi(response, "Input"), "6K")
         self.assertEqual(self.kpi(response, "Output"), "1.5K")
         self.assertEqual(self.kpi(response, "Cached"), "250")
         self.assertEqual(self.kpi(response, "Requests"), "3")
-        self.assertEqual(self.kpi(response, "Failed"), "67%")  # 429 and 500 of 3
+        self.assertEqual(self.kpi(response, "Failed"), "67%")
 
     def test_requests_are_split_by_status(self):
         response = self.page(self.org_admin)
@@ -236,7 +236,6 @@ class UsageFiguresTest(UsagePageTestBase):
         cell = (
             f'aria-label="{weekday} {moment.hour:02d}:00 to {until:02d}:00: {{}} tokens per hour"'
         )
-        # lab-org's 7,500 tokens in one hour slot, spread over four weeks, whatever the filters.
         for user, params in (
             (self.solo, {}),
             (self.solo, {"key": self.solo_key.id, "model": EMBEDDING}),
@@ -248,7 +247,7 @@ class UsageFiguresTest(UsagePageTestBase):
                 self.assertContains(response, cell.format("1.9K"))
         response = self.page(self.admin, org="all")
         self.assertContains(response, "Activity across all organizations")
-        self.assertContains(response, cell.format("3.6K"))  # 14,500 tokens
+        self.assertContains(response, cell.format("3.6K"))
 
     def test_without_current_rollups_the_heatmap_is_cached_per_org(self):
         heat = self.page(self.solo).context["heat"]
@@ -343,10 +342,7 @@ class UsageFiguresTest(UsagePageTestBase):
 
 
 class UsageChartTest(UsagePageTestBase):
-    """The chart holds both series, so the metric switch shows one without loading the page."""
-
     def series(self, response) -> dict[str, tuple[bool, str]]:
-        """Whether each chart series is shown, and the column labels it reads out."""
         html = response.content.decode()
         found = {}
         opening = re.compile(r'<div class="flex h-72[^"]*" data-metric="(\w+)"( hidden)?>')
@@ -400,8 +396,6 @@ class UsageGermanTest(UsagePageTestBase):
 
 
 class UsageHeatModelTest(UsagePageTestBase):
-    """The heatmap has a model choice of its own, `heat_model`, apart from the page's filters."""
-
     def test_heat_model_narrows_only_the_heatmap(self):
         self.log(self.member_key, timedelta(hours=1), 200, model=EMBEDDING, input_tokens=400)
         moment = timezone.now() - timedelta(hours=1)
@@ -412,8 +406,8 @@ class UsageHeatModelTest(UsagePageTestBase):
         )
         everything = self.page(self.org_admin)
         embedding = self.page(self.org_admin, heat_model=EMBEDDING)
-        self.assertContains(everything, cell.format("2K"))  # 7,900 tokens over four weeks
-        self.assertContains(embedding, cell.format("100"))  # 400 tokens over four weeks
+        self.assertContains(everything, cell.format("2K"))
+        self.assertContains(embedding, cell.format("100"))
         self.assertEqual(self.kpi(embedding, "Requests"), self.kpi(everything, "Requests"))
         self.assertEqual(self.kpi(embedding, "Requests"), "4")
 
@@ -437,8 +431,6 @@ class UsageHeatModelTest(UsagePageTestBase):
 
 
 class UsageFilterChoicesTest(UsagePageTestBase):
-    """A filter shows only when it offers a real choice."""
-
     def test_models_sort_without_regard_to_case(self):
         with mock.patch(
             "management.request_log.router_models", return_value=["b-model", "A-model", "c-model"]

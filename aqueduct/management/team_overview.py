@@ -44,8 +44,6 @@ PAGE_SIZE = 50
 
 
 def role_of(groups: set[str], membership: TeamMembership) -> Role:
-    """The role `UserProfile.is_admin()` and `is_org_admin()` give a member with these auth
-    groups, without a query per member."""
     if UserGroup.ADMIN in groups:
         return Role.ADMIN
     if UserGroup.ORG_ADMIN in groups and membership.user_profile.org_id == membership.team.org_id:
@@ -62,7 +60,6 @@ def _bar_widths(activity: dict[int, Activity]) -> dict[int, int]:
 class TeamRow:
     team: Team
     is_team_admin: bool
-    """The viewer is an admin of the team by its membership, not by their org role."""
     members: int
     service_accounts: int
     limit: int | None
@@ -88,10 +85,7 @@ class TeamList:
 def team_rows(
     teams: QuerySet[Team], viewer: UserProfile, query: str, page: str | int, now: datetime
 ) -> TeamList:
-    """The teams page table: one row per team, with service account usage over seven days."""
     pages = Paginator(
-        # A fresh queryset, because `teams` may come through the viewer's memberships, and
-        # that join would count only the viewer as a member.
         Team.objects.filter(id__in=teams.values("id"), name__icontains=query)
         .select_related("org")
         .annotate(
@@ -130,7 +124,6 @@ class MemberRow:
     role: Role
     is_viewer: bool
     owned: tuple[ServiceAccount, ...]
-    """The team's service accounts whose key this member owns. They block removing the member."""
     is_team_admin: bool
     can_change_admin: bool
 
@@ -145,7 +138,6 @@ class ServiceAccountRow:
 
     @property
     def tip(self) -> Tip:
-        """The token mix the row's bar shows, for its tooltip."""
         return Tip(
             gettext("Tokens, 7 days"),
             as_tokens(self.activity.tokens),
@@ -154,7 +146,6 @@ class ServiceAccountRow:
 
 
 def team_stats(week_window: Window) -> tuple[Stat, ...]:
-    """The team page's cards: tokens, requests, and failed requests of the service accounts."""
     totals = week_window.totals
 
     def daily(count: Callable[[Activity], int]) -> list[tuple[str, float]]:
@@ -193,8 +184,6 @@ def team_page(
     member_page: str | int,
     now: datetime,
 ) -> TeamPage:
-    """Everything the team page shows. The view decides who may see it and act on it.
-    Members come a page at a time, team admins first, filtered by `member_query` on email."""
     org = team.org
     accounts = list(team.service_accounts.select_related("token__user").order_by("name"))
     tokens = {sa.id: getattr(sa, "token", None) for sa in accounts}

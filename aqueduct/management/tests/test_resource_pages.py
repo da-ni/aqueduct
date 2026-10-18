@@ -35,12 +35,6 @@ NOW = int(time.time())
 
 @PAGES
 class ResourcePagesTestBase(TestCase):
-    """`owner` and `teammate` share a team. `teammate` owns its service account key.
-
-    `outsider` is in the same org but not the team, `org_admin` administers the org, and
-    `foreign_admin` administers another org.
-    """
-
     def setUp(self):
         self.org = Org.objects.create(name="lab-org")
         self.team = Team.objects.create(name="NLP Lab", org=self.org)
@@ -152,9 +146,7 @@ class FilesPageTest(ResourcePagesTestBase):
         response = self.as_user(self.owner).get(reverse("files"), {"file": self.own_file.id})
         self.assertContains(response, f'id="{self.own_file.id}"')
         self.assertNotContains(response, "newer-49.jsonl")
-        # Paging away from the linked file drops `file`, so the link moves.
         self.assertContains(response, 'href="?page=1">Previous</a>')
-        # A file the viewer cannot see opens the first page.
         hidden = self.as_user(self.owner).get(reverse("files"), {"file": self.outsider_file.id})
         self.assertContains(hidden, "newer-49.jsonl")
         self.assertNotContains(hidden, "secret.jsonl")
@@ -472,9 +464,6 @@ class VectorStoresPageTest(ResourcePagesTestBase):
 
 
 class ResourceVisibilityTest(ResourcePagesTestBase):
-    """Each list shows what the request log shows: a user's own and their teams' items, every
-    item of the org to its admin, and what the org switch picks to a platform admin."""
-
     PAGES = ("files", "batches", "vector_stores")
 
     def setUp(self):
@@ -564,10 +553,6 @@ class ResourceVisibilityTest(ResourcePagesTestBase):
 
 
 class VectorStoreSyncTest(ResourcePagesTestBase):
-    """Syncing stays with the keys a viewer created and the teams `get_teams_for_user` gives:
-    their own teams, or every team of the org to an org admin. Other users' stores are
-    view-only."""
-
     def setUp(self):
         super().setUp()
         self.team_store = self.store(self.team_key, "group-papers")

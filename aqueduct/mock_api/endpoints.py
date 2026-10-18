@@ -91,7 +91,6 @@ async def reset_endpoint(path: str) -> dict[str, str]:
 
 @app.post("/forget_requests")
 async def forget_requests() -> dict[str, str]:
-    """Forget every captured request, so the next test sees only its own."""
     last_requests.clear()
     return {"message": "Forgot the captured requests"}
 

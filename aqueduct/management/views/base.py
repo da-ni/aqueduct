@@ -43,13 +43,10 @@ class BaseAqueductView(LoginRequiredMixin, View):
 
     @cached_property
     def viewed_org(self) -> Org | None:
-        """The org the viewer chose to look at, `None` for every org. See `chosen_org`."""
         return chosen_org(self.profile, self.request)
 
     @property
     def org(self) -> Org:
-        """The org a page about one org shows: the viewed org, or the viewer's own while an
-        admin views every org."""
         return self.viewed_org or self.profile.org
 
     def is_admin(self) -> bool:
@@ -82,9 +79,6 @@ ONLY_TEAM_ADMINS = _("Only team admins can do that.")
 
 
 class OrgAdminRequiredMixin:
-    """Lets a view through only for an admin of the org it shows. List it after
-    `BaseAqueductView` so the login check runs first."""
-
     def dispatch(self, request, *args, **kwargs) -> HttpResponse:
         if not hasattr(self, "is_org_admin") or not self.is_org_admin():
             messages.error(request, ONLY_ORG_ADMINS)
@@ -93,11 +87,6 @@ class OrgAdminRequiredMixin:
 
 
 class TeamAdminRequiredMixin:
-    """Lets a view through only for an admin of its team, or with `org_admin_only` only for an
-    admin of the team's org. List it after `BaseAqueductView` so the login check runs first.
-    `get_team_object()` answers 404 for a team the user may not open, so a denial never names a
-    team the user cannot see."""
-
     org_admin_only = False
     team_object: Team | None = None
 
@@ -117,9 +106,6 @@ class TeamAdminRequiredMixin:
 
 
 class BaseTeamView(BaseAqueductView):
-    """A view about the team whose id is in the URL kwarg `pk_url_kwarg`. A team the user may
-    not open answers 404, the same as one that does not exist."""
-
     pk_url_kwarg: str = "id"
     _team: Team | None = None
 
@@ -143,12 +129,7 @@ class BaseTeamView(BaseAqueductView):
         return self.team
 
 
-# View comes last so that the login check runs first and the team admin check runs before
-# the handler, also for subclasses that add only a generic view.
 class BaseServiceAccountView(BaseAqueductView, TeamAdminRequiredMixin, View):
-    """A view about the service account whose id is in the URL kwarg `pk_url_kwarg`, for admins
-    of its team. A service account of a team the user may not open answers 404."""
-
     model = ServiceAccount
     pk_url_kwarg: str | None = None
     service_account_object: ServiceAccount | None = None

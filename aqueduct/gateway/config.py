@@ -138,13 +138,6 @@ def resolve_model_alias(model_or_alias: str) -> str:
 
 
 def model_info_with_context(model: Mapping[str, Any]) -> dict[str, Any]:
-    """Return a copy of a router config model's ``model_info`` as clients see it.
-
-    The generated router config only carries ``max_tokens`` (the context
-    length). LiteLLM-aware clients read ``max_input_tokens`` as the context
-    window, so derive it in the copy, never in the config itself: a
-    config-level value would re-trigger the Router's tiktoken pre-checks.
-    """
     model_info = dict(model.get("model_info") or {})
     if "max_input_tokens" not in model_info:
         max_tokens = model_info.get("max_tokens")

@@ -14,8 +14,6 @@ from management.models import Usage
 
 class TestRawJsonResponse(SimpleTestCase):
     def test_changes_to_the_data_before_the_first_read_reach_the_content(self):
-        # Decorators such as `normalize_reasoning_fields` edit `response.data` after the view built
-        # the response, so the content is serialized only when first read.
         response = RawJsonResponse(data={"key": "value"})
         response.data["key"] = "changed"
         self.assertEqual(json.loads(response.content), {"key": "changed"})

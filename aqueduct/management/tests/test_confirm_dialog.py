@@ -18,9 +18,6 @@ def asks(title: str, detail: str, action: str = "Delete") -> str:
 
 
 class ConfirmDialogTest(TeamsPagesTestBase):
-    """Each delete link asks in the shared dialog, and the page behind it asks the same
-    question for a click without JavaScript."""
-
     def test_signed_in_pages_carry_one_dialog_and_signed_out_pages_none(self):
         page = self.as_user(self.member).get(reverse("tokens"))
         self.assertContains(page, '<dialog id="confirm-dialog"', count=1)

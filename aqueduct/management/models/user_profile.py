@@ -15,9 +15,6 @@ from management.models.team import Team
 
 
 class Role(StrEnum):
-    """What someone may manage, in the words every page uses for it. Pages show `label`, the
-    word in the viewer's language."""
-
     ADMIN = gettext_noop("Platform admin")
     ORG_ADMIN = gettext_noop("Org admin")
     TEAM_ADMIN = gettext_noop("Team admin")
@@ -143,8 +140,6 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
         return False
 
     def openable_teams(self) -> "models.QuerySet[Team]":
-        """The teams whose pages this user may open: every team for an admin, every team of
-        their org for an org admin, otherwise the teams they belong to."""
         if self.is_admin():
             return Team.objects.all()
         if self.is_org_admin(self.org):

@@ -7,9 +7,6 @@ from management.models.org import Org
 
 
 class PrivacyNotice(models.Model):
-    """Markdown shown on the Privacy page. The notice without an org is the site-wide notice
-    every visitor sees. A notice with an org is an addendum its members see below it."""
-
     org = models.ForeignKey(
         Org,
         null=True,

@@ -6,15 +6,9 @@ from management.models.org import Org
 from management.models.token import Token
 
 HOURLY = "org-hours"
-"""The `UsageRollupState` of `OrgUsageHour` and `OrgLatencyHour`."""
 
 
 class OrgUsageHour(models.Model):
-    """The requests of one org's keys for one model in one local hour, counted per status group
-    of `usage_report.STATUSES`. `unfinished` counts requests without a status. A key belongs to
-    its service account's team's org, else to its owner's org; `org` is empty for an owner
-    without a profile."""
-
     hour = models.DateTimeField()
     org = models.ForeignKey(Org, null=True, on_delete=models.CASCADE, related_name="+")
     model = models.CharField(max_length=255)
@@ -37,9 +31,6 @@ class OrgUsageHour(models.Model):
 
 
 class OrgLatencyHour(models.Model):
-    """How many requests of one org, model, and local hour took a response time in `bucket`.
-    See `usage_rollup.BUCKET` for the bucket bounds."""
-
     hour = models.DateTimeField()
     org = models.ForeignKey(Org, null=True, on_delete=models.CASCADE, related_name="+")
     model = models.CharField(max_length=255)
@@ -58,9 +49,6 @@ class OrgLatencyHour(models.Model):
 
 
 class KeyUsageWindow(models.Model):
-    """One key's requests for one model over the last `days` days, from the `window_start` to
-    the `sealed_until` of the `UsageRollupState` named `usage_rollup.key_window_name(days)`."""
-
     days = models.PositiveSmallIntegerField()
     token = models.ForeignKey(Token, on_delete=models.CASCADE, related_name="+")
     model = models.CharField(max_length=255)
@@ -82,10 +70,6 @@ class KeyUsageWindow(models.Model):
 
 
 class UsageRollupState(models.Model):
-    """What one rollup holds: requests before `sealed_until` (and from `window_start`, for a key
-    window), bucketed in `time_zone`. `dirty` asks the next refresh for a full rebuild. The
-    refresh locks this row."""
-
     name = models.CharField(max_length=32, primary_key=True)
     sealed_until = models.DateTimeField(null=True)
     window_start = models.DateTimeField(null=True)

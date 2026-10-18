@@ -40,8 +40,6 @@ LOAD_TESTING = os.getenv("LOAD_TESTING", "False").lower() == "true"
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split()
 
-# Set only behind a proxy that terminates TLS and always sets or strips this header itself,
-# for example "HTTP_X_FORWARDED_PROTO,https". A client could otherwise claim HTTPS.
 if proxy_ssl_header := os.getenv("SECURE_PROXY_SSL_HEADER"):
     header, _, value = (part.strip() for part in proxy_ssl_header.partition(","))
     if not header or not value or "," in value:
@@ -155,16 +153,12 @@ ADMIN_SUPERUSER_EMAILS = [
     e.strip().lower() for e in os.getenv("ADMIN_SUPERUSER_EMAILS", "").split(",") if e.strip()
 ]
 
-# Footer help links, label to URL. The footer translates a label that the German catalog holds,
-# such as these two; any other label shows as written here.
 EXTRA_NAV_LINKS = {
     gettext_noop("Report a bug"): (
         "https://github.com/TU-Wien-dataLAB/aqueduct/issues/new?template=bug_report.md"
     ),
     gettext_noop("Documentation"): "https://tu-wien-datalab.github.io/aqueduct/",
 }
-# Icon links at the bottom of every page; set a variable to an empty value to hide its link.
-# TODO: replace the placeholder with the real support room.
 MATRIX_SUPPORT_URL = os.getenv(
     "MATRIX_SUPPORT_URL", "https://matrix.to/#/#aqueduct-support:example.org"
 )
@@ -411,15 +405,10 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-# LocaleMiddleware picks the language from the `django_language` cookie, then Accept-Language.
-# The cookie is a copy of `UserProfile.language`, set by `management.views.auth.remember_language`.
-# No i18n_patterns: the gateway catch-all and the OIDC redirect URIs need fixed paths.
 LANGUAGE_CODE = "en"
 LANGUAGES = [("en", "English"), ("de", "Deutsch")]
 LOCALE_PATHS = [BASE_DIR / "locale"]
 USE_I18N = True
-# Date formats of the management pages per language, under names of their own so that the Django
-# admin keeps Django's. Use them through `django.utils.formats.date_format`.
 FORMAT_MODULE_PATH = "aqueduct.formats"
 
 STORAGES = {
@@ -427,8 +416,6 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}
 }
 if TESTING:
-    # The manifest exists only after collectstatic. management/tests/test_static.py checks
-    # that every {% static %} path exists instead.
     STORAGES["staticfiles"] = {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}
 
 # Static files (CSS, JavaScript, Images)

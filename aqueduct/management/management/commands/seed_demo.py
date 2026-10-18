@@ -1,8 +1,3 @@
-"""Fill the database with a production-sized demo: two orgs, their teams, users, keys, and a
-month of request log. Everything it creates is under `ORG_PREFIX` orgs or `@SEED_DOMAIN` users,
-so `--reset` and `--delete` remove exactly that. `seed_demo_models.datalab.yaml`, next to this
-file, is the default model mix and shows the `--models-file` format."""
-
 import math
 import random
 import secrets
@@ -48,7 +43,6 @@ User = get_user_model()
 
 SEED_DOMAIN = "seed.invalid"
 ORG_PREFIX = "seed-demo-"
-"""Every org whose name starts with this counts as seeded, whoever created it."""
 
 DEFAULTS: dict[str, Any] = {
     "teams": 300,
@@ -59,8 +53,6 @@ DEFAULTS: dict[str, Any] = {
     "local_time_zone": "Europe/Vienna",
     "models_file": Path(__file__).with_name("seed_demo_models.datalab.yaml"),
 }
-"""The size of a default run. `requests_per_day` counts calls that name a model. The defaults and
-the traffic shape below follow the datalab production figures of October 2026."""
 SQLITE_WARN_ROWS = 500_000
 INSERT_BATCH = 10_000
 
@@ -75,8 +67,6 @@ class Kind(StrEnum):
 
 @dataclass(frozen=True)
 class Spread:
-    """A log-normal draw: half the values fall below `median`, capped at `cap`."""
-
     median: float
     sigma: float
     cap: int = 2**31 - 1
@@ -89,8 +79,6 @@ class Spread:
 
 @dataclass(frozen=True)
 class Shape:
-    """How requests of one model kind look in the log, unless the model's figures say otherwise."""
-
     mode: str
     path: str
     input_tokens: Spread
@@ -132,10 +120,7 @@ SHAPES: dict[Kind, Shape] = {
         Spread(9000, 0.4),
     ),
 }
-"""The chat spreads reproduce the production totals: about 70,000 input and 1,900 output tokens
-per request on average, and about 1% of outputs stopped at `MAX_OUTPUT`."""
 Z90 = 1.2816
-"""The 90th percentile of the standard normal distribution."""
 MODELLESS = (
     ("GET", "/v1/models", 70),
     ("GET", "/v1/files", 8),
@@ -149,45 +134,35 @@ MODELLESS_SHARE = 0.05
 MODELLESS_NOT_FOUND = 0.02
 MODELLESS_MS = Spread(40, 0.8, 30_000)
 PRIMARY_MODEL_SHARE = 0.6
-"""The share of a key's calls that use its favourite model; the rest follow the overall mix."""
 CACHE_BLOCK = 128
 CACHE_NOISE = 0.08
 RESPONSES_API_SHARE = 0.1
 OTHER_AGENT_SHARE = 0.1
 PROCESSING_MS = Spread(6, 0.6, 5000)
 FAILED_MS = (Spread(120, 1.0, 600_000), Spread(30, 1.0, 10_000))
-"""Response times of other failures and of rate-limited calls."""
 FAILURES = (
     (0.006, (400, 400, 401, 404, 413, 422)),
     (0.0015, (500, 502, 503, 504)),
     (0.001, (499,)),
 )
-"""The share of calls that fail with each group of status codes, besides rate limits."""
 THROTTLED = (0.01, 0.04)
-"""The share of rate-limited calls of an ordinary key and of a busy one."""
 BUSY_WEIGHT = 20
 UNFINISHED_WINDOW = timedelta(seconds=90)
 UNFINISHED_SHARE = 0.6
-"""The share of calls younger than `UNFINISHED_WINDOW` that have no status yet."""
 
 LOCAL_HOUR_LOAD: tuple[float, ...] = (
     *(2303, 2222, 2143, 2144, 1976, 1797, 1673, 1545, 1704, 2120, 2898, 3160),
     *(3601, 3534, 3177, 3282, 3372, 3460, 3219, 3003, 2521, 2673, 2466, 2201),
 )
-"""Average requests in each local hour; agents and batch jobs keep the nights busy."""
 WEEKDAY_LOAD = (1, 1, 1, 1, 1, 0.8, 0.6)
-"""Relative traffic from Monday to Sunday."""
 DAY_NOISE = (0.75, 1.3)
 SERVICE_SHARE = 0.4
-"""The share of traffic from service account keys."""
 PERSONAL_KEY_CAP = 0.025
-"""The largest share of all traffic one personal key may have. Service accounts are uncapped."""
 IDLE_KEY_SHARE = 0.15
 SECOND_TEAM_SHARE = 0.1
 TEAMS_PER_ORG_ADMIN = 100
 SMALL_ORG_SERVICE_ACCOUNTS = 3
 KEYS_PER_USER = ((1, 2, 3), (6, 3, 1))
-"""Personal keys per user, and how often each count occurs."""
 
 USER_AGENTS = (
     "OpenAI/Python 1.82.0",
@@ -251,8 +226,6 @@ SERVICE_NAMES = (
 
 
 class LogRow(NamedTuple):
-    """One `Request` row, in the column order of the bulk insert."""
-
     token_id: int
     model: str
     timestamp: datetime
@@ -284,8 +257,6 @@ class ModelSpec:
 
 @dataclass(frozen=True)
 class Key:
-    """A seeded key and the traits its requests share."""
-
     id: int
     weight: float
     primary_model: ModelSpec
@@ -293,15 +264,11 @@ class Key:
     ip_address: str
     user_ids: Sequence[str]
     user_id_share: float
-    """The share of its calls that name an end user in `user_id`."""
     throttled: float
-    """The share of its calls that hit a rate limit."""
 
 
 @dataclass
 class People:
-    """The keys of both seeded orgs, split by whether a person or a service account owns them."""
-
     personal: list[Key] = field(default_factory=list)
     service: list[Key] = field(default_factory=list)
 
@@ -353,7 +320,6 @@ def route_for(model: ModelSpec) -> str:
 
 
 def model_info_for(model: ModelSpec) -> dict[str, Any]:
-    """Describe the model as far as its name tells. Context windows stay out: no name says them."""
     info: dict[str, Any] = {"mode": SHAPES[model.kind].mode}
     if repo := hugging_face_repo(route_for(model), model.name):
         info["model_card_url"] = f"https://huggingface.co/{repo}"
@@ -380,7 +346,6 @@ def seed_users() -> Q:
 
 
 def delete_seeded() -> dict[str, int]:
-    """Delete the seeded orgs and users and everything that hangs off them."""
     users = User.objects.filter(seed_users())
     orgs = Org.objects.filter(name__startswith=ORG_PREFIX)
     strangers = UserProfile.objects.filter(org__in=orgs).exclude(user__in=users)
@@ -407,8 +372,6 @@ class SeededUser:
 
 
 class Builder:
-    """Creates the orgs, teams, users, and keys, drawing every choice from one seeded RNG."""
-
     def __init__(self, rng: random.Random, models: Sequence[ModelSpec], start: datetime) -> None:
         self.rng = rng
         self.models = models
@@ -447,7 +410,6 @@ class Builder:
         return f"{name} {rounds + 1}" if rounds else name
 
     def rosters(self, teams: int) -> list[list[int]]:
-        """Member indexes per team: three to five people, about one in ten also in another team."""
         rosters: list[list[int]] = []
         in_one_team: list[int] = []
         users = 0
@@ -546,8 +508,6 @@ class Builder:
         )
 
     def storage(self, now: datetime) -> dict[str, int]:
-        """A few files, batches, and vector stores of busy personal keys, so their pages have
-        rows."""
         busy = sorted(self.people.personal, key=lambda k: -k.weight)[:20]
         start, end = int(self.start.timestamp()), int(now.timestamp())
         rng = self.rng
@@ -596,8 +556,6 @@ class Builder:
 
 
 def capped(weights: list[float], share: float) -> list[float]:
-    """Lower the largest `weights` until none exceeds `share` of their sum, if that is
-    possible."""
     if share * len(weights) <= 1:
         return weights
     for _ in range(100):
@@ -609,9 +567,6 @@ def capped(weights: list[float], share: float) -> list[float]:
 
 
 class Traffic:
-    """Draws the request log: how many calls each hour gets, which key makes each, and what the
-    log row for it says."""
-
     def __init__(
         self, rng: random.Random, models: Sequence[ModelSpec], now: datetime, zone: ZoneInfo
     ) -> None:
@@ -622,7 +577,6 @@ class Traffic:
         self.zone = zone
 
     def hours(self, start: datetime) -> list[tuple[datetime, float, float]]:
-        """Each hour slot from `start` to now, with its length in seconds and relative load."""
         slots = []
         day_noise: dict[Any, float] = {}
         slot = start
@@ -645,8 +599,6 @@ class Traffic:
         slots: Sequence[tuple[datetime, float, float]],
         key_cap: float,
     ) -> Iterator[LogRow]:
-        """`total` calls by `keys` spread over `slots`, none of the keys making more than
-        `key_cap` of them."""
         cum = list(accumulate(capped([k.weight for k in keys], key_cap)))
         if not keys or cum[-1] <= 0:
             return
@@ -722,9 +674,6 @@ class Traffic:
         return HTTPStatus.OK
 
     def served(self, model: ModelSpec) -> tuple[int, int, int, int, int]:
-        """Response time and token counts of a successful call: (latency, input, cached, output,
-        reasoning). The gateway logs a streamed call's time to its last chunk, so streaming
-        changes nothing in the log."""
         rng = self.rng
         inp, out = model.input_tokens.draw(rng), model.output_tokens.draw(rng)
         cached = 0
@@ -882,10 +831,6 @@ class Command(BaseCommand):
         self.stdout.write(f"Wrote {written:,} requests in {time.monotonic() - started:.1f} s")
 
     def insert(self, rows: Iterator[LogRow], expected: int) -> int:
-        """Write `rows` with COPY on Postgres and batched INSERTs elsewhere, which is many times
-        faster than `bulk_create` of model instances, then analyze the table. SQLite keeps no
-        statistics until told to, and without them it may read a small org's requests through
-        the model index, over every org's."""
         table = Request._meta.db_table
         columns = ", ".join(LogRow._fields)
         written = 0

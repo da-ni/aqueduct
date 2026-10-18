@@ -37,13 +37,10 @@ from management.views.base import BaseAqueductView
 
 
 def _org_wide(filters: Filters) -> bool:
-    """Whether the rollups count the selection. Their medians are approximate, so a single hour,
-    which they hardly cover, keeps the exact ones."""
     return counts_whole_org(filters) and filters.span is not report.Span.HOUR
 
 
 def _key_windows(filters: Filters) -> dict[int, Activity] | None:
-    """The activity per key of the selection, from the key windows where they cover it."""
     if not _org_wide(filters) or filters.span not in rollup.KEY_WINDOWS.values():
         return None
     org = filters.org
@@ -62,8 +59,6 @@ def _heat(
     weeks: int,
     sealed: rollup.Sealed,
 ) -> dict[tuple[int, int], int]:
-    """`rollup.org_heat` of the last `weeks` weeks. While the rollups are not current, it reads
-    weeks of requests of a whole org, so it is cached for an hour."""
     start = now - timedelta(weeks=weeks)
     if sealed.current(now):
         return rollup.org_heat(org, start, now, sealed, requests, model)
@@ -80,8 +75,6 @@ def _org_tokens(filters: Filters) -> QuerySet[Token]:
 
 
 def _describe(filters: Filters) -> Callable[[Token], Key]:
-    """How the usage tables name a key. Its second line says whose key it is: "You" for the
-    viewer's own, nothing when the viewer sees only their own keys and their teams'."""
 
     def describe(token: Token) -> Key:
         key = describe_key(token, filters.access, with_org=filters.org is None)
@@ -93,8 +86,6 @@ def _describe(filters: Filters) -> Callable[[Token], Key]:
 
 
 class UsageDashboardView(BaseAqueductView, TemplateView):
-    """The Overview page: usage of the keys the viewer may see, for one org or all orgs."""
-
     template_name = "management/usage.html"
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
@@ -191,10 +182,6 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
 
 
 class KeyUsageView(BaseAqueductView, TemplateView):
-    """The All keys page: the usage of every key the viewer may see, a page at a time, with the
-    Overview's filters, so its first rows are the Overview's Top keys. A user who sees only
-    one key goes to that key's page instead."""
-
     template_name = "management/usage_keys.html"
 
     def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
@@ -210,7 +197,6 @@ class KeyUsageView(BaseAqueductView, TemplateView):
         )
         only_key = filters.only_key
         if not filters.can_pick_scope and only_key is not None and only_key.href is not None:
-            # The key page always shows the last 7 days of every model, so span and model go.
             return redirect(only_key.href)
         return self.render_to_response(self.get_context_data(filters=filters, **kwargs))
 

@@ -16,7 +16,6 @@ log = logging.getLogger("aqueduct")
 
 class OIDCBackend(OIDCAuthenticationBackend):
     def get_user(self, user_id: int) -> User | None:
-        """The signed-in user of a session, or `None` once an admin has deactivated them."""
         user = super().get_user(user_id)
         return user if user is not None and user.is_active else None
 

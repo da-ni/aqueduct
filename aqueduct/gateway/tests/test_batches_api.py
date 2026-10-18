@@ -58,8 +58,6 @@ class TestBatchesAPI(GatewayBatchesTestCase):
         self.assertEqual(data.get("data"), [])
 
     def test_list_batches_different_tokens(self):
-        """A personal key sees its owner's personal batches, a service account key its team's,
-        even though user 1 created both keys."""
 
         # Create batch under token1 (personal token, self.headers)
         fid1 = self._create_jsonl_file()
@@ -276,8 +274,6 @@ class TestBatchesAPI(GatewayBatchesTestCase):
         self.assertEqual(batch.status, BatchStatus.CANCELLED)
 
     def test_session_cancel_acts_through_the_user_s_personal_key(self):
-        """A UI session names no key. A service account key the user created earlier, for a
-        team they may since have left, must not stand in for their personal key."""
         user = User.objects.create_user(username="leaver", email="leaver@example.com")
         UserProfile.objects.create(user=user, org=Org.objects.get(name="E060"))
         old_team = Team.objects.create(name="Old team", org=Org.objects.get(name="E060"))
@@ -578,8 +574,6 @@ class TestBatchesServiceAccountAPI(GatewayBatchesTestCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_creator_s_personal_key_cannot_reach_the_team_s_batches(self):
-        """Token pk=2 is a service account key on team Whale created by user 1, whose personal
-        key is `self.headers`."""
         sa_token = Token.objects.get(pk=2)
         sa_headers = {"Authorization": f"Bearer {sa_token._set_new_key()}"}
         sa_token.save(update_fields=["key_hash", "key_preview"])
@@ -785,12 +779,6 @@ class TestCatchRouterExceptionsIntegration(GatewayBatchesTestCase):
 
 
 class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
-    """A switched-off model is rejected at batch upload exactly like an unknown model.
-
-    The exact 'Unknown model' wording is the contract. A key must not learn whether a model
-    it cannot use exists.
-    """
-
     def _upload_batch_file(self, model: str, headers: dict | None = None):
         payload = _build_chat_payload(model, messages=[{"role": "user", "content": "Test"}])
         line = {"custom_id": "1", "method": "POST", "url": self.url_chat, "body": payload}
@@ -841,8 +829,6 @@ class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
         self._assert_upload_rejected(resp, self.model)
 
     def _create_batch_after_switch_off(self, exclude) -> tuple:
-        """Upload a batch file for `self.model`, switch the model off with `exclude`, then start
-        a batch from the file. The mock upstream serves the file as the upload stored it."""
         resp = self._upload_batch_file(self.model)
         self.assertEqual(resp.status_code, 200, resp.content)
         file_id = resp.json()["id"]

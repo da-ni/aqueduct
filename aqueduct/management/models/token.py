@@ -17,12 +17,9 @@ if TYPE_CHECKING:
 
 _T = TypeVar("_T")
 HIERARCHY = ("user__profile__org", "service_account__team__org")
-"""The relations a token's limits and exclusions come from."""
 
 
 def of_org(org: "Org") -> models.Q:
-    """The keys that belong to `org`: a service account's key to its team's org, any other key
-    to its owner's org."""
     return models.Q(service_account__team__org=org) | models.Q(
         service_account__isnull=True, user__profile__org=org
     )
@@ -78,9 +75,6 @@ class Token(models.Model):
         super().save(*args, **kwargs)
 
     def reach(self) -> models.Q:
-        """The files, batches, and vector stores this key may use: those of its team's keys for
-        a service account's key, those of its owner's personal keys otherwise. A service account
-        key's `user` is only who created it."""
         if self.service_account:
             return models.Q(token__service_account__team_id=self.service_account.team_id)
         return models.Q(token__user_id=self.user_id, token__service_account__isnull=True)
@@ -135,7 +129,6 @@ class Token(models.Model):
         super().clean()
 
     def _hierarchy_loaded(self) -> bool:
-        """Whether the owner and org `_get_from_hierarchy` reads are already on this instance."""
         path = HIERARCHY[1] if self.service_account_id else HIERARCHY[0]
         related: models.Model = self
         for name in path.split("__"):

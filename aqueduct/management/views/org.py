@@ -24,9 +24,6 @@ if TYPE_CHECKING:
 
 
 class OrgView(BaseAqueductView, TemplateView):
-    """The teams page: the teams the user may open, with their size, limit, and usage. An admin
-    viewing every org sees the teams of every org."""
-
     template_name = "management/org.html"
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
@@ -48,9 +45,6 @@ class OrgView(BaseAqueductView, TemplateView):
 
 
 class OrganizationView(BaseAqueductView, OrgAdminRequiredMixin, TemplateView):
-    """The organization page: its size, default limits, and what is unavailable in it. A
-    platform admin viewing every org picks one from a list instead."""
-
     template_name = "management/organization.html"
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
@@ -63,8 +57,6 @@ class OrganizationView(BaseAqueductView, OrgAdminRequiredMixin, TemplateView):
 
 
 class OrgEditView(BaseAqueductView, UpdateView):
-    """Edits an org's settings. Only an admin of that org may, others get 404."""
-
     model = Org
     pk_url_kwarg = "id"
     template_name = "management/edit/org.html"
@@ -72,7 +64,6 @@ class OrgEditView(BaseAqueductView, UpdateView):
     success_url = reverse_lazy("organization")
     view_title: "_StrPromise"
     saved: "_StrPromise"
-    """The message after a save, with the org's name in `%(name)s`."""
 
     def get_object(self, queryset=None) -> Org:
         org = get_object_or_404(Org, pk=self.kwargs[self.pk_url_kwarg])
@@ -102,8 +93,6 @@ class OrgAvailabilityEditView(OrgEditView):
 
 
 class OrgSwitchView(BaseAqueductView, View):
-    """Sets the org an admin looks at, one org or every org, for every page of their session."""
-
     def post(self, request, *args, **kwargs) -> HttpResponse:
         if not self.is_admin():
             messages.error(request, gettext("Only platform admins can do that."))
@@ -125,7 +114,6 @@ class OrgSwitchView(BaseAqueductView, View):
 
 
 def _without_org_params(url: str) -> str:
-    """`url` without the parameters that name something of the org the viewer leaves."""
     parts = urlsplit(url)
     query = [
         (name, value)

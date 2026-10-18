@@ -19,11 +19,6 @@ class EmbeddingTest(GatewayIntegrationTestCase):
         cls.url = reverse("gateway:embeddings")
 
     def test_embeddings(self):
-        """
-        Sends a simple embeddings request to the mock server using the Django test client.
-        After the request, checks that the database contains one request,
-        the endpoint matches, and input/output tokens are > 0.
-        """
         if INTEGRATION_TEST_BACKEND == "vllm":
             self.skipTest(
                 "Tests not adapted for vLLM yet... "
@@ -48,7 +43,6 @@ class EmbeddingTest(GatewayIntegrationTestCase):
 
         response_json = response.json()
 
-        # OpenAI-style embeddings response should have 'data' and 'embedding' fields
         self.assertIn("data", response_json)
         self.assertIsInstance(response_json["data"], list)
         self.assertGreater(len(response_json["data"]), 0)
@@ -57,7 +51,6 @@ class EmbeddingTest(GatewayIntegrationTestCase):
         self.assertIsInstance(embedding_obj["embedding"], list)
         self.assertGreater(len(embedding_obj["embedding"]), 0)
 
-        # Check that the database contains one request and endpoint matches
         requests = list(Request.objects.all())
         self.assertEqual(len(requests), 1, "There should be exactly one request after embeddings.")
         req = requests[0]

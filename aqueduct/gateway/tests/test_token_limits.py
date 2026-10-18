@@ -13,19 +13,11 @@ User = get_user_model()
 class TokenLimitTest(ChatCompletionsBase):
     def setUp(self):
         super().setUp()
-        # The limits count per calendar minute, hour, and day. A frozen clock keeps every
-        # request of a test in the same window.
         clock = patch("django.utils.timezone.now", return_value=timezone.now())
         clock.start()
         self.addCleanup(clock.stop)
 
     def _setup_limits(self, kind: str, field: str, value: int):
-        """
-        Set a rate limit for the given kind ('org', 'team', 'user') and field.
-        Returns the object whose limit was set.
-
-        For 'team', also ensure the service account is associated with the test token.
-        """
         if kind == "org":
             org = Org.objects.get(name="E060")
             setattr(org, field, value)
@@ -35,8 +27,6 @@ class TokenLimitTest(ChatCompletionsBase):
             team = Team.objects.get(name="Whale")
             setattr(team, field, value)
             team.save(update_fields=[field])
-            # Ensure a service account exists for the team and associate it with the token
-            # Only associate the SA with the token if it does not already have a service account
 
             service_account = ServiceAccount.objects.create(team=team, name="Whale Service")
 
@@ -46,17 +36,14 @@ class TokenLimitTest(ChatCompletionsBase):
             if not token:
                 raise RuntimeError("Could not find Token associated with AQUEDUCT_ACCESS_TOKEN.")
 
-            # Only set the service_account if it is not already set
             if getattr(token, "service_account_id", None) is None:
                 token.service_account = service_account
                 token.save(update_fields=["service_account"])
             elif token.service_account_id != service_account.id:
-                # If the token is already associated with a different SA, raise an error
                 raise RuntimeError(
                     f"Token is already associated with a different service account "
                     f"(id={token.service_account_id})."
                 )
-            # Otherwise, already associated with the correct service account, do nothing
             return team
         if kind == "user":
             user = User.objects.get(username="Me")
@@ -71,11 +58,6 @@ class TokenLimitTest(ChatCompletionsBase):
     def _rate_limit_test_template(
         self, kind: str, field: str, value: int, messages, max_completion_tokens, limit_desc
     ):
-        """
-        Generic template for rate limit tests for org, team, or user.
-        Uses the Django test client to POST to the chat completion endpoint.
-        """
-        # Set the limit
         self._setup_limits(kind, field, value)
 
         response1 = self._send_chat_completion(
@@ -92,7 +74,6 @@ class TokenLimitTest(ChatCompletionsBase):
         self.assertTrue(chat_completion.choices)
         self.assertGreater(len(chat_completion.choices), 0)
 
-        # Check that the database contains one request and endpoint matches
         requests = list(Request.objects.all())
         self.assertEqual(
             len(requests),
@@ -106,7 +87,6 @@ class TokenLimitTest(ChatCompletionsBase):
         self.assertGreater(req.input_tokens, 0, "input_tokens should be > 0")
         self.assertGreater(req.output_tokens, 0, "output_tokens should be > 0")
 
-        # Second request should fail with 429
         response2 = self._send_chat_completion(
             messages, max_completion_tokens=max_completion_tokens
         )
@@ -115,11 +95,9 @@ class TokenLimitTest(ChatCompletionsBase):
             429,
             f"Expected 429 Too Many Requests, got {response2.status_code}: {response2.content}",
         )
-        # The exceeded minute bucket ends within a minute
         retry_after = int(response2.headers["Retry-After"])
         self.assertGreaterEqual(retry_after, 1)
         self.assertLessEqual(retry_after, 60)
-        # Optionally, check error message
         try:
             error_json = response2.json()
             self.assertTrue(
@@ -127,7 +105,6 @@ class TokenLimitTest(ChatCompletionsBase):
                 f"Expected rate limit error message, got: {error_json}",
             )
         except Exception:
-            # If not JSON, just check content
             self.assertTrue(
                 "rate limit" in response2.content.decode().lower()
                 or "429" in response2.content.decode(),
@@ -135,10 +112,6 @@ class TokenLimitTest(ChatCompletionsBase):
             )
 
     def test_org_rate_limit_requests_per_minute(self):
-        """
-        Edits the requests_per_minute of Org 'E060' to 1, then makes two requests.
-        The second request should raise a 429 HTTP error.
-        """
         self._rate_limit_test_template(
             kind="org",
             field="requests_per_minute",
@@ -149,10 +122,6 @@ class TokenLimitTest(ChatCompletionsBase):
         )
 
     def test_team_rate_limit_requests_per_minute(self):
-        """
-        Edits the requests_per_minute of Team 'Whale' to 1, then makes two requests.
-        The second request should raise a 429 HTTP error.
-        """
         self._rate_limit_test_template(
             kind="team",
             field="requests_per_minute",
@@ -163,10 +132,6 @@ class TokenLimitTest(ChatCompletionsBase):
         )
 
     def test_user_rate_limit_requests_per_minute(self):
-        """
-        Edits the requests_per_minute of UserProfile for user 'Me' to 1, then makes two requests.
-        The second request should raise a 429 HTTP error.
-        """
         self._rate_limit_test_template(
             kind="user",
             field="requests_per_minute",
@@ -177,10 +142,6 @@ class TokenLimitTest(ChatCompletionsBase):
         )
 
     def test_org_rate_limit_input_tokens_per_minute(self):
-        """
-        Edits the input_tokens_per_minute of Org 'E060' to 5, then makes two requests.
-        The second request should raise a 429 HTTP error.
-        """
         self._rate_limit_test_template(
             kind="org",
             field="input_tokens_per_minute",
@@ -191,10 +152,6 @@ class TokenLimitTest(ChatCompletionsBase):
         )
 
     def test_team_rate_limit_input_tokens_per_minute(self):
-        """
-        Edits the input_tokens_per_minute of Team 'Whale' to 5, then makes two requests.
-        The second request should raise a 429 HTTP error.
-        """
         self._rate_limit_test_template(
             kind="team",
             field="input_tokens_per_minute",
@@ -205,10 +162,6 @@ class TokenLimitTest(ChatCompletionsBase):
         )
 
     def test_user_rate_limit_input_tokens_per_minute(self):
-        """
-        Edits input_tokens_per_minute of UserProfile for user 'Me' to 5,
-        then makes two requests. The second request should raise a 429 HTTP error.
-        """
         self._rate_limit_test_template(
             kind="user",
             field="input_tokens_per_minute",
@@ -219,10 +172,6 @@ class TokenLimitTest(ChatCompletionsBase):
         )
 
     def test_org_rate_limit_output_tokens_per_minute(self):
-        """
-        Edits the output_tokens_per_minute of Org 'E060' to 5, then makes two requests.
-        The second request should raise a 429 HTTP error.
-        """
         self._rate_limit_test_template(
             kind="org",
             field="output_tokens_per_minute",
@@ -233,10 +182,6 @@ class TokenLimitTest(ChatCompletionsBase):
         )
 
     def test_team_rate_limit_output_tokens_per_minute(self):
-        """
-        Edits the output_tokens_per_minute of Team 'Whale' to 5, then makes two requests.
-        The second request should raise a 429 HTTP error.
-        """
         self._rate_limit_test_template(
             kind="team",
             field="output_tokens_per_minute",
@@ -247,10 +192,6 @@ class TokenLimitTest(ChatCompletionsBase):
         )
 
     def test_user_rate_limit_output_tokens_per_minute(self):
-        """
-        Edits output_tokens_per_minute of UserProfile for user 'Me' to 5,
-        then makes two requests. The second request should raise a 429 HTTP error.
-        """
         self._rate_limit_test_template(
             kind="user",
             field="output_tokens_per_minute",
@@ -262,17 +203,8 @@ class TokenLimitTest(ChatCompletionsBase):
 
     @patch("gateway.rate_limiting.get_model_request_limit_multiplier", return_value=2.0)
     def test_per_model_request_limit_multiplier_budget(self, mock_multipliers):
-        """
-        Tests that per-model multipliers act as a budget cost.
-        With multiplier 2.0 ("2x Limits") and limit 3:
-        Each request costs 1/2.0 = 0.5 budget.
-        - Requests 1-6: weighted cost 0, 0.5, 1.0, 1.5, 2.0, 2.5 all < 3, allowed
-        - 7th request: weighted = 3.0 >= 3, blocked
-        """
-        # Set request limit to 3
         self._setup_limits("org", "requests_per_minute", 3)
 
-        # Requests 1-6 should succeed (weighted cost up to 2.5 < 3)
         for i in range(6):
             response = self._send_chat_completion(self.MESSAGES, max_completion_tokens=5)
             self.assertEqual(
@@ -281,7 +213,6 @@ class TokenLimitTest(ChatCompletionsBase):
                 f"Expected 200 OK for request {i + 1}, got {response.status_code}",
             )
 
-        # 7th request should fail (weighted cost = 3.0 >= 3)
         response7 = self._send_chat_completion(self.MESSAGES, max_completion_tokens=5)
         self.assertEqual(
             response7.status_code,
@@ -296,26 +227,14 @@ class TokenLimitTest(ChatCompletionsBase):
 
     @patch("gateway.rate_limiting.get_model_request_limit_multiplier", return_value=0.5)
     def test_per_model_expensive_multiplier_limits_requests(self, mock_multipliers):
-        """
-        Tests that a model with multiplier < 1 costs more budget per request.
-        With multiplier 0.5 and limit 3:
-        Each request costs 1/0.5 = 2.0 budget.
-        - 1st request: weighted = 0 < 3, allowed
-        - 2nd request: weighted = 2.0 < 3, allowed
-        - 3rd request: weighted = 4.0 >= 3, blocked
-        """
-        # Set request limit to 3
         self._setup_limits("org", "requests_per_minute", 3)
 
-        # First request: weighted = 0 < 3
         response1 = self._send_chat_completion(self.MESSAGES, max_completion_tokens=5)
         self.assertEqual(response1.status_code, 200)
 
-        # Second request: weighted = 2.0 < 3
         response2 = self._send_chat_completion(self.MESSAGES, max_completion_tokens=5)
         self.assertEqual(response2.status_code, 200)
 
-        # Third request: weighted = 4.0 >= 3
         response3 = self._send_chat_completion(self.MESSAGES, max_completion_tokens=5)
         self.assertEqual(response3.status_code, 429)
         retry_after = response3.headers["Retry-After"]
@@ -340,8 +259,6 @@ class TokenLimitTest(ChatCompletionsBase):
         )
 
     def test_limits_count_from_the_rate_limit_buckets_not_the_request_log(self):
-        """The limits hold while the request log is pruned, and a blocked request is not
-        logged: it returns 429 before ``log_request`` runs."""
         self._setup_limits("org", "requests_per_minute", 1)
         first = self._send_chat_completion(self.MESSAGES, max_completion_tokens=5)
         self.assertEqual(first.status_code, 200)

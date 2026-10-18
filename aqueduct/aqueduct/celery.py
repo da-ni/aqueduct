@@ -40,7 +40,6 @@ def delete_old_requests(self: object) -> None:
     old_requests.delete()
     logger.info("Deleted %s requests older than %s days (before %s)", count, retention_days, cutoff)
 
-    # The rollups keep no more than the requests they are counted from.
     started = time.monotonic()
     usage_rollup.rebuild()
     usage_rollup.refresh_key_windows()

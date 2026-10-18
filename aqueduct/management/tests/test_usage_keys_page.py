@@ -28,7 +28,6 @@ class KeyUsageAccessTest(KeyUsagePageTestBase):
 
     def test_a_user_with_one_key_goes_to_its_page(self):
         response = self.keys_page(self.solo, span="1w", model=EMBEDDING)
-        # The key page shows a fixed week of every model, so it takes neither parameter.
         self.assertRedirects(response, reverse("token_detail", args=[self.solo_key.id]))
 
     def test_user_with_several_keys_sees_only_their_own(self):
@@ -74,7 +73,6 @@ class KeyUsageSearchTest(KeyUsagePageTestBase):
         self.assertEqual(self.names(self.other_org_admin, q="solo"), [])
 
     def test_only_a_viewer_who_sees_the_whole_org_searches_by_owner_email(self):
-        # team-admin created the pipeline key; a member must not learn that by searching.
         self.assertEqual(self.names(self.member, q="team-admin@"), [])
         self.assertEqual(self.names(self.org_admin, q="team-admin@"), ["pipeline"])
         self.assertEqual(self.names(self.org_admin, q="foreigner@"), [])
@@ -178,8 +176,8 @@ class KeyUsageMatchesOverviewTest(KeyUsagePageTestBase):
         self.assertContains(response, f'href="{url}">View all keys')
 
     def test_view_all_keys_shows_only_while_top_keys_leaves_keys_out(self):
-        whole_org = ({}, {"span": "1d"})  # from the key windows, and from the requests
-        self.busy_keys(self.org_admin, TOP_KEYS - 3)  # lab-org already has three keys in use
+        whole_org = ({}, {"span": "1d"})
+        self.busy_keys(self.org_admin, TOP_KEYS - 3)
         for params in (*whole_org, {"scope": "mine"}):
             self.assertNotContains(self.page(self.org_admin, **params), "View all keys")
         self.busy_keys(self.solo, 1)
@@ -204,4 +202,4 @@ class KeyUsageHeadingsTest(KeyUsagePageTestBase):
         self.assertIn('href="?span=1w&amp;sort=requests"', html)
         response = self.keys_page(self.org_admin, span="1w", sort="name", page="2")
         self.assertContains(response, 'aria-sort="ascending"')
-        self.assertContains(response, 'href="?span=1w"')  # tokens, the default order
+        self.assertContains(response, 'href="?span=1w"')

@@ -95,7 +95,6 @@ class GatewayIntegrationTestCase(TestCase):
         super().tearDownClass()
 
     def upstream_too_slow(self, path: str):
-        """Make the mock API answer `path` long after any timeout a test sets."""
         return self.mock_server.patch_external_api(path, MockConfig(delay_seconds=5))
 
     @staticmethod
@@ -126,25 +125,14 @@ class ChatCompletionsBase(GatewayIntegrationTestCase):
         cls.url = reverse("gateway:chat_completions")
 
     def _build_chat_completion_request(self, messages, stream=False, **payload_kwargs) -> dict:
-        """
-        Helper to build headers, payload, and endpoint for chat completion requests.
-        """
         payload = _build_chat_payload(self.model, messages, stream=stream, **payload_kwargs)
         return {"path": self.url, "data": json.dumps(payload), "headers": self.headers}
 
     def _send_chat_completion(self, messages, **payload_kwargs):
-        """
-        Helper to send a chat completion request (non-streaming) to the mock server,
-        using Django test client.
-        """
         request = self._build_chat_completion_request(messages, stream=False, **payload_kwargs)
         return self.client.post(**request, content_type="application/json")
 
     async def _send_chat_completion_streaming(self, messages, **payload_kwargs):
-        """
-        Helper to send a streaming chat completion request to the mock server,
-        using Django async test client.
-        """
         request = self._build_chat_completion_request(messages, stream=True, **payload_kwargs)
         return await self.async_client.post(**request, content_type="application/json")
 

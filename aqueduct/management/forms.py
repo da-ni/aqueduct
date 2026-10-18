@@ -163,9 +163,6 @@ TEAM_LIMITS = {
 
 
 class TeamLimitsForm(TeamCreateForm):
-    """The team form for an admin of the team's org, who also sets the limits of the team's
-    service account keys. The model's validation applies, as in the Django admin."""
-
     class Meta(TeamCreateForm.Meta):
         fields: ClassVar[list] = [*TeamCreateForm.Meta.fields, *TEAM_LIMITS]
         widgets: ClassVar[dict] = {
@@ -276,9 +273,6 @@ MERGE_WIDGETS = {
 
 
 class ChecklistForm(AvailabilityForm):
-    """The availability checklists as the management pages render them. Without an MCP config
-    the form has no MCP fields, so a save leaves the stored MCP list as it is."""
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for name in ("available_models", "available_mcp_servers"):
@@ -291,8 +285,6 @@ class ChecklistForm(AvailabilityForm):
 
 
 class OrgAvailabilityForm(ChecklistForm):
-    """What keys in the org may use, limited to the models and MCP servers the gateway knows."""
-
     class Meta:
         model = Org
         fields: ClassVar[list] = ["merge_exclusion_lists", "merge_mcp_server_exclusion_lists"]
@@ -317,7 +309,6 @@ class OrgAvailabilityForm(ChecklistForm):
         for name, names in defaults.items():
             if name not in self.fields:
                 continue
-            # Without server defaults the box changes nothing, and leaving it out keeps it.
             if names:
                 self.fields[name].help_text = ngettext(
                     "The server configuration makes %(names)s unavailable everywhere. "
@@ -331,8 +322,6 @@ class OrgAvailabilityForm(ChecklistForm):
 
 
 class TeamAvailabilityForm(ChecklistForm):
-    """What the team's service account keys may use."""
-
     class Meta:
         model = Team
         fields: ClassVar[list] = ["merge_exclusion_lists", "merge_mcp_server_exclusion_lists"]
@@ -349,9 +338,6 @@ class TeamAvailabilityForm(ChecklistForm):
 
 
 class MemberEmailForm(forms.Form):
-    """Names one of `candidates` by email, ignoring case. After validation `profile` is that
-    person. `not_found` gives the error for an email none of them uses."""
-
     email = forms.EmailField(label=_("Email"))
 
     def __init__(

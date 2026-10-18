@@ -36,9 +36,6 @@ def named(token) -> Key:
 
 @PAGES
 class UsageFromRollupsTest(TestCase):
-    """The Overview and All keys pages read the rollups when the viewer sees a whole org, and
-    show the figures the requests give."""
-
     @classmethod
     def setUpTestData(cls):
         cls.now = timezone.now()
@@ -220,8 +217,6 @@ class UsageFromRollupsTest(TestCase):
             }
 
         before = requests()
-        # Deleting sealed requests behind the rollups' back shows which figures read them. Requests
-        # after the earliest sealed hour are still read raw, so they stay.
         sealed = min(UsageRollupState.objects.values_list("sealed_until", flat=True))
         Request.objects.filter(timestamp__lt=sealed).delete()
         after = requests()

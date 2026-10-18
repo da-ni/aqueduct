@@ -151,8 +151,6 @@ class Viewer:
 
 @dataclass(frozen=True)
 class OrgSwitch:
-    """The orgs an admin may look at, and the one they look at, `None` for every org."""
-
     orgs: tuple[Org, ...]
     chosen: Org | None
 
@@ -193,7 +191,6 @@ def build_shell(request: HttpRequest) -> Shell:
             for page in allowed
         )
 
-    # gettext("") returns the catalog's header, not "".
     extra = tuple(
         Link(gettext(name) if name else name, url, Icon.LINK, external=True)
         for name, url in settings.EXTRA_NAV_LINKS.items()
