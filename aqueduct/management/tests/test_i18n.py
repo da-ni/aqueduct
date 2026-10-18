@@ -18,9 +18,7 @@ MO = PO.with_suffix(".mo")
 GETTEXT = all(shutil.which(tool) for tool in ("xgettext", "msgmerge", "msgfmt"))
 NO_GETTEXT = "GNU gettext (xgettext, msgmerge, msgfmt) is not on PATH, so the catalog is unchecked"
 
-UNTRANSLATED: frozenset[str] = frozenset()
-
-UNTRANSLATED_TEMPLATES = frozenset(
+ENGLISH_ONLY_TEMPLATES = frozenset(
     {"admin/management/snippet/change_list.html", "admin/management/snippet/test_console.html"}
 )
 
@@ -72,7 +70,7 @@ class TemplateTextTest(SimpleTestCase):
         bare = {
             name: found
             for name, source in management_templates().items()
-            if name not in UNTRANSLATED_TEMPLATES and (found := bare_text(source))
+            if name not in ENGLISH_ONLY_TEMPLATES and (found := bare_text(source))
         }
         self.assertEqual(bare, {}, "Wrap this text in {% translate %} or {% blocktranslate %}")
 
@@ -80,10 +78,10 @@ class TemplateTextTest(SimpleTestCase):
         templates = management_templates()
         done = {
             name
-            for name in UNTRANSLATED_TEMPLATES
+            for name in ENGLISH_ONLY_TEMPLATES
             if name not in templates or not bare_text(templates[name])
         }
-        self.assertEqual(done, set(), "Remove these from UNTRANSLATED_TEMPLATES")
+        self.assertEqual(done, set(), "Remove these from ENGLISH_ONLY_TEMPLATES")
 
     def test_finds_text_and_attributes_but_not_tags(self):
         source = (
@@ -143,8 +141,7 @@ class GermanCatalogTest(SimpleTestCase):
         fuzzy = {msgid for msgid, _, is_fuzzy in entries if is_fuzzy}
         untranslated = {msgid for msgid, msgstrs, _ in entries if not all(msgstrs)}
         self.assertEqual(fuzzy, set(), "Check these guesses by msgmerge and drop `#, fuzzy`")
-        self.assertEqual(untranslated - UNTRANSLATED, set(), "Translate these entries")
-        self.assertEqual(UNTRANSLATED - untranslated, set(), "Remove these from UNTRANSLATED")
+        self.assertEqual(untranslated, set(), "Translate these entries")
 
     @skipUnless(GETTEXT, NO_GETTEXT)
     def test_catalog_holds_exactly_the_strings_of_the_source(self):
