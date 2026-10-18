@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 01:26+0000\n"
+"POT-Creation-Date: 2026-10-18 07:30+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -503,7 +503,7 @@ msgstr "Einstellungen"
 msgid "Terms of service"
 msgstr "Nutzungsbedingungen"
 
-msgid "Privacy"
+msgid "Data protection"
 msgstr "Datenschutz"
 
 msgid "Matrix support channel"
@@ -1200,6 +1200,9 @@ msgstr "Alle in %(name)s"
 msgid "None"
 msgstr "Keine"
 
+msgid "Data protection information"
+msgstr "Datenschutzinformation"
+
 #, python-format
 msgid "For members of %(name)s"
 msgstr "Für Mitglieder von %(name)s"
@@ -1208,8 +1211,17 @@ msgstr "Für Mitglieder von %(name)s"
 msgid "Last updated %(date)s"
 msgstr "Zuletzt aktualisiert am %(date)s"
 
-msgid "No privacy information has been published yet."
-msgstr "Es wurden noch keine Datenschutzhinweise veröffentlicht."
+msgid "No data protection information has been published yet."
+msgstr "Es wurden noch keine Datenschutzinformationen veröffentlicht."
+
+#, python-format
+msgid ""
+"Only platform admins see this hint. <a class=\"link\" href=\"%(url)s\">Add "
+"it in the admin panel</a> to publish data protection information."
+msgstr ""
+"Nur Plattform-Admins sehen diesen Hinweis. <a class=\"link\" "
+"href=\"%(url)s\">Im Admin-Bereich</a> können Sie eine Datenschutzinformation "
+"veröffentlichen."
 
 msgid "Request ID, path, user ID or user agent"
 msgstr "Anfrage-ID, Pfad, User-ID oder User-Agent"

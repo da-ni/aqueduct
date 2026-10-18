@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase, modify_settings, override_settings
@@ -12,7 +13,8 @@ User = get_user_model()
 
 urlpatterns = [path("terms-of-service/", include("tos.urls")), *aqueduct_urlpatterns]
 
-PLACEHOLDER = "No privacy information has been published yet."
+PLACEHOLDER = "No data protection information has been published yet."
+LINK = "Data protection"
 
 
 @PAGES
@@ -46,20 +48,47 @@ class PrivacyPageTest(TestCase):
         self.assertContains(response, "Last updated")
         self.assertNotContains(response, PLACEHOLDER)
 
-    def test_without_a_notice_the_page_says_so_and_no_link_points_to_it(self):
-        for user in (None, self.member):
+    def platform_admin(self):
+        admin = self.user("admin", UserGroup.ADMIN)
+        admin.is_staff = admin.is_superuser = True
+        admin.save()
+        return admin
+
+    def test_every_visitor_finds_the_link_with_or_without_a_notice(self):
+        org_admin = self.user("org-admin", UserGroup.ORG_ADMIN)
+        admin = self.platform_admin()
+        for has_notice in (False, True):
+            if has_notice:
+                PrivacyNotice.objects.create(content="Site-wide.")
+            for user in (None, self.member, org_admin, admin):
+                with self.subTest(has_notice=has_notice, user=user):
+                    self.client.logout()
+                    self.assertIn(LINK, self.footer_links(self.page(user)))
+            self.client.logout()
+            self.assertContains(self.client.get(reverse("sso")), f'href="{reverse("privacy")}"')
+
+    def test_without_a_notice_only_platform_admins_get_the_hint_to_add_one(self):
+        add_url = reverse("admin:management_privacynotice_add")
+        for user in (None, self.member, self.user("org-admin", UserGroup.ORG_ADMIN)):
             with self.subTest(user=user):
+                self.client.logout()
                 response = self.page(user)
                 self.assertContains(response, PLACEHOLDER)
-                self.assertNotIn("Privacy", self.footer_links(response))
-        self.client.logout()
-        self.assertNotContains(self.client.get(reverse("sso")), reverse("privacy"))
-
-    def test_links_appear_once_a_notice_exists(self):
+                self.assertNotContains(response, add_url)
+        response = self.page(self.platform_admin())
+        self.assertContains(response, PLACEHOLDER)
+        self.assertContains(response, f'href="{add_url}"')
         PrivacyNotice.objects.create(content="Site-wide.")
-        self.assertIn("Privacy", self.footer_links(self.page()))
-        self.assertContains(self.client.get(reverse("sso")), f'href="{reverse("privacy")}"')
-        self.assertIn("Privacy", self.footer_links(self.page(self.member)))
+        self.assertNotContains(self.page(), add_url)
+
+    def test_german_visitors_read_datenschutzinformation(self):
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "de"
+        response = self.page()
+        self.assertContains(response, "Datenschutzinformation</h1>")
+        self.assertContains(
+            response, "Es wurden noch keine Datenschutzinformationen veröffentlicht."
+        )
+        self.assertIn("Datenschutz", self.footer_links(response))
 
     def test_markdown_cannot_inject_html_or_script_links(self):
         PrivacyNotice.objects.create(
@@ -97,13 +126,6 @@ class PrivacyPageTest(TestCase):
                 response = self.page(user)
                 self.assertContains(response, "Site-wide text.")
                 self.assertNotContains(response, "Informatics keeps logs")
-
-    def test_an_addendum_alone_links_for_members_only(self):
-        PrivacyNotice.objects.create(org=self.org, content="Informatics only.")
-        self.assertIn("Privacy", self.footer_links(self.page(self.member)))
-        self.assertNotIn("Privacy", self.footer_links(self.page(self.outsider)))
-        self.client.logout()
-        self.assertContains(self.page(), PLACEHOLDER)
 
     def test_admins_see_the_addendum_of_the_org_they_switched_to(self):
         admin = self.user("admin", UserGroup.ADMIN)

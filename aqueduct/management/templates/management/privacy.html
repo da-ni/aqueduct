@@ -1,12 +1,12 @@
 {% extends "management/base.html" %}
 {% load i18n ui %}
 
-{% block title %}{% translate "Privacy" %} · {% translate "Aqueduct AI Gateway" %}{% endblock %}
+{% block title %}{% translate "Data protection information" %} · {% translate "Aqueduct AI Gateway" %}{% endblock %}
 {% block page_background %}{% endblock %}
 
 {% block content %}
 <div class="mx-auto flex w-full max-w-3xl flex-col gap-8">
-    <h1 class="text-3xl font-semibold">{% translate "Privacy" %}</h1>
+    <h1 class="text-3xl font-semibold">{% translate "Data protection information" %}</h1>
     {% for notice in notices %}
         <section class="flex flex-col gap-3"{% if notice.org %} aria-labelledby="addendum-title"{% endif %}>
             {% if notice.org %}
@@ -16,7 +16,11 @@
             <div class="aq-prose">{{ notice.content|markdown }}</div>
         </section>
     {% empty %}
-        <p class="muted">{% translate "No privacy information has been published yet." %}</p>
+        <p class="muted">{% translate "No data protection information has been published yet." %}</p>
+        {% if can_publish %}
+            {% url "admin:management_privacynotice_add" as add_url %}
+            <p class="text-sm">{% blocktranslate with url=add_url %}Only platform admins see this hint. <a class="link" href="{{ url }}">Add it in the admin panel</a> to publish data protection information.{% endblocktranslate %}</p>
+        {% endif %}
     {% endfor %}
 </div>
 {% endblock %}

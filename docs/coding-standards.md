@@ -99,7 +99,7 @@ The management pages come in English and German, in the formal "Sie". The langua
 | Settings | Einstellungen |
 | Sign in, Sign out | Anmelden, Abmelden |
 | Terms of service | Nutzungsbedingungen |
-| Privacy | Datenschutz |
+| Data protection information, Data protection (link) | Datenschutzinformation, Datenschutz |
 | Copy, Copied | Kopieren, Kopiert |
 | Delete, Cancel, Save | Löschen, Abbrechen, Speichern |
 | Account | Konto |
