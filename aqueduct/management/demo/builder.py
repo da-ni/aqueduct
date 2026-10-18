@@ -31,47 +31,29 @@ User = get_user_model()
 
 SEED_DOMAIN = "seed.invalid"
 ORG_PREFIX = "seed-demo-"
+LISTED_STRANGERS = 20
 
 IDLE_KEY_SHARE = 0.15
 SECOND_TEAM_SHARE = 0.1
 TEAMS_PER_ORG_ADMIN = 100
+TEAM_SIZE = (3, 5)
+ADMINS_PER_TEAM = (1, 1, 2)
 KEYS_PER_USER = ((1, 2, 3), (6, 3, 1))
+KEY_PREVIEW = "sk-...seed"
 
-FIRST_NAMES: tuple[str, ...] = (
-    "Anna",
-    "Ben",
-    "Clara",
-    "David",
-    "Elif",
-    "Felix",
-    "Greta",
-    "Ivan",
-    "Jonas",
-    "Karim",
-)
-FIRST_NAMES += ("Lena", "Maria", "Mia", "Noah", "Omar", "Paul", "Rosa", "Sara", "Tobias", "Yusuf")
-LAST_NAMES: tuple[str, ...] = (
-    "Bauer",
-    "Berger",
-    "Fischer",
-    "Gruber",
-    "Hofer",
-    "Huber",
-    "Kaya",
-    "Klein",
-    "Lang",
-)
-LAST_NAMES += ("Mayer", "Moser", "Novak", "Pichler", "Reiter", "Steiner", "Wagner", "Weber")
-TEAM_FIELDS: tuple[str, ...] = (
-    "Applied NLP",
-    "Vision",
-    "Robotics",
-    "Bioinformatics",
-    "Climate",
-    "Data Systems",
-)
-TEAM_FIELDS += ("Security", "HCI", "Theory", "Quantum", "Materials", "Linguistics", "Energy")
-TEAM_FIELDS += ("Neuroscience", "Logistics", "Health AI", "Statistics", "Compilers", "Networks")
+FIRST_NAMES = (
+    "Anna", "Ben", "Clara", "David", "Elif", "Felix", "Greta", "Ivan", "Jonas", "Karim",
+    "Lena", "Maria", "Mia", "Noah", "Omar", "Paul", "Rosa", "Sara", "Tobias", "Yusuf",
+)  # fmt: skip
+LAST_NAMES = (
+    "Bauer", "Berger", "Fischer", "Gruber", "Hofer", "Huber", "Kaya", "Klein", "Lang",
+    "Mayer", "Moser", "Novak", "Pichler", "Reiter", "Steiner", "Wagner", "Weber",
+)  # fmt: skip
+TEAM_FIELDS = (
+    "Applied NLP", "Vision", "Robotics", "Bioinformatics", "Climate", "Data Systems",
+    "Security", "HCI", "Theory", "Quantum", "Materials", "Linguistics", "Energy",
+    "Neuroscience", "Logistics", "Health AI", "Statistics", "Compilers", "Networks",
+)  # fmt: skip
 TEAM_KINDS = ("Lab", "Group", "Unit", "Studio", "Office")
 KEY_NAMES = ("laptop", "notebook", "thesis", "cluster", "ci", "editor", "scripts", "playground")
 SERVICE_NAMES = (
@@ -84,6 +66,18 @@ SERVICE_NAMES = (
     "moodle-plugin",
     "nightly-batch",
 )
+
+STORAGE_OWNERS = 20
+FILES = 40
+FILE_STEMS = ("batch_input", "train", "corpus", "notes")
+OTHER_FILE_PURPOSES = ("user_data", "assistants", "fine-tune")
+FILE_BYTES = Spread(400_000, 1.5, 512_000_000)
+BATCH_STATUSES = ("completed", "completed", "completed", "in_progress", "failed", "cancelled")
+BATCH_SECONDS = (600, 80_000)
+BATCH_REQUESTS = (10, 5000)
+VECTOR_STORES = 10
+STORE_NAMES = ("papers", "handbook", "course", "wiki")
+STORE_BYTES = Spread(2_000_000, 1.2)
 
 
 def seeded_users() -> Q:
@@ -102,7 +96,7 @@ def delete_seeded() -> dict[str, int]:
     orgs = Org.objects.filter(name__startswith=ORG_PREFIX)
     strangers = UserProfile.objects.filter(org__in=orgs).exclude(user__in=users)
     if strangers.exists():
-        emails = ", ".join(strangers.values_list("user__email", flat=True)[:20])
+        emails = ", ".join(strangers.values_list("user__email", flat=True)[:LISTED_STRANGERS])
         msg = (
             f"Users who were not seeded belong to a {ORG_PREFIX}* org: {emails}. Move them to "
             "another org first; nothing was deleted."
@@ -144,7 +138,7 @@ class Builder:
         admins = self.users(org, 1 + teams // TEAMS_PER_ORG_ADMIN, group=UserGroup.ORG_ADMIN)
         memberships = []
         for team, roster in zip(team_rows, rosters, strict=True):
-            admins_in_team = self.rng.choice((1, 1, 2))
+            admins_in_team = self.rng.choice(ADMINS_PER_TEAM)
             memberships += [
                 TeamMembership(
                     user_profile_id=users[u].profile_id, team=team, is_admin=slot < admins_in_team
@@ -168,7 +162,7 @@ class Builder:
         for _ in range(teams):
             roster: list[int] = []
             newcomers: list[int] = []
-            for _ in range(self.rng.randint(3, 5)):
+            for _ in range(self.rng.randint(*TEAM_SIZE)):
                 if in_one_team and self.rng.random() < SECOND_TEAM_SHARE:
                     roster.append(in_one_team.pop(self.rng.randrange(len(in_one_team))))
                 else:
@@ -241,7 +235,7 @@ class Builder:
         rows = list(unsaved)
         for row in rows:
             row.key_hash = Token._hash_key(secrets.token_urlsafe(32))
-            row.key_preview = "sk-...seed"
+            row.key_preview = KEY_PREVIEW
         created = Token.objects.bulk_create(rows)
         Token.objects.filter(pk__in=[t.pk for t in created]).update(created_at=self.start)
         return created
@@ -262,21 +256,20 @@ class Builder:
         )
 
     def storage(self, now: datetime) -> dict[str, int]:
-        busy = sorted(self.keys.personal, key=lambda k: -k.weight)[:20]
+        busy = sorted(self.keys.personal, key=lambda k: -k.weight)[:STORAGE_OWNERS]
         start, end = int(self.start.timestamp()), int(now.timestamp())
         rng = self.rng
         files = FileObject.objects.bulk_create(
             FileObject(
                 id=f"file-{rng.getrandbits(96):024x}",
                 token_id=rng.choice(busy).id,
-                filename=f"{rng.choice(('batch_input', 'train', 'corpus', 'notes'))}_{i}.jsonl",
-                purpose="batch" if i % 2 else rng.choice(("user_data", "assistants", "fine-tune")),
-                bytes=Spread(400_000, 1.5, 512_000_000).draw(rng),
+                filename=f"{rng.choice(FILE_STEMS)}_{i}.jsonl",
+                purpose="batch" if i % 2 else rng.choice(OTHER_FILE_PURPOSES),
+                bytes=FILE_BYTES.draw(rng),
                 created_at=rng.randint(start, end),
             )
-            for i in range(40)
+            for i in range(FILES)
         )
-        statuses = ("completed", "completed", "completed", "in_progress", "failed", "cancelled")
         batches = Batch.objects.bulk_create(
             Batch(
                 id=f"batch_{rng.getrandbits(96):024x}",
@@ -284,12 +277,16 @@ class Builder:
                 input_file=f,
                 endpoint="/v1/chat/completions",
                 completion_window="24h",
-                status=(status := rng.choice(statuses)),
+                status=(status := rng.choice(BATCH_STATUSES)),
                 created_at=f.created_at,
-                completed_at=f.created_at + rng.randint(600, 80_000)
+                completed_at=f.created_at + rng.randint(*BATCH_SECONDS)
                 if status == "completed"
                 else None,
-                request_counts={"total": (n := rng.randint(10, 5000)), "completed": n, "failed": 0},
+                request_counts={
+                    "total": (n := rng.randint(*BATCH_REQUESTS)),
+                    "completed": n,
+                    "failed": 0,
+                },
             )
             for f in files
             if f.purpose == "batch"
@@ -298,12 +295,12 @@ class Builder:
             VectorStore(
                 id=f"vs_{rng.getrandbits(96):024x}",
                 token_id=rng.choice(busy).id,
-                name=f"{rng.choice(('papers', 'handbook', 'course', 'wiki'))} {i}",
+                name=f"{rng.choice(STORE_NAMES)} {i}",
                 status="completed",
-                usage_bytes=Spread(2_000_000, 1.2).draw(rng),
+                usage_bytes=STORE_BYTES.draw(rng),
                 created_at=(created := rng.randint(start, end)),
                 last_active_at=rng.randint(created, end),
             )
-            for i in range(10)
+            for i in range(VECTOR_STORES)
         )
         return {"files": len(files), "batches": len(batches), "vector stores": len(stores)}

@@ -46,6 +46,8 @@ WEEKDAY_LOAD = (1, 1, 1, 1, 1, 0.8, 0.6)
 DAY_NOISE = (0.75, 1.3)
 SERVICE_SHARE = 0.4
 PERSONAL_KEY_CAP = 0.025
+CAP_ROUNDS = 100
+CAP_TOLERANCE = 1.001
 
 USER_AGENTS = (
     "OpenAI/Python 1.82.0",
@@ -110,9 +112,9 @@ def log_size(requests_per_day: int, days: int) -> int:
 def capped(weights: list[float], share: float) -> list[float]:
     if share * len(weights) <= 1:
         return weights
-    for _ in range(100):
+    for _ in range(CAP_ROUNDS):
         cap = share * sum(weights)
-        if max(weights) <= cap * 1.001:
+        if max(weights) <= cap * CAP_TOLERANCE:
             break
         weights = [min(w, cap) for w in weights]
     return weights
