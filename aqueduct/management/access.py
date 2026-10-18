@@ -157,6 +157,8 @@ class Viewer:
     def of(cls, profile: UserProfile, choose: Callable[[Org], OrgWide] | None = None) -> "Viewer":
         """`choose` gives a platform admin's org choice from their own org; it is asked only
         for a platform admin, since it may read and write the session."""
+        # An org move deletes the old org's memberships, but a member added in a transaction
+        # that races the move still lands in the old org.
         rows = TeamMembership.objects.filter(
             user_profile=profile, team__org_id=profile.org_id
         ).values_list("team_id", "is_admin")

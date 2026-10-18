@@ -72,6 +72,11 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
     def __str__(self) -> str:
         return f"{self.user.email} (Profile - {self.org.name})"
 
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        """An org move ends the memberships in teams of the old org."""
+        super().save(*args, **kwargs)
+        self.teammembership_set.exclude(team__org_id=self.org_id).delete()
+
     @cached_property
     def _group_names(self) -> frozenset[str]:
         return frozenset(group.name for group in self.user.groups.all())
@@ -108,21 +113,3 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
     @property
     def rank(self) -> UserGroup:
         return UserGroup.of(self._group_names) or UserGroup.USER
-
-    def clean(self) -> None:
-        """
-        Validation moved from the old User model.
-        Ensures assigned teams belong to the user's profile organization.
-        """
-        super().clean()
-        # Assumes self.org is always set due to non-nullable ForeignKey.
-        # Check teams only if the profile instance exists in the DB (has a PK).
-        # This prevents issues when accessing M2M relations before the instance is saved.
-        if self.pk:
-            for team in self.teams.all():  # Query M2M relationship
-                if team.org != self.org:
-                    raise ValidationError(
-                        f"Team '{team.name}' (Org: {team.org.name}) does not belong to "
-                        f"the profile's organization '{self.org.name}'."
-                    )
-            # No need for the try/except ValueError, as self.pk ensures the instance is saved.
