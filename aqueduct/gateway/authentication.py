@@ -64,12 +64,6 @@ def usable_token(token_key: str) -> Token | None:
         )
         return None
 
-    logger.info(
-        "Authentication successful via token: %s (%s) for user %s",
-        token_instance.name,
-        token_instance.key_preview,
-        token_instance.user.email,
-    )
     return token_instance
 
 
@@ -99,7 +93,15 @@ class TokenAuthenticationBackend(BaseBackend):
             return None
 
         token_instance = usable_token(token_key)
-        return token_instance.user if token_instance else None
+        if token_instance is None:
+            return None
+        logger.info(
+            "Authentication successful via token: %s (%s) for user %s",
+            token_instance.name,
+            token_instance.key_preview,
+            token_instance.user.email,
+        )
+        return token_instance.user
 
     def get_user(self, user_id: int) -> "AuthUser | None":
         return User.objects.filter(pk=user_id, is_active=True).first()
