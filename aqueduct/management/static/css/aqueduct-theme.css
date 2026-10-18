@@ -119,6 +119,10 @@ a.link-plain:hover { text-decoration: underline; }
 .aq-band a { color: var(--aq-band-link); text-decoration: none; }
 .aq-band a:hover { text-decoration: underline; }
 .aq-band .label-mono { color: var(--aq-band-link); }
+/* The primary outline and daisyUI's ghost hover are made for the page, not the dark band. */
+.aq-band :focus-visible { outline-color: var(--aq-band-link); }
+.aq-band .btn-ghost { color: var(--aq-band-link); }
+.aq-band .btn-ghost:hover { background: color-mix(in oklab, var(--paper) 12%, transparent); border-color: transparent; }
 
 html[data-theme="light"] .only-dark, html[data-theme="dark"] .only-light { display: none !important; }
 

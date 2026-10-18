@@ -1,12 +1,42 @@
 {% extends 'management/base.html' %}
-{% load i18n %}
+{% load i18n ui %}
 {% block title %}{% translate "Sign in" %} · {{ block.super }}{% endblock %}
+{% block page_background %}{% endblock %}
 
 {% block content %}
-  <div class="card mx-auto mt-10 max-w-sm bg-base-200">
-    <div class="card-body gap-6 p-6">
-      <h1 class="text-center text-2xl font-semibold">{% translate "Sign in to Aqueduct" %}</h1>
-      <a href="{% url 'oidc_authentication_init' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="btn btn-primary w-full">{% blocktranslate with provider=OIDC_PROVIDER|default:"SSO" %}Sign in with {{ provider }}{% endblocktranslate %}</a>
+  <div class="relative isolate flex flex-col gap-14 py-6 md:py-14">
+    <div aria-hidden="true" class="pointer-events-none absolute -top-40 bottom-0 left-0 right-[calc(50%-50vw)] -z-10 overflow-hidden max-md:hidden">
+      <div class="absolute -right-28 top-0 size-[820px] rounded-full border-[1.5px] border-base-200"></div>
+      <div class="absolute right-38 top-4 size-[460px] rounded-full border-[1.5px] border-base-200"></div>
     </div>
+
+    <section class="flex max-w-3xl flex-col items-start gap-5" aria-labelledby="login-heading">
+      <p class="label-mono">{% translate "Aqueduct AI Gateway" %}</p>
+      <h1 id="login-heading" class="text-4xl font-bold leading-[1.1] tracking-tight text-balance md:text-6xl md:leading-[1.05]">{% translate "One endpoint for every model." %}</h1>
+      <p class="muted max-w-xl text-lg text-pretty md:text-xl">{% translate "Aqueduct gives you one API key for your organization's AI models and shows you what you use." %}</p>
+      <a href="{% url 'oidc_authentication_init' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="btn btn-primary btn-lg mt-2">{% blocktranslate with provider=OIDC_PROVIDER|default:"SSO" %}Sign in with {{ provider }}{% endblocktranslate %}</a>
+      <p class="muted text-sm">{% translate "New here? Your account is created the first time you sign in." %}</p>
+    </section>
+
+    <section aria-labelledby="login-features" class="flex flex-col gap-4">
+      <h2 id="login-features" class="sr-only">{% translate "What Aqueduct offers" %}</h2>
+      <ul class="grid gap-4 md:grid-cols-3">
+        <li class="flex flex-col gap-2 rounded-box bg-base-200 p-5">
+          <span class="text-primary">{% icon "key" %}</span>
+          <h3 class="font-semibold">{% translate "One key for every model" %}</h3>
+          <p class="muted text-sm">{% translate "Call language, embedding, speech, and image models through one OpenAI-compatible API." %}</p>
+        </li>
+        <li class="flex flex-col gap-2 rounded-box bg-base-200 p-5">
+          <span class="text-primary">{% icon "overview" %}</span>
+          <h3 class="font-semibold">{% translate "See your usage" %}</h3>
+          <p class="muted text-sm">{% translate "Follow requests and tokens per key, model, and day." %}</p>
+        </li>
+        <li class="flex flex-col gap-2 rounded-box bg-base-200 p-5">
+          <span class="text-primary">{% icon "teams" %}</span>
+          <h3 class="font-semibold">{% translate "Keys for teams" %}</h3>
+          <p class="muted text-sm">{% translate "Give a team or a service its own key, with its own limits." %}</p>
+        </li>
+      </ul>
+    </section>
   </div>
 {% endblock %}

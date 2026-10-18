@@ -18,13 +18,17 @@ urlpatterns = [terms_of_service, *aqueduct_urlpatterns]
 
 @PAGES
 class SignInPageTest(TestCase):
-    def test_asks_only_to_sign_in(self):
+    def test_says_what_aqueduct_is_and_offers_sign_in(self):
         page = self.client.get(reverse("sso"))
-        self.assertContains(page, ">Sign in to Aqueduct</h1>")
+        self.assertContains(page, ">One endpoint for every model.</h1>")
+        self.assertContains(page, "one API key for your organization's AI models")
         self.assertContains(page, ">Sign in with SSO</a>")
         self.assertContains(page, "<title>Sign in · Aqueduct AI Gateway</title>")
-        main = page.content.decode().split("<main", 1)[1].split("</main>", 1)[0]
-        self.assertNotIn("<p", main)
+
+    def test_speaks_the_browser_language(self):
+        page = self.client.get(reverse("sso"), headers={"accept-language": "de"})
+        self.assertContains(page, ">Ein Endpunkt für alle Modelle.</h1>")
+        self.assertContains(page, ">Mit SSO anmelden</a>")
 
 
 @PAGES
