@@ -20,10 +20,8 @@
             {% include "management/_limits.html" with limits=page.limits %}
             <p class="muted text-sm">{% translate "Default for every key. Team and personal limits override it." %}</p>
             <dl class="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-base-300 pt-4 text-sm">
-                {% for label, value in page.multipliers %}
-                    <div class="flex flex-wrap items-baseline gap-x-2"><dt class="muted whitespace-nowrap">{{ label }}</dt><dd><span class="font-mono font-semibold">{{ value }}</span></dd></div>
-                {% endfor %}
-                <div class="flex flex-wrap items-baseline gap-x-2"><dt class="muted whitespace-nowrap">{% translate "Personal keys per person" %}</dt><dd><span class="font-mono font-semibold">{{ page.max_personal_keys }}</span> <span class="muted">{% translate "(server setting)" %}</span></dd></div>
+                {% for label, value in page.multipliers %}{% include "management/_figure.html" %}{% endfor %}
+                {% include "management/_figure.html" with label=_("Personal keys per person") value=page.max_personal_keys aside=_("(server setting)") %}
             </dl>
         </div>
     </section>

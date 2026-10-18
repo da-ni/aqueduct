@@ -18,8 +18,6 @@ from management.views.base import BaseAqueductView
 
 LANGUAGE_CODES = frozenset(code for code, _name in settings.LANGUAGES)
 
-SHOWN_LIMITS = ("requests_per_minute", "input_tokens_per_minute", "output_tokens_per_minute")
-
 
 def accepted_terms_on(user: AbstractBaseUser) -> datetime | None:
     agreement = UserAgreement.objects.filter(user=user, terms_of_service__active=True).first()
@@ -36,7 +34,7 @@ class SettingsView(BaseAqueductView, TemplateView):
         context.update(
             memberships=profile.teammembership_set.select_related("team").order_by("team__name"),
             limits=LimitSet.from_objects(profile, profile.org),
-            limits_set_for_account=any(getattr(profile, f) is not None for f in SHOWN_LIMITS),
+            limits_set_for_account=not LimitSet.from_objects(profile, None).is_unlimited,
             personal_keys=personal_tokens(self.request.user).count(),
             max_tokens=settings.MAX_USER_TOKENS,
             show_terms=show_terms,

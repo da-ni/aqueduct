@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 15:13+0000\n"
+"POT-Creation-Date: 2026-10-18 15:17+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -431,6 +431,24 @@ msgstr "%(items)s und %(last)s"
 msgid "%(multiplier)sx request limit"
 msgstr "%(multiplier)s× Anfragelimit"
 
+msgid "Hourly limit"
+msgstr "Stundenlimit"
+
+#, python-format
+msgid "%(used)s / %(limit)s request this hour"
+msgid_plural "%(used)s / %(limit)s requests this hour"
+msgstr[0] "%(used)s / %(limit)s Anfrage in dieser Stunde"
+msgstr[1] "%(used)s / %(limit)s Anfragen in dieser Stunde"
+
+msgid "Daily limit"
+msgstr "Tageslimit"
+
+#, python-format
+msgid "%(used)s / %(limit)s request today"
+msgid_plural "%(used)s / %(limit)s requests today"
+msgstr[0] "%(used)s / %(limit)s Anfrage heute"
+msgstr[1] "%(used)s / %(limit)s Anfragen heute"
+
 msgid "Must be between 1 and 60 (an hour has 60 minutes)."
 msgstr "Muss zwischen 1 und 60 liegen (eine Stunde hat 60 Minuten)."
 
@@ -856,24 +874,6 @@ msgstr "Seiten"
 
 msgid "Aqueduct"
 msgstr "Aqueduct"
-
-#, python-format
-msgid "%(used)s / %(limit)s request this hour"
-msgid_plural "%(used)s / %(limit)s requests this hour"
-msgstr[0] "%(used)s / %(limit)s Anfrage in dieser Stunde"
-msgstr[1] "%(used)s / %(limit)s Anfragen in dieser Stunde"
-
-msgid "Hourly limit"
-msgstr "Stundenlimit"
-
-#, python-format
-msgid "%(used)s / %(limit)s request today"
-msgid_plural "%(used)s / %(limit)s requests today"
-msgstr[0] "%(used)s / %(limit)s Anfrage heute"
-msgstr[1] "%(used)s / %(limit)s Anfragen heute"
-
-msgid "Daily limit"
-msgstr "Tageslimit"
 
 msgid "n/a"
 msgstr "k. A."

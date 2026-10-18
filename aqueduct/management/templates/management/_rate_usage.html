@@ -1,55 +1,16 @@
-{% comment %}
-Per-window request-usage progress bars (daisyUI linear ``progress``).
-
-Context vars:
-  - usage: per-token dict from gateway.rate_limiting.get_per_token_usage(token_ids)[token_id],
-    keyed by window name ("min"/"hour"/"day"), each {"req": float, "in": int, "out": int}.
-  - limits: a management.models.LimitSet whose windows() yields
-    (name, secs, rpm, itpm, otpm) tuples (finest-first: min, hour, day).
-
-Two bars are shown side by side — per hour and per day — each ~half width.
-The hour/day caps are derived from the per-minute cap via the resolved
-multipliers (``rpm * multiplier``), so they are usually much larger and only
-fill materially with sustained traffic.
-
-Windows with no request limit (None) render no bar — only the "—" count text —
-since there is no cap to measure against. When a limit is set, the bar fill is
-clamped to 100%; the count text shows the real ``used/limit`` counts (which may
-exceed the cap when over limit).
-Colors shift to warning at >=80% and error at >=100%.
-{% endcomment %}
-{% load i18n ui %}
+{% load ui %}
 <div class="flex w-full gap-6">
-    {# per hour — windows()[1] = ("hour", 3600, rpm*hourly_mult, ...) #}
-    {% with limit=limits.windows.1.2 used=usage.hour.req %}
-        <div class="flex-1 min-w-0" title="{% blocktranslate count limit=limit with used=used|floatformat:"0" %}{{ used }} / {{ limit }} request this hour{% plural %}{{ used }} / {{ limit }} requests this hour{% endblocktranslate %}">
+    {% for window in windows %}
+        <div class="flex-1 min-w-0" title="{{ window.title }}">
             <div class="flex items-baseline justify-between mb-1">
-                <span class="text-[0.7rem] opacity-60">{% translate "Hourly limit" %}</span>
+                <span class="text-[0.7rem] opacity-60">{{ window.label }}</span>
                 <span class="text-[0.7rem] tabular-nums opacity-70">
-                    {% if limit %}{{ used|floatformat:"0" }}/{{ limit|grouped }}{% else %}—{% endif %}
+                    {% if window.limit %}{{ window.used }}/{{ window.limit|grouped }}{% else %}—{% endif %}
                 </span>
             </div>
-            {% if limit %}
-                {% with pct=used|percent_of:limit %}
-                    <progress class="progress w-full {% if pct >= 100 %}progress-error{% elif pct >= 80 %}progress-warning{% else %}progress-primary{% endif %}" value="{% if pct > 100 %}100{% else %}{{ pct }}{% endif %}" max="100"></progress>
-                {% endwith %}
+            {% if window.limit %}
+                <progress class="progress w-full {{ window.tone }}" value="{{ window.percent }}" max="100"></progress>
             {% endif %}
         </div>
-    {% endwith %}
-    {# per day — windows()[2] = ("day", 86400, rpm*daily_mult, ...) #}
-    {% with limit=limits.windows.2.2 used=usage.day.req %}
-        <div class="flex-1 min-w-0" title="{% blocktranslate count limit=limit with used=used|floatformat:"0" %}{{ used }} / {{ limit }} request today{% plural %}{{ used }} / {{ limit }} requests today{% endblocktranslate %}">
-            <div class="flex items-baseline justify-between mb-1">
-                <span class="text-[0.7rem] opacity-60">{% translate "Daily limit" %}</span>
-                <span class="text-[0.7rem] tabular-nums opacity-70">
-                    {% if limit %}{{ used|floatformat:"0" }}/{{ limit|grouped }}{% else %}—{% endif %}
-                </span>
-            </div>
-            {% if limit %}
-                {% with pct=used|percent_of:limit %}
-                    <progress class="progress w-full {% if pct >= 100 %}progress-error{% elif pct >= 80 %}progress-warning{% else %}progress-primary{% endif %}" value="{% if pct > 100 %}100{% else %}{{ pct }}{% endif %}" max="100"></progress>
-                {% endwith %}
-            {% endif %}
-        </div>
-    {% endwith %}
+    {% endfor %}
 </div>

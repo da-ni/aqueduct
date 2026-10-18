@@ -210,11 +210,6 @@ def markdown(text: str) -> SafeString:
 
 
 @register.filter
-def percent_of(part: float, whole: float) -> int:
-    return round(part * 100 / whole)
-
-
-@register.filter
 def expiry(value: Expiry, wording: str = "label") -> SafeString:
     text = value.sentence if wording == "sentence" else value.label
     label = _time(value.at, text) if value.at else text

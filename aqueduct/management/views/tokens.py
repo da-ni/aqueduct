@@ -71,6 +71,7 @@ class TokenDetailView(BaseAqueductView, DetailView):
         report = key_report(token, now)
         team = team_of(token)
         own = is_personal_of(token, self.request.user.id)
+        limits = token.get_limit()
         log_query: dict[str, object] = {"key": token.id, "span": "1m"}
         if self.profile.is_admin() and self.viewed_org is not None:
             key_org = org_id(token)
@@ -82,8 +83,8 @@ class TokenDetailView(BaseAqueductView, DetailView):
             log_query=urlencode(log_query),
             charts=tuple((shown, report.chart(shown)) for shown in ("tokens", "requests")),
             expiry=Expiry.of(token.expires_at, now),
-            limits=token.get_limit(),
-            usage=get_per_token_usage([token.id])[token.id],
+            limits=limits,
+            rate_windows=limits.request_windows(get_per_token_usage([token.id])[token.id]),
             models=Reach.of(model_names(), token.model_exclusion_list()),
             mcp_servers=Reach.of(configured_mcp_servers(), token.mcp_server_exclusion_list()),
             team=team,

@@ -117,9 +117,7 @@
             <h2 id="limits-title" class="card-title">{% translate "Limits" %}</h2>
             {% include "management/_limits.html" %}
         </div>
-        {% if limits.requests_per_minute is not None %}
-            {% include "management/_rate_usage.html" with usage=usage limits=limits %}
-        {% endif %}
+        {% if rate_windows %}{% include "management/_rate_usage.html" with windows=rate_windows %}{% endif %}
         <p class="muted text-sm">
             {% if models.every %}{% translate "Can call every model" %}{% else %}{% blocktranslate count n=models.usable %}Can call {{ n }} model{% plural %}Can call {{ n }} models{% endblocktranslate %}{% endif %}
             {% if mcp_servers.configured %}· {% if mcp_servers.every %}{% translate "Can call every MCP server" %}{% else %}{% blocktranslate count n=mcp_servers.usable %}Can call {{ n }} MCP server{% plural %}Can call {{ n }} MCP servers{% endblocktranslate %}{% endif %}{% endif %}
