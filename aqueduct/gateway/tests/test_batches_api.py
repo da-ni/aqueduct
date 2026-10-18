@@ -1,18 +1,16 @@
 import json
-import tempfile
-from pathlib import Path
 
-import yaml
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import override_settings
 from django.urls import reverse
 
+from gateway.config import get_router_config
 from gateway.tests.utils import _build_chat_headers, _build_chat_payload
-from gateway.tests.utils.base import ROUTER_CONFIG, GatewayBatchesTestCase
+from gateway.tests.utils.base import GatewayBatchesTestCase
 from management.models import Batch as BatchModel
 from management.models import BatchStatus, FileObject, Org, ServiceAccount, Team, Token, UserProfile
+from management.tests.helpers import router_config
 from mock_api.mock_configs import MockConfig, MockPlainTextConfig, batch_detail_response
 
 User = get_user_model()
@@ -917,23 +915,16 @@ class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
         self.assertFalse(BatchModel.objects.exists())
 
     def test_batch_starts_beside_a_deployment_with_its_own_provider(self):
-        router_config = yaml.safe_load(ROUTER_CONFIG)
-        router_config["model_list"].append(
-            {
-                "model_name": "local-vllm",
-                "litellm_params": {
-                    "model": "served-model",
-                    "custom_llm_provider": "hosted_vllm",
-                    "api_base": "http://localhost:1/v1",
-                },
-                "model_info": {"id": "local-vllm"},
-            }
-        )
-        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
-            yaml.safe_dump(router_config, f)
-        self.addCleanup(Path(f.name).unlink)
-
-        with override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=f.name):
+        local = {
+            "model_name": "local-vllm",
+            "litellm_params": {
+                "model": "served-model",
+                "custom_llm_provider": "hosted_vllm",
+                "api_base": "http://localhost:1/v1",
+            },
+            "model_info": {"id": "local-vllm"},
+        }
+        with router_config([*get_router_config()["model_list"], local]):
             resp = self._create_batch_after_making_unavailable(lambda: None)
 
         self.assertEqual(resp.status_code, 200, resp.content)

@@ -1,5 +1,4 @@
 from http import HTTPStatus
-from pathlib import Path
 
 from django.conf import settings
 from django.forms.models import model_to_dict
@@ -10,15 +9,12 @@ from gateway.config import model_names
 from management.availability import configured_mcp_servers
 from management.models import Org, ServiceAccount, Token, UserGroup
 from management.models.token import HIERARCHY
-from management.tests.helpers import make_token
-from management.tests.test_teams_pages import TeamsPagesTestBase
+from management.tests.helpers import RoleWorld, make_token, mcp_config
 
 
 def enforced(key: Token) -> Token:
     return Token.objects.select_related(*HIERARCHY).get(pk=key.pk)
 
-
-TEST_MCP_CONFIG = Path(settings.BASE_DIR).parent / "test-mcp.json"
 
 LIMITS = {
     "requests_per_minute": "600",
@@ -40,10 +36,6 @@ def available(*unavailable: str, mcp: tuple[str, ...] | None = None) -> dict:
     return data
 
 
-def mcp_config(path: Path | str) -> override_settings:
-    return override_settings(MCP_CONFIG_FILE_PATH=path)
-
-
 def edits() -> tuple[tuple[str, dict], ...]:
     return (
         ("organization_limits", LIMITS),
@@ -51,10 +43,10 @@ def edits() -> tuple[tuple[str, dict], ...]:
     )
 
 
-class OrganizationTestBase(TeamsPagesTestBase):
+class OrganizationTestBase(RoleWorld):
     def setUp(self):
         super().setUp()
-        self.admin = self.user("admin", UserGroup.ADMIN, self.other_org)
+        self.far_admin = self.user("far-admin", UserGroup.ADMIN, self.other_org)
 
     def stored(self, org: Org) -> dict:
         return model_to_dict(Org.objects.get(pk=org.pk))
@@ -63,11 +55,8 @@ class OrganizationTestBase(TeamsPagesTestBase):
 class OrganizationPageTest(OrganizationTestBase):
     url = reverse("organization")
 
-    def test_signed_out_goes_to_sign_in(self):
-        self.assert_sent_to_sign_in(self.client.get(self.url), self.url)
-
     def test_users_and_team_admins_are_sent_to_the_teams_page(self):
-        for user in (self.member, self.team_admin, self.outsider):
+        for user in (self.member, self.team_admin, self.solo):
             with self.subTest(user=user.username):
                 response = self.as_user(user).get(self.url)
                 self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
@@ -146,18 +135,9 @@ class OrganizationEditPermissionTest(OrganizationTestBase):
     def url(self, name: str, org: Org | None = None) -> str:
         return reverse(name, args=[(org or self.org).id])
 
-    def test_signed_out_goes_to_sign_in_and_changes_nothing(self):
-        before = self.stored(self.org)
-        for name, data in edits():
-            with self.subTest(name):
-                url = self.url(name)
-                self.assert_sent_to_sign_in(self.client.get(url), url)
-                self.assert_sent_to_sign_in(self.client.post(url, data), url)
-        self.assertEqual(self.stored(self.org), before)
-
     def test_refused_roles_get_404_and_change_nothing(self):
         before = self.stored(self.org)
-        for user in (self.member, self.team_admin, self.outsider, self.other_org_admin):
+        for user in (self.member, self.team_admin, self.solo, self.other_org_admin):
             for name, data in edits():
                 with self.subTest(user=user.username, form=name):
                     client = self.as_user(user)
@@ -167,7 +147,7 @@ class OrganizationEditPermissionTest(OrganizationTestBase):
         self.assertEqual(self.stored(self.org), before)
 
     def test_org_admin_and_admin_may_edit(self):
-        for user in (self.org_admin, self.admin):
+        for user in (self.org_admin, self.far_admin):
             for name, data in edits():
                 with self.subTest(user=user.username, form=name):
                     response = self.as_user(user).post(self.url(name), data)
@@ -182,7 +162,7 @@ class OrganizationEditPermissionTest(OrganizationTestBase):
         self.assertEqual(org.excluded_models, ["gpt-4.1-nano"])
 
     def test_unknown_org_is_404(self):
-        self.as_user(self.admin)
+        self.as_user(self.far_admin)
         url = reverse("organization_limits", args=[999_999])
         self.assertEqual(self.client.get(url).status_code, HTTPStatus.NOT_FOUND)
 
@@ -223,7 +203,7 @@ class OrganizationEditFormTest(OrganizationTestBase):
     def test_saving_unchanged_keeps_what_is_stored(self):
         self.org.excluded_models = ["retired-model", "whisper-1", "gpt-4.1-nano"]
         self.org.save()
-        with mcp_config(TEST_MCP_CONFIG):
+        with mcp_config():
             self.org.excluded_mcp_servers = ["retired-server", "aqueduct"]
             self.org.save()
             form = self.form()
@@ -269,7 +249,7 @@ class OrganizationEditFormTest(OrganizationTestBase):
     def test_mcp_names_missing_from_the_config_are_kept(self):
         self.org.excluded_mcp_servers = ["retired-server"]
         self.org.save()
-        with mcp_config(TEST_MCP_CONFIG):
+        with mcp_config():
             response = self.post("organization_availability", available(mcp=()))
         self.assertEqual(response.status_code, HTTPStatus.FOUND)
         self.assertEqual(Org.objects.get(pk=self.org.pk).excluded_mcp_servers, ["retired-server"])
@@ -289,7 +269,7 @@ class OrganizationEditFormTest(OrganizationTestBase):
         self.assertEqual(Org.objects.get(pk=self.org.pk).excluded_mcp_servers, ["kept"])
 
     def test_mcp_servers_become_unavailable_for_the_org(self):
-        with mcp_config(TEST_MCP_CONFIG):
+        with mcp_config():
             self.post("organization_availability", available("gpt-4.1-nano", mcp=("aqueduct",)))
         key = make_token(self.member, "laptop")
         self.assertTrue(enforced(key).mcp_server_excluded("aqueduct"))

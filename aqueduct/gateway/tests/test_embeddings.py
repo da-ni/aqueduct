@@ -2,11 +2,7 @@ import json
 
 from django.urls import reverse
 
-from gateway.tests.utils.base import (
-    INTEGRATION_TEST_BACKEND,
-    ROUTER_CONFIG,
-    GatewayIntegrationTestCase,
-)
+from gateway.tests.utils.base import INTEGRATION_TEST_BACKEND, GatewayIntegrationTestCase
 from management.models import Request
 
 
@@ -25,7 +21,6 @@ class EmbeddingTest(GatewayIntegrationTestCase):
                 "Requires GatewayIntegrationTestCase to manage multiple servers!"
             )
 
-        assert self.model in ROUTER_CONFIG
         payload = {"model": self.model, "input": ["The quick brown fox jumps over the lazy dog."]}
 
         response = self.client.post(

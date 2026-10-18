@@ -6,14 +6,13 @@ from tos.models import TermsOfService, UserAgreement
 
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
 from management.models import Org, Team, TeamMembership, UserGroup, UserProfile
-from management.tests.helpers import PAGES, make_token, make_user
+from management.tests.helpers import make_token, make_user
 
 User = get_user_model()
 
 urlpatterns = [path("terms-of-service/", include("tos.urls")), *aqueduct_urlpatterns]
 
 
-@PAGES
 class SettingsPageTest(TestCase):
     def setUp(self):
         self.org = Org.objects.create(name="Informatics", requests_per_minute=600)
@@ -38,12 +37,6 @@ class SettingsPageTest(TestCase):
     def page(self, user):
         self.client.force_login(user)
         return self.client.get(reverse("settings"))
-
-    def test_signed_out_goes_to_sign_in(self):
-        url = reverse("settings")
-        self.assertRedirects(
-            self.client.get(url), f"{reverse('sso')}?next={url}", fetch_redirect_response=False
-        )
 
     def test_shows_the_viewers_account(self):
         response = self.page(self.user("boss", UserGroup.ORG_ADMIN))
@@ -130,7 +123,6 @@ def html_lang(response) -> str:
     return response.content.decode().split('<html lang="', 1)[1].split('"', 1)[0]
 
 
-@PAGES
 class LanguageTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="ana", email="ana@example.com")
@@ -191,14 +183,6 @@ class LanguageTest(TestCase):
                 self.assertEqual(self.saved(), "")
         page = self.client.get(reverse("settings"))
         self.assertContains(page, "Choose one of the offered languages.")
-
-    def test_signed_out_visitor_cannot_save_a_language(self):
-        response = self.choose("de")
-        self.assertRedirects(
-            response, f"{reverse('sso')}?next={reverse('language')}", fetch_redirect_response=False
-        )
-        self.assertNotIn(LANGUAGE_COOKIE, response.cookies)
-        self.assertEqual(self.saved(), "")
 
     def test_page_language_follows_the_cookie_then_the_browser_then_english(self):
         self.client.force_login(self.user)

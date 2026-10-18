@@ -12,12 +12,10 @@ from django.test import TestCase
 from django.urls import reverse
 
 from management.models import Org, ServiceAccount, Team, Token, UserGroup, UserProfile
-from management.tests.helpers import PAGES
 
 User = get_user_model()
 
 
-@PAGES
 class ServiceAccountEditViewTests(TestCase):
     def setUp(self):
         self.org = Org.objects.create(name="repro-org")

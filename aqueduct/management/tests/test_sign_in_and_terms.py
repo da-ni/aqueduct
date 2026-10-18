@@ -9,14 +9,12 @@ from tos.models import TermsOfService
 from aqueduct.urls import terms_of_service
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
 from management.models import Org, UserProfile
-from management.tests.helpers import PAGES
 
 User = get_user_model()
 
 urlpatterns = [terms_of_service, *aqueduct_urlpatterns]
 
 
-@PAGES
 class SignInPageTest(TestCase):
     def test_says_what_aqueduct_is_and_offers_sign_in(self):
         page = self.client.get(reverse("sso"))
@@ -31,7 +29,6 @@ class SignInPageTest(TestCase):
         self.assertContains(page, ">Mit SSO anmelden</a>")
 
 
-@PAGES
 @override_settings(ROOT_URLCONF=__name__)
 @modify_settings(MIDDLEWARE={"append": "management.middleware.UserAgreementMiddleware"})
 class TermsPromptTest(TestCase):

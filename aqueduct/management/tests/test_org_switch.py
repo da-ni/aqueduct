@@ -2,15 +2,15 @@ from django.urls import reverse
 
 from management.models import Team, UserGroup
 from management.request_log import SESSION_ORG
-from management.tests.test_teams_pages import TeamsPagesTestBase
+from management.tests.helpers import RoleWorld
 
 ORG_SCOPED = ("usage", "usage_keys", "requests")
 
 
-class OrgSwitchTestBase(TeamsPagesTestBase):
+class OrgSwitchTestBase(RoleWorld):
     def setUp(self):
         super().setUp()
-        self.admin = self.user("admin", UserGroup.ADMIN, self.other_org)
+        self.far_admin = self.user("far-admin", UserGroup.ADMIN, self.other_org)
 
     def switch(self, org_id: object, next_url: str = ""):
         return self.client.post(reverse("org_switch"), {"org_id": org_id, "next": next_url})
@@ -21,7 +21,7 @@ class OrgSwitchTest(OrgSwitchTestBase):
         return self.client.get(reverse(url_name), params).context["filters"].org
 
     def test_admin_switches_once_for_every_page(self):
-        self.as_user(self.admin)
+        self.as_user(self.far_admin)
         self.switch(self.org.id)
         for url_name in ORG_SCOPED:
             with self.subTest(page=url_name):
@@ -34,11 +34,11 @@ class OrgSwitchTest(OrgSwitchTestBase):
         self.assertContains(
             organization, '<h1 class="text-3xl font-semibold">lab-org</h1>', html=True
         )
-        self.admin.profile.refresh_from_db()
-        self.assertEqual(self.admin.profile.org, self.other_org)
+        self.far_admin.profile.refresh_from_db()
+        self.assertEqual(self.far_admin.profile.org, self.other_org)
 
     def test_all_organizations_lists_every_team_with_its_org(self):
-        self.as_user(self.admin)
+        self.as_user(self.far_admin)
         self.switch("all")
         for url_name in ORG_SCOPED:
             with self.subTest(page=url_name):
@@ -55,7 +55,7 @@ class OrgSwitchTest(OrgSwitchTestBase):
         )
 
     def test_all_organizations_lists_every_org_to_pick_one(self):
-        self.as_user(self.admin)
+        self.as_user(self.far_admin)
         self.switch("all")
         organization = self.client.get(reverse("organization"))
         self.assertContains(
@@ -69,20 +69,20 @@ class OrgSwitchTest(OrgSwitchTestBase):
         self.assertEqual(self.client.session[SESSION_ORG], str(self.org.id))
 
     def test_org_parameter_applies_and_stays_for_later_pages(self):
-        self.as_user(self.admin)
+        self.as_user(self.far_admin)
         self.switch("all")
         self.assertEqual(self.viewed("usage", org=self.org.id), self.org)
         self.assertEqual(self.viewed("requests"), self.org)
         self.assertContains(self.client.get(reverse("org")), "NLP Lab")
 
     def test_unknown_org_parameter_shows_the_own_org_and_keeps_the_choice(self):
-        self.as_user(self.admin)
+        self.as_user(self.far_admin)
         self.switch("all")
         self.assertEqual(self.viewed("usage", org="999999"), self.other_org)
         self.assertIsNone(self.viewed("usage"))
 
     def test_shell_shows_the_switch_to_admins_only(self):
-        self.as_user(self.admin)
+        self.as_user(self.far_admin)
         self.switch(self.org.id)
         page = self.client.get(reverse("usage"))
         self.assertContains(page, 'id="org-switch"')
@@ -119,7 +119,7 @@ class OrgSwitchTest(OrgSwitchTestBase):
         self.assertNotContains(self.client.get(reverse("org")), "Foreign")
 
     def test_switch_returns_without_the_old_orgs_filters(self):
-        self.as_user(self.admin)
+        self.as_user(self.far_admin)
         back = f"{reverse('requests')}?org={self.org.id}&key=7&key_q=lap&span=1d&model=gpt-4&page=2"
         response = self.switch(self.other_org.id, back)
         self.assertRedirects(
@@ -127,12 +127,12 @@ class OrgSwitchTest(OrgSwitchTestBase):
         )
 
     def test_switch_ignores_a_foreign_next(self):
-        self.as_user(self.admin)
+        self.as_user(self.far_admin)
         response = self.switch(self.org.id, "https://evil.example/")
         self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
 
     def test_switch_to_an_unknown_org_is_a_404(self):
-        self.as_user(self.admin)
+        self.as_user(self.far_admin)
         self.switch(self.org.id)
         self.assertEqual(self.switch("999999").status_code, 404)
         self.assertEqual(self.viewed("usage"), self.org)
@@ -143,14 +143,14 @@ class TeamCreateOrgTest(OrgSwitchTestBase):
         return self.client.post(reverse("team_create"), {"name": "Vision", "org": org_id})
 
     def test_admin_on_all_organizations_sees_the_own_org_as_target(self):
-        self.as_user(self.admin)
+        self.as_user(self.far_admin)
         self.switch("all")
         page = self.client.get(reverse("team_create"))
         self.assertContains(page, "The team is created in other-org.")
         self.assertContains(page, f'name="org" value="{self.other_org.id}"')
 
     def test_team_goes_to_the_org_the_form_was_opened_for(self):
-        self.as_user(self.admin)
+        self.as_user(self.far_admin)
         self.switch(self.org.id)
         self.assertContains(self.client.get(reverse("team_create")), "created in lab-org.")
         self.switch(self.other_org.id)

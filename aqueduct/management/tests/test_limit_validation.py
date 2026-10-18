@@ -9,8 +9,6 @@ Covers:
   ``UserProfile.clean()`` calls ``super().clean()``).
 """
 
-from pathlib import Path
-
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
@@ -106,10 +104,6 @@ class LimitValidationTest(TestCase):
             profile.clean()
         self.assertIn("daily_limit_multiplier", ctx.exception.error_dict)
 
-    @override_settings(
-        LITELLM_ROUTER_CONFIG_FILE_PATH=Path(__file__).resolve().parents[3]
-        / "example_router_config.yaml"
-    )
     def test_full_clean_surfaces_multiplier_error_via_admin_form(self):
         form = OrgAdminForm(
             data={

@@ -3,107 +3,19 @@ from datetime import timedelta
 from unittest import mock
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from management import usage_rollup as rollup
-from management.models import Org, Request, ServiceAccount, Team, TeamMembership, Token, UserGroup
-from management.tests.helpers import PAGES, make_token, make_user
+from management.models import Request
+from management.tests.helpers import CHAT, EMBEDDING, KEY_NAMES, UsagePageTestBase, make_token
 from management.usage_report import APPROXIMATE_MEDIAN
 
 User = get_user_model()
-CHAT = "gpt-4.1-nano"
-EMBEDDING = "text-embedding-ada-002"
-KEY_NAMES = ("solo-laptop", "member-laptop", "pipeline", "foreign-laptop")
-
-
-@PAGES
-class UsagePageTestBase(TestCase):
-    def setUp(self):
-        self.org = Org.objects.create(name="lab-org")
-        self.other_org = Org.objects.create(name="other-org")
-        self.team = Team.objects.create(name="NLP Lab", org=self.org)
-
-        self.admin = self.user("admin", UserGroup.ADMIN)
-        self.org_admin = self.user("org-admin", UserGroup.ORG_ADMIN)
-        self.team_admin = self.user("team-admin")
-        self.member = self.user("member")
-        self.solo = self.user("solo")
-        self.other_org_admin = self.user("other-org-admin", UserGroup.ORG_ADMIN, self.other_org)
-        self.foreigner = self.user("foreigner", org=self.other_org)
-        TeamMembership.objects.create(
-            user_profile=self.team_admin.profile, team=self.team, is_admin=True
-        )
-        TeamMembership.objects.create(user_profile=self.member.profile, team=self.team)
-
-        self.solo_key = make_token(self.solo, "solo-laptop")
-        self.member_key = make_token(self.member, "member-laptop")
-        sa = ServiceAccount.objects.create(name="pipeline", team=self.team)
-        self.pipeline_key = make_token(self.team_admin, "pipeline", service_account=sa)
-        self.foreign_key = make_token(self.foreigner, "foreign-laptop")
-
-        hour = timedelta(hours=1)
-        self.log(
-            self.solo_key, hour, 200, input_tokens=1000, cached_input_tokens=250, output_tokens=500
-        )
-        self.log(self.member_key, hour, 429, input_tokens=2000)
-        self.log(self.pipeline_key, hour, 500, input_tokens=3000, output_tokens=1000)
-        self.log(self.foreign_key, hour, 200, input_tokens=7000)
-
-    def user(self, name: str, group: UserGroup = UserGroup.USER, org: Org | None = None):
-        return make_user(name, org or self.org, group)
-
-    def log(
-        self, token: Token, ago: timedelta, status: int, model: str = CHAT, **fields
-    ) -> Request:
-        return Request.objects.create(
-            token=token,
-            timestamp=timezone.now() - ago,
-            status_code=status,
-            model=model,
-            response_time_ms=100,
-            **fields,
-        )
-
-    def page(self, user, **params):
-        self.client.force_login(user)
-        return self.client.get(reverse("usage"), params)
-
-    def kpi(self, response, label: str) -> str:
-        match = re.search(
-            rf'{label}</span>\s*<span class="text-2xl font-semibold">([^<]*)</span>',
-            response.content.decode(),
-        )
-        self.assertIsNotNone(match, f"no {label} figure on the page")
-        return match.group(1)
-
-    def status_count(self, response, label: str) -> str:
-        match = re.search(
-            rf'<span class="font-medium">{label}</span>.*?'
-            r'<span class="ml-auto font-mono">([^<]*)</span>',
-            response.content.decode(),
-            re.S,
-        )
-        self.assertIsNotNone(match, f"no {label} row on the page")
-        return match.group(1)
-
-    def assert_keys(self, response, *visible: str) -> None:
-        self.assertEqual(response.status_code, 200)
-        for name in KEY_NAMES:
-            if name in visible:
-                self.assertContains(response, name)
-            else:
-                self.assertNotContains(response, name)
 
 
 class UsageAccessTest(UsagePageTestBase):
-    def test_signed_out_goes_to_sign_in(self):
-        url = reverse("usage")
-        self.assertRedirects(
-            self.client.get(url), f"{reverse('sso')}?next={url}", fetch_redirect_response=False
-        )
-
     def test_user_with_one_key_gets_no_key_picker_and_no_top_keys(self):
         response = self.page(self.solo)
         self.assert_keys(response)
@@ -122,14 +34,6 @@ class UsageAccessTest(UsagePageTestBase):
         self.assertContains(response, "Top keys")
         self.assertEqual([key.detail for key in response.context["keys"]], [""])
 
-    def test_team_member_sees_their_key_and_the_team_service_account(self):
-        response = self.page(self.member)
-        self.assert_keys(response, "member-laptop", "pipeline")
-        self.assertContains(
-            response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
-        )
-        self.assertNotContains(response, f"key={self.solo_key.id}")
-
     def test_org_admin_sees_and_links_every_key_of_their_org(self):
         response = self.page(self.org_admin)
         self.assert_keys(response, "solo-laptop", "member-laptop", "pipeline")
@@ -137,17 +41,13 @@ class UsageAccessTest(UsagePageTestBase):
         for key in (self.solo_key, self.member_key, self.pipeline_key):
             self.assertContains(response, f'href="{reverse("token_detail", args=[key.id])}"')
 
-    def test_my_keys_narrows_an_org_admin_to_their_own_keys(self):
-        response = self.page(self.org_admin, scope="mine")
-        self.assert_keys(response)
-        self.assertEqual(self.kpi(response, "Requests"), "0")
-
     def test_admin_sees_every_org_split_by_org(self):
         response = self.page(self.admin, org="all")
         self.assert_keys(response, *KEY_NAMES)
         self.assertContains(response, "By organization")
         self.assertContains(response, "other-org")
         self.assertEqual(self.kpi(response, "Requests"), "4")
+        self.assertNotContains(self.page(self.admin, org=self.other_org.id), "By organization")
 
     def test_all_orgs_names_no_org_for_a_key_whose_owner_has_no_profile(self):
         root = User.objects.create_superuser("root", "root@example.com", "pw")
@@ -155,38 +55,6 @@ class UsageAccessTest(UsagePageTestBase):
         response = self.page(self.admin, org="all")
         self.assertContains(response, "root@example.com · No organization")
         self.assertNotContains(response, "· None")
-
-    def test_admin_may_pick_another_org(self):
-        response = self.page(self.admin, org=self.other_org.id)
-        self.assertEqual(self.kpi(response, "Input"), "7K")
-        self.assertNotContains(response, "By organization")
-
-    def test_org_admin_cannot_pick_another_org(self):
-        for org in (self.org.id, "all"):
-            response = self.page(self.other_org_admin, org=org)
-            self.assertEqual(self.kpi(response, "Input"), "7K")
-            self.assertContains(response, "Activity across other-org")
-
-    def test_key_filter_accepts_the_owners_key(self):
-        response = self.page(self.solo, key=self.solo_key.id)
-        self.assertContains(response, "for the key")
-        self.assertEqual(self.kpi(response, "Requests"), "1")
-
-    def test_key_filter_hides_keys_outside_the_viewers_scope(self):
-        self.client.force_login(self.solo)
-        for token in (self.member_key, self.foreign_key):
-            response = self.client.get(reverse("usage"), {"key": token.id})
-            self.assertEqual(response.status_code, 404)
-            self.assertNotContains(response, token.name, status_code=404)
-        self.assertEqual(self.page(self.other_org_admin, key=self.solo_key.id).status_code, 404)
-        self.assertEqual(self.page(self.solo, key="abc").status_code, 404)
-
-    def test_key_filter_accepts_a_service_account_key_for_its_team_only(self):
-        response = self.page(self.member, key=self.pipeline_key.id)
-        self.assertContains(response, "for the key")
-        self.assertEqual(self.kpi(response, "Requests"), "1")
-        self.assertEqual(self.page(self.solo, key=self.pipeline_key.id).status_code, 404)
-        self.assertEqual(self.page(self.other_org_admin, key=self.pipeline_key.id).status_code, 404)
 
     def test_key_filter_lets_an_org_admin_name_any_key_of_their_org(self):
         response = self.page(self.org_admin, key=self.member_key.id)

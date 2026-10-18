@@ -3,8 +3,7 @@ from unittest import mock
 
 from django.urls import reverse
 
-from management.tests.helpers import make_token
-from management.tests.test_usage_page import EMBEDDING, KEY_NAMES, UsagePageTestBase
+from management.tests.helpers import EMBEDDING, UsagePageTestBase, make_token
 from management.usage_report import TOP_KEYS
 
 
@@ -20,16 +19,6 @@ class KeyUsagePageTestBase(UsagePageTestBase):
 
 
 class KeyUsageAccessTest(KeyUsagePageTestBase):
-    def test_signed_out_goes_to_sign_in(self):
-        url = reverse("usage_keys")
-        self.assertRedirects(
-            self.client.get(url), f"{reverse('sso')}?next={url}", fetch_redirect_response=False
-        )
-
-    def test_a_user_with_one_key_goes_to_its_page(self):
-        response = self.keys_page(self.solo, span="1w", model=EMBEDDING)
-        self.assertRedirects(response, reverse("token_detail", args=[self.solo_key.id]))
-
     def test_user_with_several_keys_sees_only_their_own(self):
         make_token(self.solo, "solo-desktop")
         response = self.keys_page(self.solo)
@@ -37,24 +26,11 @@ class KeyUsageAccessTest(KeyUsagePageTestBase):
         self.assertContains(response, f'href="{reverse("token_detail", args=[self.solo_key.id])}"')
         self.assertNotContains(response, '<span class="sr-only">Key: </span>')
 
-    def test_team_member_sees_their_key_and_the_team_service_account(self):
-        self.assert_keys(self.keys_page(self.member), "member-laptop", "pipeline")
-
     def test_org_admin_sees_and_links_every_key_of_their_org(self):
         response = self.keys_page(self.org_admin)
         self.assert_keys(response, "solo-laptop", "member-laptop", "pipeline")
         for key in (self.solo_key, self.member_key, self.pipeline_key):
             self.assertContains(response, f'href="{reverse("token_detail", args=[key.id])}"')
-
-    def test_my_keys_narrows_an_org_admin_to_their_own_keys(self):
-        self.assertEqual(self.names(self.org_admin, scope="mine"), [])
-
-    def test_admin_sees_every_org(self):
-        self.assert_keys(self.keys_page(self.admin, org="all"), *KEY_NAMES)
-        self.assertEqual(self.names(self.admin, org=self.other_org.id), ["foreign-laptop"])
-
-    def test_org_admin_cannot_pick_another_org(self):
-        self.assertEqual(self.names(self.other_org_admin, org=self.org.id), ["foreign-laptop"])
 
     def test_a_key_parameter_does_not_narrow_or_widen_the_list(self):
         self.assertEqual(

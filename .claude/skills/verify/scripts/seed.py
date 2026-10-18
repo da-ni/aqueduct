@@ -1,11 +1,13 @@
 """Seed a fresh verification database. Run once per instance, right after migrate.
 
-Two orgs, one account per role, a team with a service account, personal keys, a
-week of requests whose models come from the router config the instance loads, and
-files, batches, and vector stores for `user` and for the team's service account.
+Two orgs, one account per role, a team with a service account, personal keys,
+AQV_SEED_DAYS days of requests (default 7) whose models come from the router config
+the instance loads, and files, batches, and vector stores for `user` and for the
+team's service account.
 """
 
 import json
+import os
 import random
 from datetime import timedelta
 
@@ -35,6 +37,7 @@ from management.models import (  # noqa: E402
 
 User = get_user_model()
 rng = random.Random(7)
+DAYS = int(os.environ.get("AQV_SEED_DAYS", "7"))
 
 home = Org.objects.create(name="Verify Org")
 other = Org.objects.create(name="Other Org")
@@ -99,7 +102,7 @@ models = [
 ]
 now = timezone.now()
 rows = []
-for day in range(7):
+for day in range(DAYS):
     for _ in range(40):
         token = rng.choice(keys)
         model, mode = rng.choice(models)

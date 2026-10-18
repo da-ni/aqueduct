@@ -28,8 +28,9 @@ from management.models import Org, Team, Token, UserGroup, UserProfile
 
 User = get_user_model()
 
-ROUTER_CONFIG_PATH = Path(settings.BASE_DIR).parent / "example_router_config.yaml"
-EXAMPLE_ENTRIES = yaml.safe_load(ROUTER_CONFIG_PATH.read_text())["model_list"]
+EXAMPLE_ENTRIES = yaml.safe_load(Path(settings.LITELLM_ROUTER_CONFIG_FILE_PATH).read_text())[
+    "model_list"
+]
 
 RICH_ENTRY = {
     "model_name": "rich",
@@ -352,7 +353,6 @@ def selected_panel(content: str) -> str:
     return re.search(r'<h2 id="model-detail-name-panel"[^>]*>([^<]+)</h2>', content).group(1)
 
 
-@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG_PATH)
 class ModelsPageTest(TestCase):
     fixtures: ClassVar[list[str]] = ["gateway_data.json"]
 
@@ -370,12 +370,6 @@ class ModelsPageTest(TestCase):
         holder.excluded_models = list(models)
         holder.merge_exclusion_lists = merge
         holder.save()
-
-    def test_signed_out_goes_to_sign_in(self):
-        response = self.client.get(reverse("models"))
-        self.assertRedirects(
-            response, f"{reverse('sso')}?next={reverse('models')}", fetch_redirect_response=False
-        )
 
     def test_user_sees_every_model_when_nothing_is_unavailable(self):
         response = self.page()

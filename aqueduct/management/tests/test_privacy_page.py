@@ -7,7 +7,7 @@ from tos.models import TermsOfService
 
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
 from management.models import Org, PrivacyNotice, UserGroup
-from management.tests.helpers import PAGES, make_user
+from management.tests.helpers import make_user
 
 User = get_user_model()
 
@@ -17,7 +17,6 @@ PLACEHOLDER = "No data protection information has been published yet."
 LINK = "Data protection"
 
 
-@PAGES
 class PrivacyPageTest(TestCase):
     def setUp(self):
         self.org = Org.objects.create(name="Informatics")

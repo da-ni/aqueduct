@@ -81,6 +81,22 @@ Evidence goes to `/tmp/aqueduct-verify/evidence/<run-id>/`, outside the run dire
 - For a permission check, prove both sides: the allowed role succeeds, and an out-of-scope role is refused and the database is unchanged.
 - Report the run's SHA from `doctor`, and say when the tree was dirty at launch.
 
+## Prove a change is invisible
+
+A refactor that should change nothing a user sees is proven with two page snapshots. `aqv snapshot` needs no running instance.
+
+```bash
+AQV=.claude/skills/verify/scripts/aqv
+git worktree add /tmp/aqueduct-before <base-sha>
+$AQV snapshot /tmp/snap-before --checkout /tmp/aqueduct-before
+$AQV snapshot /tmp/snap-after
+$AQV snapshot-diff /tmp/snap-before /tmp/snap-after
+```
+
+`snapshot` takes under a minute. It migrates a fresh SQLite database, runs `scripts/seed.py` with 30 days of requests, adds a key in the other org, unfinished requests, and a request for a model the router no longer serves, and freezes the clock at 2026-10-15 10:30 UTC. It then renders every management page with the Django test client as `user`, `team-member`, `team-admin`, `org-admin`, `admin`, and `admin@all`, with the filter, sort, search, and pager variants of Overview, All keys, and Requests. Overview and All keys are rendered once before the usage rollups are built, under `rollups-not-built/`, and every page once after. `user` and `org-admin` repeat a subset in German under `de/`. Each page becomes one file with its status, redirect target, the visible text of `<main>` one text node per line, and the links in `<main>`.
+
+The code that renders comes from `--checkout`, and the seed and page list from the checkout `aqv` lives in, so both snapshots use the same data. Two snapshots of the same code are identical. `snapshot-diff` prints a unified diff and exits 0 only when nothing differs.
+
 ## Cleanup
 
 ```bash
@@ -92,7 +108,8 @@ It stops the server, mock upstream, and browser by the process group IDs recorde
 ## Helpers
 
 - `scripts/aqv` is the only command you run. `aqv <command> --help` lists each command's options.
-- `scripts/seed.py` seeds a fresh database. `launch` runs it, and nothing else should.
+- `scripts/seed.py` seeds a fresh database. `launch` and `snapshot` run it, and nothing else should.
+- `scripts/snapshot.py` renders the pages for `aqv snapshot`.
 - `scripts/verify_settings.py` loads the quartz dev overlay from `~/Projects/quartz/bedrock/services/aqueduct-dev` with the run's own database, without the OIDC backend.
 - `scripts/verify_urls.py` adds `/verify-login/` to the overlay's URLs.
 

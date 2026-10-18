@@ -6,12 +6,10 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from management.models import Org, UserProfile
-from management.tests.helpers import PAGES
 
 User = get_user_model()
 
 
-@PAGES
 @override_settings(OIDC_OP_JWKS_ENDPOINT="https://sso.example.com/jwks")
 class DeactivatedUserSessionTest(TestCase):
     def setUp(self):

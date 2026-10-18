@@ -22,8 +22,7 @@ from management.models import (
     UserGroup,
 )
 from management.request_log import Key
-from management.tests.helpers import PAGES, make_token, make_user
-from management.tests.test_usage_rollup import median_error
+from management.tests.helpers import make_token, make_user, median_error
 
 User = get_user_model()
 CHAT = "gpt-4.1-nano"
@@ -34,7 +33,6 @@ def named(token) -> Key:
     return Key(token, None, "")
 
 
-@PAGES
 class UsageFromRollupsTest(TestCase):
     @classmethod
     def setUpTestData(cls):
