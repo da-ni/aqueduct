@@ -5,6 +5,7 @@ from django.db import models
 from django.utils import timezone
 
 from management.models.token import Token
+from management.outcomes import FAILED
 
 
 @dataclasses.dataclass
@@ -105,9 +106,7 @@ class Request(models.Model):
             models.Index(fields=["token", "timestamp"]),
             models.Index(fields=["model", "timestamp"]),
             models.Index(
-                fields=["timestamp"],
-                condition=models.Q(status_code__gte=400),
-                name="request_failed_timestamp_idx",
+                fields=["timestamp"], condition=FAILED, name="request_failed_timestamp_idx"
             ),
         ]
         ordering: ClassVar[list[str]] = ["-timestamp"]  # Optional: default ordering

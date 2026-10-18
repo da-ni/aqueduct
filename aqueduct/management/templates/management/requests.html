@@ -10,9 +10,9 @@
 <div class="flex flex-wrap items-center gap-3">
     <nav class="join max-sm:flex-wrap max-sm:gap-1 max-sm:[&>.join-item]:rounded-full" aria-label="{% translate "Status" %}">
         {% for tab in log.tabs %}
-            <a class="btn btn-sm join-item{% if tab.outcome == outcome %} btn-primary{% endif %}"
+            <a class="btn btn-sm join-item{% if tab.value == status %} btn-primary{% endif %}"
                href="{% querystring key_q=None status=tab.value before=None after=None page=None request=None %}"
-               {% if tab.outcome == outcome %}aria-current="page"{% endif %}>{{ tab.label }}{% if tab.outcome.codes %} <span class="font-mono text-[10px] font-normal opacity-60">{{ tab.outcome.codes }}</span>{% endif %} <span class="font-mono text-xs opacity-70">{{ tab.count|grouped }}</span></a>
+               {% if tab.value == status %}aria-current="page"{% endif %}>{{ tab.label }}{% if tab.codes %} <span class="font-mono text-[10px] font-normal opacity-60">{{ tab.codes }}</span>{% endif %} <span class="font-mono text-xs opacity-70">{{ tab.count|grouped }}</span></a>
         {% endfor %}
     </nav>
     {% if log.searches_text %}{% translate "Request ID, path, user ID or user agent" as search_hint %}{% translate "Search requests" as search_label %}{% else %}{% translate "Request ID" as search_hint %}{% endif %}

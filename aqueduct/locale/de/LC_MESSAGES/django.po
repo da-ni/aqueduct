@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 20:54+0000\n"
+"POT-Creation-Date: 2026-10-18 21:26+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -548,11 +548,25 @@ msgstr[1] "%(count)s Min. bei voller Rate"
 msgid "Rate-limited"
 msgstr "Limit erreicht"
 
+msgid "The key or the provider was over a limit."
+msgstr "Der Schlüssel oder der Anbieter hat ein Limit überschritten."
+
 msgid "Client error"
 msgstr "Clientfehler"
 
+msgid ""
+"The request was not valid, for example an unknown model or a malformed body."
+msgstr ""
+"Die Anfrage war ungültig, zum Beispiel wegen eines unbekannten Modells oder "
+"eines fehlerhaften Inhalts."
+
 msgid "Server error"
 msgstr "Serverfehler"
+
+msgid "The model or the provider failed or timed out."
+msgstr ""
+"Das Modell oder der Anbieter ist ausgefallen oder hat nicht rechtzeitig "
+"geantwortet."
 
 msgid "Tokens per minute"
 msgstr "Token pro Minute"
@@ -592,20 +606,6 @@ msgstr "30 Tage"
 
 msgid "No requests in the last 30 days."
 msgstr "Keine Anfragen in den letzten 30 Tagen."
-
-msgid "The key or the provider was over a limit."
-msgstr "Der Schlüssel oder der Anbieter hat ein Limit überschritten."
-
-msgid ""
-"The request was not valid, for example an unknown model or a malformed body."
-msgstr ""
-"Die Anfrage war ungültig, zum Beispiel wegen eines unbekannten Modells oder "
-"eines fehlerhaften Inhalts."
-
-msgid "The model or the provider failed or timed out."
-msgstr ""
-"Das Modell oder der Anbieter ist ausgefallen oder hat nicht rechtzeitig "
-"geantwortet."
 
 #, python-format
 msgid "Service account · %(team)s"

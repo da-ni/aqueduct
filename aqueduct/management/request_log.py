@@ -3,7 +3,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from http import HTTPStatus
 
 from django.core.cache import cache
 from django.db.models import Count, F, Q, QuerySet
@@ -13,7 +12,6 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.http import urlencode
 from django.utils.translation import gettext
-from django.utils.translation import gettext_lazy as _
 
 from gateway.config import model_names
 from management.access import EveryOrg, KeyAct, OrgWide, TeamAct, Viewer, requests_of
@@ -22,7 +20,7 @@ from management.formatting import NO_ORG, duration, grouped
 from management.ids import MAX_ID, parse_id
 from management.model_catalog import scopes_for, usable_models
 from management.models import Request, Token
-from management.outcomes import FAILED, STATUSES
+from management.outcomes import FAILED, OUTCOME_COUNTS, Outcome
 from management.ownership import RELATED, owner
 from management.periods import Period, Span
 from management.usage_rollup import org_series
@@ -31,65 +29,8 @@ PAGE_SIZE = 50
 _MAX_PAGE = MAX_ID // PAGE_SIZE
 
 
-_OVERVIEW_STATUS = {
-    codes: (label, icon, tone, match) for label, codes, icon, tone, match in STATUSES
-}
-
-
-class Outcome(StrEnum):
-    ERRORS = "failed"
-    OK = "2xx"
-    RATE_LIMITED = "429"
-    REFUSED = "4xx"
-    FAILED = "5xx"
-
-    @property
-    def label(self) -> str:
-        return gettext("Failed") if self is Outcome.ERRORS else str(_OVERVIEW_STATUS[self.value][0])
-
-    @property
-    def codes(self) -> str | None:
-        return None if self is Outcome.ERRORS else self.value
-
-    @property
-    def matches(self) -> Q:
-        return FAILED if self is Outcome.ERRORS else _OVERVIEW_STATUS[self.value][3]
-
-    @property
-    def tone(self) -> str:
-        return _OVERVIEW_STATUS[self.value][2]
-
-    @property
-    def icon(self) -> str:
-        return _OVERVIEW_STATUS[self.value][1]
-
-    @classmethod
-    def parse(cls, raw: str) -> "Outcome | None":
-        try:
-            return cls(raw)
-        except ValueError:
-            return None
-
-    @classmethod
-    def of(cls, status_code: int | None) -> "Outcome | None":
-        if status_code is None:
-            return None
-        if status_code < HTTPStatus.BAD_REQUEST:
-            return cls.OK
-        if status_code == HTTPStatus.TOO_MANY_REQUESTS:
-            return cls.RATE_LIMITED
-        if status_code < HTTPStatus.INTERNAL_SERVER_ERROR:
-            return cls.REFUSED
-        return cls.FAILED
-
-
-_ERROR_MEANINGS = {
-    Outcome.RATE_LIMITED: _("The key or the provider was over a limit."),
-    Outcome.REFUSED: _(
-        "The request was not valid, for example an unknown model or a malformed body."
-    ),
-    Outcome.FAILED: _("The model or the provider failed or timed out."),
-}
+FAILED_TAB = "failed"
+_STATUS_FILTERS = {FAILED_TAB: FAILED} | {o.codes: o.matches for o in Outcome}
 
 
 @dataclass(frozen=True)
@@ -270,9 +211,7 @@ class Row:
         outcome = self.outcome
         if outcome is None:
             return gettext("No status was recorded.")
-        if outcome is Outcome.OK:
-            return None
-        return str(_ERROR_MEANINGS[outcome])
+        return None if outcome.meaning is None else str(outcome.meaning)
 
     @property
     def response_time(self) -> str:
@@ -293,13 +232,10 @@ class Row:
 
 @dataclass(frozen=True)
 class Tab:
-    outcome: Outcome | None
+    value: str | None
     label: str
     count: int
-
-    @property
-    def value(self) -> str | None:
-        return self.outcome.value if self.outcome else None
+    codes: str | None = None
 
 
 class Column(StrEnum):
@@ -463,7 +399,7 @@ class RequestLog:
     rows: tuple[Row, ...]
     tabs: tuple[Tab, ...]
     count: int
-    outcome: Outcome | None
+    status: str | None
     search: str
     searches_text: bool
     sort: Sort
@@ -499,24 +435,24 @@ COUNTS_SECONDS = 60
 
 def _tab_counts(
     filters: Filters, filtered: QuerySet[Request], search: str
-) -> dict[Outcome | None, int]:
+) -> dict[str | None, int]:
 
-    def count() -> dict[Outcome | None, int]:
+    def count() -> dict[str | None, int]:
         if (extent := filters.org_wide) is not None and not search:
             found = org_series(extent, filters.model, filters.period, requests=filters.requests)
-            by_codes = zip((codes for _, codes, *_ in STATUSES), found.status_counts, strict=True)
-            return {None: found.total.requests, Outcome.ERRORS: found.total.failed} | {
-                Outcome(codes): n for codes, n in by_codes
-            }
-        counts = filtered.aggregate(
-            total=Count("id"), **{o.name: Count("id", filter=o.matches) for o in Outcome}
-        )
-        return {None: counts["total"]} | {o: counts[o.name] for o in Outcome}
+            requests, failed, outcomes = found.total.requests, found.total.failed, found.outcomes
+        else:
+            counts = filtered.aggregate(
+                requests=Count("id"), failed=Count("id", filter=FAILED), **OUTCOME_COUNTS
+            )
+            requests, failed = counts["requests"], counts["failed"]
+            outcomes = {o: counts[o.name] for o in Outcome}
+        return {None: requests, FAILED_TAB: failed} | {o.codes: n for o, n in outcomes.items()}
 
     period = filters.period
     scope = (filters.visibility, period.start.isoformat(), period.end.isoformat(), search)
-    key = "request-log-tabs:" + hashlib.sha256(repr(scope).encode()).hexdigest()
-    found: dict[Outcome | None, int] | None = cache.get(key)
+    key = "request-log-tab-counts:" + hashlib.sha256(repr(scope).encode()).hexdigest()
+    found: dict[str | None, int] | None = cache.get(key)
     if found is None:
         found = count()
         cache.set(key, found, COUNTS_SECONDS)
@@ -619,7 +555,7 @@ def _page_by_offset(
 
 
 def request_log(filters: Filters, params: Mapping[str, str]) -> RequestLog:
-    outcome = Outcome.parse(params.get("status", ""))
+    status = raw if (raw := params.get("status")) in _STATUS_FILTERS else None
     search = params.get("q", "").strip()[:SEARCH_MAX]
     free = bounded_scan(filters)
     sort = Sort.parse(params.get("sort", "")) or NEWEST
@@ -631,15 +567,19 @@ def request_log(filters: Filters, params: Mapping[str, str]) -> RequestLog:
     if search:
         filtered = filtered.filter(request_search(search, by_text=free))
     counts = _tab_counts(filters, filtered, search)
-    tabs = (Tab(None, gettext("All"), counts[None]), *(Tab(o, o.label, counts[o]) for o in Outcome))
+    tabs = (
+        Tab(None, gettext("All"), counts[None]),
+        Tab(FAILED_TAB, gettext("Failed"), counts[FAILED_TAB]),
+        *(Tab(o.codes, str(o.label), counts[o.codes], o.codes) for o in Outcome),
+    )
 
-    if outcome is not None:
-        filtered = filtered.filter(outcome.matches)
+    if status is not None:
+        filtered = filtered.filter(_STATUS_FILTERS[status])
     listed = filtered.prefetch_related("token__user__profile", "token__service_account__team")
     if sort.column is Column.TIME:
-        page, pager = _page_by_time(listed, sort.descending, params, open_id, counts[outcome])
+        page, pager = _page_by_time(listed, sort.descending, params, open_id, counts[status])
     else:
-        page, pager = _page_by_offset(listed, sort, params.get("page"), counts[outcome])
+        page, pager = _page_by_offset(listed, sort, params.get("page"), counts[status])
 
     rows = tuple(
         Row(request, describe_key(request.token, filters.viewer), request.id == open_id)
@@ -648,8 +588,8 @@ def request_log(filters: Filters, params: Mapping[str, str]) -> RequestLog:
     return RequestLog(
         rows=rows,
         tabs=tabs,
-        count=counts[outcome],
-        outcome=outcome,
+        count=counts[status],
+        status=status,
         search=search,
         searches_text=free,
         sort=sort,

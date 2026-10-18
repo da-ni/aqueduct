@@ -10,9 +10,8 @@ from management import usage_rollup as rollup
 from management.access import EveryOrg, WholeOrg, requests_of
 from management.activity import served
 from management.models import Org, Request, TeamMembership
-from management.outcomes import STATUSES
+from management.outcomes import FAILED, Outcome
 from management.periods import Period, Span
-from management.request_log import Outcome
 from management.tests.helpers import CHAT, EMBEDDING, RequestsPageTestBase, join, listed, make_token
 
 User = get_user_model()
@@ -37,7 +36,7 @@ class RequestsScopeTest(RequestsPageTestBase):
             with self.subTest(user=user.username, **params):
                 self.client.force_login(user)
                 usage = self.client.get(reverse("usage"), {"span": "1m", **params})
-                overview = {row.codes: row.count for row in usage.context["statuses"]}
+                overview = {row.outcome.codes: row.count for row in usage.context["statuses"]}
                 log = self.get(user, **params).context["log"]
                 groups = {tab.value: tab.count for tab in log.tabs if tab.value in overview}
                 self.assertEqual(groups, overview)
@@ -73,7 +72,7 @@ class RequestsScopeTest(RequestsPageTestBase):
                 figures += [(row.log_url, row.activity.requests) for row in usage["models"]]
                 kpis = {kpi.label: kpi for kpi in usage["kpis"]}
                 total = int(kpis["Requests"].value)
-                failed = sum(row.count for row in usage["statuses"] if row.codes != "2xx")
+                failed = sum(row.count for row in usage["statuses"] if row.outcome.failed)
                 if total:
                     self.assertEqual(kpis["Failed"].value, f"{round(100 * failed / total)}%")
                 figures.append((usage["filters"].log_url(), total))
@@ -142,9 +141,11 @@ class RequestsFilterTest(RequestsPageTestBase):
         tabs = {tab.value: tab.count for tab in response.context["log"].tabs}
         self.assertEqual(tabs, {None: 4, "failed": 3, "2xx": 1, "429": 1, "4xx": 1, "5xx": 1})
         content = response.content.decode()
-        for label, codes, *_ in STATUSES:
-            self.assertIn(f'{label} <span class="font-mono text-[10px] font-normal', content)
-            self.assertIn(f">{codes}</span>", content)
+        for outcome in Outcome:
+            self.assertIn(
+                f'{outcome.label} <span class="font-mono text-[10px] font-normal', content
+            )
+            self.assertIn(f">{outcome.codes}</span>", content)
         self.assertIn(">/limited</div>", content)
         self.assertNotIn(">/own</div>", content)
         self.assertNotIn(">/invalid</div>", content)
@@ -366,8 +367,8 @@ class RequestsRollupCountsTest(RequestsPageTestBase):
 
     def raw_tabs(self, requests: QuerySet[Request]) -> dict[str | None, int]:
         requests = Period.last(Span.MONTH, timezone.now()).of(requests)
-        return {None: requests.count()} | {
-            o.value: requests.filter(o.matches).count() for o in Outcome
+        return {None: requests.count(), "failed": requests.filter(FAILED).count()} | {
+            o.codes: requests.filter(o.matches).count() for o in Outcome
         }
 
     def org_tabs(self, org: Org | None, model: str | None = None) -> dict[str | None, int]:

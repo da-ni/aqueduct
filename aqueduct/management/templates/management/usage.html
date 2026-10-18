@@ -36,14 +36,14 @@
                 <a class="link-plain text-sm" href="{{ filters.log_url }}">{% translate "Open the log" %}</a>
             </div>
             <div class="flex h-3 gap-0.5 overflow-hidden rounded-full bg-base-300">
-                {% for row in statuses %}{% if row.count %}<div class="{{ row.tone }} min-w-1 bg-current" style="flex: {{ row.count|unlocalize }} 1 0%"></div>{% endif %}{% endfor %}
+                {% for row in statuses %}{% if row.count %}<div class="{{ row.outcome.tone }} min-w-1 bg-current" style="flex: {{ row.count|unlocalize }} 1 0%"></div>{% endif %}{% endfor %}
             </div>
             <ul class="-mx-2 flex flex-col">
                 {% for row in statuses %}
                     <li class="border-t border-base-300">
                         <a class="hover-row flex items-center gap-3 rounded-lg px-2 py-2.5 text-sm" href="{{ row.href }}">
-                            <span class="{{ row.tone }}">{% icon row.icon %}</span>
-                            <span class="flex flex-col leading-tight"><span class="font-medium">{{ row.label }}</span><span class="muted font-mono text-xs">{{ row.codes }}</span></span>
+                            <span class="{{ row.outcome.tone }}">{% icon row.outcome.icon %}</span>
+                            <span class="flex flex-col leading-tight"><span class="font-medium">{{ row.outcome.label }}</span><span class="muted font-mono text-xs">{{ row.outcome.codes }}</span></span>
                             <span class="ml-auto font-mono">{{ row.count|grouped }}</span>
                             <span class="muted w-12 text-right font-mono text-xs">{{ row.share }}</span>
                         </a>
