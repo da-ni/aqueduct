@@ -14,6 +14,7 @@
                     <input type="radio" name="metric" value="tokens" class="btn btn-sm join-item" aria-label="{% translate "Tokens" %}" checked>
                     <input type="radio" name="metric" value="requests" class="btn btn-sm join-item" aria-label="{% translate "Requests" %}">
                 </div>
+                <script>try { const kept = document.currentScript.previousElementSibling.querySelector(`[value="${sessionStorage.getItem('metric')}"]`); if (kept) kept.checked = true; } catch { }</script>
             </div>
         </div>
         {% if empty %}

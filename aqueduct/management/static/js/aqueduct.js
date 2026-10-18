@@ -109,16 +109,12 @@
   }
   document.addEventListener('change', (event) => {
     if (event.target.matches('[data-autosubmit]')) event.target.form.submit();
-    // The chart metric stays picked while the reader moves between filters in this tab.
+    // _metric_chart.html restores the pick while it parses, so the chart does not flash.
     if (event.target.name === 'metric') {
       try { sessionStorage.setItem('metric', event.target.value); } catch { }
     }
   });
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-autodismiss]').forEach(autodismiss);
-    let metric = null;
-    try { metric = sessionStorage.getItem('metric'); } catch { }
-    const picked = document.querySelector(`input[name=metric][value="${metric}"]`);
-    if (picked) picked.checked = true;
   });
 })();
