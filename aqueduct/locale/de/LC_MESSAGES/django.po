@@ -4,12 +4,37 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-17 23:58+0000\n"
+"POT-Creation-Date: 2026-10-18 00:30+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Also apply the organization's unavailable models"
+msgstr "Auch die nicht verfügbaren Modelle der Organisation übernehmen"
+
+msgid "Also apply the organization's unavailable MCP servers"
+msgstr "Auch die nicht verfügbaren MCP-Server der Organisation übernehmen"
+
+msgid "Clear this to use only the boxes above."
+msgstr "Entfernen Sie das Häkchen, damit nur die Auswahl oben gilt."
+
+msgid "Available models"
+msgstr "Verfügbare Modelle"
+
+msgid "Clear a box to make the model unavailable."
+msgstr "Entfernen Sie ein Häkchen, damit das Modell nicht verfügbar ist."
+
+msgid "Available MCP servers"
+msgstr "Verfügbare MCP-Server"
+
+msgid "Clear a box to make the MCP server unavailable."
+msgstr "Entfernen Sie ein Häkchen, damit der MCP-Server nicht verfügbar ist."
+
+#, python-format
+msgid "%(name)s (not in the current config)"
+msgstr "%(name)s (nicht in der aktuellen Konfiguration)"
 
 msgid ""
 "Apps using it stop working, and its requests, files, batches, and vector "
@@ -59,14 +84,61 @@ msgstr "%(name)s löschen?"
 msgid "Delete"
 msgstr "Löschen"
 
-msgid "e.g. thesis-eval"
-msgstr "z. B. thesis-eval"
+msgid "Expires (UTC, optional)"
+msgstr "Ablauf (UTC, optional)"
+
+msgid "For example rag-pipeline"
+msgstr "Zum Beispiel rag-pipeline"
 
 msgid "Name"
 msgstr "Name"
 
-msgid "Expires (UTC, optional)"
-msgstr "Ablauf (UTC, optional)"
+msgid "Description (optional)"
+msgstr "Beschreibung (optional)"
+
+#, python-format
+msgid ""
+"A service account with the name '%(name)s' already exists in team '%(team)s'."
+msgstr "Im Team „%(team)s“ gibt es bereits ein Dienstkonto namens „%(name)s“."
+
+#, python-format
+msgid ""
+"Team '%(team)s' has reached the maximum limit of %(count)s service account."
+msgid_plural ""
+"Team '%(team)s' has reached the maximum limit of %(count)s service accounts."
+msgstr[0] ""
+"Das Team „%(team)s“ hat die Höchstzahl von %(count)s Dienstkonto erreicht."
+msgstr[1] ""
+"Das Team „%(team)s“ hat die Höchstzahl von %(count)s Dienstkonten erreicht."
+
+msgid "Expiration date must be in the future."
+msgstr "Das Ablaufdatum muss in der Zukunft liegen."
+
+msgid "For example NLP Lab"
+msgstr "Zum Beispiel NLP Lab"
+
+msgid "A team with this name already exists in your organization."
+msgstr "In Ihrer Organisation gibt es bereits ein Team mit diesem Namen."
+
+msgid "Requests per minute, per key"
+msgstr "Anfragen pro Minute, je Schlüssel"
+
+msgid "Input tokens per minute, per key"
+msgstr "Eingabe-Token pro Minute, je Schlüssel"
+
+msgid "Output tokens per minute, per key"
+msgstr "Ausgabe-Token pro Minute, je Schlüssel"
+
+msgid "Leave it empty for no limit."
+msgstr "Lassen Sie das Feld leer, wenn kein Limit gelten soll."
+
+#, python-format
+msgid "Leave it empty for the organization's limit, %(limit)s."
+msgstr ""
+"Lassen Sie das Feld leer, damit das Limit der Organisation gilt: %(limit)s."
+
+msgid "e.g. thesis-eval"
+msgstr "z. B. thesis-eval"
 
 #, python-format
 msgid "You can only have %(count)s API key."
@@ -74,8 +146,69 @@ msgid_plural "You can only have %(count)s API keys."
 msgstr[0] "Sie können nur %(count)s API-Schlüssel haben."
 msgstr[1] "Sie können nur %(count)s API-Schlüssel haben."
 
-msgid "Expiration date must be in the future."
-msgstr "Das Ablaufdatum muss in der Zukunft liegen."
+msgid "Requests per minute"
+msgstr "Anfragen pro Minute"
+
+msgid "Input tokens per minute"
+msgstr "Eingabe-Token pro Minute"
+
+msgid "Output tokens per minute"
+msgstr "Ausgabe-Token pro Minute"
+
+msgid "Hourly cap"
+msgstr "Obergrenze pro Stunde"
+
+msgid "Daily cap"
+msgstr "Obergrenze pro Tag"
+
+msgid "1–60. 60 = no extra hourly cap."
+msgstr "1–60. 60 = keine zusätzliche Obergrenze pro Stunde."
+
+msgid "1–1,440. 1,440 = no extra daily cap."
+msgstr "1–1.440. 1.440 = keine zusätzliche Obergrenze pro Tag."
+
+msgid "Apply the server's default unavailable models"
+msgstr "Die vom Server als nicht verfügbar vorgegebenen Modelle übernehmen"
+
+msgid "Apply the server's default unavailable MCP servers"
+msgstr "Die vom Server als nicht verfügbar vorgegebenen MCP-Server übernehmen"
+
+msgid ""
+"Clear a box to make the model unavailable to keys in this organization. A "
+"model added to the configuration later starts out available."
+msgstr ""
+"Entfernen Sie ein Häkchen, damit das Modell für Schlüssel in dieser "
+"Organisation nicht verfügbar ist. Ein Modell, das später zur Konfiguration "
+"hinzukommt, ist zunächst verfügbar."
+
+#, python-format
+msgid ""
+"The server configuration makes %(names)s unavailable everywhere. Clear this "
+"to make it available in this organization."
+msgid_plural ""
+"The server configuration makes %(names)s unavailable everywhere. Clear this "
+"to make them available in this organization."
+msgstr[0] ""
+"Laut Serverkonfiguration ist %(names)s überall nicht verfügbar. Entfernen "
+"Sie das Häkchen, um es in dieser Organisation verfügbar zu machen."
+msgstr[1] ""
+"Laut Serverkonfiguration sind %(names)s überall nicht verfügbar. Entfernen "
+"Sie das Häkchen, um sie in dieser Organisation verfügbar zu machen."
+
+msgid ""
+"Clear a box to make the model unavailable to the team's service account "
+"keys. Members' personal keys are not affected."
+msgstr ""
+"Entfernen Sie ein Häkchen, damit das Modell für die Schlüssel der "
+"Dienstkonten des Teams nicht verfügbar ist. Persönliche Schlüssel der "
+"Mitglieder sind davon nicht betroffen."
+
+msgid "Email"
+msgstr "E-Mail"
+
+#, python-format
+msgid "More than one account uses %(email)s."
+msgstr "Mehr als ein Konto nutzt %(email)s."
 
 #, python-format
 msgid "%(count)s token"
@@ -165,6 +298,17 @@ msgstr "Cache-Treffer"
 msgid "Requests"
 msgstr "Anfragen"
 
+msgid "Must be between 1 and 60 (an hour has 60 minutes)."
+msgstr "Muss zwischen 1 und 60 liegen (eine Stunde hat 60 Minuten)."
+
+msgid "Must be between 1 and 1440 (a day has 1440 minutes)."
+msgstr "Muss zwischen 1 und 1440 liegen (ein Tag hat 1440 Minuten)."
+
+msgid "Cannot exceed 24 x hourly_limit_multiplier (a day has 24 hours)."
+msgstr ""
+"Darf höchstens das 24-Fache der Obergrenze pro Stunde betragen (ein Tag hat "
+"24 Stunden)."
+
 msgid "Platform admin"
 msgstr "Plattform-Admin"
 
@@ -235,6 +379,18 @@ msgstr "Matrix-Supportkanal"
 msgid "GitHub repository"
 msgstr "GitHub-Repository"
 
+#, python-format
+msgid "%(count)s min of full rate (default)"
+msgid_plural "%(count)s min of full rate (default)"
+msgstr[0] "%(count)s Min. bei voller Rate (Vorgabe)"
+msgstr[1] "%(count)s Min. bei voller Rate (Vorgabe)"
+
+#, python-format
+msgid "%(count)s min of full rate"
+msgid_plural "%(count)s min of full rate"
+msgstr[0] "%(count)s Min. bei voller Rate"
+msgstr[1] "%(count)s Min. bei voller Rate"
+
 msgid "The key or the provider was over a limit."
 msgstr "Der Schlüssel oder der Anbieter hat ein Limit überschritten."
 
@@ -274,6 +430,12 @@ msgstr "Letzte"
 
 msgid "All"
 msgstr "Alle"
+
+msgid "Tokens, 7 days"
+msgstr "Token, 7 Tage"
+
+msgid "Tokens"
+msgstr "Token"
 
 msgid "Access denied"
 msgstr "Zugriff verweigert"
@@ -365,9 +527,6 @@ msgstr "Der bisherige Schlüssel funktioniert sofort nicht mehr."
 msgid "Edit"
 msgstr "Bearbeiten"
 
-msgid "Tokens"
-msgstr "Token"
-
 msgid "Input"
 msgstr "Eingabe"
 
@@ -376,15 +535,6 @@ msgstr "Anteil"
 
 msgid "No limits"
 msgstr "Keine Limits"
-
-msgid "Requests per minute"
-msgstr "Anfragen pro Minute"
-
-msgid "Input tokens per minute"
-msgstr "Eingabe-Token pro Minute"
-
-msgid "Output tokens per minute"
-msgstr "Ausgabe-Token pro Minute"
 
 msgid "Your key is ready"
 msgstr "Ihr Schlüssel ist bereit"
@@ -471,11 +621,38 @@ msgstr "Navigation öffnen"
 msgid "Dismiss"
 msgstr "Schließen"
 
-msgid "New"
-msgstr "Neu"
+msgid "Add service account"
+msgstr "Dienstkonto hinzufügen"
+
+msgid "You'll own its key. It's shown once, after you create it."
+msgstr ""
+"Der Schlüssel gehört Ihnen. Er wird einmal angezeigt, nachdem Sie das "
+"Dienstkonto erstellt haben."
+
+msgid "Create service account"
+msgstr "Dienstkonto erstellen"
 
 msgid "Create"
 msgstr "Erstellen"
+
+#, python-format
+msgid "The team is created in %(name)s."
+msgstr "Das Team wird in %(name)s erstellt."
+
+msgid "Create team"
+msgstr "Team erstellen"
+
+msgid "New"
+msgstr "Neu"
+
+msgid "Save changes"
+msgstr "Änderungen speichern"
+
+msgid "Delete team"
+msgstr "Team löschen"
+
+msgid "This can't be undone."
+msgstr "Das lässt sich nicht rückgängig machen."
 
 #, python-format
 msgid "Edit <span class=\"font-mono\">%(name)s</span>"
@@ -499,6 +676,113 @@ msgstr "Bei Aqueduct anmelden"
 #, python-format
 msgid "Sign in with %(provider)s"
 msgstr "Mit %(provider)s anmelden"
+
+msgid "You're not in a team. Ask your org admin to add you."
+msgstr ""
+"Sie sind in keinem Team. Bitten Sie die Admins Ihrer Organisation, Sie "
+"hinzuzufügen."
+
+msgid "Search teams"
+msgstr "Teams durchsuchen"
+
+msgid "Team"
+msgstr "Team"
+
+msgid "Your role"
+msgstr "Ihre Rolle"
+
+msgid "Members"
+msgstr "Mitglieder"
+
+msgid "Requests/min"
+msgstr "Anfragen/Min."
+
+msgid "Service account tokens, 7 days"
+msgstr "Token der Dienstkonten, 7 Tage"
+
+msgid "Members' personal keys don't count."
+msgstr "Persönliche Schlüssel der Mitglieder zählen nicht mit."
+
+#, python-format
+msgid "%(n)s member"
+msgid_plural "%(n)s members"
+msgstr[0] "%(n)s Mitglied"
+msgstr[1] "%(n)s Mitglieder"
+
+#, python-format
+msgid "%(n)s service account"
+msgid_plural "%(n)s service accounts"
+msgstr[0] "%(n)s Dienstkonto"
+msgstr[1] "%(n)s Dienstkonten"
+
+#, python-format
+msgid "%(tokens)s token"
+msgid_plural "%(tokens)s tokens"
+msgstr[0] "%(tokens)s Token"
+msgstr[1] "%(tokens)s Token"
+
+msgid "No limit"
+msgstr "Kein Limit"
+
+#, python-format
+msgid "Open %(name)s"
+msgstr "%(name)s öffnen"
+
+msgid "No team matches."
+msgstr "Kein Team passt."
+
+msgid "This organization has no teams yet."
+msgstr "Diese Organisation hat noch keine Teams."
+
+msgid "Organizations"
+msgstr "Organisationen"
+
+msgid "No organizations yet."
+msgstr "Noch keine Organisationen."
+
+#, python-format
+msgid "%(teams)s team"
+msgid_plural "%(teams)s teams"
+msgstr[0] "%(teams)s Team"
+msgstr[1] "%(teams)s Teams"
+
+#, python-format
+msgid "%(accounts)s service account"
+msgid_plural "%(accounts)s service accounts"
+msgstr[0] "%(accounts)s Dienstkonto"
+msgstr[1] "%(accounts)s Dienstkonten"
+
+msgid "Limits"
+msgstr "Limits"
+
+msgid "Edit limits"
+msgstr "Limits bearbeiten"
+
+msgid "Default for every key. Team and personal limits override it."
+msgstr ""
+"Vorgabe für jeden Schlüssel. Team- und persönliche Limits haben Vorrang."
+
+msgid "Personal keys per person"
+msgstr "Persönliche Schlüssel pro Person"
+
+msgid "(server setting)"
+msgstr "(Servereinstellung)"
+
+msgid "Unavailable"
+msgstr "Nicht verfügbar"
+
+msgid "Edit availability"
+msgstr "Verfügbarkeit bearbeiten"
+
+msgid "For"
+msgstr "Für"
+
+#, python-format
+msgid "Everyone in %(name)s"
+msgstr "Alle in %(name)s"
+
+msgid "None"
+msgstr "Keine"
 
 #, python-format
 msgid "For members of %(name)s"
@@ -613,17 +897,11 @@ msgid_plural "Requests are kept for %(days)s days"
 msgstr[0] "Anfragen werden %(days)s Tag lang aufbewahrt"
 msgstr[1] "Anfragen werden %(days)s Tage lang aufbewahrt"
 
-msgid "Email"
-msgstr "E-Mail"
-
 msgid "Set by your sign-in provider."
 msgstr "Von Ihrem Anmeldedienst festgelegt."
 
 msgid "Role"
 msgstr "Rolle"
-
-msgid "None"
-msgstr "Keine"
 
 msgid "Language"
 msgstr "Sprache"
@@ -659,8 +937,140 @@ msgstr ""
 msgid "Organization default"
 msgstr "Vorgabe der Organisation"
 
+#, python-format
+msgid "%(used)s of %(max)s service account"
+msgid_plural "%(used)s of %(max)s service accounts"
+msgstr[0] "%(used)s von %(max)s Dienstkonto"
+msgstr[1] "%(used)s von %(max)s Dienstkonten"
+
+#, python-format
+msgid ""
+"This team has %(max)s service account, the maximum. Delete it to add another."
+msgid_plural ""
+"This team has %(max)s service accounts, the maximum. Delete one to add "
+"another."
+msgstr[0] ""
+"Dieses Team hat %(max)s Dienstkonto, das Maximum. Löschen Sie es, um ein "
+"weiteres hinzuzufügen."
+msgstr[1] ""
+"Dieses Team hat %(max)s Dienstkonten, das Maximum. Löschen Sie eines, um ein "
+"weiteres hinzuzufügen."
+
+msgid "Service accounts, last 7 days"
+msgstr "Dienstkonten, letzte 7 Tage"
+
 msgid "Service account"
 msgstr "Dienstkonto"
+
+msgid "Last used"
+msgstr "Zuletzt genutzt"
+
+msgid "Expires"
+msgstr "Ablauf"
+
+msgid "Actions"
+msgstr "Aktionen"
+
+msgid "No owner"
+msgstr "Nicht zugeordnet"
+
+msgid "No key"
+msgstr "Kein Schlüssel"
+
+msgid "Never"
+msgstr "Nie"
+
+#, python-format
+msgid "used %(time)s"
+msgstr "genutzt %(time)s"
+
+msgid "never used"
+msgstr "nie genutzt"
+
+#, python-format
+msgid "Rotate the key of %(name)s?"
+msgstr "Schlüssel von %(name)s erneuern?"
+
+#, python-format
+msgid "Transfer %(name)s"
+msgstr "%(name)s übertragen"
+
+msgid "Transfer ownership"
+msgstr "Schlüssel übertragen"
+
+msgid "This team has no service accounts."
+msgstr "Dieses Team hat keine Dienstkonten."
+
+msgid "Search members"
+msgstr "Mitglieder durchsuchen"
+
+msgid "Search members by email"
+msgstr "Mitglieder nach E-Mail-Adresse durchsuchen"
+
+msgid "Add member"
+msgstr "Mitglied hinzufügen"
+
+msgid "name@example.org"
+msgstr "name@example.org"
+
+msgid "Email of the new member"
+msgstr "E-Mail-Adresse des neuen Mitglieds"
+
+msgid "Add"
+msgstr "Hinzufügen"
+
+msgid "Remove"
+msgstr "Entfernen"
+
+msgid "(you)"
+msgstr "(Sie)"
+
+#, python-format
+msgid "Remove admin rights of %(email)s"
+msgstr "Admin-Rechte von %(email)s entziehen"
+
+msgid "Remove admin"
+msgstr "Admin-Rechte entziehen"
+
+#, python-format
+msgid "Make %(email)s a team admin"
+msgstr "%(email)s zum Team-Admin machen"
+
+msgid "Make admin"
+msgstr "Zum Admin machen"
+
+#, python-format
+msgid "Owns <span class=\"font-mono\">%(name)s</span>"
+msgstr "Besitzt <span class=\"font-mono\">%(name)s</span>"
+
+msgid "Transfer"
+msgstr "Übertragen"
+
+#, python-format
+msgid "Remove %(email)s?"
+msgstr "%(email)s entfernen?"
+
+#, python-format
+msgid "Remove %(email)s from the team"
+msgstr "%(email)s aus dem Team entfernen"
+
+msgid "Remove from the team"
+msgstr "Aus dem Team entfernen"
+
+msgid "They lose access to the team and its service accounts."
+msgstr "Der Zugriff auf das Team und seine Dienstkonten endet."
+
+msgid "No member matches."
+msgstr "Kein Mitglied passt."
+
+msgid "This team has no members."
+msgstr "Dieses Team hat keine Mitglieder."
+
+msgid "Applies to each service account key."
+msgstr "Gilt für jeden Schlüssel eines Dienstkontos."
+
+msgid "Unavailable to service accounts"
+msgstr "Für Dienstkonten nicht verfügbar"
 
 #, python-format
 msgid "Created: %(date)s"
@@ -704,9 +1114,6 @@ msgstr "Anfrage %(id)s im Anfrageprotokoll öffnen"
 msgid "No requests in the last 30 days."
 msgstr "Keine Anfragen in den letzten 30 Tagen."
 
-msgid "Limits"
-msgstr "Limits"
-
 msgid "Can call every model"
 msgstr "Kann jedes Modell aufrufen"
 
@@ -737,18 +1144,6 @@ msgstr[1] "%(n)s von %(n)s Schlüsseln genutzt"
 msgid "Key type"
 msgstr "Schlüsselart"
 
-msgid "Last used"
-msgstr "Zuletzt genutzt"
-
-msgid "Tokens, 7 days"
-msgstr "Token, 7 Tage"
-
-msgid "Expires"
-msgstr "Ablauf"
-
-msgid "Actions"
-msgstr "Aktionen"
-
 #, python-format
 msgid "Actions for %(name)s"
 msgstr "Aktionen für %(name)s"
@@ -758,6 +1153,24 @@ msgstr "Kein Schlüssel passt."
 
 msgid "No keys yet."
 msgstr "Noch keine Schlüssel."
+
+msgid "Current owner"
+msgstr "Derzeit bei"
+
+msgid "New owner"
+msgstr "Übertragen an"
+
+msgid ""
+"No other team member can take over this key. Add someone to the team first."
+msgstr ""
+"Kein anderes Mitglied des Teams kann diesen Schlüssel übernehmen. Fügen Sie "
+"dem Team zuerst jemanden hinzu."
+
+msgid "Choose a member"
+msgstr "Mitglied auswählen"
+
+msgid "The key keeps working. Only the owner changes."
+msgstr "Der Schlüssel funktioniert weiter. Nur die Zuordnung ändert sich."
 
 #, python-format
 msgid "for the key <span class=\"font-mono\">%(name)s</span>"
@@ -854,6 +1267,12 @@ msgstr "Schlüsselname"
 #, python-format
 msgid "No key that matches “%(q)s” has requests in this time frame."
 msgstr "Kein Schlüssel, der zu „%(q)s“ passt, hat Anfragen in diesem Zeitraum."
+
+msgid "Select all"
+msgstr "Alle auswählen"
+
+msgid "Select none"
+msgstr "Keine auswählen"
 
 #, python-format
 msgid "%(count)s year ago"
@@ -1015,6 +1434,17 @@ msgstr "Das können nur Organisations-Admins."
 msgid "Only team admins can do that."
 msgstr "Das können nur Team-Admins."
 
+#, python-format
+msgid "Limits of %(name)s saved."
+msgstr "Limits von %(name)s gespeichert."
+
+msgid "Availability"
+msgstr "Verfügbarkeit"
+
+#, python-format
+msgid "Availability of %(name)s saved."
+msgstr "Verfügbarkeit von %(name)s gespeichert."
+
 msgid "Only platform admins can do that."
 msgstr "Das können nur Plattform-Admins."
 
@@ -1025,8 +1455,112 @@ msgstr "Ansicht: %(name)s."
 msgid "Viewing all organizations."
 msgstr "Ansicht: alle Organisationen."
 
+msgid "Add a service account"
+msgstr "Dienstkonto hinzufügen"
+
+#, python-format
+msgid "Could not create the service account's key: %(error)s"
+msgstr "Der Schlüssel des Dienstkontos konnte nicht erstellt werden: %(error)s"
+
+#, python-format
+msgid "Service account %(name)s deleted."
+msgstr "Dienstkonto %(name)s gelöscht."
+
+#, python-format
+msgid "Service account %(name)s saved."
+msgstr "Dienstkonto %(name)s gespeichert."
+
+msgid "Edit service account"
+msgstr "Dienstkonto bearbeiten"
+
+#, python-format
+msgid "%(email)s is not a member of %(team)s."
+msgstr "%(email)s ist kein Mitglied von %(team)s."
+
+#, python-format
+msgid "Service account %(name)s has no key to transfer."
+msgstr "Dienstkonto %(name)s hat keinen Schlüssel, der sich übertragen lässt."
+
+#, python-format
+msgid "%(email)s already owns this key."
+msgstr "Dieser Schlüssel gehört bereits %(email)s."
+
+#, python-format
+msgid "%(email)s now owns the key of %(name)s."
+msgstr "Der Schlüssel von %(name)s gehört jetzt %(email)s."
+
 msgid "Choose one of the offered languages."
 msgstr "Wählen Sie eine der angebotenen Sprachen."
+
+#, python-format
+msgid "Team %(name)s created."
+msgstr "Team %(name)s erstellt."
+
+msgid "Create a team"
+msgstr "Team erstellen"
+
+#, python-format
+msgid "Team %(name)s saved."
+msgstr "Team %(name)s gespeichert."
+
+msgid "Edit team"
+msgstr "Team bearbeiten"
+
+#, python-format
+msgid "Team %(name)s deleted."
+msgstr "Team %(name)s gelöscht."
+
+msgid "Org admins already have team admin rights."
+msgstr "Organisations-Admins haben bereits die Rechte von Team-Admins."
+
+#, python-format
+msgid "%(email)s is not in this team."
+msgstr "%(email)s ist nicht in diesem Team."
+
+#, python-format
+msgid "%(email)s is already a team admin."
+msgstr "%(email)s ist bereits Team-Admin."
+
+#, python-format
+msgid "%(email)s is now a team admin."
+msgstr "%(email)s ist jetzt Team-Admin."
+
+#, python-format
+msgid "%(email)s is no longer a team admin."
+msgstr "%(email)s ist nicht mehr Team-Admin."
+
+#, python-format
+msgid "%(email)s is not a team admin."
+msgstr "%(email)s ist kein Team-Admin."
+
+msgid "Invalid action."
+msgstr "Ungültige Aktion."
+
+#, python-format
+msgid "No one in %(org)s uses %(email)s."
+msgstr "In %(org)s nutzt kein Konto die Adresse %(email)s."
+
+#, python-format
+msgid "%(email)s is already in this team."
+msgstr "%(email)s ist bereits in diesem Team."
+
+#, python-format
+msgid "%(email)s added."
+msgstr "%(email)s hinzugefügt."
+
+msgid "Member not found."
+msgstr "Mitglied nicht gefunden."
+
+#, python-format
+msgid "Transfer or delete %(email)s's service accounts first."
+msgstr "Übertragen oder löschen Sie zuerst die Dienstkonten von %(email)s."
+
+#, python-format
+msgid "%(email)s removed."
+msgstr "%(email)s entfernt."
+
+msgid "Nothing to change."
+msgstr "Nichts zu ändern."
 
 msgid "New API key"
 msgstr "Neuer API-Schlüssel"

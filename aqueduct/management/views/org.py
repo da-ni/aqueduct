@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from django.contrib import messages
@@ -8,6 +9,7 @@ from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext
+from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView, UpdateView, View
 
 from management.forms import OrgAvailabilityForm, OrgLimitsForm
@@ -16,6 +18,9 @@ from management.org_overview import org_page
 from management.request_log import ORG_BOUND_PARAMS, parse_id, remember_org
 from management.team_overview import team_rows
 from management.views.base import BaseAqueductView, OrgAdminRequiredMixin
+
+if TYPE_CHECKING:
+    from django.utils.functional import _StrPromise
 
 
 class OrgView(BaseAqueductView, TemplateView):
@@ -65,7 +70,9 @@ class OrgEditView(BaseAqueductView, UpdateView):
     template_name = "management/edit/org.html"
     context_object_name = "org_object"
     success_url = reverse_lazy("organization")
-    view_title = ""
+    view_title: "_StrPromise"
+    saved: "_StrPromise"
+    """The message after a save, with the org's name in `%(name)s`."""
 
     def get_object(self, queryset=None) -> Org:
         org = get_object_or_404(Org, pk=self.kwargs[self.pk_url_kwarg])
@@ -75,7 +82,7 @@ class OrgEditView(BaseAqueductView, UpdateView):
 
     def form_valid(self, form) -> HttpResponse:
         response = super().form_valid(form)
-        messages.success(self.request, f"{self.view_title} of {self.object.name} saved.")
+        messages.success(self.request, self.saved % {"name": self.object.name})
         return response
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
@@ -84,12 +91,14 @@ class OrgEditView(BaseAqueductView, UpdateView):
 
 class OrgLimitsEditView(OrgEditView):
     form_class = OrgLimitsForm
-    view_title = "Limits"
+    view_title = _("Limits")
+    saved = _("Limits of %(name)s saved.")
 
 
 class OrgAvailabilityEditView(OrgEditView):
     form_class = OrgAvailabilityForm
-    view_title = "Availability"
+    view_title = _("Availability")
+    saved = _("Availability of %(name)s saved.")
 
 
 class OrgSwitchView(BaseAqueductView, View):

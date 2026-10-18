@@ -1,6 +1,6 @@
 {% extends "management/base.html" %}
-{% load humanize ui %}
-{% block title %}{% if org_object %}{{ org_object.name }}{% else %}Organizations{% endif %} · {{ block.super }}{% endblock %}
+{% load humanize i18n ui %}
+{% block title %}{% if org_object %}{{ org_object.name }}{% else %}{% translate "Organizations" %}{% endif %} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
 
@@ -8,13 +8,13 @@
 {% if not org_object %}
 <div class="flex flex-col gap-6">
     <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
-        <h1 class="text-3xl font-semibold">Organizations</h1>
+        <h1 class="text-3xl font-semibold">{% translate "Organizations" %}</h1>
     </header>
     <section class="card bg-base-200">
         <div class="card-body p-3">
             <div class="overflow-x-auto">
                 <table class="table">
-                    <thead><tr><th>Organization</th><th class="text-right">Teams</th></tr></thead>
+                    <thead><tr><th>{% translate "Organization" %}</th><th class="text-right">{% translate "Teams" %}</th></tr></thead>
                     <tbody>
                         {% for org in orgs %}
                             <tr>
@@ -22,7 +22,7 @@
                                 <td class="text-right font-mono">{{ org.team_count|intcomma }}</td>
                             </tr>
                         {% empty %}
-                            <tr><td colspan="2" class="muted">No organizations yet.</td></tr>
+                            <tr><td colspan="2" class="muted">{% translate "No organizations yet." %}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -36,8 +36,8 @@
         <div class="flex flex-col gap-2">
             <h1 class="text-3xl font-semibold">{{ org_object.name }}</h1>
             <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-                <span><a class="link-plain" href="{% url 'org' %}">{{ page.teams|intcomma }} team{{ page.teams|pluralize }}</a></span>
-                <span>{{ page.service_accounts|intcomma }} service account{{ page.service_accounts|pluralize }}</span>
+                <span><a class="link-plain" href="{% url 'org' %}">{% blocktranslate with teams=page.teams|intcomma count n=page.teams %}{{ teams }} team{% plural %}{{ teams }} teams{% endblocktranslate %}</a></span>
+                <span>{% blocktranslate with accounts=page.service_accounts|intcomma count n=page.service_accounts %}{{ accounts }} service account{% plural %}{{ accounts }} service accounts{% endblocktranslate %}</span>
             </div>
         </div>
     </header>
@@ -46,16 +46,16 @@
         <section class="card bg-base-200 lg:col-span-2" aria-labelledby="limits-title">
             <div class="card-body gap-4 p-5">
                 <div class="flex items-center justify-between gap-3">
-                    <h2 id="limits-title" class="text-xl font-semibold">Limits</h2>
-                    <a class="link-plain text-sm" href="{% url 'organization_limits' org_object.id %}" aria-label="Edit limits">Edit</a>
+                    <h2 id="limits-title" class="text-xl font-semibold">{% translate "Limits" %}</h2>
+                    <a class="link-plain text-sm" href="{% url 'organization_limits' org_object.id %}" aria-label="{% translate "Edit limits" %}">{% translate "Edit" %}</a>
                 </div>
                 {% include "management/_limits.html" with limits=page.limits %}
-                <p class="muted text-sm">Default for every key. Team and personal limits override it.</p>
+                <p class="muted text-sm">{% translate "Default for every key. Team and personal limits override it." %}</p>
                 <dl class="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-base-300 pt-4 text-sm">
                     {% for label, value in page.multipliers %}
                         <div class="flex items-baseline gap-2"><dt class="muted">{{ label }}</dt><dd><span class="font-mono font-semibold">{{ value }}</span></dd></div>
                     {% endfor %}
-                    <div class="flex items-baseline gap-2"><dt class="muted">Personal keys per person</dt><dd><span class="font-mono font-semibold">{{ page.max_personal_keys }}</span> <span class="muted">(server setting)</span></dd></div>
+                    <div class="flex items-baseline gap-2"><dt class="muted">{% translate "Personal keys per person" %}</dt><dd><span class="font-mono font-semibold">{{ page.max_personal_keys }}</span> <span class="muted">{% translate "(server setting)" %}</span></dd></div>
                 </dl>
             </div>
         </section>
@@ -63,18 +63,18 @@
         <section class="card bg-base-200 lg:col-span-3" aria-labelledby="unavailable-title">
             <div class="card-body gap-4 p-5">
                 <div class="flex items-center justify-between gap-3">
-                    <h2 id="unavailable-title" class="text-xl font-semibold">Unavailable</h2>
-                    <a class="link-plain text-sm" href="{% url 'organization_availability' org_object.id %}" aria-label="Edit availability">Edit</a>
+                    <h2 id="unavailable-title" class="text-xl font-semibold">{% translate "Unavailable" %}</h2>
+                    <a class="link-plain text-sm" href="{% url 'organization_availability' org_object.id %}" aria-label="{% translate "Edit availability" %}">{% translate "Edit" %}</a>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="table">
-                        <thead><tr><th>For</th><th>Models</th><th>MCP servers</th></tr></thead>
+                        <thead><tr><th>{% translate "For" %}</th><th>{% translate "Models" %}</th><th>{% translate "MCP servers" %}</th></tr></thead>
                         <tbody>
                             {% for row in page.unavailable %}
                                 <tr>
-                                    <td>{% if row.team %}<a class="link-plain" href="{% url 'team' row.team.id %}">{{ row.team.name }}</a>{% else %}Everyone in {{ org_object.name }}{% endif %}</td>
-                                    <td>{% if row.models %}<div class="flex flex-wrap gap-1.5">{% for model in row.models %}<span class="badge badge-sm bg-base-100 font-mono">{{ model }}</span>{% endfor %}</div>{% else %}<span class="muted">None</span>{% endif %}</td>
-                                    <td>{% if row.mcp_servers %}<div class="flex flex-wrap gap-1.5">{% for server in row.mcp_servers %}<span class="badge badge-sm bg-base-100 font-mono">{{ server }}</span>{% endfor %}</div>{% else %}<span class="muted">None</span>{% endif %}</td>
+                                    <td>{% if row.team %}<a class="link-plain" href="{% url 'team' row.team.id %}">{{ row.team.name }}</a>{% else %}{% blocktranslate with name=org_object.name %}Everyone in {{ name }}{% endblocktranslate %}{% endif %}</td>
+                                    <td>{% if row.models %}<div class="flex flex-wrap gap-1.5">{% for model in row.models %}<span class="badge badge-sm bg-base-100 font-mono">{{ model }}</span>{% endfor %}</div>{% else %}<span class="muted">{% translate "None" %}</span>{% endif %}</td>
+                                    <td>{% if row.mcp_servers %}<div class="flex flex-wrap gap-1.5">{% for server in row.mcp_servers %}<span class="badge badge-sm bg-base-100 font-mono">{{ server }}</span>{% endfor %}</div>{% else %}<span class="muted">{% translate "None" %}</span>{% endif %}</td>
                                 </tr>
                             {% endfor %}
                         </tbody>

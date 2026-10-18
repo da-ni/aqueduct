@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.paginator import Page, Paginator
 from django.db.models import Count, OuterRef, QuerySet, Subquery
 from django.db.models.functions import Coalesce
+from django.utils.translation import gettext
 
 from management.key_activity import (
     TOKEN_SERIES,
@@ -20,6 +21,7 @@ from management.key_activity import (
     as_requests,
     as_tokens,
     compact,
+    day_label,
     key_activity,
     spark,
     week,
@@ -144,7 +146,7 @@ class ServiceAccountRow:
     def tip(self) -> Tip:
         """The token mix the row's bar shows, for its tooltip."""
         return Tip(
-            "Tokens, 7 days",
+            gettext("Tokens, 7 days"),
             as_tokens(self.activity.tokens),
             tuple((css, TOKEN_SERIES[css], f"{n:,}") for css, n in self.activity.segments),
         )
@@ -155,12 +157,18 @@ def team_stats(week_window: Window) -> tuple[Stat, ...]:
     totals = week_window.totals
 
     def daily(count: Callable[[Activity], int]) -> list[tuple[str, float]]:
-        return [(f"{d.day:%-d %b}", count(d.activity)) for d in week_window.days]
+        return [(day_label(d.day), count(d.activity)) for d in week_window.days]
 
     return (
-        Stat("Tokens", compact(totals.tokens), spark(daily(lambda a: a.tokens), as_tokens)),
-        Stat("Requests", f"{totals.requests:,}", spark(daily(lambda a: a.requests), as_requests)),
-        Stat("Failed", totals.failed_share, spark(daily(lambda a: a.failed), as_failed)),
+        Stat(
+            gettext("Tokens"), compact(totals.tokens), spark(daily(lambda a: a.tokens), as_tokens)
+        ),
+        Stat(
+            gettext("Requests"),
+            f"{totals.requests:,}",
+            spark(daily(lambda a: a.requests), as_requests),
+        ),
+        Stat(gettext("Failed"), totals.failed_share, spark(daily(lambda a: a.failed), as_failed)),
     )
 
 

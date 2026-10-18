@@ -101,6 +101,14 @@ class OrganizationPageTest(OrganizationTestBase):
         self.assertContains(form, "1–1,440. 1,440 = no extra daily cap.")  # noqa: RUF001
         self.assertContains(form, "Requests per minute</label>")
 
+    def test_german_counts_and_caps_use_german_plurals_and_digit_grouping(self):
+        client = self.as_user(self.org_admin)
+        client.cookies[settings.LANGUAGE_COOKIE_NAME] = "de"
+        response = client.get(self.url)
+        self.assertContains(response, "2 Teams")
+        self.assertContains(response, "1 Dienstkonto")
+        self.assertContains(response, "1.440 Min. bei voller Rate (Vorgabe)")
+
     def test_org_admin_of_another_org_sees_only_their_own(self):
         response = self.as_user(self.other_org_admin).get(self.url)
         self.assertContains(response, "other-org")

@@ -73,6 +73,12 @@ class ApiKeysPagesTestBase(TestCase):
         fields.setdefault("model", "gpt-4.1-nano")
         return Request.objects.create(token=token, timestamp=timezone.now() - ago, **fields)
 
+    def request_today(self, token: Token, **fields) -> Request:
+        """A request at the start of today, which a chart's today column holds even in the first
+        minutes after midnight, when a request minutes ago falls on yesterday."""
+        midnight = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+        return self.request_log(token, timezone.now() - midnight, **fields)
+
     def get(self, user, name: str, *args, **params):
         self.client.force_login(user)
         return self.client.get(reverse(name, args=args), params)
@@ -286,7 +292,7 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         self.assertContains(response, '<i class="f" style="height: 100%"></i>', html=True)
 
     def test_chart_holds_both_series_so_the_switch_needs_no_reload(self):
-        self.request_log(self.key, timedelta(minutes=5), status_code=500, output_tokens=7)
+        self.request_today(self.key, status_code=500, output_tokens=7)
         today = f"{timezone.localdate():%-d %b}"
         for metric, shown, hidden in (
             ("tokens", "tokens", "requests"),
@@ -306,7 +312,7 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         self.assertIn('href="" data-metric-show="tokens" aria-current="page"', html)
 
     def test_chart_column_names_its_day_and_counts(self):
-        self.request_log(self.key, timedelta(minutes=5), status_code=500)
+        self.request_today(self.key, status_code=500)
         response = self.get(self.owner, "token_detail", self.key.id, metric="requests")
         today = f"{timezone.localdate():%-d %b}"
         self.assertContains(response, f'aria-label="{today}: 1 request (OK 0, Failed 1)"')

@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load humanize l10n ui %}
+{% load humanize i18n l10n ui %}
 
 {% block page_background %}{% endblock %}
 
@@ -7,25 +7,25 @@
 <div class="flex flex-col gap-6">
     <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
         <div class="flex flex-col gap-1">
-            <h1 class="text-3xl font-semibold">Teams</h1>
-            <span class="muted text-sm">{% if all_orgs %}All organizations{% else %}{{ org_object.name }}{% endif %}</span>
+            <h1 class="text-3xl font-semibold">{% translate "Teams" %}</h1>
+            <span class="muted text-sm">{% if all_orgs %}{% translate "All organizations" %}{% else %}{{ org_object.name }}{% endif %}</span>
         </div>
         {% if is_org_admin %}
-            <a class="btn btn-primary" href="{% url 'team_create' %}">{% icon "plus" small=True %}Create team</a>
+            <a class="btn btn-primary" href="{% url 'team_create' %}">{% icon "plus" small=True %}{% translate "Create team" %}</a>
         {% endif %}
     </header>
 
     {% if in_no_team %}
         <section class="card bg-base-200">
             <div class="card-body p-5">
-                <p>You're not in a team. Ask your org admin to add you.</p>
+                <p>{% translate "You're not in a team. Ask your org admin to add you." %}</p>
             </div>
         </section>
     {% else %}
         <form method="get" role="search">
             <label class="input input-sm w-full sm:w-64">
                 {% icon "search" small=True %}
-                <input type="search" name="q" value="{{ query }}" placeholder="Search teams" aria-label="Search teams">
+                <input type="search" name="q" value="{{ query }}" placeholder="{% translate "Search teams" %}" aria-label="{% translate "Search teams" %}">
             </label>
         </form>
 
@@ -37,12 +37,12 @@
                     </colgroup>
                     <thead class="max-lg:hidden">
                         <tr>
-                            <th>Team</th>
-                            {% if all_orgs %}<th>Organization</th>{% elif not is_org_admin %}<th>Your role</th>{% endif %}
-                            <th class="text-right">Members</th>
-                            <th class="text-right">Service accounts</th>
-                            <th class="text-right">Requests/min</th>
-                            <th class="whitespace-normal" colspan="2"><span class="tooltip">Service account tokens, 7 days<span class="tooltip-content font-sans text-sm font-normal normal-case tracking-normal"><span class="sr-only">. </span>Members' personal keys don't count.</span></span></th>
+                            <th>{% translate "Team" %}</th>
+                            {% if all_orgs %}<th>{% translate "Organization" %}</th>{% elif not is_org_admin %}<th>{% translate "Your role" %}</th>{% endif %}
+                            <th class="text-right">{% translate "Members" %}</th>
+                            <th class="text-right">{% translate "Service accounts" %}</th>
+                            <th class="text-right">{% translate "Requests/min" %}</th>
+                            <th class="whitespace-normal" colspan="2"><span class="tooltip">{% translate "Service account tokens, 7 days" %}<span class="tooltip-content font-sans text-sm font-normal normal-case tracking-normal"><span class="sr-only">. </span>{% translate "Members' personal keys don't count." %}</span></span></th>
                         </tr>
                     </thead>
                     <tbody class="max-lg:block">
@@ -51,15 +51,15 @@
                                 <td class="min-w-0 max-lg:flex-1">
                                     <div class="flex items-center gap-2">
                                         <a class="link-plain row-link truncate" href="{% url 'team' row.team.id %}">{{ row.team.name }}</a>
-                                        {% if row.is_team_admin %}<span class="badge badge-sm bg-base-100 shrink-0 lg:hidden">Team admin</span>{% endif %}
+                                        {% if row.is_team_admin %}<span class="badge badge-sm bg-base-100 shrink-0 lg:hidden">{% translate "Team admin" %}</span>{% endif %}
                                     </div>
                                     {% if row.team.description %}<div class="muted truncate text-xs max-lg:hidden">{{ row.team.description }}</div>{% endif %}
-                                    <div class="muted text-sm lg:hidden">{% if all_orgs %}{{ row.team.org.name }} · {% endif %}{{ row.members }} member{{ row.members|pluralize }} · {{ row.service_accounts }} service account{{ row.service_accounts|pluralize }} · {{ row.activity.tokens_short }} tokens</div>
+                                    <div class="muted text-sm lg:hidden">{% if all_orgs %}{{ row.team.org.name }} · {% endif %}{% blocktranslate count n=row.members %}{{ n }} member{% plural %}{{ n }} members{% endblocktranslate %} · {% blocktranslate count n=row.service_accounts %}{{ n }} service account{% plural %}{{ n }} service accounts{% endblocktranslate %} · {% blocktranslate with tokens=row.activity.tokens_short count n=row.activity.tokens %}{{ tokens }} token{% plural %}{{ tokens }} tokens{% endblocktranslate %}</div>
                                 </td>
-                                {% if all_orgs %}<td class="truncate max-lg:hidden">{{ row.team.org.name }}</td>{% elif not is_org_admin %}<td class="max-lg:hidden">{% if row.is_team_admin %}<span class="badge badge-sm bg-base-100">Team admin</span>{% endif %}</td>{% endif %}
+                                {% if all_orgs %}<td class="truncate max-lg:hidden">{{ row.team.org.name }}</td>{% elif not is_org_admin %}<td class="max-lg:hidden">{% if row.is_team_admin %}<span class="badge badge-sm bg-base-100">{% translate "Team admin" %}</span>{% endif %}</td>{% endif %}
                                 <td class="text-right font-mono max-lg:hidden">{{ row.members }}</td>
                                 <td class="text-right font-mono max-lg:hidden">{{ row.service_accounts }}</td>
-                                <td class="text-right max-lg:hidden">{% if row.limit is None %}No limit{% else %}<span class="font-mono">{{ row.limit|intcomma }}</span>{% endif %}</td>
+                                <td class="text-right max-lg:hidden">{% if row.limit is None %}{% translate "No limit" %}{% else %}<span class="font-mono">{{ row.limit|intcomma }}</span>{% endif %}</td>
                                 <td class="max-lg:hidden">
                                     <div class="flex items-center gap-3">
                                         <div class="min-w-0 flex-1">
@@ -69,11 +69,11 @@
                                     </div>
                                 </td>
                                 <td class="max-lg:px-1">
-                                    <a class="btn btn-ghost btn-sm btn-square relative z-10" href="{% url 'team' row.team.id %}" aria-label="Open {{ row.team.name }}">{% icon "chevron" small=True %}</a>
+                                    {% blocktranslate with name=row.team.name asvar open_label %}Open {{ name }}{% endblocktranslate %}<a class="btn btn-ghost btn-sm btn-square relative z-10" href="{% url 'team' row.team.id %}" aria-label="{{ open_label }}">{% icon "chevron" small=True %}</a>
                                 </td>
                             </tr>
                         {% empty %}
-                            <tr class="max-lg:block"><td colspan="7" class="muted max-lg:block">{% if query %}No team matches.{% else %}This organization has no teams yet.{% endif %}</td></tr>
+                            <tr class="max-lg:block"><td colspan="7" class="muted max-lg:block">{% if query %}{% translate "No team matches." %}{% else %}{% translate "This organization has no teams yet." %}{% endif %}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

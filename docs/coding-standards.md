@@ -121,6 +121,18 @@ The management pages come in English and German, in the formal "Sie". The langua
 | Gateway overhead | Gateway-Overhead |
 | Error | Fehler |
 | Clear (a search) | Zurücksetzen |
+| Clear a box (of a checklist) | ein Häkchen entfernen |
+| Available, Unavailable, Availability | verfügbar, nicht verfügbar, Verfügbarkeit |
+| Hourly cap, Daily cap | Obergrenze pro Stunde, Obergrenze pro Tag |
+| Default (of the server) | Vorgabe |
+| Server setting | Servereinstellung |
+| Add, Remove | Hinzufügen, Entfernen |
+| Save changes | Änderungen speichern |
+| Select all, Select none | Alle auswählen, Keine auswählen |
+| Make admin, Remove admin | Zum Admin machen, Admin-Rechte entziehen |
+| Transfer, Transfer ownership (of a key) | Übertragen, Schlüssel übertragen |
+| Owns (a key), Current owner, New owner, No owner | Besitzt, Derzeit bei, Übertragen an, Nicht zugeordnet |
+| Everyone in (an organization) | Alle in |
 | Aqueduct, Aqueduct AI Gateway | unchanged, as product names |
 
 German compact numbers use "Tsd.", "Mio.", "Mrd.", and "Bio.".
