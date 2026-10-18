@@ -57,7 +57,14 @@ SECOND_MS = 1000
 AXIS_LABELS = 8
 TOP_KEYS = 10
 TOP_USER_IDS = 25
-HEAT_CLASSES = tuple(f"heat-{level}" for level in range(6))
+HEAT_CLASSES = (
+    "bg-base-300",
+    "bg-primary/20",
+    "bg-primary/40",
+    "bg-primary/60",
+    "bg-primary/80",
+    "bg-primary",
+)
 HEAT_HOURS = tuple(f"{hour:02d}" if hour % 3 == 0 else "" for hour in range(24))
 TOKENS = F("input_tokens") + F("output_tokens")
 NO_ORG = _("No organization")
