@@ -229,6 +229,13 @@ class UsageFromRollupsTest(TestCase):
             self.assertLess(after[name], before[name], name)
 
     def test_only_whole_org_medians_are_marked_approximate(self):
+        Request.objects.create(
+            token=Token.objects.get(name="Scripts"),
+            model=CHAT,
+            timestamp=timezone.now() - timedelta(minutes=10),
+            status_code=200,
+            response_time_ms=120,
+        )
         self.refresh()
         for user, params, approximate in (
             (self.org_admin, {}, True),
