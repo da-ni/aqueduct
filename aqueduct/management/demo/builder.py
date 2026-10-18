@@ -27,6 +27,7 @@ from management.models import (
     UserProfile,
     VectorStore,
 )
+from management.ownership import of_orgs
 
 User = get_user_model()
 
@@ -103,7 +104,9 @@ def delete_seeded() -> dict[str, int]:
             "another org first; nothing was deleted."
         )
         raise CommandError(msg)
-    tokens = Token.objects.filter(Q(user__in=users) | Q(service_account__team__org__in=orgs))
+    tokens = Token.objects.filter(
+        Q(user__in=users) | of_orgs(list(orgs.values_list("pk", flat=True)))
+    )
     counts = {"requests": Request.objects.filter(token__in=tokens).delete()[0]}
     counts["keys"] = tokens.delete()[1].get("management.Token", 0)
     counts["users"] = users.delete()[1].get(User._meta.label, 0)
