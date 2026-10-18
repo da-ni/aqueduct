@@ -33,12 +33,26 @@ CHAT = "gpt-4.1-nano"
 EMBEDDING = "text-embedding-ada-002"
 UNSERVED = "retired-model"
 STATUSES = (200, 200, 302, 429, 404, 400, 500, 503, None)
-MEDIAN_BOUND = 2 ** (1 / 16)
 
 
-class ApproximateMedianTest(SimpleTestCase):
+def median_error(exact: int) -> float:
+    return max(2, 0.05 * exact)
+
+
+class ApproximateMedianTest(TestCase):
     def test_no_requests_have_no_median(self):
         self.assertIsNone(rollup.approximate_median({}))
+
+    def test_the_median_is_within_five_percent_or_two_ms(self):
+        token = make_token(make_user("timer", Org.objects.create(name="timing")), "timer")
+        Request.objects.bulk_create(
+            Request(token=token, timestamp=timezone.now(), response_time_ms=ms)
+            for ms in range(5000)
+        )
+        for ms, bucket in Request.objects.values_list("response_time_ms", rollup.BUCKET):
+            with self.subTest(ms=ms):
+                approximate = rollup.approximate_median({bucket: 1})
+                self.assertLessEqual(abs(approximate - ms), median_error(ms))
 
 
 class SplitTest(SimpleTestCase):
@@ -143,9 +157,7 @@ class UsageRollupTest(TestCase):
             if exact is None:
                 self.assertIsNone(usage.median_ms)
             else:
-                self.assertLessEqual(
-                    abs(usage.median_ms - exact), max(1, (MEDIAN_BOUND - 1) * exact)
-                )
+                self.assertLessEqual(abs(usage.median_ms - exact), median_error(exact))
 
         start = now - timedelta(weeks=4)
         self.assertEqual(
