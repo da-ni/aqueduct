@@ -5,7 +5,6 @@ import shutil
 import signal
 import subprocess
 import unittest
-from typing import override
 
 from django.conf import settings
 from django.core.cache import caches
@@ -115,8 +114,7 @@ def clear_caches_built_from_the_setting(*, setting: str, **kwargs) -> None:
 
 
 class _ResetSharedStateBeforeEachTest(unittest.TestResult):
-    @override
-    def startTest(self, test):
+    def startTest(self, test):  # noqa: N802
         for cache in caches.all(initialized_only=True):
             cache.clear()
         # LocaleMiddleware activates a request's language on this thread and never deactivates it.
