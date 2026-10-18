@@ -43,6 +43,7 @@ class TestUserId(GatewayIntegrationTestCase):
             created_at=42,
             token=self.token,
             purpose="batch",
+            batch_models=[],
             upstream_url=settings.AQUEDUCT_FILES_API_URL,
         )
 

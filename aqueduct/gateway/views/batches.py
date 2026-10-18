@@ -10,6 +10,7 @@ from openai import AsyncOpenAI
 from openai.types.batch_create_params import BatchCreateParams
 from pydantic import TypeAdapter
 
+from gateway.batch_file import unusable_model
 from gateway.decorators import (
     catch_router_exceptions,
     in_reach,
@@ -19,7 +20,6 @@ from gateway.decorators import (
     token_authenticated,
     tos_accepted,
 )
-from gateway.decorators.files import check_batch_file_models
 from gateway.response_error import error_response
 from gateway.response_type import RawJsonResponse
 from management.models import Batch, BatchStatus, FileObject, Token
@@ -81,12 +81,17 @@ async def batches(
     except FileObject.DoesNotExist:
         return error_response("Input file not found.", param="input_file_id", status=404)
 
-    excluded_models = set(await sync_to_async(token.model_exclusion_list)())
-    stored = await client.files.content(file_obj.id)
-    try:
-        check_batch_file_models(stored.content, excluded_models)
-    except ValueError as e:
-        return error_response(f"Batch file validation failed: {e!s}", status=400)
+    if file_obj.batch_models is None:
+        return error_response(
+            "Batch file validation failed: upload the input file again with purpose 'batch'",
+            status=400,
+        )
+    excluded_models = await sync_to_async(token.model_exclusion_list)()
+    unusable = unusable_model(file_obj.batch_models, excluded_models)
+    if unusable:
+        return error_response(
+            f"Batch file validation failed: Unknown model '{unusable}'", status=400
+        )
 
     # Create batch on upstream using file ID
     remote_batch = await client.batches.create(
