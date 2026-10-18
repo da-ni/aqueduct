@@ -135,8 +135,26 @@ a.row-link:focus-visible::after { outline: 3px solid var(--color-primary); outli
 .file-row { scroll-margin-top: 6rem; }
 .file-row:target { background: var(--aq-hover); }
 
-.model-table th, .key-table th, .resource-table th { font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--aq-muted); }
-:lang(de) :is(.model-table, .key-table, .resource-table) th { white-space: normal; }
+.data-table th { font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--aq-muted); }
+:lang(de) .data-table th { white-space: normal; }
+
+/* Column widths of the usage tables (_usage_cols.html); German headings need wider number columns. */
+.usage-table { table-layout: fixed; min-width: var(--min); }
+.usage-table col { width: var(--w); }
+.usage-table .c-name { --w: var(--name); } .usage-table .c-bar { --w: var(--bar); }
+.usage-table .c-input { --w: var(--input); } .usage-table .c-cached { --w: var(--cached); } .usage-table .c-output { --w: var(--output); }
+.usage-table .c-requests { --w: var(--requests); } .usage-table .c-median { --w: var(--median); } .usage-table .c-share { --w: var(--share); }
+@media (width < 48rem) { .usage-table .c-bar { display: none; } }
+.usage-table { --min: 560px; --name: 34%; --bar: 30%; --input: 12%; --cached: 12%; --output: 12%; --requests: 16%; --share: 14%; }
+:lang(de) .usage-table { --min: 700px; --name: 28%; --input: 16%; --cached: 11%; --output: 16%; --requests: 15%; }
+.usage-table.by-model { --min: 640px; --name: 28%; --input: 10%; --cached: 10%; --output: 10%; --requests: 13%; --median: 17%; --share: 12%; }
+:lang(de) .usage-table.by-model { --min: 760px; --name: 24%; --input: 15%; --cached: 9%; --output: 15%; --requests: 12%; --median: 15%; --share: 10%; }
+@media (width >= 48rem) {
+  .usage-table { min-width: 860px; --name: 26%; --input: 8%; --cached: 8%; --output: 8%; --requests: 10%; --share: 10%; }
+  :lang(de) .usage-table { --name: 24%; --bar: 24%; --input: 11%; --cached: 8%; --output: 11%; --requests: 11%; --share: 11%; }
+  .usage-table.by-model { --name: 22%; --bar: 26%; --input: 8%; --cached: 8%; --output: 8%; --requests: 10%; --median: 10%; --share: 8%; }
+  :lang(de) .usage-table.by-model { --name: 22%; --bar: 18%; --input: 11%; --cached: 7%; --output: 11%; --requests: 10%; --median: 13%; --share: 8%; }
+}
 .badge-deprecated { --badge-color: var(--aq-warn); }
 
 .copy-field { display: flex; align-items: center; gap: .25rem; min-width: 0; height: 2.5rem; padding: 0 .25rem 0 .75rem;
