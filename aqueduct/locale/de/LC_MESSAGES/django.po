@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 07:30+0000\n"
+"POT-Creation-Date: 2026-10-18 08:33+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -752,6 +752,9 @@ msgstr "Gateway-URL kopieren"
 msgid "Help"
 msgstr "Hilfe"
 
+msgid "Community"
+msgstr "Community"
+
 #, python-format
 msgid "Rotate %(name)s?"
 msgstr "%(name)s erneuern?"
@@ -1035,12 +1038,49 @@ msgstr "Konto"
 msgid "Sign in"
 msgstr "Anmelden"
 
-msgid "Sign in to Aqueduct"
-msgstr "Bei Aqueduct anmelden"
+msgid "One endpoint for every model."
+msgstr "Ein Endpunkt für alle Modelle."
+
+msgid ""
+"Aqueduct gives you one API key for your organization's AI models and shows "
+"you what you use."
+msgstr ""
+"Aqueduct gibt Ihnen einen API-Schlüssel für die KI-Modelle Ihrer "
+"Organisation und zeigt Ihnen, was Sie nutzen."
 
 #, python-format
 msgid "Sign in with %(provider)s"
 msgstr "Mit %(provider)s anmelden"
+
+msgid "New here? Your account is created the first time you sign in."
+msgstr "Neu hier? Ihr Konto wird bei der ersten Anmeldung angelegt."
+
+msgid "What Aqueduct offers"
+msgstr "Was Aqueduct bietet"
+
+msgid "One key for every model"
+msgstr "Ein Schlüssel für alle Modelle"
+
+msgid ""
+"Call language, embedding, speech, and image models through one OpenAI-"
+"compatible API."
+msgstr ""
+"Nutzen Sie Sprach-, Embedding-, Audio- und Bildmodelle über eine OpenAI-"
+"kompatible API."
+
+msgid "See your usage"
+msgstr "Nutzung im Blick"
+
+msgid "Follow requests and tokens per key, model, and day."
+msgstr "Verfolgen Sie Anfragen und Token pro Schlüssel, Modell und Tag."
+
+msgid "Keys for teams"
+msgstr "Schlüssel für Teams"
+
+msgid "Give a team or a service its own key, with its own limits."
+msgstr ""
+"Geben Sie einem Team oder einem Dienst einen eigenen Schlüssel mit eigenen "
+"Limits."
 
 #, python-format
 msgid "Error loading MCP servers: %(error)s"

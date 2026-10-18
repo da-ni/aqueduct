@@ -1,28 +1,33 @@
 {% load i18n ui %}
 <footer class="aq-band print:hidden">
-    <div class="mx-auto flex w-full max-w-7xl flex-wrap items-start justify-between gap-8 px-4 py-8 sm:px-8">
+    <div class="mx-auto flex w-full max-w-7xl flex-wrap items-start justify-between gap-x-16 gap-y-8 px-4 py-8 sm:px-8">
         {% if shell.viewer %}
-            <div class="flex flex-col gap-2">
+            <div class="flex min-w-0 flex-col gap-2">
                 <p class="label-mono">{% translate "Gateway" %}</p>
                 <div class="flex items-center gap-2">
-                    <span class="font-mono text-sm">{{ shell.gateway_url }}</span>
+                    <span class="font-mono text-sm break-all">{{ shell.gateway_url }}</span>
                     <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ shell.gateway_url }}"
                             aria-label="{% translate 'Copy gateway URL' %}" title="{% translate 'Copy gateway URL' %}">{% icon "copy" small=True %}</button>
                 </div>
             </div>
         {% endif %}
         {% if shell.help_links or shell.contact_links %}
-            <div class="flex flex-col gap-2 text-sm">
+            <div class="flex flex-wrap gap-x-16 gap-y-8 text-sm">
                 {% if shell.help_links %}
-                    <p class="label-mono">{% translate "Help" %}</p>
-                    <span class="flex flex-wrap gap-4">
-                        {% for link in shell.help_links %}<a href="{{ link.href }}">{{ link.label }}</a>{% endfor %}
-                    </span>
+                    <nav class="flex flex-col gap-2" aria-labelledby="footer-help">
+                        <p id="footer-help" class="label-mono">{% translate "Help" %}</p>
+                        <ul class="flex flex-col gap-1.5">
+                            {% for link in shell.help_links %}<li><a href="{{ link.href }}">{{ link.label }}</a></li>{% endfor %}
+                        </ul>
+                    </nav>
                 {% endif %}
                 {% if shell.contact_links %}
-                    <span class="-ml-1.5 flex gap-1">
-                        {% for link in shell.contact_links %}<a class="btn btn-ghost btn-sm btn-square" href="{{ link.href }}" aria-label="{{ link.label }}" title="{{ link.label }}">{% icon link.icon %}</a>{% endfor %}
-                    </span>
+                    <nav class="flex flex-col gap-2" aria-labelledby="footer-community">
+                        <p id="footer-community" class="label-mono">{% translate "Community" %}</p>
+                        <ul class="flex flex-col gap-1.5">
+                            {% for link in shell.contact_links %}<li class="flex"><a class="inline-flex items-center gap-2" href="{{ link.href }}">{% icon link.icon small=True %}<span>{{ link.label }}</span></a></li>{% endfor %}
+                        </ul>
+                    </nav>
                 {% endif %}
             </div>
         {% endif %}

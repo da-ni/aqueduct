@@ -249,11 +249,12 @@ class ShellTest(TestCase):
             with self.subTest(role=role):
                 page = self.client.get(self.home(role))
                 for label, url in links.items():
-                    self.assertContains(page, f'href="{url}" aria-label="{label}"', count=1)
+                    self.assertContains(page, f'href="{url}"', count=1)
+                    self.assertContains(page, f"<span>{label}</span>", count=1)
                 with self.settings(MATRIX_SUPPORT_URL="", GITHUB_REPOSITORY_URL=""):
                     page = self.client.get(self.home(role))
                 for label in links:
-                    self.assertNotContains(page, f'aria-label="{label}"')
+                    self.assertNotContains(page, label)
 
     def test_admin_keeps_a_top_bar_with_the_shared_nav(self):
         self.sign_in("admin")
