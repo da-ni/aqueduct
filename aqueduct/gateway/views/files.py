@@ -155,7 +155,9 @@ async def files(
             )
         excluded_models = await sync_to_async(token.model_exclusion_list)()
         try:
-            batch_file = parse_batch_file(file_content, excluded_models)
+            batch_file = await sync_to_async(parse_batch_file, thread_sensitive=False)(
+                file_content, excluded_models
+            )
         except ValueError as e:
             return error_response(f"Batch file validation failed: {e!s}", status=400)
         file_content = batch_file.content
