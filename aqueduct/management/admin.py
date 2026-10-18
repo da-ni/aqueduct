@@ -71,7 +71,6 @@ class UserProfileAdminForm(AvailabilityForm):
         fields: ClassVar[list[str]] = [
             "user",
             "org",
-            "teams",
             "requests_per_minute",
             "input_tokens_per_minute",
             "output_tokens_per_minute",
