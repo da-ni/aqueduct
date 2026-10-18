@@ -77,8 +77,10 @@ def hidden_params(
     `keep` names the parameters to carry; without it, the page's own query is carried.
     """
     skip = _names(dropped) | RESET_ON_FILTER
-    pairs = keep or (
-        (name, value) for name, values in context.request.GET.lists() for value in values
+    pairs = (
+        keep
+        if keep is not None
+        else ((name, value) for name, values in context.request.GET.lists() for value in values)
     )
     return format_html_join(
         "",
@@ -215,13 +217,8 @@ def confirm_delete(obj: Token | ServiceAccount | Team | FileObject) -> SafeStrin
 
 
 @register.filter
-def new_keys(messages: Iterable[Message]) -> list[Message]:
-    return [message for message in messages if message.extra_tags == NEW_KEY_TAG]
-
-
-@register.filter
-def notices(messages: Iterable[Message]) -> list[Message]:
-    return [message for message in messages if message.extra_tags != NEW_KEY_TAG]
+def is_new_key(message: Message) -> bool:
+    return message.extra_tags == NEW_KEY_TAG
 
 
 @register.filter

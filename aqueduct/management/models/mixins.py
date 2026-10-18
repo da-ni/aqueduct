@@ -1,13 +1,11 @@
 import dataclasses
-from collections.abc import Mapping
 from typing import Optional
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import BooleanField, JSONField
-from django.template.defaultfilters import floatformat
-from django.utils.translation import gettext, gettext_lazy, ngettext_lazy
+from django.utils.translation import gettext, gettext_lazy
 
 # Physical maxima used to validate the hourly/daily limit multipliers: an hour has
 # 60 minutes and a day has 1440 minutes (24 hours). A larger-window limit above
@@ -22,43 +20,6 @@ PER_MINUTE_LIMITS = (
     ("input_tokens_per_minute", gettext_lazy("Input tokens per minute")),
     ("output_tokens_per_minute", gettext_lazy("Output tokens per minute")),
 )
-REQUEST_WINDOWS = {
-    "hour": (
-        gettext_lazy("Hourly limit"),
-        ngettext_lazy(
-            "%(used)s / %(limit)s request this hour",
-            "%(used)s / %(limit)s requests this hour",
-            "limit",
-        ),
-    ),
-    "day": (
-        gettext_lazy("Daily limit"),
-        ngettext_lazy(
-            "%(used)s / %(limit)s request today", "%(used)s / %(limit)s requests today", "limit"
-        ),
-    ),
-}
-
-
-FULL_PERCENT = 100
-NEARLY_FULL_PERCENT = 80
-
-
-@dataclasses.dataclass(frozen=True)
-class RateWindow:
-    """Requests a key used in one window, against that window's request limit."""
-
-    label: str
-    title: str
-    used: str
-    limit: int | None
-    percent: int
-
-    @property
-    def tone(self) -> str:
-        if self.percent >= FULL_PERCENT:
-            return "progress-error"
-        return "progress-warning" if self.percent >= NEARLY_FULL_PERCENT else "progress-primary"
 
 
 @dataclasses.dataclass(frozen=True)  # frozen=True makes instances immutable
@@ -92,28 +53,6 @@ class LimitSet:
     @property
     def is_unlimited(self) -> bool:
         return not self.per_minute
-
-    def request_windows(self, usage: Mapping[str, Mapping[str, float]]) -> tuple[RateWindow, ...]:
-        """Request use against the hourly and daily request limits; none without a request limit.
-
-        `usage` is a key's entry from `gateway.rate_limiting.get_per_token_usage`.
-        """
-        if self.requests_per_minute is None:
-            return ()
-        found = []
-        for name, _seconds, requests, _input, _output in self.windows():
-            if name not in REQUEST_WINDOWS:
-                continue
-            label, title = REQUEST_WINDOWS[name]
-            used = usage[name]["req"]
-            shown = floatformat(used, "0")
-            percent = min(FULL_PERCENT, round(used * 100 / requests)) if requests else 0
-            found.append(
-                RateWindow(
-                    str(label), title % {"used": shown, "limit": requests}, shown, requests, percent
-                )
-            )
-        return tuple(found)
 
     @classmethod
     def from_objects(
