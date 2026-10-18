@@ -32,6 +32,7 @@ from management.models import (
     VectorStoreFileStatus,
     VectorStoreStatus,
 )
+from management.ownership import is_personal_of, of_teams, personal
 from management.request_log import visible_tokens
 
 DAY_SECONDS = 86_400
@@ -74,17 +75,15 @@ def scope(profile: UserProfile, org: Org | None) -> Scope:
 
 
 def syncable(user: AbstractBaseUser, teams: Iterable[Team], seen: Scope) -> Q:
-    return Q(token__in=seen.keys) & (
-        Q(token__user=user) | Q(token__service_account__team__in=teams)
-    )
+    return Q(token__in=seen.keys) & (Q(token__user=user) | of_teams(teams, "token__"))
 
 
 def own(user: AbstractBaseUser) -> Q:
-    return Q(token__user=user, token__service_account__isnull=True)
+    return personal(user.pk, "token__")
 
 
 def owns(user: AbstractBaseUser, token: Token | None) -> bool:
-    return token is not None and token.service_account_id is None and token.user_id == user.pk
+    return token is not None and is_personal_of(token, user.pk)
 
 
 def moment(timestamp: int | None) -> datetime | None:
@@ -182,7 +181,7 @@ def quotas(
 ) -> str:
     user_limit, team_limit = limits
     per_team = dict(
-        rows.filter(token__service_account__team__in=teams)
+        rows.filter(of_teams(teams, "token__"))
         .order_by()
         .values("token__service_account__team")
         .annotate(n=Count("id"))

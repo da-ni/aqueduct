@@ -23,7 +23,7 @@ from management.models import (
     UserGroup,
     UserProfile,
 )
-from management.models.token import of_org
+from management.ownership import of_orgs
 from management.request_log import visible_tokens
 from management.signals import mark_rollups_dirty
 from management.tests.helpers import make_token, make_user, median_error
@@ -209,7 +209,7 @@ class UsageRollupTest(TestCase):
         self.assert_matches_raw(Period.last(Span.WEEK, self.now - timedelta(days=2)))
 
     def test_an_org_with_few_keys_names_them_and_one_with_many_uses_a_subquery(self):
-        tokens = Token.objects.filter(of_org(self.org))
+        tokens = Token.objects.filter(of_orgs({self.org.pk}))
         expected = set(
             served(Request.objects.filter(token__in=tokens)).values_list("id", flat=True)
         )
@@ -332,7 +332,9 @@ class UsageRollupTest(TestCase):
         self.assertTrue(org_requests(self.other_org).filter(token=key).exists())
         week = Period.last(Span.WEEK, self.now)
         rollup.refresh_key_windows(self.now)
-        totals = rollup.key_window_totals(Token.objects.filter(of_org(self.other_org)), None, week)
+        totals = rollup.key_window_totals(
+            Token.objects.filter(of_orgs({self.other_org.pk})), None, week
+        )
         self.assertEqual(totals[key.pk].input, 777)
         self.assert_matches_raw()
 

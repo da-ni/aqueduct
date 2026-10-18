@@ -17,7 +17,7 @@ from django.utils.translation import gettext_lazy as _
 
 from gateway.config import model_names
 from management.models import Org, Request, ServiceAccount, Token, UserProfile
-from management.models.token import of_org
+from management.ownership import is_personal_of, of_orgs, of_teams, org_id, personal
 
 if TYPE_CHECKING:
     from management.usage_report import Period
@@ -231,7 +231,7 @@ class KeyRow:
 def personal_tokens(user: AbstractBaseUser | AnonymousUser) -> QuerySet[Token]:
     if user.pk is None:
         return Token.objects.none()
-    return Token.objects.filter(user_id=user.pk, service_account__isnull=True)
+    return Token.objects.filter(personal(user.pk))
 
 
 @dataclass(frozen=True)
@@ -254,23 +254,16 @@ class KeyAccess:
     def tokens(self) -> QuerySet[Token]:
         if self.every_org:
             return Token.objects.all()
-        found = Q(user_id=self.user_id, service_account__isnull=True) | Q(
-            service_account__team_id__in=self.team_ids
-        )
-        return Token.objects.filter(found | of_org(self.org) if self.org else found)
+        found = personal(self.user_id) | of_teams(self.team_ids)
+        return Token.objects.filter(found | of_orgs({self.org.pk}) if self.org else found)
 
     def can_open(self, token: Token) -> bool:
-        if self.every_org:
+        if self.every_org or is_personal_of(token, self.user_id):
             return True
         account = token.service_account
-        if account is not None:
-            return account.team_id in self.team_ids or (
-                self.org is not None and account.team.org_id == self.org.id
-            )
-        if token.user_id == self.user_id:
+        if account is not None and account.team_id in self.team_ids:
             return True
-        owner = getattr(token.user, "profile", None)
-        return self.org is not None and owner is not None and owner.org_id == self.org.id
+        return self.org is not None and org_id(token) == self.org.id
 
 
 @dataclass(frozen=True)

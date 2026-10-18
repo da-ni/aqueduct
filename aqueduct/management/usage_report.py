@@ -17,7 +17,7 @@ from django.db.models import (
     Subquery,
     Sum,
 )
-from django.db.models.functions import Coalesce, Lower, Trunc
+from django.db.models.functions import Lower, Trunc
 from django.utils import timezone
 from django.utils.dates import WEEKDAYS_ABBR
 from django.utils.formats import date_format
@@ -47,7 +47,7 @@ from management.key_activity import (
     spark,
 )
 from management.models import Org, Request, Token
-from management.models.token import of_org
+from management.ownership import RELATED, key_org, of_orgs
 
 if TYPE_CHECKING:
     from management.request_log import Key
@@ -69,7 +69,6 @@ HEAT_HOURS = tuple(f"{hour:02d}" if hour % 3 == 0 else "" for hour in range(24))
 TOKENS = F("input_tokens") + F("output_tokens")
 NO_ORG = _("No organization")
 APPROXIMATE_MEDIAN = _("Approximate")
-ORG = Coalesce("token__service_account__team__org", "token__user__profile__org")
 TOTALS = {
     "requests": Count("id"),
     "failed": Count("id", filter=FAILED),
@@ -382,7 +381,7 @@ class HeatRow:
 def org_requests(org: Org | None) -> QuerySet[Request]:
     if org is None:
         return served(Request.objects.all())
-    return served(of_keys(Request.objects.all(), Token.objects.filter(of_org(org))))
+    return served(of_keys(Request.objects.all(), Token.objects.filter(of_orgs({org.pk}))))
 
 
 def heat(tokens: Mapping[tuple[int, int], int], weeks: int) -> tuple[HeatRow, ...]:
@@ -612,9 +611,7 @@ def key_shares(
     describe: Callable[[Token], "Key"],
     busiest: int | None = None,
 ) -> tuple[KeyShare, ...]:
-    tokens = Token.objects.select_related(
-        "user__profile__org", "service_account__team__org"
-    ).in_bulk([token_id for token_id, _ in rows])
+    tokens = Token.objects.select_related(*RELATED).in_bulk([token_id for token_id, _ in rows])
     rows = [row for row in rows if row[0] in tokens]
     keys = [describe(tokens[token_id]) for token_id, _ in rows]
     figures = _figures([activity for _, activity in rows], total, busiest)
@@ -640,7 +637,9 @@ def user_id_shares(requests: QuerySet[Request], total: int) -> tuple[KeyShare, .
 def org_tokens(requests: QuerySet[Request]) -> dict[int | None, int]:
     return {
         row["org_id"]: row["tokens"]
-        for row in requests.values(org_id=ORG).annotate(tokens=Sum(TOKENS, default=0)).order_by()
+        for row in requests.values(org_id=key_org("token__"))
+        .annotate(tokens=Sum(TOKENS, default=0))
+        .order_by()
     }
 
 

@@ -13,7 +13,7 @@ from django.utils import timezone, translation
 
 from management.key_activity import Expiry, KeyAccess
 from management.models import Request, ServiceAccount, TeamMembership, Token
-from management.models.token import HIERARCHY
+from management.ownership import RELATED
 from management.tests.helpers import RoleWorld, make_token, secret_on
 
 User = get_user_model()
@@ -491,7 +491,7 @@ class OrgAdminKeyAccessTest(ApiKeysPagesTestBase):
     def test_key_links_agree_with_the_keys_that_open(self):
         plain = self.user("plain")
         TeamMembership.objects.create(user_profile=plain.profile, team=self.team)
-        everyone = Token.objects.select_related(*HIERARCHY)
+        everyone = Token.objects.select_related(*RELATED)
         for user in (
             self.solo,
             self.team_admin,
