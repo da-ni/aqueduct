@@ -2,7 +2,7 @@ from gateway.decorators.auth import token_authenticated, tos_accepted
 from gateway.decorators.availability import check_model_availability
 from gateway.decorators.body import FileSizeError, ensure_usage, parse_body, resolve_alias
 from gateway.decorators.errors import catch_router_exceptions
-from gateway.decorators.files import process_batch_file, require_files_api_client
+from gateway.decorators.files import require_files_api_client
 from gateway.decorators.limits import check_limits
 from gateway.decorators.log import log_request
 from gateway.decorators.mcp import (
@@ -28,7 +28,6 @@ __all__ = [
     "normalize_reasoning_fields",
     "parse_body",
     "parse_jsonrpc_message",
-    "process_batch_file",
     "process_file_content",
     "require_files_api_client",
     "resolve_alias",

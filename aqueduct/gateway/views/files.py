@@ -1,8 +1,8 @@
 import io
-import json
 from datetime import timedelta
 from typing import Any, Literal, Optional
 
+from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.handlers.asgi import ASGIRequest
 from django.db.models import Sum
@@ -14,12 +14,12 @@ from openai import AsyncOpenAI
 from openai.types.file_create_params import FileCreateParams as OpenAIFileCreateParams
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
+from gateway.batch_file import parse_batch_file
 from gateway.decorators import (
     catch_router_exceptions,
     in_reach,
     log_request,
     parse_body,
-    process_batch_file,
     require_files_api_client,
     token_authenticated,
     tos_accepted,
@@ -45,25 +45,6 @@ def calculate_expires_at(remote_expires_at: int | None) -> int:
     if remote_expires_at and remote_expires_at < local_expires_at:
         return remote_expires_at
     return local_expires_at
-
-
-def validate_batch_file(data: bytes) -> None:
-    """Validate batch file format: valid JSON lines with unique custom_ids."""
-    lines = data.decode("utf-8").splitlines()
-    custom_ids = set()
-    for i, line in enumerate(lines):
-        if not line.strip():
-            continue
-        try:
-            d = json.loads(line)
-        except json.decoder.JSONDecodeError as err:
-            raise ValueError(f"Invalid JSON at line {i + 1}") from err
-        custom_id = d.get("custom_id")
-        if not custom_id:
-            raise ValueError(f"No custom_id found at line {i + 1}")
-        if custom_id in custom_ids:
-            raise ValueError(f"Duplicate custom_id found at line {i + 1}")
-        custom_ids.add(custom_id)
 
 
 async def sync_batch_file_if_needed(
@@ -133,7 +114,6 @@ async def sync_batch_file_if_needed(
 @token_authenticated(token_auth_only=True)
 @tos_accepted
 @parse_body(model=TypeAdapter(FilesCreateParams))
-@process_batch_file
 @log_request
 @catch_router_exceptions
 @require_files_api_client("Files API")
@@ -142,8 +122,6 @@ async def files(
     token: Token,
     client: AsyncOpenAI,
     pydantic_model: OpenAIFileCreateParams | None = None,
-    file_content: bytes | None = None,
-    file_preview: str | None = None,
     *args: Any,
     **kwargs: Any,
 ) -> RawJsonResponse:
@@ -164,20 +142,25 @@ async def files(
     uploaded = pydantic_model["file"]
     purpose = pydantic_model["purpose"]
 
-    if file_content is None:
-        return error_response("No file content provided", status=400)
-
-    if not hasattr(uploaded, "name"):
-        return error_response("Invalid file upload", status=400)
     filename = getattr(uploaded, "name", None)
-    if not isinstance(filename, str):
+    if not isinstance(uploaded, io.BytesIO) or not isinstance(filename, str):
         return error_response("Invalid file upload", status=400)
 
-    # Validate file extension for batch files
-    if purpose == "batch" and not filename.endswith(".jsonl"):
-        return error_response(
-            "Only .jsonl files are currently supported for purpose 'batch'.", status=400
-        )
+    file_content = uploaded.read()
+    batch_file = None
+    if purpose == "batch":
+        if not filename.endswith(".jsonl"):
+            return error_response(
+                "Only .jsonl files are currently supported for purpose 'batch'.", status=400
+            )
+        excluded_models = await sync_to_async(token.model_exclusion_list)()
+        try:
+            batch_file = await sync_to_async(parse_batch_file, thread_sensitive=False)(
+                file_content, excluded_models
+            )
+        except ValueError as e:
+            return error_response(f"Batch file validation failed: {e!s}", status=400)
+        file_content = batch_file.content
 
     # Enforce per-token total storage limit
     sum_res = await FileObject.objects.filter(token.reach()).aaggregate(sum_bytes=Sum("bytes"))
@@ -189,17 +172,6 @@ async def files(
             f"{settings.AQUEDUCT_FILES_API_MAX_PER_TOKEN_SIZE_MB}MB limit.",
             status=413,
         )
-
-    # Validate batch file format (valid JSON, unique custom_ids)
-    if purpose == "batch":
-        try:
-            validate_batch_file(file_content)
-        except ValueError as e:
-            return error_response(f"Batch file validation failed: {e!s}", status=400)
-
-    # file_content is already read and processed by @process_batch_file decorator
-    # For batch files: model names are rewritten
-    # For other files: content is passed as-is
 
     # Create a file-like object for the OpenAI client
     file_tuple = (filename, io.BytesIO(file_content))
@@ -218,7 +190,8 @@ async def files(
         created_at=int(timezone.now().timestamp()),
         purpose=purpose,
         expires_at=local_expires_at,
-        preview=file_preview or "",
+        preview=batch_file.preview if batch_file else "",
+        batch_models=sorted(batch_file.models) if batch_file else None,
         upstream_url=settings.AQUEDUCT_FILES_API_URL or "",
     )
     await file_obj.asave()

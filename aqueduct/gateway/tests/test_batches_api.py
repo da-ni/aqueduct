@@ -14,7 +14,7 @@ from management.models import Batch as BatchModel
 from management.models import BatchStatus, FileObject, Org, ServiceAccount, Team, Token, UserProfile
 from management.models import Request as RequestModel
 from management.tests.helpers import router_config
-from mock_api.mock_configs import MockConfig, MockPlainTextConfig, batch_detail_response
+from mock_api.mock_configs import MockConfig, batch_detail_response
 
 User = get_user_model()
 
@@ -858,11 +858,6 @@ class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
         )
         self.assertFalse(FileObject.objects.exists())
 
-    def test_upload_whose_model_is_not_a_string_is_rejected(self):
-        resp = self._upload_batch_file([])
-
-        self._assert_upload_rejected(resp, "[]")
-
     def test_model_unavailable_to_the_personal_key_profile_rejects_upload(self):
         UserProfile.objects.get(user_id=1).add_excluded_model(self.model)
 
@@ -888,30 +883,18 @@ class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
         resp = self._upload_batch_file(self.model)
         self.assertEqual(resp.status_code, 200, resp.content)
         file_id = resp.json()["id"]
-        line = {
-            "custom_id": "1",
-            "method": "POST",
-            "url": self.url_chat,
-            "body": {"model": self.model},
-        }
         exclude()
-        return self._create_batch(file_id, json.dumps(line) + "\n")
+        return self._create_batch(file_id)
 
-    def _create_batch(self, file_id: str, stored_content: str):
-        stored = MockPlainTextConfig(response_data=stored_content)
-        with self.mock_server.patch_external_api(f"files/{file_id}/content", stored):
-            return self.client.post(
-                "/batches",
-                data=json.dumps(
-                    {
-                        "input_file_id": file_id,
-                        "completion_window": "24h",
-                        "endpoint": self.url_chat,
-                    }
-                ),
-                headers=self.headers,
-                content_type="application/json",
-            )
+    def _create_batch(self, file_id: str):
+        return self.client.post(
+            "/batches",
+            data=json.dumps(
+                {"input_file_id": file_id, "completion_window": "24h", "endpoint": self.url_chat}
+            ),
+            headers=self.headers,
+            content_type="application/json",
+        )
 
     def test_batch_from_a_file_whose_model_became_unavailable_since_upload_is_rejected(self):
         resp = self._create_batch_after_making_unavailable(
@@ -921,45 +904,63 @@ class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
         self.assertEqual(resp.status_code, 400, resp.content)
         self.assertEqual(
             resp.json()["error"]["message"],
-            f"Batch file validation failed: Unknown model '{self.model}' for custom_id '1'",
+            f"Batch file validation failed: Unknown model '{self.model}'",
         )
         self.assertFalse(BatchModel.objects.exists())
 
-    def test_batch_from_a_file_with_a_line_that_is_not_an_object_is_rejected(self):
-        resp = self._upload_batch_file(self.model)
-        file_id = resp.json()["id"]
-        stored = MockPlainTextConfig(response_data="[1, 2]\n")
-        with self.mock_server.patch_external_api(f"files/{file_id}/content", stored):
-            resp = self.client.post(
-                "/batches",
-                data=json.dumps(
-                    {
-                        "input_file_id": file_id,
-                        "completion_window": "24h",
-                        "endpoint": self.url_chat,
-                    }
-                ),
-                headers=self.headers,
-                content_type="application/json",
-            )
+    def test_upload_with_a_malformed_line_is_rejected(self):
+        deep = "[" * 100_000 + "]" * 100_000
+        for line, reason in (
+            ("[1, 2]", "Line 1 is not a JSON object"),
+            ('{"custom_id": "1", "body": "x"}', "Body at line 1 is not a JSON object"),
+            ('{"custom_id": "1", "body": {"model": []}}', "Model at line 1 is not a string"),
+            (f'{{"custom_id": "1", "body": {{"messages": {deep}}}}}', "Invalid JSON at line 1"),
+        ):
+            with self.subTest(reason=reason):
+                f = SimpleUploadedFile("lines.jsonl", line.encode() + b"\n")
+
+                resp = self.client.post(
+                    self.url_files, {"file": f, "purpose": "batch"}, headers=self.headers
+                )
+
+                self.assertEqual(resp.status_code, 400, resp.content)
+                self.assertEqual(
+                    resp.json()["error"]["message"], f"Batch file validation failed: {reason}"
+                )
+        self.assertFalse(FileObject.objects.exists())
+
+    def test_batch_from_a_model_sharing_its_upstream_name_with_an_available_one_is_rejected(self):
+        shared = [
+            {
+                "model_name": name,
+                "litellm_params": {"model": "openai/shared-upstream"},
+                "model_info": {"id": name},
+            }
+            for name in ("shared-a", "shared-b")
+        ]
+        with router_config([*get_router_config()["model_list"], *shared]):
+            file_id = self._upload_batch_file("shared-a").json()["id"]
+            UserProfile.objects.get(user_id=1).add_excluded_model("shared-a")
+
+            resp = self._create_batch(file_id)
 
         self.assertEqual(resp.status_code, 400, resp.content)
         self.assertEqual(
             resp.json()["error"]["message"],
-            "Batch file validation failed: Line 1 is not a JSON object",
+            "Batch file validation failed: Unknown model 'shared-a'",
         )
         self.assertFalse(BatchModel.objects.exists())
 
-    def test_batch_from_a_file_whose_model_is_not_a_string_is_rejected(self):
+    def test_batch_from_a_file_without_recorded_models_is_rejected(self):
         file_id = self._upload_batch_file(self.model).json()["id"]
-        line = {"custom_id": "1", "method": "POST", "url": self.url_chat, "body": {"model": []}}
+        FileObject.objects.filter(id=file_id).update(batch_models=None)
 
-        resp = self._create_batch(file_id, json.dumps(line) + "\n")
+        resp = self._create_batch(file_id)
 
         self.assertEqual(resp.status_code, 400, resp.content)
         self.assertEqual(
             resp.json()["error"]["message"],
-            "Batch file validation failed: Unknown model '[]' for custom_id '1'",
+            "Batch file validation failed: upload the input file again with purpose 'batch'",
         )
         self.assertFalse(BatchModel.objects.exists())
 

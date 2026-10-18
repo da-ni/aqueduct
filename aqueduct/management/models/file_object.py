@@ -64,6 +64,15 @@ class FileObject(models.Model):
     upstream_url = models.URLField(
         blank=True, default="", help_text="The upstream API URL this file was uploaded to"
     )
+    batch_models = models.JSONField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text=(
+            "Configured models the requests of a batch input file use, recorded at upload. "
+            "Null for any other file; a batch cannot start from it."
+        ),
+    )
 
     class Meta:
         verbose_name = "File Object"
