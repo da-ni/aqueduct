@@ -10,6 +10,8 @@ from django.views.generic import TemplateView
 from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
 from tos import views as tos_views
 
+from management.models import UserProfile
+
 
 def is_safe(request: HttpRequest, url: str | None) -> bool:
     return bool(url) and url_has_allowed_host_and_scheme(
@@ -74,7 +76,7 @@ def remember_language(response: HttpResponseBase, language: str) -> None:
 class OIDCCallbackView(OIDCAuthenticationCallbackView):
     def login_success(self) -> HttpResponseBase:
         response = super().login_success()
-        language = self.user.profile.language
-        if language:
-            remember_language(response, language)
+        profile = UserProfile.objects.filter(user=self.user).first()
+        if profile and profile.language:
+            remember_language(response, profile.language)
         return response
