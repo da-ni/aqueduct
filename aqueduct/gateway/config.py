@@ -77,12 +77,19 @@ def get_router_config() -> dict[str, Any]:
     return cast("dict[str, Any]", data)
 
 
+@lru_cache(maxsize=1)
 def model_entries() -> dict[str, dict[str, Any]]:
     return _models_in(get_router_config())
 
 
+@lru_cache(maxsize=1)
 def model_names() -> tuple[str, ...]:
     return tuple(model_entries())
+
+
+@lru_cache(maxsize=1)
+def _aliases() -> dict[str, str]:
+    return _aliases_in(get_router_config())
 
 
 @lru_cache(maxsize=1)
@@ -133,10 +140,9 @@ def resolve_model_alias(model_or_alias: str) -> str:
     Returns:
         The actual model name
     """
-    config = get_router_config()
-    if model_or_alias in _models_in(config):
+    if model_or_alias in model_entries():
         return model_or_alias
-    return _aliases_in(config).get(model_or_alias, model_or_alias)
+    return _aliases().get(model_or_alias, model_or_alias)
 
 
 def model_info_with_context(model: Mapping[str, Any]) -> dict[str, Any]:

@@ -1,6 +1,5 @@
 import tempfile
 from datetime import timedelta
-from unittest.mock import patch
 
 import yaml
 from django.contrib.auth import get_user_model
@@ -10,6 +9,7 @@ from django.utils import timezone
 from gateway.config import get_router_config
 from gateway.tests.utils.base import GatewayIntegrationTestCase
 from management.models import Org, Request, ServiceAccount, Team, Token
+from management.tests.helpers import router_config
 
 User = get_user_model()
 
@@ -42,30 +42,25 @@ class ListModelsIntegrationTest(GatewayIntegrationTestCase):
         self.assertIn("models", req.path, "Request endpoint should be for model listing.")
 
     def test_model_group_info_exposes_context_window(self):
-        config = {
-            "model_list": [
-                {
-                    "model_name": self.model,
-                    "litellm_params": {"model": f"openai/{self.model}"},
-                    "model_info": {
-                        "id": self.model,
-                        "max_tokens": 262144,
-                        "max_output_tokens": 32768,
-                        "supports_vision": True,
-                    },
+        entries = [
+            {
+                "model_name": self.model,
+                "litellm_params": {"model": f"openai/{self.model}"},
+                "model_info": {
+                    "id": self.model,
+                    "max_tokens": 262144,
+                    "max_output_tokens": 32768,
+                    "supports_vision": True,
                 },
-                {
-                    "model_name": "explicit-model",
-                    "litellm_params": {"model": "openai/explicit-model"},
-                    "model_info": {"max_input_tokens": 999999, "max_tokens": 262144},
-                },
-                {
-                    "model_name": "no-info-model",
-                    "litellm_params": {"model": "openai/no-info-model"},
-                },
-            ]
-        }
-        with patch("gateway.config.get_router_config", return_value=config):
+            },
+            {
+                "model_name": "explicit-model",
+                "litellm_params": {"model": "openai/explicit-model"},
+                "model_info": {"max_input_tokens": 999999, "max_tokens": 262144},
+            },
+            {"model_name": "no-info-model", "litellm_params": {"model": "openai/no-info-model"}},
+        ]
+        with router_config(entries):
             response = self.client.get(
                 "/model_group/info", content_type="application/json", headers=self.headers
             )
@@ -167,8 +162,8 @@ class ListModelsIntegrationTest(GatewayIntegrationTestCase):
         org.save()
         assert len(org.excluded_models) == 1
 
-        router_config = get_router_config()
-        model_list: list[dict] = router_config["model_list"]
+        loaded = get_router_config()
+        model_list: list[dict] = loaded["model_list"]
 
         response = self._send_model_list_request()
 
