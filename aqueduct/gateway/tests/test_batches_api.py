@@ -807,28 +807,28 @@ class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
         )
         self.assertFalse(FileObject.objects.exists())
 
-    def test_personal_key_profile_switch_off_rejects_upload(self):
+    def test_model_unavailable_to_the_personal_key_profile_rejects_upload(self):
         UserProfile.objects.get(user_id=1).add_excluded_model(self.model)
 
         resp = self._upload_batch_file(self.model)
 
         self._assert_upload_rejected(resp, self.model)
 
-    def test_personal_key_profile_switch_off_rejects_alias_upload(self):
+    def test_model_unavailable_to_the_personal_key_profile_rejects_alias_upload(self):
         UserProfile.objects.get(user_id=1).add_excluded_model(self.model)
 
         resp = self._upload_batch_file("main")
 
         self._assert_upload_rejected(resp, "main")
 
-    def test_service_account_key_team_switch_off_rejects_upload(self):
+    def test_model_unavailable_to_the_service_account_team_rejects_upload(self):
         Team.objects.get(name="Whale").add_excluded_model(self.model)
 
         resp = self._upload_batch_file(self.model, headers=self._sa_headers())
 
         self._assert_upload_rejected(resp, self.model)
 
-    def _create_batch_after_switch_off(self, exclude) -> tuple:
+    def _create_batch_after_making_unavailable(self, exclude) -> tuple:
         resp = self._upload_batch_file(self.model)
         self.assertEqual(resp.status_code, 200, resp.content)
         file_id = resp.json()["id"]
@@ -854,8 +854,8 @@ class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
                 content_type="application/json",
             )
 
-    def test_batch_from_a_file_whose_model_was_switched_off_since_upload_is_rejected(self):
-        resp = self._create_batch_after_switch_off(
+    def test_batch_from_a_file_whose_model_became_unavailable_since_upload_is_rejected(self):
+        resp = self._create_batch_after_making_unavailable(
             lambda: UserProfile.objects.get(user_id=1).add_excluded_model(self.model)
         )
 
@@ -891,15 +891,15 @@ class TestBatchUploadModelExclusion(GatewayBatchesTestCase):
         )
         self.assertFalse(BatchModel.objects.exists())
 
-    def test_batch_from_a_file_whose_model_is_still_on_starts(self):
-        resp = self._create_batch_after_switch_off(
+    def test_batch_from_a_file_whose_model_is_still_available_starts(self):
+        resp = self._create_batch_after_making_unavailable(
             lambda: UserProfile.objects.get(user_id=1).add_excluded_model("dall-e-2")
         )
 
         self.assertEqual(resp.status_code, 200, resp.content)
         self.assertTrue(BatchModel.objects.exists())
 
-    def test_switch_off_of_another_model_keeps_upload(self):
+    def test_another_unavailable_model_keeps_upload(self):
         UserProfile.objects.get(user_id=1).add_excluded_model("dall-e-2")
 
         resp = self._upload_batch_file(self.model)

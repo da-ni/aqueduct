@@ -366,7 +366,7 @@ class ModelsPageTest(TestCase):
         self.assertEqual(response.status_code, 200)
         return response
 
-    def switch_off(self, holder, *models, merge=True):
+    def make_unavailable(self, holder, *models, merge=True):
         holder.excluded_models = list(models)
         holder.merge_exclusion_lists = merge
         holder.save()
@@ -385,14 +385,14 @@ class ModelsPageTest(TestCase):
         self.assertContains(response, "curl http://testserver/v1/chat/completions")
 
     def test_a_model_one_of_the_keys_may_use_names_those_keys(self):
-        self.switch_off(self.whale, "whisper-1")
+        self.make_unavailable(self.whale, "whisper-1")
         response = self.page(model="whisper-1")
         self.assertIn("whisper-1", rows(response))
         self.assertContains(response, "Available with your personal keys.")
 
     def test_a_model_none_of_the_keys_may_use_is_not_listed(self):
-        self.switch_off(self.whale, "whisper-1")
-        self.switch_off(UserProfile.objects.get(user_id=3), "whisper-1")
+        self.make_unavailable(self.whale, "whisper-1")
+        self.make_unavailable(UserProfile.objects.get(user_id=3), "whisper-1")
         response = self.page(model="whisper-1")
         self.assertNotIn("whisper-1", rows(response))
         self.assertNotEqual(selected(response), "whisper-1")
@@ -400,7 +400,7 @@ class ModelsPageTest(TestCase):
         self.assertEqual(self.page(q="stt").context["cards"], ())
 
     def test_another_teams_exclusion_hides_nothing(self):
-        self.switch_off(self.whale, "whisper-1")
+        self.make_unavailable(self.whale, "whisper-1")
         outsider = User.objects.create_user("outsider", "outsider@example.com")
         UserProfile.objects.create(user=outsider, org=self.org)
         response = self.page(user_pk=outsider.pk, model="whisper-1")
@@ -408,20 +408,20 @@ class ModelsPageTest(TestCase):
         self.assertNotContains(response, "Available with")
 
     def test_org_exclusion_reaches_only_scopes_that_merge(self):
-        self.switch_off(self.org, "dall-e-2")
+        self.make_unavailable(self.org, "dall-e-2")
         self.assertNotIn("dall-e-2", rows(self.page()))
-        self.switch_off(UserProfile.objects.get(user_id=3), merge=False)
+        self.make_unavailable(UserProfile.objects.get(user_id=3), merge=False)
         self.assertContains(self.page(model="dall-e-2"), "Available with your personal keys.")
-        self.switch_off(self.whale, merge=False)
+        self.make_unavailable(self.whale, merge=False)
         self.assertNotContains(self.page(model="dall-e-2"), "Available with")
 
     def test_nothing_usable_says_so(self):
-        self.switch_off(self.org, *(raw["model_name"] for raw in EXAMPLE_ENTRIES))
+        self.make_unavailable(self.org, *(raw["model_name"] for raw in EXAMPLE_ENTRIES))
         self.assertContains(self.page(), "No models are available to you.")
 
     def test_admins_see_only_what_their_keys_may_use(self):
-        self.switch_off(self.whale, "whisper-1")
-        self.switch_off(UserProfile.objects.get(user_id=1), "whisper-1")
+        self.make_unavailable(self.whale, "whisper-1")
+        self.make_unavailable(UserProfile.objects.get(user_id=1), "whisper-1")
         response = self.page(user_pk=1)
         self.assertNotIn("whisper-1", rows(response))
         self.assertNotContains(response, "in admin</a>")
@@ -534,9 +534,11 @@ class ModelsPageTest(TestCase):
         self.assertEqual(selected_panel(content), "whisper-1")
 
     def test_listed_models_are_those_one_of_the_keys_may_call(self):
-        self.switch_off(self.org, "dall-e-2")
-        self.switch_off(UserProfile.objects.get(user_id=1), "gpt-4.1-nano", "tts", "whisper-1")
-        self.switch_off(self.whale, "whisper-1", "gpt-4.1-nano")
+        self.make_unavailable(self.org, "dall-e-2")
+        self.make_unavailable(
+            UserProfile.objects.get(user_id=1), "gpt-4.1-nano", "tts", "whisper-1"
+        )
+        self.make_unavailable(self.whale, "whisper-1", "gpt-4.1-nano")
         listed = {card.name for card in self.page(user_pk=1).context["catalog"].cards}
         keys = (Token.objects.get(pk=1), Token.objects.get(pk=2))
         for raw in EXAMPLE_ENTRIES:
