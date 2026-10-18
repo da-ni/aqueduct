@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -18,6 +20,12 @@ class ServiceAccount(models.Model):
     def __str__(self) -> str:
         # Handle case where team might not be set yet
         return f"{self.name} (Team: {self.team.name if self.team_id else 'N/A'})"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        from management.models.token import Token
+
+        super().save(*args, **kwargs)
+        Token.objects.filter(service_account=self).update(name=self.name)
 
     def clean(self) -> None:
         """

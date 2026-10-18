@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.utils.http import urlencode
 from django.utils.translation import gettext
 from django.views import View
 from django.views.decorators.http import require_POST
@@ -70,10 +71,17 @@ class TokenDetailView(BaseAqueductView, DetailView):
         team = token.service_account.team if token.service_account else None
         own = team is None and token.user_id == self.request.user.id
         metric = "requests" if self.request.GET.get("metric") == "requests" else "tokens"
+        log_query: dict[str, object] = {"key": token.id, "span": "1m"}
+        if self.profile.is_admin() and self.viewed_org is not None:
+            owner = team or getattr(token.user, "profile", None)
+            key_org = owner.org_id if owner else None
+            if key_org != self.viewed_org.id:
+                log_query["org"] = key_org or "all"
         context.update(
             report=report,
             latest=tuple(Row(request, Key(token, None, ""), False) for request in report.latest),
             metric=metric,
+            log_query=urlencode(log_query),
             charts=tuple((shown, report.chart(shown)) for shown in ("tokens", "requests")),
             expiry=Expiry.of(token.expires_at, now),
             limits=token.get_limit(),

@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import connection
@@ -399,13 +400,27 @@ class RequestsFilterTest(RequestsPageTestBase):
         )
         content = self.get(self.owner, request=failed.id).content.decode()
         self.assertIn(
-            '>Error</dt><dd class="text-[13px]">429 Too Many Requests. '
-            "The key or the provider was over a limit.</dd>",
+            '>Error</dt><dd class="text-[13px]">The key or the provider was over a limit.</dd>',
             content,
         )
         self.assertIn(">User ID</dt>", content)
         self.assertIn(">alice</dd>", content)
         self.assertIn("150 tok/s", content)
+
+    def test_status_and_error_read_in_german(self):
+        failed = self.log(self.key, "/failed", status_code=429)
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "de"
+        content = self.get(self.owner, request=failed.id).content.decode()
+        self.assertIn(
+            '<span class="st-warn inline-flex items-center gap-1.5" title="Limit erreicht">',
+            content,
+        )
+        self.assertIn(
+            '>Fehler</dt><dd class="text-[13px]">'
+            "Der Schlüssel oder der Anbieter hat ein Limit überschritten.</dd>",
+            content,
+        )
+        self.assertNotIn("Too Many Requests", content)
 
     def test_gateway_overhead_shows_to_org_admins_and_admins_only(self):
         timed = self.log(self.team_key, "/timed", processing_time_ms=12)

@@ -1,6 +1,7 @@
 import re
 from datetime import timedelta
 from typing import ClassVar
+from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -394,6 +395,23 @@ class TeamMembershipTest(TeamsPagesTestBase):
         client.post(self.url(), {"user_profile_to_remove_id": self.outsider.profile.id})
         self.assertNotIn("outsider", self.members())
 
+    def test_team_admin_who_leaves_lands_on_the_teams_page(self):
+        TeamMembership.objects.filter(user_profile=self.member.profile).update(is_admin=True)
+        response = self.as_user(self.member).post(
+            self.url(), {"user_profile_to_remove_id": self.member.profile.id}, follow=True
+        )
+        self.assertEqual(response.redirect_chain, [(reverse("org"), 302)])
+        self.assertContains(response, "member@example.com removed.")
+        self.assertNotIn("member", self.members())
+
+    def test_org_admin_who_leaves_stays_on_the_team(self):
+        self.join(self.org_admin, self.team)
+        response = self.as_user(self.org_admin).post(
+            self.url(), {"user_profile_to_remove_id": self.org_admin.profile.id}
+        )
+        self.assertRedirects(response, self.url(), fetch_redirect_response=False)
+        self.assertNotIn("org-admin", self.members())
+
     def test_adding_an_email_nobody_in_the_org_uses_explains_why(self):
         client = self.as_user(self.team_admin)
         before = self.members()
@@ -584,6 +602,27 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
         self.assertNotContains(response, 'class="alert ')
         sa = ServiceAccount.objects.get(name="rag", team=self.team)
         self.assertEqual(Token.find_by_key(secret_on(response)), sa.token)
+
+    def test_the_key_is_named_after_its_service_account_and_follows_a_rename(self):
+        client = self.as_user(self.team_admin)
+        create = reverse("service_account_create", args=[self.team.id])
+        client.post(create, {"name": "rag", "description": "", "token_expires_at": ""})
+        sa = ServiceAccount.objects.get(name="rag", team=self.team)
+        self.assertEqual(sa.token.name, "rag")
+        edit = reverse("service_account_edit", args=[sa.id])
+        client.post(edit, {"name": "rag-2", "description": "", "token_expires_at": ""})
+        sa.token.refresh_from_db()
+        self.assertEqual(sa.token.name, "rag-2")
+
+    def test_a_failed_key_leaves_no_service_account_behind(self):
+        url = reverse("service_account_create", args=[self.team.id])
+        client = self.as_user(self.team_admin)
+        with (
+            patch.object(Token, "_set_new_key", side_effect=RuntimeError("no entropy")),
+            self.assertRaises(RuntimeError),
+        ):
+            client.post(url, {"name": "rag", "description": "", "token_expires_at": ""})
+        self.assertFalse(ServiceAccount.objects.filter(name="rag").exists())
 
     def test_member_and_outsiders_cannot_create_a_service_account(self):
         url = reverse("service_account_create", args=[self.team.id])

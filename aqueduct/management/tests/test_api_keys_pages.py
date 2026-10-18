@@ -1,3 +1,5 @@
+import html
+import re
 from datetime import UTC, datetime, timedelta
 from unittest import mock
 
@@ -233,8 +235,7 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         )
         response = self.get(self.owner, "token_detail", self.key.id)
         self.assertContains(
-            response,
-            '<span class="st-warn inline-flex items-center gap-1.5" title="Too Many Requests">',
+            response, '<span class="st-warn inline-flex items-center gap-1.5" title="Rate-limited">'
         )
         self.assertContains(
             response, '<td class="whitespace-nowrap text-right">5.6 s</td>', html=True
@@ -459,7 +460,9 @@ class ExpiryTest(SimpleTestCase):
         with translation.override("de"):
             soon = Expiry.of(now + timedelta(days=3, hours=1), now)
             self.assertEqual((soon.label, soon.sentence), ("In 3 Tagen", "Läuft in 3 Tagen ab"))
-            later = Expiry.of(datetime(2026, 12, 17, 12, tzinfo=UTC), now)
+            later = Expiry.of(
+                datetime(2026, 12, 17, 12, tzinfo=UTC), datetime(2026, 10, 1, tzinfo=UTC)
+            )
             self.assertEqual(later.label, "17. Dez. 2026")
 
 
@@ -509,6 +512,27 @@ class OrgAdminKeyAccessTest(ApiKeysPagesTestBase):
             with self.subTest(key=key.name):
                 response = self.client.get(reverse("token_detail", args=[key.id]))
                 self.assertEqual(response.status_code, 200)
+
+    def test_admin_follows_a_key_into_the_log_whatever_org_the_switch_shows(self):
+        self.request_log(self.pipeline_key, timedelta(hours=1))
+        self.client.force_login(self.admin)
+        self.client.get(reverse("tokens"), {"org": Org.objects.get(name="elsewhere").id})
+        log = re.escape(reverse("requests"))
+        for key in (self.key, self.pipeline_key):
+            page = self.client.get(reverse("token_detail", args=[key.id])).content.decode()
+            links = re.findall(rf'href="({log}\?[^"#]*)', page)
+            self.assertEqual(len(links), 2)
+            for link in links:
+                with self.subTest(key=key.name, link=link):
+                    response = self.client.get(html.unescape(link))
+                    shown = Request.objects.get(token=key)
+                    self.assertContains(response, f'id="request-{shown.id}"')
+
+    def test_admin_on_all_organizations_stays_there_after_a_key_log_link(self):
+        self.client.force_login(self.admin)
+        self.client.get(reverse("tokens"), {"org": "all"})
+        page = self.client.get(reverse("token_detail", args=[self.key.id])).content.decode()
+        self.assertNotIn("org=", "".join(re.findall(r'href="[^"]*/requests/\?[^"]*"', page)))
 
     def test_admin_rotating_another_orgs_service_account_lands_on_its_key(self):
         detail = reverse("token_detail", args=[self.pipeline_key.id])

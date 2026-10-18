@@ -475,7 +475,7 @@ class Builder:
             for i, t in enumerate(homes)
         )
         tokens = self.tokens(
-            Token(user_id=users[rosters[t][0]].id, service_account=sa, name=f"{sa.name} key")
+            Token(user_id=users[rosters[t][0]].id, service_account=sa, name=sa.name)
             for sa, t in zip(accounts, homes, strict=True)
         )
         for token in tokens:
