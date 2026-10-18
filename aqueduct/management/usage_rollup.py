@@ -98,16 +98,12 @@ def _local_hour() -> Expression:
     return Trunc(F("timestamp") - shift, "hour", tzinfo=UTC) + shift
 
 
-def key_window_name(days: int) -> str:
-    return f"keys-{days}d"
-
-
 def refresh(now: datetime | None = None, *, full: bool = False) -> None:
     if not steady_hours(settings.TIME_ZONE):
         return
     sealed = floor_hour((now or timezone.now()) - SETTLE)
     with transaction.atomic():
-        state = _claimed(HOURLY)
+        state = _claimed()
         stale = full or state.dirty or state.time_zone != settings.TIME_ZONE
         start = None if stale or state.sealed_until is None else state.sealed_until
         if start is not None:
@@ -116,20 +112,10 @@ def refresh(now: datetime | None = None, *, full: bool = False) -> None:
         OrgUsageHour.objects.filter(hours).delete()
         OrgLatencyHour.objects.filter(hours).delete()
 
-        recounted = Request.objects.filter(timestamp__lt=sealed).order_by()
+        recounted = Request.objects.filter(timestamp__lt=sealed)
         if start is not None:
             recounted = recounted.filter(timestamp__gte=start)
-        by_hour = {"hour": _local_hour(), "org_id": key_org("token__")}
-        _insert(
-            OrgUsageHour,
-            recounted.values("model", **by_hour).annotate(**_COUNT_OUTCOMES, **_SUM_TOKENS),
-        )
-        _insert(
-            OrgLatencyHour,
-            recounted.filter(response_time_ms__isnull=False)
-            .values("model", **by_hour, bucket=BUCKET)
-            .annotate(requests=Count("id")),
-        )
+        _count_hours(recounted)
         UsageRollupState.objects.filter(name=HOURLY).update(
             sealed_until=sealed,
             time_zone=settings.TIME_ZONE,
@@ -137,8 +123,33 @@ def refresh(now: datetime | None = None, *, full: bool = False) -> None:
         )
 
 
-def rebuild(now: datetime | None = None) -> None:
-    refresh(now, full=True)
+def prune(cutoff: datetime) -> None:
+    """Call after deleting the requests before `cutoff`."""
+    if not steady_hours(settings.TIME_ZONE):
+        return
+    boundary = floor_hour(cutoff)
+    expired = Q(hour__lt=boundary + HOUR.size)
+    with transaction.atomic():
+        state = _claimed()
+        OrgUsageHour.objects.filter(expired).delete()
+        OrgLatencyHour.objects.filter(expired).delete()
+        if state.sealed_until is not None:
+            end = min(boundary + HOUR.size, state.sealed_until)
+            _count_hours(Request.objects.filter(timestamp__gte=boundary, timestamp__lt=end))
+
+
+def _count_hours(requests: QuerySet[Request]) -> None:
+    requests = requests.order_by()
+    by_hour = {"hour": _local_hour(), "org_id": key_org("token__")}
+    _insert(
+        OrgUsageHour, requests.values("model", **by_hour).annotate(**_COUNT_OUTCOMES, **_SUM_TOKENS)
+    )
+    _insert(
+        OrgLatencyHour,
+        requests.filter(response_time_ms__isnull=False)
+        .values("model", **by_hour, bucket=BUCKET)
+        .annotate(requests=Count("id")),
+    )
 
 
 def refresh_key_windows(now: datetime | None = None) -> None:
@@ -147,7 +158,7 @@ def refresh_key_windows(now: datetime | None = None) -> None:
     for days, span in KEY_WINDOWS.items():
         start = Period.last(span, now).start
         with transaction.atomic():
-            state = _locked(key_window_name(days))
+            _lock(f"keys-{days}d")
             KeyUsageWindow.objects.filter(days=days).delete()
             _insert(
                 KeyUsageWindow,
@@ -156,40 +167,37 @@ def refresh_key_windows(now: datetime | None = None) -> None:
                 .annotate(requests=Count("id"), failed=Count("id", filter=FAILED), **_SUM_TOKENS)
                 .order_by(),
                 days=days,
+                window_start=start,
+                sealed_until=end,
             )
-            state.window_start, state.sealed_until = start, end
-            state.dirty, state.time_zone = False, settings.TIME_ZONE
-            state.save()
 
 
-def _locked(name: str) -> UsageRollupState:
-    UsageRollupState.objects.get_or_create(
-        name=name, defaults={"dirty": True, "time_zone": settings.TIME_ZONE}
-    )
-    return UsageRollupState.objects.select_for_update().get(name=name)
-
-
-def _claimed(name: str) -> UsageRollupState:
+def _lock(name: str) -> None:
     if connection.vendor == "postgresql":
         with connection.cursor() as cursor:
             cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", [name])
+
+
+def _claimed() -> UsageRollupState:
+    _lock(HOURLY)
     return UsageRollupState.objects.get_or_create(
-        name=name, defaults={"dirty": True, "time_zone": settings.TIME_ZONE}
+        name=HOURLY, defaults={"dirty": True, "time_zone": settings.TIME_ZONE}
     )[0]
 
 
-def _insert(table: type[models.Model], rows: QuerySet[Any, Row], **fixed: int) -> None:
+def _insert(table: type[models.Model], rows: QuerySet[Any, Row], **fixed: object) -> None:
     names = [*fixed, *rows.query.values_select, *rows.query.annotation_select]
     quote = connection.ops.quote_name
-    column = {field.attname: field.column for field in table._meta.concrete_fields}
-    columns = ", ".join(quote(column[name]) for name in names)
+    fields = {field.attname: field for field in table._meta.concrete_fields}
+    columns = ", ".join(quote(fields[name].column) for name in names)
     picked = ", ".join(["%s"] * len(fixed) + [quote(name) for name in names[len(fixed) :]])
+    prepared = [fields[name].get_db_prep_value(value, connection) for name, value in fixed.items()]
     select, params = rows.query.sql_with_params()
     with connection.cursor() as cursor:
         cursor.execute(
             f"INSERT INTO {quote(table._meta.db_table)} ({columns}) "  # noqa: S608
             f"SELECT {picked} FROM ({select}) grouped",
-            [*fixed.values(), *params],
+            [*prepared, *params],
         )
 
 
@@ -311,37 +319,27 @@ def org_heat(
 def key_window_totals(extent: OrgWide, model: str | None, period: Period) -> dict[int, Activity]:
     requests = served(requests_of(extent))
     kept = KeyUsageWindow.objects.filter(
-        model__in=model_names(), token__in=Token.objects.filter(extent.keys())
-    )
-    if model is not None:
-        requests, kept = requests.filter(model=model), kept.filter(model=model)
-    windows = UsageRollupState.objects.filter(
-        name__in=[key_window_name(days) for days in KEY_WINDOWS],
+        model__in=model_names(),
+        token__in=Token.objects.filter(extent.keys()),
         window_start=period.start,
         sealed_until__lte=period.end,
     )
-    rows: list[Row] = []
-    raw_start = period.start
-    for _ in range(2):
-        window = windows.first()
-        if window is None or window.sealed_until is None:
-            break
-        days = next(d for d in KEY_WINDOWS if key_window_name(d) == window.name)
-        found = list(
-            kept.filter(days=days)
-            .values("token_id")
-            .annotate(
-                requests=Sum("requests"),
-                failed=Sum("failed"),
-                input=Sum("input_tokens"),
-                cached=Sum("cached_input_tokens"),
-                output=Sum("output_tokens"),
-            )
-            .order_by()
+    if model is not None:
+        requests, kept = requests.filter(model=model), kept.filter(model=model)
+    rows: list[Row] = list(
+        kept.values("token_id", "sealed_until")
+        .annotate(
+            requests=Sum("requests"),
+            failed=Sum("failed"),
+            input=Sum("input_tokens"),
+            cached=Sum("cached_input_tokens"),
+            output=Sum("output_tokens"),
         )
-        if windows.filter(name=window.name, sealed_until=window.sealed_until).exists():
-            rows, raw_start = found, window.sealed_until
-            break
+        .order_by()
+    )
+    raw_start = period.start
+    for row in rows:
+        raw_start = row.pop("sealed_until")
     rows += (
         requests.filter(timestamp__gte=raw_start, timestamp__lt=period.end)
         .values("token_id")

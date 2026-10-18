@@ -1,4 +1,5 @@
 import time
+from functools import partial
 
 from django.core.management.base import BaseCommand
 
@@ -10,7 +11,7 @@ class Command(BaseCommand):
 
     def handle(self, *args: object, **options: object) -> None:
         for label, recount in (
-            ("Org hours", usage_rollup.rebuild),
+            ("Org hours", partial(usage_rollup.refresh, full=True)),
             ("Key windows", usage_rollup.refresh_key_windows),
         ):
             started = time.monotonic()

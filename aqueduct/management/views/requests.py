@@ -25,6 +25,6 @@ class RequestLogView(BaseAqueductView, TemplateView):
             or bool(log.search)
             or filters.span is not Span.DAY
             or bool(filters.mine or filters.key or filters.model),
-            retention_days=int(getattr(settings, "REQUEST_RETENTION_DAYS", 30)),
+            retention_days=int(settings.REQUEST_RETENTION_DAYS),
         )
         return context

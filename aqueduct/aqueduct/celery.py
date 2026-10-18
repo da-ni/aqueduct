@@ -33,7 +33,7 @@ def delete_old_requests(self: object) -> None:
     from management import usage_rollup
     from management.models import Request  # Import here to avoid issues at startup
 
-    retention_days = getattr(settings, "REQUEST_RETENTION_DAYS", 30)
+    retention_days = settings.REQUEST_RETENTION_DAYS
     cutoff = timezone.now() - timedelta(days=retention_days)
     old_requests = Request.objects.filter(timestamp__lt=cutoff)
     count = old_requests.count()
@@ -41,9 +41,8 @@ def delete_old_requests(self: object) -> None:
     logger.info("Deleted %s requests older than %s days (before %s)", count, retention_days, cutoff)
 
     started = time.monotonic()
-    usage_rollup.rebuild()
-    usage_rollup.refresh_key_windows()
-    logger.info("Rebuilt the usage rollups in %.1f s", time.monotonic() - started)
+    usage_rollup.prune(cutoff)
+    logger.info("Pruned the usage rollups in %.1f s", time.monotonic() - started)
 
 
 @app.task(bind=True, ignore_result=True)
