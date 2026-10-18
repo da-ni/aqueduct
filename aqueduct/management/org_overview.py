@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 
 from django.conf import settings
-from django.utils.formats import number_format
 from django.utils.translation import gettext, ngettext
 
+from management.key_activity import grouped
 from management.models import LimitSet, Org, ServiceAccount, Team, Token
 
 
@@ -29,9 +29,9 @@ def _cap(value: int | None, default: int) -> str:
     if value is None:
         return ngettext(
             "%(count)s min of full rate (default)", "%(count)s min of full rate (default)", default
-        ) % {"count": number_format(default, force_grouping=True)}
+        ) % {"count": grouped(default)}
     return ngettext("%(count)s min of full rate", "%(count)s min of full rate", value) % {
-        "count": number_format(value, force_grouping=True)
+        "count": grouped(value)
     }
 
 

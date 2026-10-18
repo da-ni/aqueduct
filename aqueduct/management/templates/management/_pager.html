@@ -1,7 +1,7 @@
-{% load humanize i18n %}
+{% load i18n ui %}
 {% if pages.paginator.num_pages > 1 %}
     <div class="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-1">
-        <span class="muted font-mono text-xs">{% blocktranslate with first=pages.start_index|intcomma last=pages.end_index|intcomma total=pages.paginator.count|intcomma %}{{ first }}–{{ last }} of {{ total }}{% endblocktranslate %}</span>
+        <span class="muted font-mono text-xs">{% blocktranslate with first=pages.start_index|grouped last=pages.end_index|grouped total=pages.paginator.count|grouped %}{{ first }}–{{ last }} of {{ total }}{% endblocktranslate %}</span>
         <nav class="join" aria-label="{% translate 'Pages' %}">
             {% if pages.has_previous %}
                 <a class="btn btn-sm join-item" href="{% querystring page=pages.previous_page_number file=None %}">{% translate "Previous" %}</a>

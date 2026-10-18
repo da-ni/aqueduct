@@ -18,7 +18,7 @@ clamped to 100%; the count text shows the real ``used/limit`` counts (which may
 exceed the cap when over limit).
 Colors shift to warning at >=80% and error at >=100%.
 {% endcomment %}
-{% load humanize i18n ui %}
+{% load i18n ui %}
 <div class="flex w-full gap-6">
     {# per hour — windows()[1] = ("hour", 3600, rpm*hourly_mult, ...) #}
     {% with limit=limits.windows.1.2 used=usage.hour.req %}
@@ -26,7 +26,7 @@ Colors shift to warning at >=80% and error at >=100%.
             <div class="flex items-baseline justify-between mb-1">
                 <span class="text-[0.7rem] opacity-60">{% translate "Hourly limit" %}</span>
                 <span class="text-[0.7rem] tabular-nums opacity-70">
-                    {% if limit %}{{ used|floatformat:"0" }}/{{ limit|intcomma }}{% else %}—{% endif %}
+                    {% if limit %}{{ used|floatformat:"0" }}/{{ limit|grouped }}{% else %}—{% endif %}
                 </span>
             </div>
             {% if limit %}
@@ -42,7 +42,7 @@ Colors shift to warning at >=80% and error at >=100%.
             <div class="flex items-baseline justify-between mb-1">
                 <span class="text-[0.7rem] opacity-60">{% translate "Daily limit" %}</span>
                 <span class="text-[0.7rem] tabular-nums opacity-70">
-                    {% if limit %}{{ used|floatformat:"0" }}/{{ limit|intcomma }}{% else %}—{% endif %}
+                    {% if limit %}{{ used|floatformat:"0" }}/{{ limit|grouped }}{% else %}—{% endif %}
                 </span>
             </div>
             {% if limit %}

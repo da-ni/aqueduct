@@ -20,8 +20,9 @@ from django.db.models import (
     Sum,
 )
 from django.db.models.functions import Coalesce, Lower, Trunc
-from django.utils import dateformat, timezone
+from django.utils import timezone
 from django.utils.dates import WEEKDAYS_ABBR
+from django.utils.formats import date_format
 from django.utils.functional import Promise
 from django.utils.translation import gettext, ngettext
 from django.utils.translation import gettext_lazy as _
@@ -35,10 +36,13 @@ from management.key_activity import (
     SparkBar,
     Tip,
     as_cached,
+    as_percent,
     as_requests,
     as_tokens,
     chart,
     compact,
+    decimal,
+    grouped,
     of_keys,
     percent,
     served,
@@ -76,7 +80,8 @@ class Step:
     kind: str
     size: timedelta
     label_format: str
-    """A `django.utils.dateformat` format, so that month names follow the language."""
+    """A format name from `aqueduct.formats`, or a `django.utils.dateformat` format without
+    month names."""
     zeroed: tuple[str, ...]
     short_format: str
     """The axis label below the `sm` breakpoint."""
@@ -89,7 +94,7 @@ class Step:
         return local.replace(microsecond=0, **zeroed)
 
     def format(self, moment: datetime, short: bool = False) -> str:
-        return dateformat.format(moment, self.short_format if short else self.label_format)
+        return date_format(moment, self.short_format if short else self.label_format)
 
 
 MINUTE = Step(
@@ -113,9 +118,9 @@ HOUR = Step(
 DAY = Step(
     "day",
     timedelta(days=1),
-    "j M",
+    "DAY_MONTH_FORMAT",
     ("second", "minute", "hour"),
-    "j",
+    "DAY_OF_MONTH_FORMAT",
     _("Tokens per day"),
     _("Requests per day"),
 )
@@ -302,7 +307,7 @@ def columns(
 def duration(ms: int | None) -> str:
     if ms is None:
         return gettext("n/a")
-    return f"{ms:,} ms" if ms < SECOND_MS else f"{ms / SECOND_MS:.1f} s"
+    return f"{grouped(ms)} ms" if ms < SECOND_MS else f"{decimal(ms / SECOND_MS, 1)} s"
 
 
 def _ratio(part: int, whole: int) -> float:
@@ -314,10 +319,6 @@ class Kpi:
     label: str
     value: str
     spark: tuple[SparkBar, ...]
-
-
-def _share(ratio: float) -> str:
-    return f"{round(100 * ratio)}%"
 
 
 def _summed(activities: Sequence[Activity]) -> Activity:
@@ -368,11 +369,11 @@ def kpis(spark_slots: Sequence[Slot]) -> tuple[Kpi, ...]:
         Kpi(gettext("Input"), compact(now.input), bars_of(lambda a: a.input, as_input)),
         Kpi(gettext("Output"), compact(now.output), bars_of(lambda a: a.output, as_output)),
         Kpi(gettext("Cached"), compact(now.cached), bars_of(lambda a: a.cached, as_cached)),
-        Kpi(gettext("Requests"), f"{now.requests:,}", bars_of(lambda a: a.requests, as_requests)),
+        Kpi(gettext("Requests"), grouped(now.requests), bars_of(lambda a: a.requests, as_requests)),
         Kpi(
             gettext("Failed"),
             now.failed_share,
-            bars_of(lambda a: _ratio(a.failed, a.requests), _share),
+            bars_of(lambda a: 100 * _ratio(a.failed, a.requests), as_percent),
         ),
     )
 

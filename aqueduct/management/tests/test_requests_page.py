@@ -455,6 +455,22 @@ class RequestsFilterTest(RequestsPageTestBase):
                 self.assertEqual('<th rowspan="2">Key</th>' in content, shown)
 
 
+class RequestsGermanTest(RequestsPageTestBase):
+    def test_numbers_dates_and_durations_follow_german_conventions(self):
+        big = self.log(
+            self.key, "/big", input_tokens=1_234_567, output_tokens=14_400, response_time_ms=5_640
+        )
+        self.client.force_login(self.owner)
+        content = self.client.get(
+            reverse("requests"), {"request": big.id}, HTTP_ACCEPT_LANGUAGE="de"
+        ).content.decode()
+        self.assertIn("1.234.567", content)
+        self.assertIn("5,6 s", content)
+        self.assertIn("2.553 Token/s", content)
+        months = r"(Jan\.|Feb\.|März|April|Mai|Juni|Juli|Aug\.|Sept\.|Okt\.|Nov\.|Dez\.)"
+        self.assertRegex(content, rf">\d{{1,2}}\. {months} \d\d:\d\d<")
+
+
 class RequestsPaginationTest(RequestsPageTestBase):
     def test_pages_hold_page_size_rows_newest_first(self):
         now = timezone.now()

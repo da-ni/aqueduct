@@ -16,7 +16,7 @@ from django.utils.http import urlencode
 from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 
-from management.key_activity import FAILED, KeyAccess, of_keys, router_models, served
+from management.key_activity import FAILED, KeyAccess, grouped, of_keys, router_models, served
 from management.model_catalog import scopes_for, usable_models
 from management.models import Org, Request, Team, Token, UserProfile
 from management.models.token import of_org
@@ -394,7 +394,7 @@ class Row:
         tokens, ms = self.request.output_tokens, self.request.response_time_ms
         if not tokens or not ms:
             return None
-        return gettext("%(speed)s tok/s") % {"speed": f"{round(tokens * 1000 / ms):,}"}
+        return gettext("%(speed)s tok/s") % {"speed": grouped(round(tokens * 1000 / ms))}
 
 
 @dataclass(frozen=True)

@@ -24,7 +24,7 @@ from django.utils.translation import gettext, ngettext
 from django.utils.translation import gettext_lazy as _
 
 from management.icons import Icon
-from management.key_activity import Expiry
+from management.key_activity import Expiry, grouped
 from management.models import (
     Batch,
     BatchStatus,
@@ -250,13 +250,13 @@ class Progress:
     @property
     def label(self) -> str:
         done = gettext("%(done)s of %(total)s") % {
-            "done": f"{self.completed + self.failed:,}",
-            "total": f"{self.total:,}",
+            "done": grouped(self.completed + self.failed),
+            "total": grouped(self.total),
         }
         if not self.failed:
             return done
         failed = ngettext("%(count)s failed", "%(count)s failed", self.failed)
-        return f"{done} · {failed % {'count': f'{self.failed:,}'}}"
+        return f"{done} · {failed % {'count': grouped(self.failed)}}"
 
 
 @dataclass(frozen=True)

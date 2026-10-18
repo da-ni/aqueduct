@@ -4,14 +4,14 @@ from datetime import UTC, date, datetime
 from django import template
 from django.forms import BoundField
 from django.template.defaultfilters import date as format_date
-from django.utils import timezone
+from django.utils import dateformat, timezone
 from django.utils.html import format_html, format_html_join
 from django.utils.safestring import SafeString
 from django.utils.translation import gettext, ngettext_lazy
 
 from management.deletion import deletion
 from management.icons import Icon
-from management.key_activity import MISSING, Expiry
+from management.key_activity import MISSING, Expiry, grouped
 from management.models import FileObject, ServiceAccount, Team, Token
 from management.privacy import render_markdown
 
@@ -58,7 +58,11 @@ def widget(field: BoundField) -> SafeString:
     return field.as_widget(attrs={"class": f"{classes} {component}-error"})
 
 
-WHEN_FORMATS = {"date": "j M Y", "datetime": "j M Y H:i", "recent": "j M H:i"}
+WHEN_FORMATS = {
+    "date": "DAY_FORMAT",
+    "datetime": "DAY_TIME_FORMAT",
+    "recent": "DAY_MONTH_TIME_FORMAT",
+}
 
 
 @register.filter(expects_localtime=True)
@@ -126,6 +130,9 @@ def ago(value: datetime, now: datetime) -> str:
     return gettext("just now")
 
 
+register.filter("grouped", grouped)
+
+
 @register.filter
 def dash(value: object) -> object:
     """`value`, or a dash when it is missing. Unlike `default`, it keeps 0 and False, which are
@@ -180,7 +187,7 @@ def expiry(value: Expiry, wording: str = "label") -> SafeString:
 def _time(value: date, short: str) -> SafeString:
     if isinstance(value, datetime):
         utc = value.astimezone(UTC)
-        machine, full = utc.isoformat(), utc.strftime("%Y-%m-%d %H:%M:%S UTC")
+        machine, full = utc.isoformat(), f"{dateformat.format(utc, 'Y-m-d H:i:s')} UTC"
     else:
         machine = full = value.isoformat()
     return format_html('<time datetime="{}" title="{}">{}</time>', machine, full, short)

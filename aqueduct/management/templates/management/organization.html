@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load humanize i18n ui %}
+{% load i18n ui %}
 {% block title %}{% if org_object %}{{ org_object.name }}{% else %}{% translate "Organizations" %}{% endif %} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
@@ -19,7 +19,7 @@
                         {% for org in orgs %}
                             <tr>
                                 <td><a class="link-plain font-semibold" href="{% url 'organization' %}?org={{ org.id }}">{{ org.name }}</a></td>
-                                <td class="text-right font-mono">{{ org.team_count|intcomma }}</td>
+                                <td class="text-right font-mono">{{ org.team_count|grouped }}</td>
                             </tr>
                         {% empty %}
                             <tr><td colspan="2" class="muted">{% translate "No organizations yet." %}</td></tr>
@@ -36,8 +36,8 @@
         <div class="flex flex-col gap-2">
             <h1 class="text-3xl font-semibold">{{ org_object.name }}</h1>
             <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-                <span><a class="link-plain" href="{% url 'org' %}">{% blocktranslate with teams=page.teams|intcomma count n=page.teams %}{{ teams }} team{% plural %}{{ teams }} teams{% endblocktranslate %}</a></span>
-                <span>{% blocktranslate with accounts=page.service_accounts|intcomma count n=page.service_accounts %}{{ accounts }} service account{% plural %}{{ accounts }} service accounts{% endblocktranslate %}</span>
+                <span><a class="link-plain" href="{% url 'org' %}">{% blocktranslate with teams=page.teams|grouped count n=page.teams %}{{ teams }} team{% plural %}{{ teams }} teams{% endblocktranslate %}</a></span>
+                <span>{% blocktranslate with accounts=page.service_accounts|grouped count n=page.service_accounts %}{{ accounts }} service account{% plural %}{{ accounts }} service accounts{% endblocktranslate %}</span>
             </div>
         </div>
     </header>
