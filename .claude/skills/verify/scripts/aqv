@@ -539,6 +539,17 @@ def cmd_shell(args) -> None:
         sys.exit(done.returncode)
 
 
+def cmd_snapshot(args) -> None:
+    checkout = Path(args.checkout or git(SCRIPTS, "rev-parse", "--show-toplevel")).resolve()
+    command = ["uv", "run", "python", str(SCRIPTS / "snapshot.py"), str(Path(args.out).resolve())]
+    done = subprocess.run([*command, str(checkout)], cwd=checkout / "aqueduct", check=False)
+    sys.exit(done.returncode)
+
+
+def cmd_snapshot_diff(args) -> None:
+    sys.exit(subprocess.run(["diff", "-ru", args.before, args.after], check=False).returncode)
+
+
 def cmd_stop(args) -> None:
     state = load_state(args)
     run = Path(state["run"])
@@ -622,6 +633,12 @@ def main() -> None:
     p.add_argument(
         "--layout", action="store_true", help="report overflowing, clipped, and wrapping text"
     )
+    p = command("snapshot", cmd_snapshot, "render every page as every role to text files")
+    p.add_argument("out", help="empty or missing directory for the page files")
+    p.add_argument("--checkout", help="checkout whose code renders the pages (default: this one)")
+    p = command("snapshot-diff", cmd_snapshot_diff, "diff two snapshots; exit 0 when identical")
+    p.add_argument("before")
+    p.add_argument("after")
     p = command("shell", cmd_shell, "run Python in the run's Django shell, to read side effects")
     p.add_argument("-c", "--code", required=True)
 
