@@ -30,7 +30,7 @@ def _model_group_info_entry(model: dict[str, Any]) -> dict[str, Any]:
 async def models(
     request: ASGIRequest, token: Token, request_log: Request, *args: Any, **kwargs: Any
 ) -> RawJsonResponse:
-    excluded_models = set(await sync_to_async(token.model_exclusion_list)())
+    excluded_models = await sync_to_async(token.model_exclusion_list)()
 
     return RawJsonResponse(
         data={
@@ -64,7 +64,7 @@ async def model_group_info(
     /v1/models — read token limits and capabilities directly from the gateway
     instead of guessing from bundled model catalogs.
     """
-    excluded_models = set(await sync_to_async(token.model_exclusion_list)())
+    excluded_models = await sync_to_async(token.model_exclusion_list)()
 
     return RawJsonResponse(
         data=[

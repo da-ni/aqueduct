@@ -19,7 +19,8 @@ from litellm.types.utils import LlmProviders
 
 from gateway.config import model_entries, model_info_with_context, model_names
 from management.key_activity import compact, grouped
-from management.models import Team, Token, UserProfile
+from management.models import Team, UserProfile
+from management.models.exclusions import Exclusion, excluded
 
 
 class Category(StrEnum):
@@ -378,17 +379,12 @@ def parse_card(entry: Mapping[str, Any], scopes: Sequence[Scope] = ()) -> ModelC
     )
 
 
-Exclusions = Callable[[Any, Any], list[str]]
-
-
 def scopes_for(
-    profile: UserProfile,
-    teams: QuerySet[Team],
-    exclusions: Exclusions = Token.exclusion_list_from_objects,
+    profile: UserProfile, teams: QuerySet[Team], kind: Exclusion = Exclusion.MODELS
 ) -> tuple[Scope, ...]:
-    personal = Scope(None, frozenset(exclusions(profile, profile.org)))
+    personal = Scope(None, excluded(profile, kind))
     found = teams.select_related("org").order_by("name")
-    return (personal, *(Scope(team.name, frozenset(exclusions(team, team.org))) for team in found))
+    return (personal, *(Scope(team.name, excluded(team, kind)) for team in found))
 
 
 def usable_models(scopes: Sequence[Scope]) -> list[str]:

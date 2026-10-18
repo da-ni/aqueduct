@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -28,7 +28,7 @@ class Reach:
         return self.usable == self.configured
 
     @classmethod
-    def of(cls, configured: Sequence[str], excluded: list[str]) -> "Reach":
+    def of(cls, configured: Sequence[str], excluded: Collection[str]) -> "Reach":
         return cls(len(configured), len(set(configured) - set(excluded)))
 
 

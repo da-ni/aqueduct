@@ -39,6 +39,7 @@ from management.models import (
     UserGroup,
     UserProfile,
 )
+from management.models.exclusions import Exclusion, excluded
 
 PAGE_SIZE = 50
 
@@ -241,8 +242,6 @@ def team_page(
         member_pages=member_pages,
         member_count=all_memberships.count() if member_query else member_pages.paginator.count,
         limits=limits,
-        excluded_models=tuple(sorted(Token.exclusion_list_from_objects(team, org))),
-        excluded_mcp_servers=tuple(
-            sorted(Token._mcp_server_exclusion_list_from_objects(team, org))
-        ),
+        excluded_models=tuple(sorted(excluded(team, Exclusion.MODELS))),
+        excluded_mcp_servers=tuple(sorted(excluded(team, Exclusion.MCP_SERVERS))),
     )

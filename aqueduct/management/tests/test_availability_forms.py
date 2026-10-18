@@ -6,7 +6,8 @@ import yaml
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from gateway.config import get_router_config, model_names
+from gateway.config import model_names
+from gateway.tests.utils.test_runner import clear_caches_built_from_the_setting
 from management.admin import TeamAdminForm, UserProfileAdminForm
 from management.availability import Reach
 from management.models import Org, Team, Token, UserGroup
@@ -90,7 +91,7 @@ class RepeatedModelNameTest(TestCase):
     def configure(self, names: str) -> None:
         entries = [{"model_name": n, "litellm_params": {"model": f"openai/{n}"}} for n in names]
         self.config.write_text(yaml.safe_dump({"model_list": entries}))
-        get_router_config.cache_clear()
+        clear_caches_built_from_the_setting(setting="LITELLM_ROUTER_CONFIG_FILE_PATH")
 
     def test_a_model_added_while_the_form_is_open_stays_available(self):
         data = posted(TeamAdminForm(instance=self.team))
