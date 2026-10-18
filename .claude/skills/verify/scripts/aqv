@@ -451,37 +451,72 @@ def cmd_shot(b: Browser, args) -> None:
     print(path)
 
 
+LAYOUT_JS = (SCRIPTS / "layout_check.js").read_text()
+
+
+def tour_slug(path: str) -> str:
+    slug = path.strip("/").replace("aqueduct/management/", "")
+    return re.sub(r"[^\w.-]+", "_", slug).strip("_") or "root"
+
+
 @with_browser
 def cmd_tour(b: Browser, args) -> None:
+    """With --langs, the language cookie is set after sign-in, overriding the saved one.
+
+    A user written as `admin@all` signs in as `admin` and switches to all organizations."""
     team_id = b.state["seed"]["team_id"]
+    base = b.state["base"]
     results = []
-    for user in args.users:
-        b.page.context.clear_cookies()
-        b.page.goto(f"{b.state['base']}/verify-login/?username={user}")
-        for template in args.pages:
-            path = template.format(team_id=team_id)
-            b.documents.clear()
-            b.page.goto(b.state["base"] + path)
-            b.settle()
-            slug = path.strip("/").replace("aqueduct/management/", "").replace("/", "_") or "root"
-            shot = Path(b.state["evidence"]) / "tour" / user / f"{slug}.png"
-            shot.parent.mkdir(parents=True, exist_ok=True)
-            b.page.screenshot(path=str(shot), full_page=True)
-            status = b.documents[0] if b.documents else None
-            results.append(
-                {
-                    "user": user,
-                    "path": path,
-                    "status": status,
-                    "landed": b.page.url.replace(b.state["base"], ""),
-                    "screenshot": str(shot),
-                }
-            )
+    for lang in args.langs or [None]:
+        for user in args.users:
+            username, _, org = user.partition("@")
+            b.page.context.clear_cookies()
+            b.page.goto(f"{base}/verify-login/?username={username}")
+            if lang:
+                b.page.context.add_cookies(
+                    [{"name": "django_language", "value": lang, "url": base}]
+                )
+            if org:
+                b.page.goto(f"{base}/aqueduct/management/usage/?org={org}")
+            for template in args.pages:
+                path = template.format(team_id=team_id)
+                for width in args.widths:
+                    b.page.set_viewport_size({**VIEWPORT, "width": width})
+                    b.documents.clear()
+                    b.page.goto(base + path)
+                    b.settle()
+                    folder = Path(b.state["evidence"]) / "tour"
+                    if lang:
+                        folder /= lang
+                    if args.widths != [VIEWPORT["width"]]:
+                        folder /= str(width)
+                    shot = folder / user / f"{tour_slug(path)}.png"
+                    shot.parent.mkdir(parents=True, exist_ok=True)
+                    b.page.screenshot(path=str(shot), full_page=True)
+                    results.append(
+                        {
+                            "lang": lang,
+                            "width": width,
+                            "user": user,
+                            "path": path,
+                            "status": b.documents[0] if b.documents else None,
+                            "landed": b.page.url.replace(base, ""),
+                            "screenshot": str(shot),
+                            "layout": b.page.evaluate(LAYOUT_JS) if args.layout else [],
+                        }
+                    )
     summary = Path(b.state["evidence"]) / "tour" / "summary.json"
-    summary.write_text(json.dumps(results, indent=2))
+    summary.write_text(json.dumps(results, indent=2, ensure_ascii=False))
     for row in results:
         flag = "5XX " if (row["status"] or 0) >= 500 else "    "
-        print(f"{flag}{row['user']:<16} {row['status']}  {row['path']}  ->  {row['landed']}")
+        print(
+            f"{flag}{row['lang'] or '':<3}{row['width']:>5} {row['user']:<16} {row['status']}"
+            f"  {row['path']}  ->  {row['landed']}"
+        )
+        for issue in row["layout"]:
+            print(f"        {issue['kind']:<10} {issue['where']}  {issue['text']!r}")
+    if args.layout:
+        print(f"layout issues: {sum(len(row['layout']) for row in results)}")
     print(summary)
     if any((row["status"] or 0) >= 500 for row in results):
         sys.exit(2)
@@ -573,6 +608,11 @@ def main() -> None:
     p = command("tour", cmd_tour, "screenshot every page as every role")
     p.add_argument("--users", nargs="+", default=TOUR_USERS)
     p.add_argument("--pages", nargs="+", default=TOUR_PAGES)
+    p.add_argument("--langs", nargs="+", help="language codes, such as de en")
+    p.add_argument("--widths", nargs="+", type=int, default=[VIEWPORT["width"]])
+    p.add_argument(
+        "--layout", action="store_true", help="report overflowing, clipped, and wrapping text"
+    )
     p = command("shell", cmd_shell, "run Python in the run's Django shell, to read side effects")
     p.add_argument("-c", "--code", required=True)
 

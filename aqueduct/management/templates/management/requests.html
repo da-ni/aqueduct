@@ -68,7 +68,7 @@
                                     </td>
                                     <td class="min-w-0 flex-1 md:hidden">
                                         <div class="flex items-center gap-1.5 whitespace-nowrap"><span class="muted">{{ request.timestamp|when:"recent" }}</span> · {% include "management/_request_status.html" %} · {{ row.response_time }}</div>
-                                        <div class="flex gap-1.5 whitespace-nowrap"><span class="truncate">{{ request.model|default:_("n/a") }}</span><span class="shrink-0">· {{ request.input_tokens|grouped }} → {{ request.output_tokens|grouped }}</span></div>
+                                        <div class="flex gap-1.5 whitespace-nowrap"><span class="truncate" title="{{ request.model }}">{{ request.model|default:_("n/a") }}</span><span class="shrink-0">· {{ request.input_tokens|grouped }} → {{ request.output_tokens|grouped }}</span></div>
                                         {% if log.shows_key %}<div class="muted truncate font-sans text-xs">{{ row.key.name }}</div>{% endif %}
                                     </td>
                                     <td class="muted whitespace-nowrap max-md:hidden">{{ request.timestamp|when:"recent" }}</td>
@@ -96,7 +96,7 @@
                                         <td colspan="{{ log.shows_key|yesno:'8,7' }}" class="max-md:block">
                                             <dl class="grid grid-cols-1 gap-2 pb-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6" aria-label="{% blocktranslate with id=request.id %}Details of request {{ id }}{% endblocktranslate %}">
                                                 <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "Request ID" %}</dt><dd class="flex items-center gap-1 font-mono text-[13px]">{{ request.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Copy request ID {{ id }}{% endblocktranslate %}" title="{% translate "Copy request ID" %}">{% icon "copy" small=True %}</button></dd></div>
-                                                {% if row.error %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "Error" %}</dt><dd class="text-[13px]">{{ row.error }}</dd></div>{% endif %}
+                                                {% if row.error %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2 sm:col-span-2"><dt class="muted text-xs">{% translate "Error" %}</dt><dd class="text-[13px]">{{ row.error }}</dd></div>{% endif %}
                                                 {% if request.user_agent %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "User agent" %}</dt><dd class="break-all font-mono text-[13px]">{{ request.user_agent }}</dd></div>{% endif %}
                                                 {% if request.user_id %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "User ID" %}</dt><dd class="break-all font-mono text-[13px]">{{ request.user_id }}</dd></div>{% endif %}
                                                 {% if log.shows_overhead and row.overhead %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "Gateway overhead" %}</dt><dd class="font-mono text-[13px]">{{ row.overhead }}</dd></div>{% endif %}

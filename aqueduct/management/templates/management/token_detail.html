@@ -68,12 +68,12 @@
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 class="text-xl font-semibold"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>{% translate "Tokens per day" %}</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>{% translate "Requests per day" %}</span></h2>
                     <div class="flex flex-wrap items-center gap-4">
-                        <div class="flex items-center gap-4 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
                             {% include "management/_token_legend.html" %}
                         </div>
-                        <div class="flex items-center gap-4 text-sm" data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>
                             <span class="flex items-center gap-2"><span class="sw i"></span>{% translate "OK" %}</span>
-                            <span class="flex items-center gap-2"><span class="sw f"></span>{% translate "Failed" %}</span>
+                            <span class="flex items-center gap-2 whitespace-nowrap"><span class="sw f"></span>{% translate "Failed" %}</span>
                         </div>
                         <nav class="join" aria-label="{% translate "Chart metric" %}">
                             <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None %}" data-metric-show="tokens"{% if metric == 'tokens' %} aria-current="page"{% endif %}>{% translate "Tokens" %}</a>
@@ -144,7 +144,7 @@
                                     <td class="text-right">{{ request.input_tokens|grouped }}</td>
                                     <td class="text-right">{{ request.cached_input_tokens|grouped }}</td>
                                     <td class="text-right">{{ request.output_tokens|grouped }}</td>
-                                    <td class="text-right">{{ row.response_time }}</td>
+                                    <td class="whitespace-nowrap text-right">{{ row.response_time }}</td>
                                 </tr>
                             {% endwith %}
                         {% empty %}

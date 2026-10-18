@@ -69,7 +69,7 @@ class TeamListTest(TeamsPagesTestBase):
         self.assert_sent_to_sign_in(self.client.get(url), url)
 
     def test_member_sees_only_their_teams_and_team_admins_see_a_badge(self):
-        badge = '<span class="badge badge-sm bg-base-100">Team admin</span>'
+        badge = '<span class="badge badge-sm whitespace-nowrap bg-base-100">Team admin</span>'
         response = self.as_user(self.member).get(reverse("org"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, f'href="{reverse("team", args=[self.team.id])}"')
@@ -209,8 +209,10 @@ class TeamDetailTest(TeamsPagesTestBase):
         owner_row = owner_row.rsplit("<td", 1)[1].split(">", 1)[1].rsplit("</td>", 1)[0]
         transfer = reverse("service_account_transfer", args=[self.pipeline.id])
         self.assertInHTML(
-            '<div class="muted text-sm">Owns <span class="font-mono">pipeline</span> · '
-            f'<a class="link" href="{transfer}">Transfer</a></div>',
+            '<div class="muted text-sm">Owns <span class="font-mono">pipeline</span> '
+            '<span class="whitespace-nowrap">· '
+            f'<a class="link" href="{transfer}">Transfer</a></span>'
+            "</div>",
             owner_row,
         )
         self.assertNotIn("user_profile_to_remove_id", owner_row)
@@ -258,7 +260,8 @@ class TeamDetailTest(TeamsPagesTestBase):
         self.assertContains(response, self.pipeline_key.key_preview)
         self.assertContains(response, "Service accounts, last 7 days")
         cards = re.findall(
-            r'<span class="muted text-sm">(\w+)</span>\s*<span class="[^"]*font-semibold[^"]*">'
+            r'<span class="muted text-sm[^"]*">(\w+)</span>\s*'
+            r'<span class="[^"]*font-semibold[^"]*">'
             r"([^<]+)</span>",
             response.content.decode(),
         )
@@ -299,7 +302,8 @@ class TeamDetailTest(TeamsPagesTestBase):
         response = self.as_user(self.member).get(self.url())
         self.assertContains(
             response,
-            '<div class="flex items-baseline gap-2"><dt class="muted">Input tokens per minute</dt>'
+            '<div class="flex flex-wrap items-baseline gap-x-2">'
+            '<dt class="muted whitespace-nowrap">Input tokens per minute</dt>'
             '<dd><span class="font-mono font-semibold">5,000</span></dd></div>',
             html=True,
         )

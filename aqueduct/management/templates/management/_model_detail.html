@@ -21,7 +21,7 @@
 {% endif %}
 
 {% if selected.specs or show_served_model and selected.served_model %}
-    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 de:sm:grid-cols-2">
         {% for spec in selected.specs %}
             <div class="flex min-w-0 flex-col justify-between gap-0.5 rounded-lg bg-base-100 px-3 py-2">
                 <span class="muted text-xs">{{ spec.label }}</span>

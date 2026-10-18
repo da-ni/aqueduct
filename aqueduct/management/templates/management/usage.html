@@ -41,12 +41,12 @@
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h2 class="text-xl font-semibold"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>{{ period.step.tokens_title }}</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>{{ period.step.requests_title }}</span></h2>
                     <div class="flex flex-wrap items-center gap-4">
-                        <div class="flex items-center gap-4 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
                             {% include "management/_token_legend.html" %}
                         </div>
-                        <div class="flex items-center gap-4 text-sm" data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>
                             <span class="flex items-center gap-2"><span class="sw i"></span>{% translate "OK" %}</span>
-                            <span class="flex items-center gap-2"><span class="sw f"></span>{% translate "Failed" %}</span>
+                            <span class="flex items-center gap-2 whitespace-nowrap"><span class="sw f"></span>{% translate "Failed" %}</span>
                         </div>
                         <nav class="join" aria-label="{% translate "Chart metric" %}">
                             <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None key_q=None %}" data-metric-show="tokens"{% if metric == 'tokens' %} aria-current="page"{% endif %}>{% translate "Tokens" %}</a>
@@ -106,10 +106,10 @@
                     <table class="table table-fixed model-table min-w-[640px] de:max-md:min-w-[760px] md:min-w-[860px]">
                         <thead>
                             <tr>
-                                <th class="w-[28%] md:w-[22%] de:max-md:w-[24%] de:md:w-[22%]">{% translate "Model" %}</th><th class="hidden w-[26%] md:table-cell de:md:w-[20%]">{% translate "Tokens" %}</th>
+                                <th class="w-[28%] md:w-[22%] de:max-md:w-[24%] de:md:w-[22%]">{% translate "Model" %}</th><th class="hidden w-[26%] md:table-cell de:md:w-[18%]">{% translate "Tokens" %}</th>
                                 <th class="w-[10%] text-right md:w-[8%] de:max-md:w-[15%] de:md:w-[11%]">{% translate "Input" %}</th><th class="w-[10%] text-right md:w-[8%] de:max-md:w-[9%] de:md:w-[7%]">{% translate "Cached" %}</th><th class="w-[10%] text-right md:w-[8%] de:max-md:w-[15%] de:md:w-[11%]">{% translate "Output" %}</th>
                                 <th class="w-[13%] text-right md:w-[10%] de:max-md:w-[12%] de:md:w-[10%]">{% translate "Requests" %}</th>
-                                <th class="w-[17%] text-right md:w-[10%] de:max-md:w-[15%] de:md:w-[11%]">{% if approximate_tip %}<span class="tooltip tooltip-left" data-tip="{{ approximate_tip }}" tabindex="0">{% translate "Median time" %}<span class="sr-only">, {{ approximate_tip }}</span></span>{% else %}{% translate "Median time" %}{% endif %}</th><th class="w-[12%] text-right md:w-[8%] de:max-md:w-[10%] de:md:w-[8%]">{% translate "Share" %}</th>
+                                <th class="w-[17%] whitespace-normal text-right md:w-[10%] de:max-md:w-[15%] de:md:w-[13%]">{% if approximate_tip %}<span class="tooltip tooltip-left" data-tip="{{ approximate_tip }}" tabindex="0">{% translate "Median time" %}<span class="sr-only">, {{ approximate_tip }}</span></span>{% else %}{% translate "Median time" %}{% endif %}</th><th class="w-[12%] text-right md:w-[8%] de:max-md:w-[10%] de:md:w-[8%]">{% translate "Share" %}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -160,7 +160,7 @@
                 <h2 class="text-xl font-semibold">{% translate "By organization" %}</h2>
                 <div class="-mx-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto">
                     {% for org in orgs_usage %}
-                        <div class="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_4rem] items-center gap-4 rounded-lg px-2 py-1 text-sm">
+                        <div class="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_4rem] de:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_5.5rem] items-center gap-4 rounded-lg px-2 py-1 text-sm">
                             <span class="truncate" title="{{ org.name }}">{{ org.name }}</span>
                             <div><div class="onebar" style="width: {{ org.width|unlocalize }}%"></div></div>
                             <span class="text-right font-mono">{{ org.value }}</span>

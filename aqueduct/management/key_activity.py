@@ -465,7 +465,11 @@ class KeyReport(Window):
     latest: tuple[Request, ...]
 
     def chart(self, metric: str) -> tuple[Column, ...]:
-        return chart([(day_label(d.day), d.activity) for d in self.days], metric)
+        found = chart([(day_label(d.day), d.activity) for d in self.days], metric)
+        return tuple(
+            replace(column, short=date_format(d.day, "AXIS_DAY_FORMAT"))
+            for column, d in zip(found, self.days, strict=True)
+        )
 
 
 def chart(
