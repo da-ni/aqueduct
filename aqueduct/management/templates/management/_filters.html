@@ -1,38 +1,4 @@
-{% load i18n ui %}
-{% if not filters.only_key %}{% if not scope_only or filters.can_pick_scope and filters.keys %}
-<details class="dropdown"{% if filters.key_q and not scope_only %} open{% endif %}>
-    <summary class="btn btn-sm max-w-72">{% icon "key" small=True %}<span class="sr-only">{% translate "Key:" %} </span><span class="truncate"{% if filters.key %} title="{{ filters.key.name }}"{% endif %}>{% if filters.key %}{{ filters.key.name }}{% elif filters.mine %}{% translate "My keys" %}{% else %}{% translate "All keys" %}{% endif %}</span></summary>
-    <div class="dropdown-content z-10 mt-1 flex w-80 flex-col gap-1 rounded-box bg-base-100 p-2 shadow">
-        {% if filters.can_pick_scope and not scope_only %}
-        {% include "management/_search.html" with name="key_q" value=filters.key_q placeholder=_("Key name or owner email") label=_("Search keys") keep=filters.search_params form_class="px-1 pt-1" width="w-full" button=True autofocus=filters.key_q %}
-        {% endif %}
-        <ul class="menu max-h-80 w-full flex-nowrap overflow-y-auto p-0">
-            {% if filters.key_q and not scope_only %}
-                <li class="menu-title">{% translate "Matching keys" %}</li>
-                {% for key in filters.matches %}
-                    <li>{% include "management/_key_choice.html" %}</li>
-                {% empty %}
-                    <li class="menu-disabled"><span>{% blocktranslate with q=filters.key_q %}No key matches “{{ q }}”{% endblocktranslate %}</span></li>
-                {% endfor %}
-                <li role="separator" class="pointer-events-none my-1 border-t border-base-300"></li>
-            {% endif %}
-            {% if filters.key and filters.key not in filters.keys and not scope_only %}
-                <li>{% include "management/_key_choice.html" with key=filters.key %}</li>
-            {% endif %}
-            <li>
-                <a href="{% querystring key_q=None key=None scope=None before=None after=None request=None page=None %}"{% if not filters.key and not filters.mine %} aria-current="true" class="menu-active"{% endif %}>{% translate "All keys" %}</a>
-                {% if not filters.can_pick_scope and not scope_only %}<ul>{% for key in filters.keys %}<li>{% include "management/_key_choice.html" %}</li>{% endfor %}</ul>{% endif %}
-            </li>
-            {% if filters.can_pick_scope and filters.keys %}
-                <li>
-                    <a href="{% querystring key_q=None key=None scope='mine' before=None after=None request=None page=None %}"{% if not filters.key and filters.mine %} aria-current="true" class="menu-active"{% endif %}>{% translate "My keys" %}</a>
-                    {% if not scope_only %}<ul>{% for key in filters.keys %}<li>{% include "management/_key_choice.html" %}</li>{% endfor %}</ul>{% endif %}
-                </li>
-            {% endif %}
-        </ul>
-    </div>
-</details>
-{% endif %}{% endif %}
+{% if not filters.only_key %}{% include key_menu|default:"management/_key_menu.html" %}{% endif %}
 {% if filters.models|length > 1 %}
 {% include "management/_model_menu.html" with label=_("Model:") models=filters.models current=filters.model param="model" reset="key_q before after request page" %}
 {% endif %}

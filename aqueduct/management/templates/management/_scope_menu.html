@@ -1,0 +1,11 @@
+{% load i18n %}{% if filters.can_pick_scope and filters.keys %}
+<details class="dropdown">
+    {% include "management/_key_summary.html" %}
+    <div class="dropdown-content z-10 mt-1 flex w-80 flex-col gap-1 rounded-box bg-base-100 p-2 shadow">
+        <ul class="menu max-h-80 w-full flex-nowrap overflow-y-auto p-0">
+            <li><a href="{% querystring key_q=None key=None scope=None before=None after=None request=None page=None %}"{% if not filters.key and not filters.mine %} aria-current="true" class="menu-active"{% endif %}>{% translate "All keys" %}</a></li>
+            <li><a href="{% querystring key_q=None key=None scope='mine' before=None after=None request=None page=None %}"{% if not filters.key and filters.mine %} aria-current="true" class="menu-active"{% endif %}>{% translate "My keys" %}</a></li>
+        </ul>
+    </div>
+</details>
+{% endif %}

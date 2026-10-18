@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 14:59+0000\n"
+"POT-Creation-Date: 2026-10-18 15:10+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -709,28 +709,6 @@ msgstr "Diese Seite gibt es nicht, oder Sie können sie nicht öffnen."
 msgid "Cancel"
 msgstr "Abbrechen"
 
-msgid "Key:"
-msgstr "Schlüssel:"
-
-msgid "My keys"
-msgstr "Meine Schlüssel"
-
-msgid "All keys"
-msgstr "Alle Schlüssel"
-
-msgid "Key name or owner email"
-msgstr "Schlüsselname oder E-Mail-Adresse"
-
-msgid "Search keys"
-msgstr "Schlüssel durchsuchen"
-
-msgid "Matching keys"
-msgstr "Passende Schlüssel"
-
-#, python-format
-msgid "No key matches “%(q)s”"
-msgstr "Kein Schlüssel passt zu „%(q)s“"
-
 msgid "Model:"
 msgstr "Modell:"
 
@@ -773,6 +751,28 @@ msgstr "Der bisherige Schlüssel funktioniert sofort nicht mehr."
 
 msgid "Edit"
 msgstr "Bearbeiten"
+
+msgid "Key name or owner email"
+msgstr "Schlüsselname oder E-Mail-Adresse"
+
+msgid "Search keys"
+msgstr "Schlüssel durchsuchen"
+
+msgid "Matching keys"
+msgstr "Passende Schlüssel"
+
+#, python-format
+msgid "No key matches “%(q)s”"
+msgstr "Kein Schlüssel passt zu „%(q)s“"
+
+msgid "All keys"
+msgstr "Alle Schlüssel"
+
+msgid "My keys"
+msgstr "Meine Schlüssel"
+
+msgid "Key:"
+msgstr "Schlüssel:"
 
 msgid "Share"
 msgstr "Anteil"
