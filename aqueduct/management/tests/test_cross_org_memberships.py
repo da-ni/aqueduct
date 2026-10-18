@@ -2,11 +2,12 @@ from django.contrib.auth import get_user_model
 from django.db import connection
 from django.db.migrations.loader import MigrationLoader
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from management.auth import OIDCBackend
-from management.models import Org, Team, TeamMembership, UserProfile
-from management.tests.helpers import join, make_user, seed_active_config
+from management.models import Org, ServiceAccount, Team, TeamMembership, UserProfile
+from management.tests.helpers import join, make_token, make_user, seed_active_config
 from management.tests.test_oauth_team_creation import BASE_SETTINGS
 
 User = get_user_model()
@@ -26,7 +27,9 @@ class MyConfig(ConfigSnippet):
 class DeleteCrossOrgMembershipsMigrationTest(TestCase):
     def test_deletes_exactly_the_memberships_in_teams_of_another_org(self):
         loader = MigrationLoader(connection)
-        (delete,) = loader.get_migration("management", "0022_delete_cross_org_memberships").operations
+        (delete,) = loader.get_migration(
+            "management", "0022_delete_cross_org_memberships"
+        ).operations
         old = loader.project_state(BEFORE).apps
         orgs = old.get_model("management", "Org")
         teams = old.get_model("management", "Team")
@@ -36,18 +39,45 @@ class DeleteCrossOrgMembershipsMigrationTest(TestCase):
         north, south = orgs.objects.create(name="north"), orgs.objects.create(name="south")
         north_team = teams.objects.create(name="a", org=north)
         south_team = teams.objects.create(name="a", org=south)
-        moved = profiles.objects.create(user=users.objects.create(username="moved"), org=south)
-        stayed = profiles.objects.create(user=users.objects.create(username="stayed"), org=north)
+        moved = profiles.objects.create(
+            user=users.objects.create(username="moved", email="moved@example.com"), org=south
+        )
+        stayed = profiles.objects.create(
+            user=users.objects.create(username="stayed", email="stayed@example.com"), org=north
+        )
         kept = {
             memberships.objects.create(user_profile=moved, team=south_team).pk,
             memberships.objects.create(user_profile=stayed, team=north_team, is_admin=True).pk,
         }
         memberships.objects.create(user_profile=moved, team=north_team, is_admin=True)
         memberships.objects.create(user_profile=stayed, team=south_team)
+        pipeline = old.get_model("management", "ServiceAccount").objects.create(
+            name="pipeline", team=north_team
+        )
+        old.get_model("management", "Token").objects.create(
+            name="pipeline",
+            user=moved.user,
+            service_account=pipeline,
+            key_hash="h",
+            key_preview="p",
+        )
 
-        delete.code(old, connection.schema_editor())
+        with self.assertLogs("aqueduct", "WARNING") as logs:
+            delete.code(old, connection.schema_editor())
 
         self.assertEqual(set(TeamMembership.objects.values_list("pk", flat=True)), kept)
+        self.assertEqual(
+            logs.output,
+            [
+                "WARNING:aqueduct:Deleting 2 team memberships in teams of another org.",
+                f"WARNING:aqueduct:Deleting membership of moved@example.com (profile {moved.pk}) "
+                f"in team {north_team.pk}, admin: True.",
+                f"WARNING:aqueduct:Deleting membership of stayed@example.com (profile {stayed.pk}) "
+                f"in team {south_team.pk}, admin: False.",
+                f"WARNING:aqueduct:moved@example.com leaves team {north_team.pk} but owns its "
+                f"service account {pipeline.pk} (pipeline); transfer it.",
+            ],
+        )
 
 
 class OrgMoveTest(TestCase):
@@ -61,14 +91,36 @@ class OrgMoveTest(TestCase):
     def teams_of(self, user) -> set[Team]:
         return set(Team.objects.filter(member_profiles__user=user))
 
-    def test_an_org_move_ends_the_memberships_of_the_old_org(self):
+    def test_an_org_move_ends_the_memberships_of_the_old_org_and_logs_them(self):
         south_team = Team.objects.create(name="Robotics", org=self.south)
-        profile = self.user.profile
+        pipeline = ServiceAccount.objects.create(name="pipeline", team=self.north_team)
+        make_token(self.user, "pipeline", service_account=pipeline)
+        profile = UserProfile.objects.get(user=self.user)
         profile.org = self.south
-        profile.save()
+        with self.assertLogs("aqueduct", "INFO") as logs:
+            profile.save()
         join(self.user, south_team)
         profile.save()
         self.assertEqual(self.teams_of(self.user), {south_team})
+        team = self.north_team.pk
+        self.assertEqual(
+            logs.output,
+            [
+                f"INFO:aqueduct:Org move of ana@example.com ends their membership in team {team} "
+                "(E123), admin: True.",
+                f"WARNING:aqueduct:ana@example.com left team {team} but owns its service account "
+                f"{pipeline.pk} (pipeline); transfer it.",
+            ],
+        )
+
+    def test_a_save_without_an_org_move_deletes_nothing(self):
+        profile = UserProfile.objects.get(user=self.user)
+        with CaptureQueriesContext(connection) as queries:
+            profile.save()
+            profile.org = self.south
+            profile.save(update_fields=["language"])
+        self.assertFalse([q for q in queries if q["sql"].startswith("DELETE")])
+        self.assertEqual(self.teams_of(self.user), {self.north_team})
 
     @override_settings(**BASE_SETTINGS)
     def test_a_sign_in_from_another_org_moves_the_user_with_their_oauth_teams(self):
@@ -105,7 +157,7 @@ class TeamAdminTest(TestCase):
             forms += [formset.formset.management_form, *formset.formset.forms]
         data = {}
         for form in forms:
-            for name, field in form.fields.items():
+            for name in form.fields:
                 value = form[name].value()
                 if value is None or value is False:
                     continue

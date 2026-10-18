@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Collection
 from enum import StrEnum
 from typing import Any
@@ -12,7 +13,10 @@ from django.utils.translation import gettext_lazy as _
 
 from management.models.mixins import LimitMixin, MCPServerExclusionMixin, ModelExclusionMixin
 from management.models.org import Org
+from management.models.service_account import ServiceAccount
 from management.models.team import Team
+
+log = logging.getLogger("aqueduct")
 
 
 class Role(StrEnum):
@@ -69,13 +73,51 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
         Team, through="TeamMembership", related_name="member_profiles", blank=True
     )
 
+    _saved_org_id: int | None = None
+
     def __str__(self) -> str:
         return f"{self.user.email} (Profile - {self.org.name})"
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         """An org move ends the memberships in teams of the old org."""
+        update_fields = kwargs.get("update_fields")
+        writes_org = update_fields is None or not {"org", "org_id"}.isdisjoint(update_fields)
+        moved = writes_org and not self._state.adding and self.org_id != self._saved_org_id
         super().save(*args, **kwargs)
-        self.teammembership_set.exclude(team__org_id=self.org_id).delete()
+        if writes_org:
+            self._saved_org_id = self.org_id
+        if moved:
+            self._leave_other_orgs()
+
+    @classmethod
+    def from_db(cls, *args: Any, **kwargs: Any) -> "UserProfile":
+        profile = super().from_db(*args, **kwargs)
+        profile._saved_org_id = profile.__dict__.get("org_id")
+        return profile
+
+    def _leave_other_orgs(self) -> None:
+        dropped = self.teammembership_set.exclude(team__org_id=self.org_id)
+        email = self.user.email
+        for team_id, team, is_admin in dropped.values_list("team_id", "team__name", "is_admin"):
+            log.info(
+                "Org move of %s ends their membership in team %s (%s), admin: %s.",
+                email,
+                team_id,
+                team,
+                is_admin,
+            )
+        owned = ServiceAccount.objects.filter(
+            team__in=dropped.values("team_id"), token__user_id=self.user_id
+        )
+        for account in owned:
+            log.warning(
+                "%s left team %s but owns its service account %s (%s); transfer it.",
+                email,
+                account.team_id,
+                account.pk,
+                account.name,
+            )
+        dropped.delete()
 
     @cached_property
     def _group_names(self) -> frozenset[str]:
