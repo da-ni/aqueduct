@@ -25,6 +25,7 @@ from management.models import (
 )
 from management.models.token import of_org
 from management.request_log import visible_tokens
+from management.signals import mark_rollups_dirty
 from management.tests.helpers import PAGES, make_token, make_user
 from management.usage_report import DAY, MEDIAN, TOKENS, TOTALS, Period, Span, org_requests, series
 
@@ -268,6 +269,20 @@ class UsageRollupTest(TestCase):
             callback()
         self.assertTrue(self.dirty())
 
+    def test_a_change_marked_during_a_refresh_keeps_the_rollups_dirty(self):
+        rollup.refresh(self.now)
+        insert = rollup._insert
+
+        def insert_then_mark(*args, **kwargs):
+            insert(*args, **kwargs)
+            mark_rollups_dirty()
+
+        with mock.patch.object(rollup, "_insert", insert_then_mark):
+            rollup.refresh(self.now)
+        self.assertTrue(self.dirty())
+        rollup.refresh(self.now)
+        self.assertFalse(self.dirty())
+
     def test_moving_an_owner_to_another_org_marks_the_rollups_dirty(self):
         rollup.refresh(self.now)
         profile = self.foreigner.profile
@@ -404,7 +419,33 @@ class UsageRollupTest(TestCase):
         }
         self.assertEqual(totals, raw)
 
-    def test_deleting_a_key_drops_its_windows(self):
+    def test_the_next_refresh_drops_a_deleted_keys_windows(self):
         rollup.refresh_key_windows(self.now)
+        gone = self.foreign_key.pk
         self.foreign_key.delete()
-        self.assertFalse(KeyUsageWindow.objects.filter(token_id=self.foreign_key.pk).exists())
+        rollup.refresh_key_windows(self.now)
+        self.assertFalse(KeyUsageWindow.objects.filter(token_id=gone).exists())
+
+    def test_rows_left_for_a_deleted_key_or_org_are_not_read(self):
+        org = Org.objects.create(name="short-lived")
+        account = ServiceAccount.objects.create(
+            name="gone", team=Team.objects.create(name="gone", org=org)
+        )
+        key = make_token(self.member, "gone", service_account=account)
+        self.log(key, timedelta(hours=3), input_tokens=500, response_time_ms=40)
+        rollup.refresh(self.now)
+        rollup.refresh_key_windows(self.now)
+        key_id, org_id = key.pk, org.pk
+        org.delete()
+        self.assertTrue(KeyUsageWindow.objects.filter(token_id=key_id).exists())
+        self.assertTrue(OrgUsageHour.objects.filter(org_id=org_id).exists())
+        self.assertTrue(OrgLatencyHour.objects.filter(org_id=org_id).exists())
+
+        self.assert_matches_raw()
+        period = Period.last(Span.WEEK, self.now)
+        self.assertNotIn(org_id, rollup.org_tokens(None, period))
+        raw = {
+            row.pop("token_id"): Activity(**row)
+            for row in period.of(org_requests(None)).values("token_id").annotate(**TOTALS)
+        }
+        self.assertEqual(rollup.key_window_totals(None, None, period), raw)

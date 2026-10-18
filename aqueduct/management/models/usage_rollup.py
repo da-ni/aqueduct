@@ -10,7 +10,9 @@ HOURLY = "org-hours"
 
 class OrgUsageHour(models.Model):
     hour = models.DateTimeField()
-    org = models.ForeignKey(Org, null=True, on_delete=models.CASCADE, related_name="+")
+    org = models.ForeignKey(
+        Org, null=True, on_delete=models.DO_NOTHING, related_name="+", db_constraint=False
+    )
     model = models.CharField(max_length=255)
     ok = models.PositiveIntegerField()
     rate_limited = models.PositiveIntegerField()
@@ -32,7 +34,9 @@ class OrgUsageHour(models.Model):
 
 class OrgLatencyHour(models.Model):
     hour = models.DateTimeField()
-    org = models.ForeignKey(Org, null=True, on_delete=models.CASCADE, related_name="+")
+    org = models.ForeignKey(
+        Org, null=True, on_delete=models.DO_NOTHING, related_name="+", db_constraint=False
+    )
     model = models.CharField(max_length=255)
     bucket = models.SmallIntegerField()
     requests = models.PositiveIntegerField()
@@ -50,7 +54,9 @@ class OrgLatencyHour(models.Model):
 
 class KeyUsageWindow(models.Model):
     days = models.PositiveSmallIntegerField()
-    token = models.ForeignKey(Token, on_delete=models.CASCADE, related_name="+")
+    token = models.ForeignKey(
+        Token, on_delete=models.DO_NOTHING, related_name="+", db_constraint=False
+    )
     model = models.CharField(max_length=255)
     requests = models.PositiveIntegerField()
     failed = models.PositiveIntegerField()
@@ -74,6 +80,7 @@ class UsageRollupState(models.Model):
     sealed_until = models.DateTimeField(null=True)
     window_start = models.DateTimeField(null=True)
     dirty = models.BooleanField(default=False)
+    changes = models.PositiveBigIntegerField(default=0)
     time_zone = models.CharField(max_length=64)
 
     def __str__(self) -> str:
