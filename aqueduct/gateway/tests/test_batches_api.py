@@ -1,15 +1,18 @@
 import json
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
+from django.utils import timezone
 
 from gateway.config import get_router_config
 from gateway.tests.utils import _build_chat_headers, _build_chat_payload
 from gateway.tests.utils.base import GatewayBatchesTestCase
 from management.models import Batch as BatchModel
 from management.models import BatchStatus, FileObject, Org, ServiceAccount, Team, Token, UserProfile
+from management.models import Request as RequestModel
 from management.tests.helpers import router_config
 from mock_api.mock_configs import MockConfig, MockPlainTextConfig, batch_detail_response
 
@@ -308,6 +311,52 @@ class TestBatchesAPI(GatewayBatchesTestCase):
         resp = self.client.post(f"/batches/{batch.id}/cancel")
 
         self.assertEqual(resp.status_code, 200, resp.content)
+
+    def _session_batch(self, *key_expiries) -> tuple:
+        user = User.objects.create_user(username="keeper", email="keeper@example.com")
+        UserProfile.objects.create(user=user, org=Org.objects.get(name="E060"))
+        keys = []
+        for i, expires_at in enumerate(key_expiries):
+            key = Token(name=f"key {i}", user=user, expires_at=expires_at)
+            key._set_new_key()
+            key.save()
+            keys.append(key)
+        batch = BatchModel.objects.create(
+            completion_window="24h",
+            created_at=1773058900,
+            endpoint=self.url_chat,
+            id="batch-session",
+            input_file=FileObject.objects.create(
+                id="file-session",
+                bytes=1,
+                created_at=1773058900,
+                filename="in.jsonl",
+                purpose="batch",
+                token=keys[0],
+                upstream_url=settings.AQUEDUCT_FILES_API_URL,
+            ),
+            status=BatchStatus.IN_PROGRESS,
+            token=keys[0],
+        )
+        self.client.force_login(user)
+        return batch, keys
+
+    def test_session_skips_an_expired_personal_key(self):
+        batch, (_, live) = self._session_batch(timezone.now() - timedelta(days=1), None)
+
+        resp = self.client.post(f"/batches/{batch.id}/cancel")
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(RequestModel.objects.get(path=f"/batches/{batch.id}/cancel").token, live)
+
+    def test_session_whose_personal_keys_all_expired_is_refused(self):
+        batch, _ = self._session_batch(timezone.now() - timedelta(days=1))
+
+        resp = self.client.post(f"/batches/{batch.id}/cancel")
+
+        self.assertEqual(resp.status_code, 401, resp.content)
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, BatchStatus.IN_PROGRESS)
 
 
 class TestBatchesServiceAccountAPI(GatewayBatchesTestCase):

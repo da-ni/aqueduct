@@ -37,6 +37,14 @@ def token_from_request(request: HttpRequest) -> str | None:
         return token_key
 
 
+def rejection(token: Token) -> str | None:
+    if token.is_expired:
+        return "has expired"
+    if not token.service_account_id and not token.user.is_active:
+        return "belongs to a deactivated user"
+    return None
+
+
 def usable_token(token_key: str) -> Token | None:
     token_instance = Token.find_by_key(token_key)
 
@@ -48,19 +56,13 @@ def usable_token(token_key: str) -> Token | None:
         )
         return None
 
-    if token_instance.is_expired:
+    reason = rejection(token_instance)
+    if reason:
         logger.warning(
-            "Authentication failed: Token %s (%s) has expired.",
+            "Authentication failed: Token %s (%s) %s.",
             token_instance.name,
             token_instance.key_preview,
-        )
-        return None
-
-    if not token_instance.service_account_id and not token_instance.user.is_active:
-        logger.warning(
-            "Authentication failed: Token %s (%s) belongs to a deactivated user.",
-            token_instance.name,
-            token_instance.key_preview,
+            reason,
         )
         return None
 

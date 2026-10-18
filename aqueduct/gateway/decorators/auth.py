@@ -10,7 +10,7 @@ from django.core.cache import cache
 from django.core.handlers.asgi import ASGIRequest
 from tos.models import has_user_agreed_latest_tos  # type: ignore[import-untyped]
 
-from gateway.authentication import token_from_request, usable_token
+from gateway.authentication import rejection, token_from_request, usable_token
 from gateway.decorators.types import AsyncView, Decorator, ViewResult
 from gateway.response_error import error_response
 from management.models import Token
@@ -60,16 +60,15 @@ def token_authenticated(token_auth_only: bool) -> Decorator:
                 log.error("Token not found in request")
                 return unauthorized_response
 
+            token: Token | None = None
             if token_key:
                 token = await sync_to_async(usable_token)(token_key)
             else:
-                # user authenticated but not via token -> use Token.objects for async ORM
-                token = (
-                    await Token.objects.select_related(*RELATED)
-                    .filter(personal(request.user.pk))
-                    .order_by("pk")
-                    .afirst()
-                )
+                keys = Token.objects.select_related(*RELATED).filter(personal(request.user.pk))
+                async for key in keys.order_by("pk"):
+                    if rejection(key) is None:
+                        token = key
+                        break
 
             if not token:
                 log.error("Token not found during authentication")
