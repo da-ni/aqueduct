@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from enum import StrEnum
 from typing import Any
 
@@ -29,6 +30,12 @@ class UserGroup(models.TextChoices):
     ADMIN = "admin", _(Role.ADMIN)
     ORG_ADMIN = "org-admin", _(Role.ORG_ADMIN)
     USER = "user", _(Role.MEMBER)
+
+    @classmethod
+    def of(cls, names: Collection[str]) -> "UserGroup | None":
+        return next(
+            (group for group in (cls.ADMIN, cls.ORG_ADMIN, cls.USER) if group in names), None
+        )
 
 
 class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, models.Model):
@@ -67,7 +74,7 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
 
     @cached_property
     def _group_names(self) -> frozenset[str]:
-        return frozenset(self.user.groups.values_list("name", flat=True))
+        return frozenset(group.name for group in self.user.groups.all())
 
     def refresh_from_db(self, *args: Any, **kwargs: Any) -> None:
         super().refresh_from_db(*args, **kwargs)
@@ -75,10 +82,10 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
 
     @property
     def group(self) -> UserGroup:
-        for group in (UserGroup.ADMIN, UserGroup.ORG_ADMIN, UserGroup.USER):
-            if group in self._group_names:
-                return group
-        raise ValidationError("User has no group")
+        group = UserGroup.of(self._group_names)
+        if group is None:
+            raise ValidationError("User has no group")
+        return group
 
     @group.setter
     def group(self, group: str) -> None:
@@ -97,6 +104,10 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
             raise ObjectDoesNotExist(
                 f"The group '{group}' does not exist in the database."
             ) from None
+
+    @property
+    def rank(self) -> UserGroup:
+        return UserGroup.of(self._group_names) or UserGroup.USER
 
     def clean(self) -> None:
         """
@@ -118,10 +129,7 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
 
     def is_admin(self) -> bool:
         """Checks if the user has the global 'admin' group."""
-        try:
-            return self.group == UserGroup.ADMIN
-        except ValidationError:  # Raised if user has no valid group assigned
-            return False
+        return self.rank is UserGroup.ADMIN
 
     def is_org_admin(self, org_to_check: Org) -> bool:
         """
@@ -130,15 +138,13 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
         1. Superusers are admins of everything.
         2. Users with the 'org-admin' group are admins ONLY of their own organization.
         """
-        try:
-            user_group = self.group
-            if user_group == UserGroup.ADMIN:
+        match self.rank:
+            case UserGroup.ADMIN:
                 return True
-            if user_group == UserGroup.ORG_ADMIN:
+            case UserGroup.ORG_ADMIN:
                 return self.org == org_to_check
-        except ValidationError:
-            return False
-        return False
+            case _:
+                return False
 
     def openable_teams(self) -> "models.QuerySet[Team]":
         if self.is_admin():

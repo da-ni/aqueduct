@@ -44,11 +44,13 @@ PAGE_SIZE = 50
 
 
 def role_of(groups: set[str], membership: TeamMembership) -> Role:
-    if UserGroup.ADMIN in groups:
-        return Role.ADMIN
-    if UserGroup.ORG_ADMIN in groups and membership.user_profile.org_id == membership.team.org_id:
-        return Role.ORG_ADMIN
-    return membership.role
+    match UserGroup.of(groups):
+        case UserGroup.ADMIN:
+            return Role.ADMIN
+        case UserGroup.ORG_ADMIN if membership.user_profile.org_id == membership.team.org_id:
+            return Role.ORG_ADMIN
+        case _:
+            return membership.role
 
 
 def _bar_widths(activity: dict[int, Activity]) -> dict[int, int]:

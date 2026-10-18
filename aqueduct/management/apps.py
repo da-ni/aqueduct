@@ -17,6 +17,7 @@ class AqueductManagementConfig(AppConfig):
 
     def ready(self):
         from management import signals
+        from management.models import UserGroup
 
         signals.connect()
 
@@ -47,7 +48,7 @@ class AqueductManagementConfig(AppConfig):
                 except ObjectDoesNotExist:
                     return
 
-                if group == "admin":
+                if group is UserGroup.ADMIN:
                     cache.set(f"django:tos:skip_tos_check:{instance.id}", True, version=key_version)
                     log.info("Added admin user '%s' to TOS cache", instance.email)
 
@@ -73,7 +74,7 @@ class AqueductManagementConfig(AppConfig):
                 cache.set_many(
                     {
                         f"django:tos:skip_tos_check:{user.id}": True
-                        for user in get_user_model().objects.filter(groups__name="admin")
+                        for user in get_user_model().objects.filter(groups__name=UserGroup.ADMIN)
                     },
                     version=key_version,
                 )
