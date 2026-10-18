@@ -1,5 +1,5 @@
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 from django.test import SimpleTestCase
 from litellm.types.utils import ModelResponseStream
@@ -13,22 +13,28 @@ from management.models import Usage
 
 
 class TestRawJsonResponse(SimpleTestCase):
-    def test_content_is_serialized_lazily_and_cached(self):
+    def test_changes_to_the_data_before_the_first_read_reach_the_content(self):
+        # Decorators such as `normalize_reasoning_fields` edit `response.data` after the view built
+        # the response, so the content is serialized only when first read.
         response = RawJsonResponse(data={"key": "value"})
-        # Nothing is serialized before `.content` is accessed for the first time.
-        self.assertIsNone(response._content)
+        response.data["key"] = "changed"
+        self.assertEqual(json.loads(response.content), {"key": "changed"})
 
-        original_dump = response._dump_data
-        with patch.object(response, "_dump_data", side_effect=original_dump) as dump:
-            first = response.content
-            second = response.content
-            third = response.content
+    def test_content_is_serialized_once(self):
+        dumps = []
 
-        # Accessing `.content` multiple times must not re-serialize the data.
-        dump.assert_called_once()
-        self.assertEqual(first, second)
-        self.assertEqual(second, third)
-        self.assertEqual(json.loads(first), {"key": "value"})
+        class Counted(BaseModel):
+            foo: str
+
+            def model_dump(self, **kwargs):
+                dumps.append(self)
+                return super().model_dump(**kwargs)
+
+        response = RawJsonResponse(data=Counted(foo="bar"))
+        contents = {response.content for _ in range(3)}
+
+        self.assertEqual(len(dumps), 1)
+        self.assertEqual([json.loads(content) for content in contents], [{"foo": "bar"}])
 
     def test_data_serialized_to_json(self):
         class Nested(BaseModel):
