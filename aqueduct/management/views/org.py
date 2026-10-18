@@ -45,7 +45,10 @@ class OrgView(BaseAqueductView, TemplateView):
 
 
 class OrganizationView(BaseAqueductView, OrgAdminRequiredMixin, TemplateView):
-    template_name = "management/organization.html"
+    def get_template_names(self) -> list[str]:
+        if self.viewed_org is None:
+            return ["management/organizations.html"]
+        return ["management/organization.html"]
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)

@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 09:23+0000\n"
+"POT-Creation-Date: 2026-10-18 14:54+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -1190,12 +1190,6 @@ msgstr "Kein Team passt."
 msgid "This organization has no teams yet."
 msgstr "Diese Organisation hat noch keine Teams."
 
-msgid "Organizations"
-msgstr "Organisationen"
-
-msgid "No organizations yet."
-msgstr "Noch keine Organisationen."
-
 #, python-format
 msgid "%(teams)s team"
 msgid_plural "%(teams)s teams"
@@ -1239,6 +1233,12 @@ msgstr "Alle in %(name)s"
 
 msgid "None"
 msgstr "Keine"
+
+msgid "Organizations"
+msgstr "Organisationen"
+
+msgid "No organizations yet."
+msgstr "Noch keine Organisationen."
 
 msgid "Data protection information"
 msgstr "Datenschutzinformation"
