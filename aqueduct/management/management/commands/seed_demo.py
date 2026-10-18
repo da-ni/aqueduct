@@ -12,16 +12,14 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import connection, transaction
 from django.utils import timezone
 
-from gateway.config import model_names
 from management.demo.builder import Builder, delete_seeded, seed_exists
 from management.demo.bulk import insert_log
 from management.demo.catalog import (
     DATALAB_PROFILE,
-    Kind,
-    KindDefaults,
     ModelSpec,
     kind_defaults,
     read_model_mix,
+    require_served,
     router_config_for,
 )
 from management.demo.traffic import Traffic, TrafficProfile
@@ -36,7 +34,6 @@ DEFAULTS: dict[str, Any] = {
     "models_file": DATALAB_PROFILE,
 }
 SQLITE_WARN_ROWS = 500_000
-SMALL_ORG_SERVICE_ACCOUNTS = 3
 KEY_AGE = timedelta(days=7)
 
 
@@ -85,16 +82,16 @@ class Command(BaseCommand):
         profile = yaml.safe_load(DATALAB_PROFILE.read_text())
         kinds = kind_defaults(profile["kinds"])
         if options["write_router_config"]:
-            self.write_router_config(
-                self.model_mix(options["models_file"], kinds), options["write_router_config"]
-            )
+            models = read_model_mix(options["models_file"], kinds)
+            self.write_router_config(models, options["write_router_config"])
             return
         self.check_target(force=options["force"])
         if options["delete"]:
             with transaction.atomic():
                 self.delete()
         else:
-            models = self.checked(self.model_mix(options["models_file"], kinds))
+            models = read_model_mix(options["models_file"], kinds)
+            require_served(models)
             traffic = TrafficProfile.parse(profile["traffic"])
             zone = self.zone(options["local_time_zone"])
             with transaction.atomic():
@@ -123,21 +120,6 @@ class Command(BaseCommand):
         self.stdout.write(f"Deleted {self.summary(counts)} in {time.monotonic() - started:.1f} s")
 
     @staticmethod
-    def model_mix(path: Path, kinds: dict[Kind, KindDefaults]) -> list[ModelSpec]:
-        try:
-            models = read_model_mix(path, kinds)
-        except (OSError, yaml.YAMLError, KeyError, TypeError, ValueError, ZeroDivisionError) as exc:
-            msg = (
-                f"Cannot read {path}: {exc!r}. Expected `models:` as a list like "
-                f"{DEFAULTS['models_file']}, kind one of {', '.join(Kind)}."
-            )
-            raise CommandError(msg) from exc
-        if not models:
-            msg = f"{path} lists no models."
-            raise CommandError(msg)
-        return models
-
-    @staticmethod
     def zone(name: str) -> ZoneInfo:
         try:
             return ZoneInfo(name)
@@ -150,17 +132,6 @@ class Command(BaseCommand):
         self.stdout.write(
             f"Wrote {path}. Point LITELLM_ROUTER_CONFIG_FILE_PATH at it, then run seed_demo again."
         )
-
-    def checked(self, models: list[ModelSpec]) -> list[ModelSpec]:
-        missing = sorted({m.name for m in models} - set(model_names()))
-        if missing:
-            msg = (
-                f"Not in the router config ({settings.LITELLM_ROUTER_CONFIG_FILE_PATH}): "
-                f"{', '.join(missing)}. Requests may only name served models. Pass "
-                "--write-router-config <path> to write a router config that serves them."
-            )
-            raise CommandError(msg)
-        return models
 
     def seed(
         self,
@@ -179,12 +150,7 @@ class Command(BaseCommand):
             )
         started = time.monotonic()
         builder = Builder(traffic, rng, models, start - KEY_AGE)
-        cap = settings.MAX_SERVICE_ACCOUNTS_PER_TEAM
-        builder.org(
-            "campus", options["teams"], min(options["service_accounts"], cap * options["teams"])
-        )
-        small_accounts = min(SMALL_ORG_SERVICE_ACCOUNTS, cap * options["small_teams"])
-        builder.org("institute", options["small_teams"], small_accounts)
+        builder.orgs(options["teams"], options["small_teams"], options["service_accounts"])
         keys = builder.keys
         self.stdout.write(
             f"Created 2 orgs, {builder.serial:,} users, {len(keys.personal):,} personal "

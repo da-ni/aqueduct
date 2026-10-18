@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from itertools import accumulate
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import UNUSABLE_PASSWORD_PREFIX
 from django.contrib.auth.models import Group
@@ -35,6 +36,7 @@ LISTED_STRANGERS = 20
 
 SECOND_TEAM_SHARE = 0.1
 TEAMS_PER_ORG_ADMIN = 100
+SMALL_ORG_SERVICE_ACCOUNTS = 3
 TEAM_SIZE = (3, 5)
 ADMINS_PER_TEAM = (1, 1, 2)
 KEYS_PER_USER = ((1, 2, 3), (6, 3, 1))
@@ -132,6 +134,11 @@ class Builder:
         self.keys = SeededKeys()
         self.groups = {g.name: g.id for g in Group.objects.filter(name__in=UserGroup.values)}
         self.serial = 0
+
+    def orgs(self, teams: int, small_teams: int, service_accounts: int) -> None:
+        cap = settings.MAX_SERVICE_ACCOUNTS_PER_TEAM
+        self.org("campus", teams, min(service_accounts, cap * teams))
+        self.org("institute", small_teams, min(SMALL_ORG_SERVICE_ACCOUNTS, cap * small_teams))
 
     def org(self, name: str, teams: int, service_accounts: int) -> None:
         org = Org.objects.create(name=f"{ORG_PREFIX}{name}")

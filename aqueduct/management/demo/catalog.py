@@ -7,7 +7,10 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from django.conf import settings
+from django.core.management.base import CommandError
 
+from gateway.config import model_names
 from management.model_catalog import hugging_face_repo, quantization_in
 
 DATALAB_PROFILE = Path(__file__).with_name("datalab.yaml")
@@ -110,7 +113,29 @@ def model_spec(entry: dict[str, Any], kinds: dict[Kind, KindDefaults]) -> ModelS
 
 
 def read_model_mix(path: Path, kinds: dict[Kind, KindDefaults]) -> list[ModelSpec]:
-    return [model_spec(m, kinds) for m in yaml.safe_load(path.read_text())["models"]]
+    try:
+        models = [model_spec(m, kinds) for m in yaml.safe_load(path.read_text())["models"]]
+    except (OSError, yaml.YAMLError, KeyError, TypeError, ValueError, ZeroDivisionError) as exc:
+        msg = (
+            f"Cannot read {path}: {exc!r}. Expected `models:` as a list like "
+            f"{DATALAB_PROFILE}, kind one of {', '.join(Kind)}."
+        )
+        raise CommandError(msg) from exc
+    if not models:
+        msg = f"{path} lists no models."
+        raise CommandError(msg)
+    return models
+
+
+def require_served(models: Sequence[ModelSpec]) -> None:
+    missing = sorted({m.name for m in models} - set(model_names()))
+    if missing:
+        msg = (
+            f"Not in the router config ({settings.LITELLM_ROUTER_CONFIG_FILE_PATH}): "
+            f"{', '.join(missing)}. Requests may only name served models. Pass "
+            "--write-router-config <path> to write a router config that serves them."
+        )
+        raise CommandError(msg)
 
 
 def route_for(model: ModelSpec) -> str:
