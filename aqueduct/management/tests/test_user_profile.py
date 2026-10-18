@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from management.models import Org, UserProfile
@@ -32,3 +33,24 @@ class RoleTest(TestCase):
         other.user.groups.set([Group.objects.get(name="admin")])
         self.profile.refresh_from_db()
         self.assertTrue(self.profile.is_admin())
+
+    def test_prefetched_groups_answer_the_role_without_a_query(self):
+        self.profile.user.groups.set([Group.objects.get(name="org-admin")])
+        profile = UserProfile.objects.select_related("user", "org").prefetch_related("user__groups")
+        found = profile.get(pk=self.profile.pk)
+        with self.assertNumQueries(0):
+            self.assertEqual(found.group, "org-admin")
+            self.assertEqual(found.rank, "org-admin")
+            self.assertTrue(found.is_org_admin(self.org))
+
+    def test_the_highest_group_decides_and_no_group_ranks_as_a_user(self):
+        user = self.profile.user
+        user.groups.set(Group.objects.filter(name__in=["user", "org-admin", "admin"]))
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.group, "admin")
+        user.groups.clear()
+        self.profile.refresh_from_db()
+        with self.assertRaises(ValidationError):
+            self.profile.group  # noqa: B018
+        self.assertEqual(self.profile.rank, "user")
+        self.assertFalse(self.profile.is_org_admin(self.org))
