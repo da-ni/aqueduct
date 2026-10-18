@@ -3,9 +3,19 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import override_settings
+from django.test import TestCase, override_settings
 
-from management.models import Org, Snippet, SnippetType, Token, UserGroup, UserProfile
+from management.models import (
+    Org,
+    ServiceAccount,
+    Snippet,
+    SnippetType,
+    Team,
+    TeamMembership,
+    Token,
+    UserGroup,
+    UserProfile,
+)
 
 User = get_user_model()
 
@@ -25,6 +35,43 @@ def make_token(user, name: str, **kwargs) -> Token:
     token._set_new_key()
     token.save()
     return token
+
+
+def join(user, team: Team, is_admin: bool = False) -> None:
+    TeamMembership.objects.create(user_profile=user.profile, team=team, is_admin=is_admin)
+
+
+@PAGES
+class RoleWorld(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = Org.objects.create(name="lab-org")
+        cls.other_org = Org.objects.create(name="other-org")
+        cls.team = Team.objects.create(name="NLP Lab", org=cls.org, description="Language tech")
+        cls.side_team = Team.objects.create(name="Robotics", org=cls.org)
+        cls.foreign_team = Team.objects.create(name="Foreign", org=cls.other_org)
+
+        cls.admin = make_user("admin", cls.org, UserGroup.ADMIN)
+        cls.org_admin = make_user("org-admin", cls.org, UserGroup.ORG_ADMIN)
+        cls.team_admin = make_user("team-admin", cls.org)
+        cls.member = make_user("member", cls.org)
+        cls.solo = make_user("solo", cls.org)
+        cls.other_org_admin = make_user("other-org-admin", cls.other_org, UserGroup.ORG_ADMIN)
+        cls.foreigner = make_user("foreigner", cls.other_org)
+        join(cls.team_admin, cls.team, is_admin=True)
+        join(cls.member, cls.team)
+
+        cls.solo_key = make_token(cls.solo, "solo-laptop")
+        cls.member_key = make_token(cls.member, "member-laptop")
+        cls.pipeline = ServiceAccount.objects.create(name="pipeline", team=cls.team)
+        cls.pipeline_key = make_token(cls.team_admin, "pipeline", service_account=cls.pipeline)
+        cls.side_account = ServiceAccount.objects.create(name="side-sa", team=cls.side_team)
+        cls.side_key = make_token(cls.team_admin, "side-sa", service_account=cls.side_account)
+        cls.foreign_key = make_token(cls.foreigner, "foreign-laptop")
+
+    def as_user(self, user):
+        self.client.force_login(user)
+        return self.client
 
 
 def secret_on(response) -> str | None:
