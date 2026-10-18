@@ -121,7 +121,7 @@ class Expiry:
         if expires_at <= now:
             return cls(gettext("Expired"), gettext("Expired"), "st-err font-semibold", expires_at)
         if expires_at - now <= EXPIRY_WARNING:
-            days = (expires_at - now).days
+            days = (timezone.localdate(expires_at) - timezone.localdate(now)).days
             if days == 0:
                 label, sentence = gettext("Today"), gettext("Expires today")
             else:

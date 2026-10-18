@@ -437,7 +437,7 @@ class KeyEditAndDeleteReturnTest(ApiKeysPagesTestBase):
 
 class ExpiryTest(SimpleTestCase):
     def test_labels_and_sentences(self):
-        now = timezone.now()
+        now = datetime(2026, 10, 18, 20, tzinfo=UTC)
         later = now + timedelta(days=30)
         day = f"{timezone.localtime(later):%-d %b %Y}"
         warn, err = "st-warn font-semibold", "st-err font-semibold"
@@ -445,6 +445,8 @@ class ExpiryTest(SimpleTestCase):
             (None, "No expiry", "Never expires", "muted"),
             (now - timedelta(minutes=1), "Expired", "Expired", err),
             (now + timedelta(hours=3), "Today", "Expires today", warn),
+            (now + timedelta(hours=14), "In 1 day", "Expires in 1 day", warn),
+            (now + timedelta(days=4, hours=14), "In 5 days", "Expires in 5 days", warn),
             (now + timedelta(days=1, hours=1), "In 1 day", "Expires in 1 day", warn),
             (now + timedelta(days=5, hours=1), "In 5 days", "Expires in 5 days", warn),
             (later, day, f"Expires {day}", "muted"),
