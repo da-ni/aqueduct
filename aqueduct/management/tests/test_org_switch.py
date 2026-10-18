@@ -104,7 +104,7 @@ class OrgSwitchTest(OrgSwitchTestBase):
             with self.subTest(user=user.username):
                 self.as_user(user)
                 response = self.switch(self.other_org.id)
-                self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
+                self.assertEqual(response.status_code, 404)
                 self.assertNotIn(SESSION_KEY, self.client.session)
                 self.assertEqual(self.viewed("usage", org=self.other_org.id), self.org)
                 self.assertEqual(self.viewed("requests", org="all"), self.org)

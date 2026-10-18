@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 from django.contrib import messages
 from django.db.models import Count
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -17,7 +17,7 @@ from management.models import Org
 from management.org_choice import switch, without_org_params
 from management.org_overview import org_page
 from management.team_overview import team_rows
-from management.views.base import BaseAqueductView, OrgAdminRequiredMixin
+from management.views.base import BaseAqueductView
 
 if TYPE_CHECKING:
     from django.utils.functional import _StrPromise
@@ -45,7 +45,7 @@ class OrgView(BaseAqueductView, TemplateView):
         return context
 
 
-class OrganizationView(BaseAqueductView, OrgAdminRequiredMixin, TemplateView):
+class OrganizationView(BaseAqueductView, TemplateView):
     def get_template_names(self) -> list[str]:
         if isinstance(self.viewer.chosen, EveryOrg):
             return ["management/organizations.html"]
@@ -53,11 +53,12 @@ class OrganizationView(BaseAqueductView, OrgAdminRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        chosen = self.viewer.chosen
-        if isinstance(chosen, EveryOrg):
-            context["orgs"] = Org.objects.annotate(team_count=Count("teams")).order_by("name")
+        viewer = self.viewer
+        if isinstance(viewer.chosen, EveryOrg):
+            context["orgs"] = viewer.orgs().annotate(team_count=Count("teams")).order_by("name")
         else:
-            context.update(org_object=chosen.org, page=org_page(chosen.org))
+            org = get_object_or_404(viewer.orgs(), pk=viewer.chosen.org.pk)
+            context.update(org_object=org, page=org_page(org))
         return context
 
 
@@ -97,8 +98,7 @@ class OrgAvailabilityEditView(OrgEditView):
 class OrgSwitchView(BaseAqueductView, View):
     def post(self, request, *args, **kwargs) -> HttpResponse:
         if not self.viewer.can_switch_org:
-            messages.error(request, gettext("Only platform admins can do that."))
-            return redirect(reverse("org"))
+            raise Http404
 
         choice = switch(request, request.POST.get("org_id", ""))
         messages.success(

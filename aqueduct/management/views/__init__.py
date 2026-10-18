@@ -20,11 +20,11 @@ from .service_account import (
 )
 from .settings import LanguageView, SettingsView
 from .team import (
-    TeamAdminManagementView,
     TeamAvailabilityEditView,
     TeamCreateView,
     TeamDeleteView,
     TeamDetailView,
+    TeamMembersView,
     TeamUpdateView,
 )
 from .tokens import (

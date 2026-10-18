@@ -594,9 +594,7 @@ class ServiceAccountKeyDetailTest(ApiKeysPagesTestBase):
         old_hash = self.pipeline_key.key_hash
         self.client.force_login(self.plain_member)
         response = self.client.post(reverse("token_regenerate", args=[self.pipeline_key.id]))
-        self.assertRedirects(
-            response, reverse("team", args=[self.team.id]), fetch_redirect_response=False
-        )
+        self.assertEqual(response.status_code, 404)
         self.pipeline_key.refresh_from_db()
         self.assertEqual(self.pipeline_key.key_hash, old_hash)
 

@@ -125,11 +125,11 @@ class TeamDetailTest(RoleWorld):
             ("service_account_delete", [self.pipeline.id]),
             ("token_regenerate", [self.pipeline_key.id]),
             ("team_delete", [self.team.id]),
-            ("team_admins_manage", [self.team.id]),
+            ("team_members", [self.team.id]),
         ]:
             self.assertNotContains(response, reverse(name, args=args))
         self.assertNotContains(response, 'name="email"')
-        self.assertNotContains(response, "user_profile_to_remove_id")
+        self.assertNotContains(response, 'name="profile_id"')
 
     def test_team_admin_manages_members_and_service_accounts(self):
         response = self.as_user(self.team_admin).get(self.url())
@@ -143,10 +143,25 @@ class TeamDetailTest(RoleWorld):
         ]:
             self.assertContains(response, reverse(name, args=args))
         self.assertNotContains(response, reverse("team_delete", args=[self.team.id]))
-        self.assertNotContains(response, reverse("team_admins_manage", args=[self.team.id]))
+        self.assertNotContains(response, 'value="grant_admin"')
         self.assertContains(response, 'name="email"')
         self.assertNotContains(response, "solo@example.com")
         self.assertNotContains(response, "<option")
+
+    def test_the_edit_link_shows_exactly_for_those_the_edit_page_admits(self):
+        edit = reverse("team_edit", args=[self.team.id])
+        for user, admitted in (
+            (self.member, False),
+            (self.team_admin, True),
+            (self.org_admin, True),
+        ):
+            with self.subTest(user=user.username):
+                client = self.as_user(user)
+                page = client.get(self.url())
+                self.assertEqual(f'href="{edit}"' in page.content.decode(), admitted)
+                self.assertEqual(client.get(edit).status_code, 200 if admitted else 404)
+        page = self.as_user(self.team_admin).get(self.url())
+        self.assertNotContains(page, 'aria-label="Edit limits"')
 
     def test_owner_of_a_service_account_is_pointed_to_the_transfer(self):
         response = self.as_user(self.team_admin).get(self.url())
@@ -161,16 +176,16 @@ class TeamDetailTest(RoleWorld):
             "</div>",
             owner_row,
         )
-        self.assertNotIn("user_profile_to_remove_id", owner_row)
+        self.assertNotIn('value="remove"', owner_row)
         member_row = page.split("member@example.com</span>", 1)[1].split("</tr>", 1)[0]
         self.assertIn(f'value="{self.member.profile.id}"', member_row)
 
     def test_org_admin_may_appoint_team_admins_and_finds_delete_on_the_edit_page(self):
         response = self.as_user(self.org_admin).get(self.url())
         self.assertNotContains(response, reverse("team_delete", args=[self.team.id]))
-        self.assertContains(response, 'name="action" value="add"')
+        self.assertContains(response, 'name="action" value="grant_admin"')
         self.assertContains(response, ">Make admin</button>")
-        self.assertContains(response, 'name="action" value="remove"')
+        self.assertContains(response, 'name="action" value="revoke_admin"')
         self.assertContains(response, ">Remove admin</button>")
 
     def test_only_admins_see_the_service_account_cap(self):
@@ -187,7 +202,10 @@ class TeamDetailTest(RoleWorld):
         self.assertNotContains(
             response, '<details class="group flex w-full flex-col items-end sm:w-auto" open>'
         )
-        response = self.as_user(self.team_admin).post(self.url(), {"email": "nobody@example.com"})
+        response = self.as_user(self.team_admin).post(
+            reverse("team_members", args=[self.team.id]),
+            {"action": "add", "email": "nobody@example.com"},
+        )
         self.assertContains(
             response, '<details class="group flex w-full flex-col items-end sm:w-auto" open>'
         )
@@ -334,21 +352,26 @@ class TeamMembershipTest(RoleWorld):
     def url(self) -> str:
         return reverse("team", args=[self.team.id])
 
+    def change(self, client, action: str, **data):
+        return client.post(reverse("team_members", args=[self.team.id]), {"action": action, **data})
+
     def members(self) -> set[str]:
         return set(self.team.member_profiles.values_list("user__username", flat=True))
 
     def test_team_admin_adds_by_email_ignoring_case_and_removes_a_member(self):
         client = self.as_user(self.team_admin)
-        response = client.post(self.url(), {"email": "Solo@Example.com"})
+        response = self.change(client, "add", email="Solo@Example.com")
         self.assertRedirects(response, self.url(), fetch_redirect_response=False)
         self.assertIn("solo", self.members())
-        client.post(self.url(), {"user_profile_to_remove_id": self.solo.profile.id})
+        self.change(client, "remove", profile_id=self.solo.profile.id)
         self.assertNotIn("solo", self.members())
 
     def test_team_admin_who_leaves_lands_on_the_teams_page(self):
         TeamMembership.objects.filter(user_profile=self.member.profile).update(is_admin=True)
         response = self.as_user(self.member).post(
-            self.url(), {"user_profile_to_remove_id": self.member.profile.id}, follow=True
+            reverse("team_members", args=[self.team.id]),
+            {"action": "remove", "profile_id": self.member.profile.id},
+            follow=True,
         )
         self.assertEqual(response.redirect_chain, [(reverse("org"), 302)])
         self.assertContains(response, "member@example.com removed.")
@@ -356,8 +379,8 @@ class TeamMembershipTest(RoleWorld):
 
     def test_org_admin_who_leaves_stays_on_the_team(self):
         join(self.org_admin, self.team)
-        response = self.as_user(self.org_admin).post(
-            self.url(), {"user_profile_to_remove_id": self.org_admin.profile.id}
+        response = self.change(
+            self.as_user(self.org_admin), "remove", profile_id=self.org_admin.profile.id
         )
         self.assertRedirects(response, self.url(), fetch_redirect_response=False)
         self.assertNotIn("org-admin", self.members())
@@ -367,7 +390,7 @@ class TeamMembershipTest(RoleWorld):
         before = self.members()
         for email in ("other-org-admin@example.com", "nobody@example.com"):
             with self.subTest(email=email):
-                response = client.post(self.url(), {"email": email})
+                response = self.change(client, "add", email=email)
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, f"No one in lab-org uses {email}.")
                 self.assertContains(response, f'value="{email}"')
@@ -376,11 +399,11 @@ class TeamMembershipTest(RoleWorld):
     def test_a_german_viewer_reads_why_in_german(self):
         client = self.as_user(self.team_admin)
         client.cookies[settings.LANGUAGE_COOKIE_NAME] = "de"
-        response = client.post(self.url(), {"email": "nobody@example.com"})
+        response = self.change(client, "add", email="nobody@example.com")
         self.assertContains(response, "In lab-org nutzt kein Konto die Adresse nobody@example.com.")
 
     def test_adding_a_member_again_explains_why(self):
-        response = self.as_user(self.team_admin).post(self.url(), {"email": "member@example.com"})
+        response = self.change(self.as_user(self.team_admin), "add", email="member@example.com")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "member@example.com is already in this team.")
         self.assertEqual(TeamMembership.objects.filter(team=self.team).count(), 2)
@@ -389,12 +412,28 @@ class TeamMembershipTest(RoleWorld):
         before = self.members()
         for user in (self.member, self.solo, self.other_org_admin):
             for data in (
-                {"user_profile_to_remove_id": self.member.profile.id},
-                {"email": "solo@example.com"},
+                {"action": "remove", "profile_id": self.member.profile.id},
+                {"action": "add", "email": "solo@example.com"},
             ):
                 with self.subTest(user=user.username, data=data):
-                    self.as_user(user).post(self.url(), data)
+                    url = reverse("team_members", args=[self.team.id])
+                    self.assertEqual(self.as_user(user).post(url, data).status_code, 404)
                     self.assertEqual(self.members(), before)
+
+    def test_the_pages_links_after_a_failed_add_lead_back_to_the_team_page(self):
+        client = self.as_user(self.team_admin)
+        members = reverse("team_members", args=[self.team.id])
+        self.assertRedirects(
+            client.get(members, {"q": "solo", "page": "2"}),
+            f"{self.url()}?q=solo&page=2",
+            fetch_redirect_response=False,
+        )
+
+    def test_an_unknown_action_is_a_404(self):
+        for data in ({}, {"action": "promote", "profile_id": self.member.profile.id}):
+            with self.subTest(data=data):
+                url = reverse("team_members", args=[self.team.id])
+                self.assertEqual(self.as_user(self.org_admin).post(url, data).status_code, 404)
 
 
 class TeamFormsTest(RoleWorld):
@@ -415,7 +454,7 @@ class TeamFormsTest(RoleWorld):
                 response = self.as_user(user).post(
                     reverse("team_create"), {"name": "Vision", "org": self.org.id}
                 )
-                self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
+                self.assertEqual(response.status_code, 404)
         self.assertFalse(Team.objects.filter(name="Vision").exists())
 
     def test_duplicate_team_name_rerenders_the_form(self):
@@ -441,7 +480,7 @@ class TeamFormsTest(RoleWorld):
         for user in (self.member, self.solo, self.other_org_admin):
             with self.subTest(user=user.username):
                 response = self.as_user(user).post(url, {"name": "Hijacked"})
-                self.assertEqual(response.status_code, 302 if user == self.member else 404)
+                self.assertEqual(response.status_code, 404)
         self.team.refresh_from_db()
         self.assertEqual(self.team.name, "NLP Lab")
 
@@ -506,9 +545,9 @@ class TeamLimitsEditTest(RoleWorld):
         self.assertEqual(self.team.name, "NLP Group")
 
     def test_member_and_other_org_admin_change_nothing(self):
-        for user, status in [(self.member, 302), (self.other_org_admin, 404), (self.solo, 404)]:
+        for user in (self.member, self.other_org_admin, self.solo):
             with self.subTest(user=user.username):
-                self.assertEqual(self.post(user).status_code, status)
+                self.assertEqual(self.post(user).status_code, 404)
         self.assertEqual(self.limits(), (None, None, None))
 
     def test_only_org_admins_find_delete_on_the_edit_page(self):
@@ -561,7 +600,7 @@ class ServiceAccountFormsTest(RoleWorld):
         for user in (self.member, self.solo, self.other_org_admin):
             with self.subTest(user=user.username):
                 response = self.as_user(user).post(url, {"name": "rag", "token_expires_at": ""})
-                self.assertEqual(response.status_code, 302 if user == self.member else 404)
+                self.assertEqual(response.status_code, 404)
         self.assertFalse(ServiceAccount.objects.filter(name="rag").exists())
 
     def test_team_admin_edits_a_service_account(self):
@@ -594,7 +633,7 @@ class ServiceAccountFormsTest(RoleWorld):
                 response = self.as_user(user).post(
                     url, {"name": "hijacked", "token_expires_at": ""}
                 )
-                self.assertEqual(response.status_code, 302 if user == self.member else 404)
+                self.assertEqual(response.status_code, 404)
         self.pipeline.refresh_from_db()
         self.assertEqual(self.pipeline.name, "pipeline")
 
@@ -665,11 +704,15 @@ class TeamScopeTest(RoleWorld):
         team, sa = [self.team.id], [self.pipeline.id]
         return [
             ("get", reverse("team", args=team), {}),
-            ("post", reverse("team", args=team), {"email": "solo@example.com"}),
             (
                 "post",
-                reverse("team", args=team),
-                {"user_profile_to_remove_id": self.member.profile.id},
+                reverse("team_members", args=team),
+                {"action": "add", "email": "solo@example.com"},
+            ),
+            (
+                "post",
+                reverse("team_members", args=team),
+                {"action": "remove", "profile_id": self.member.profile.id},
             ),
             ("get", reverse("team_edit", args=team), {}),
             ("post", reverse("team_edit", args=team), {"name": "Hijacked"}),
@@ -677,8 +720,8 @@ class TeamScopeTest(RoleWorld):
             ("post", reverse("team_delete", args=team), {}),
             (
                 "post",
-                reverse("team_admins_manage", args=team),
-                {"profile_id": self.member.profile.id, "action": "add"},
+                reverse("team_members", args=team),
+                {"profile_id": self.member.profile.id, "action": "grant_admin"},
             ),
             ("get", reverse("service_account_create", args=team), {}),
             (
@@ -721,18 +764,14 @@ class TeamScopeTest(RoleWorld):
                     self.assertNotContains(response, "pipeline", status_code=404)
         self.assertEqual(self.state(), before)
 
-    def test_member_gets_one_toast_without_the_team_name(self):
+    def test_member_gets_404_on_every_url_but_the_team_page(self):
         before = self.state()
         for method, url, data in self.requests():
             if method == "get" and url == reverse("team", args=[self.team.id]):
                 continue
             with self.subTest(method=method, url=url, data=data):
-                response = getattr(self.as_user(self.member), method)(url, data, follow=True)
-                toasts = [str(m) for m in response.context["messages"]]
-                self.assertEqual(len(toasts), 1)
-                self.assertIn(
-                    toasts[0], ("Only team admins can do that.", "Only org admins can do that.")
-                )
+                response = getattr(self.as_user(self.member), method)(url, data)
+                self.assertEqual(response.status_code, 404)
         self.assertEqual(self.state(), before)
 
     def test_team_admin_may_not_delete_the_team_or_appoint_admins(self):
@@ -740,16 +779,12 @@ class TeamScopeTest(RoleWorld):
         for url, data in [
             (reverse("team_delete", args=[self.team.id]), {}),
             (
-                reverse("team_admins_manage", args=[self.team.id]),
-                {"profile_id": self.member.profile.id, "action": "add"},
+                reverse("team_members", args=[self.team.id]),
+                {"profile_id": self.member.profile.id, "action": "grant_admin"},
             ),
         ]:
             with self.subTest(url=url):
-                response = client.post(url, data, follow=True)
-                self.assertRedirects(response, reverse("team", args=[self.team.id]))
-                self.assertEqual(
-                    [str(m) for m in response.context["messages"]], ["Only org admins can do that."]
-                )
+                self.assertEqual(client.post(url, data).status_code, 404)
         self.assertTrue(Team.objects.filter(id=self.team.id).exists())
         self.assertFalse(TeamMembership.objects.get(user_profile=self.member.profile).is_admin)
 
@@ -768,32 +803,36 @@ class TeamMessagesTest(RoleWorld):
         return [str(message) for message in response.context["messages"]]
 
     def test_membership_changes_say_what_happened_or_what_to_do_first(self):
-        team = reverse("team", args=[self.team.id])
-        admins = reverse("team_admins_manage", args=[self.team.id])
+        members = reverse("team_members", args=[self.team.id])
         for user, url, data, toast in [
-            (self.team_admin, team, {"email": "solo@example.com"}, "solo@example.com added."),
             (
                 self.team_admin,
-                team,
-                {"user_profile_to_remove_id": self.solo.profile.id},
+                members,
+                {"action": "add", "email": "solo@example.com"},
+                "solo@example.com added.",
+            ),
+            (
+                self.team_admin,
+                members,
+                {"action": "remove", "profile_id": self.solo.profile.id},
                 "solo@example.com removed.",
             ),
             (
                 self.org_admin,
-                team,
-                {"user_profile_to_remove_id": self.team_admin.profile.id},
+                members,
+                {"action": "remove", "profile_id": self.team_admin.profile.id},
                 "Transfer or delete team-admin@example.com's service accounts first.",
             ),
             (
                 self.org_admin,
-                admins,
-                {"profile_id": self.org_admin.profile.id, "action": "add"},
+                members,
+                {"profile_id": self.org_admin.profile.id, "action": "grant_admin"},
                 "Org admins already have team admin rights.",
             ),
             (
                 self.org_admin,
-                admins,
-                {"profile_id": self.member.profile.id, "action": "add"},
+                members,
+                {"profile_id": self.member.profile.id, "action": "grant_admin"},
                 "member@example.com is now a team admin.",
             ),
         ]:

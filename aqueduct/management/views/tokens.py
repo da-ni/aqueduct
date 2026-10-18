@@ -21,16 +21,16 @@ from django.views.generic import CreateView, DeleteView, DetailView, TemplateVie
 
 from gateway.config import model_names
 from gateway.rate_limiting import get_per_token_usage
-from management.access import KeyAct, TeamAct
+from management.access import KeyAct
 from management.availability import Reach, configured_mcp_servers
 from management.deletion import deletion
 from management.forms import TokenCreateForm
 from management.key_activity import Expiry, KeyKind, key_list, key_report
 from management.models import LimitSet, Token
 from management.org_choice import EVERY_ORG
-from management.ownership import RELATED, of_teams, org_id, team_of
+from management.ownership import RELATED, org_id, team_of
 from management.request_log import Key, Row
-from management.views.base import ONLY_TEAM_ADMINS, BaseAqueductView, show_new_key
+from management.views.base import BaseAqueductView, show_new_key
 
 
 class UserTokensView(BaseAqueductView, TemplateView):
@@ -249,16 +249,12 @@ class TokenRegenerateView(BaseAqueductView, View):
     http_method_names: ClassVar[list] = ["post"]
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
-        service = Token.objects.filter(of_teams(self.viewer.teams(TeamAct.OPEN)))
         token = get_object_or_404(
-            (self.viewer.keys(KeyAct.OWN) | service).select_related("service_account__team"),
+            self.viewer.keys(KeyAct.MANAGE).select_related("service_account__team"),
             pk=kwargs.get("id"),
         )
         team = team_of(token)
         back = reverse("team", kwargs={"id": team.id}) if team else reverse("tokens")
-        if team is not None and not self.viewer.may_team(TeamAct.MANAGE, team):
-            messages.error(request, ONLY_TEAM_ADMINS)
-            return redirect(back)
         new_key = token.regenerate_key()
         show_new_key(request, new_key)
         returns = (reverse("token_detail", kwargs={"id": token.id}), reverse("tokens"))

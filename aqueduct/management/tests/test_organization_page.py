@@ -55,11 +55,10 @@ class OrganizationTestBase(RoleWorld):
 class OrganizationPageTest(OrganizationTestBase):
     url = reverse("organization")
 
-    def test_users_and_team_admins_are_sent_to_the_teams_page(self):
+    def test_users_and_team_admins_get_404(self):
         for user in (self.member, self.team_admin, self.solo):
             with self.subTest(user=user.username):
-                response = self.as_user(user).get(self.url)
-                self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
+                self.assertEqual(self.as_user(user).get(self.url).status_code, 404)
 
     def test_org_admin_sees_their_org_with_edit_links(self):
         self.org.requests_per_minute = 600

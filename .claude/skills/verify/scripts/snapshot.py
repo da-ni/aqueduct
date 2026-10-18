@@ -181,7 +181,6 @@ def pages(ids: dict[str, list[int] | list[str]]) -> Iterator[tuple[str, str]]:
         yield "org", url("team_edit", team_id)
         yield "org", url("team_delete", team_id)
         yield "org", url("team_availability", team_id)
-        yield "org", url("team_admins_manage", team_id)
         yield "org", url("service_account_create", team_id)
     for account_id in ids["service_accounts"]:
         yield "org", url("service_account_edit", account_id)

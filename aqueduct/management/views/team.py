@@ -1,32 +1,29 @@
+from collections.abc import Mapping
+from enum import StrEnum
 from functools import cached_property
+from typing import Final
 
 from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, QueryDict
 from django.shortcuts import get_object_or_404, redirect
+from django.template.response import TemplateResponse
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.translation import gettext
-from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, UpdateView
 
-from management.access import TeamAct, WholeOrg
+from management.access import TeamAct, Viewer, WholeOrg
 from management.deletion import deletion
 from management.forms import MemberEmailForm, TeamAvailabilityForm, TeamCreateForm, TeamLimitsForm
 from management.ids import parse_id
 from management.models import Org, ServiceAccount, Team, UserProfile
 from management.team_overview import team_page
-from management.views.base import (
-    ONLY_TEAM_ADMINS,
-    BaseAqueductView,
-    BaseTeamView,
-    OrgAdminRequiredMixin,
-    TeamAdminRequiredMixin,
-)
+from management.views.base import BaseAqueductView, BaseTeamView
 
 
-class TeamCreateView(BaseAqueductView, OrgAdminRequiredMixin, CreateView):
+class TeamCreateView(BaseAqueductView, CreateView):
     """
     Handles creation of new Teams. Requires Org Admin privileges.
     """
@@ -39,12 +36,11 @@ class TeamCreateView(BaseAqueductView, OrgAdminRequiredMixin, CreateView):
     @cached_property
     def target_org(self) -> Org:
         chosen = self.viewer.chosen
-        if self.request.method != "POST":
-            return chosen.org if isinstance(chosen, WholeOrg) else self.viewer.org
-        org = self.viewer.orgs().filter(pk=parse_id(self.request.POST.get("org"))).first()
-        if org is None:
-            raise Http404("No organization found.")
-        return org
+        if self.request.method == "POST":
+            pk = parse_id(self.request.POST.get("org"))
+        else:
+            pk = (chosen.org if isinstance(chosen, WholeOrg) else self.viewer.org).pk
+        return get_object_or_404(self.viewer.orgs(), pk=pk)
 
     def get_form_kwargs(self) -> dict:
         kwargs = super().get_form_kwargs()
@@ -67,11 +63,11 @@ class TeamCreateView(BaseAqueductView, OrgAdminRequiredMixin, CreateView):
         return context
 
 
-class TeamUpdateView(BaseTeamView, TeamAdminRequiredMixin, UpdateView):
+class TeamUpdateView(BaseTeamView, UpdateView):
     model = Team
     template_name = "management/edit/team.html"
-    pk_url_kwarg = "id"
-    context_object_name = "team"  # Match DetailView/template usage
+    context_object_name = "team"
+    team_act = TeamAct.MANAGE
 
     def manages_team(self) -> bool:
         return self.viewer.may_team(TeamAct.ADMINISTER, self.team)
@@ -110,12 +106,7 @@ class TeamAvailabilityEditView(BaseTeamView, UpdateView):
     form_class = TeamAvailabilityForm
     template_name = "management/edit/team.html"
     context_object_name = "team"
-
-    def get_object(self, queryset=None) -> Team:
-        team = self.get_team_object()
-        if not self.viewer.may_team(TeamAct.ADMINISTER, team):
-            raise Http404("No team found.")
-        return team
+    team_act = TeamAct.ADMINISTER
 
     def form_valid(self, form) -> HttpResponse:
         response = super().form_valid(form)
@@ -136,9 +127,9 @@ class TeamAvailabilityEditView(BaseTeamView, UpdateView):
         )
 
 
-class TeamDeleteView(BaseTeamView, TeamAdminRequiredMixin, DeleteView):
+class TeamDeleteView(BaseTeamView, DeleteView):
     model = Team
-    org_admin_only = True
+    team_act = TeamAct.ADMINISTER
     template_name = "management/common/confirm_delete.html"
     success_url = reverse_lazy("org")
 
@@ -156,161 +147,160 @@ class TeamDeleteView(BaseTeamView, TeamAdminRequiredMixin, DeleteView):
         )
 
 
-class TeamAdminManagementView(BaseTeamView, TeamAdminRequiredMixin, View):
-    org_admin_only = True
+def member_form(team: Team, data=None) -> MemberEmailForm:
+    return MemberEmailForm(
+        data,
+        candidates=team.org.user_profiles.all(),
+        not_found=lambda email: (
+            gettext("No one in %(org)s uses %(email)s.") % {"org": team.org.name, "email": email}
+        ),
+    )
 
-    def post(self, request, *args, **kwargs) -> HttpResponse:
-        team = self.team
-        profile_id = request.POST.get("profile_id")
-        action = request.POST.get("action")
-        # Ensure the profile being managed belongs to the same org as the team (and the admin)
-        profile = get_object_or_404(
-            UserProfile, id=profile_id, org=self.team_org
-        )  # Use team_org for consistency
 
-        if profile == self.viewer.profile:
-            messages.warning(request, gettext("Org admins already have team admin rights."))
-            return redirect(reverse("team", kwargs={"id": team.id}))
-
-        # Ensure the target profile is actually a member of the team before changing admin status
-        # Although get_or_create handles creation, it might be confusing if not explicitly added.
-        # Let's find the membership first.
-        try:
-            membership = team.teammembership_set.get(user_profile=profile)
-        except team.teammembership_set.model.DoesNotExist:
-            messages.error(
-                request, gettext("%(email)s is not in this team.") % {"email": profile.user.email}
-            )
-            return redirect(reverse("team", kwargs={"id": team.id}))
-
-        if action == "add":
-            if membership.is_admin:
-                messages.info(
-                    request,
-                    gettext("%(email)s is already a team admin.") % {"email": profile.user.email},
-                )
-            else:
-                membership.is_admin = True
-                membership.save(update_fields=["is_admin"])
-                messages.success(
-                    request,
-                    gettext("%(email)s is now a team admin.") % {"email": profile.user.email},
-                )
-        elif action == "remove":
-            if membership.is_admin:
-                membership.is_admin = False
-                membership.save(update_fields=["is_admin"])
-                messages.success(
-                    request,
-                    gettext("%(email)s is no longer a team admin.") % {"email": profile.user.email},
-                )
-            else:
-                messages.info(
-                    request,
-                    gettext("%(email)s is not a team admin.") % {"email": profile.user.email},
-                )
-        else:
-            messages.error(request, gettext("Invalid action."))
-        return redirect(reverse("team", kwargs={"id": team.id}))
+def team_context(
+    viewer: Viewer, team: Team, params: QueryDict, add_form: MemberEmailForm
+) -> dict[str, object]:
+    can_manage_admins = viewer.may_team(TeamAct.ADMINISTER, team)
+    member_query = params.get("q", "").strip()
+    page = team_page(
+        team, viewer.profile, can_manage_admins, member_query, params.get("page", 1), timezone.now()
+    )
+    max_service_accounts = getattr(settings, "MAX_SERVICE_ACCOUNTS_PER_TEAM", 10)
+    return {
+        "team": team,
+        "add_form": add_form,
+        "page": page,
+        "member_query": member_query,
+        "is_team_admin": viewer.may_team(TeamAct.MANAGE, team),
+        "can_manage_admins": can_manage_admins,
+        "is_org_admin": can_manage_admins,
+        "shows_limits": can_manage_admins or not page.limits.is_unlimited,
+        "max_service_accounts": max_service_accounts,
+        "can_add_service_account": len(page.service_accounts) < max_service_accounts,
+    }
 
 
 class TeamDetailView(BaseTeamView, DetailView):
-    """
-    Displays team details, members, and service accounts.
-    Allows Team Admins (or Org Admins) to manage membership via POST requests.
-    """
-
     model = Team
     template_name = "management/team.html"
     context_object_name = "team"
-    pk_url_kwarg = "id"
-
-    def add_member_form(self, data=None) -> MemberEmailForm:
-        return MemberEmailForm(
-            data,
-            candidates=self.team_org.user_profiles.all(),
-            not_found=lambda email: (
-                gettext("No one in %(org)s uses %(email)s.")
-                % {"org": self.team_org.name, "email": email}
-            ),
-        )
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         team = self.team
-        can_manage_admins = self.viewer.may_team(TeamAct.ADMINISTER, team)
-        member_query = self.request.GET.get("q", "").strip()
-        page = team_page(
-            team,
-            self.viewer.profile,
-            can_manage_admins,
-            member_query,
-            self.request.GET.get("page", 1),
-            timezone.now(),
-        )
-        max_service_accounts = getattr(settings, "MAX_SERVICE_ACCOUNTS_PER_TEAM", 10)
-        context.setdefault("add_form", self.add_member_form())
-        context.update(
-            page=page,
-            member_query=member_query,
-            is_team_admin=self.viewer.may_team(TeamAct.MANAGE, team),
-            can_manage_admins=can_manage_admins,
-            is_org_admin=can_manage_admins,
-            shows_limits=can_manage_admins or not page.limits.is_unlimited,
-            max_service_accounts=max_service_accounts,
-            can_add_service_account=len(page.service_accounts) < max_service_accounts,
-        )
+        context.update(team_context(self.viewer, team, self.request.GET, member_form(team)))
         return context
 
-    @transaction.atomic  # Ensure membership changes are atomic.
+
+class MemberAction(StrEnum):
+    ADD = "add"
+    REMOVE = "remove"
+    GRANT_ADMIN = "grant_admin"
+    REVOKE_ADMIN = "revoke_admin"
+
+
+MEMBER_ACTIONS: Final[Mapping[MemberAction, TeamAct]] = {
+    MemberAction.ADD: TeamAct.MANAGE,
+    MemberAction.REMOVE: TeamAct.MANAGE,
+    MemberAction.GRANT_ADMIN: TeamAct.ADMINISTER,
+    MemberAction.REVOKE_ADMIN: TeamAct.ADMINISTER,
+}
+
+
+class TeamMembersView(BaseAqueductView):
+    """A membership change: the team is fetched for the act `MEMBER_ACTIONS` names."""
+
+    @cached_property
+    def action(self) -> MemberAction:
+        try:
+            return MemberAction(self.request.POST.get("action", ""))
+        except ValueError:
+            raise Http404 from None
+
+    @cached_property
+    def team(self) -> Team:
+        return get_object_or_404(
+            self.viewer.teams(MEMBER_ACTIONS[self.action]).select_related("org"),
+            pk=self.kwargs["id"],
+        )
+
+    def get(self, request, *args, **kwargs) -> HttpResponse:
+        """The team page's relative links (search, pager) after a re-rendered add form."""
+        team_page = reverse("team", kwargs={"id": kwargs["id"]})
+        return redirect(f"{team_page}?{request.GET.urlencode()}" if request.GET else team_page)
+
+    @transaction.atomic
     def post(self, request, *args, **kwargs) -> HttpResponse:
-        """Handles adding/removing team members. Requires Team Admin privileges."""
         team = self.team
-        viewer = self.viewer
-        redirect_url = reverse("team", kwargs={"id": team.id})
+        match self.action:
+            case MemberAction.ADD:
+                return self.add(team)
+            case MemberAction.REMOVE:
+                return self.remove(team)
+            case MemberAction.GRANT_ADMIN | MemberAction.REVOKE_ADMIN:
+                return self.change_admin(team, self.action is MemberAction.GRANT_ADMIN)
 
-        if not viewer.may_team(TeamAct.MANAGE, team):
-            messages.error(request, ONLY_TEAM_ADMINS)
-            return redirect(redirect_url)
-
-        user_profile_id_to_remove = request.POST.get("user_profile_to_remove_id")
-
-        if "email" in request.POST:
-            form = self.add_member_form(request.POST)
-            if form.is_valid() and team.member_profiles.filter(id=form.profile.id).exists():
-                form.add_error(
-                    "email",
-                    gettext("%(email)s is already in this team.")
-                    % {"email": form.profile.user.email},
-                )
-            if not form.is_valid():
-                self.object = team
-                return self.render_to_response(self.get_context_data(add_form=form))
-            team.member_profiles.add(form.profile)
-            messages.success(
-                request, gettext("%(email)s added.") % {"email": form.profile.user.email}
+    def add(self, team: Team) -> HttpResponse:
+        form = member_form(team, self.request.POST)
+        if form.is_valid() and team.member_profiles.filter(id=form.profile.id).exists():
+            form.add_error(
+                "email",
+                gettext("%(email)s is already in this team.") % {"email": form.profile.user.email},
             )
+        if not form.is_valid():
+            context = team_context(self.viewer, team, self.request.GET, form)
+            return TemplateResponse(self.request, TeamDetailView.template_name, context)
+        team.member_profiles.add(form.profile)
+        messages.success(
+            self.request, gettext("%(email)s added.") % {"email": form.profile.user.email}
+        )
+        return redirect("team", id=team.id)
 
-        elif user_profile_id_to_remove:
-            leaving = team.member_profiles.filter(id=parse_id(user_profile_id_to_remove)).first()
-            if leaving is None:
-                messages.error(request, gettext("Member not found."))
-            elif ServiceAccount.objects.filter(team=team, token__user__profile=leaving).exists():
-                messages.error(
-                    request,
-                    gettext("Transfer or delete %(email)s's service accounts first.")
-                    % {"email": leaving.user.email},
-                )
-            else:
-                team.member_profiles.remove(leaving)
-                messages.success(
-                    request, gettext("%(email)s removed.") % {"email": leaving.user.email}
-                )
-                if leaving == viewer.profile and not viewer.leaving(team).may_team(
-                    TeamAct.OPEN, team
-                ):
-                    redirect_url = reverse("org")
+    def remove(self, team: Team) -> HttpResponse:
+        viewer, request = self.viewer, self.request
+        leaving = team.member_profiles.filter(id=parse_id(request.POST.get("profile_id"))).first()
+        if leaving is None:
+            messages.error(request, gettext("Member not found."))
+        elif ServiceAccount.objects.filter(team=team, token__user__profile=leaving).exists():
+            messages.error(
+                request,
+                gettext("Transfer or delete %(email)s's service accounts first.")
+                % {"email": leaving.user.email},
+            )
         else:
-            messages.warning(request, gettext("Nothing to change."))
+            team.member_profiles.remove(leaving)
+            messages.success(request, gettext("%(email)s removed.") % {"email": leaving.user.email})
+            if leaving == viewer.profile and not viewer.leaving(team).may_team(TeamAct.OPEN, team):
+                return redirect("org")
+        return redirect("team", id=team.id)
 
-        return redirect(redirect_url)
+    def change_admin(self, team: Team, is_admin: bool) -> HttpResponse:
+        request = self.request
+        back = redirect("team", id=team.id)
+        profile = get_object_or_404(
+            UserProfile, id=parse_id(request.POST.get("profile_id")), org=team.org
+        )
+        email = profile.user.email
+        if profile == self.viewer.profile:
+            messages.warning(request, gettext("Org admins already have team admin rights."))
+            return back
+        membership = team.teammembership_set.filter(user_profile=profile).first()
+        if membership is None:
+            messages.error(request, gettext("%(email)s is not in this team.") % {"email": email})
+        elif membership.is_admin == is_admin:
+            already = (
+                gettext("%(email)s is already a team admin.")
+                if is_admin
+                else gettext("%(email)s is not a team admin.")
+            )
+            messages.info(request, already % {"email": email})
+        else:
+            membership.is_admin = is_admin
+            membership.save(update_fields=["is_admin"])
+            changed = (
+                gettext("%(email)s is now a team admin.")
+                if is_admin
+                else gettext("%(email)s is no longer a team admin.")
+            )
+            messages.success(request, changed % {"email": email})
+        return back

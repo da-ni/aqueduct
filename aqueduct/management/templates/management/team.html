@@ -122,8 +122,9 @@
             {% if is_team_admin %}
                 <details class="group flex w-full flex-col items-end sm:w-auto"{% if add_form.errors %} open{% endif %}>
                     <summary class="btn btn-sm btn-primary group-open:[--btn-bg:transparent] group-open:[--btn-fg:var(--color-primary)] group-open:[--btn-border:var(--color-primary)] group-open:[--btn-shadow:none]">{% icon "plus" small=True extra_class="group-open:hidden" %}<span class="group-open:hidden">{% translate "Add member" %}</span><span class="hidden group-open:inline">{% translate "Cancel" %}</span></summary>
-                    <form method="post" class="mt-2 flex flex-col gap-1">
+                    <form action="{% url 'team_members' team.id %}" method="post" class="mt-2 flex flex-col gap-1">
                         {% csrf_token %}
+                        <input type="hidden" name="action" value="add">
                         <div class="flex items-center gap-2">
                             <input type="email" name="email" value="{{ add_form.email.value|default:'' }}" required
                                    class="input input-sm w-full sm:w-72{% if add_form.email.errors %} input-error{% endif %}"
@@ -152,13 +153,13 @@
                             <div class="flex flex-wrap items-center gap-3">
                                 <span>{{ member.role.label }}</span>
                                 {% if member.can_change_admin %}
-                                    <form action="{% url 'team_admins_manage' team.id %}" method="post">
+                                    <form action="{% url 'team_members' team.id %}" method="post">
                                         {% csrf_token %}
                                         <input type="hidden" name="profile_id" value="{{ member.profile.id }}">
                                         {% if member.is_team_admin %}
-                                            <button type="submit" name="action" value="remove" class="btn btn-ghost btn-xs whitespace-nowrap" aria-label="{% blocktranslate with email=member.profile.user.email %}Remove admin rights of {{ email }}{% endblocktranslate %}">{% translate "Remove admin" %}</button>
+                                            <button type="submit" name="action" value="revoke_admin" class="btn btn-ghost btn-xs whitespace-nowrap" aria-label="{% blocktranslate with email=member.profile.user.email %}Remove admin rights of {{ email }}{% endblocktranslate %}">{% translate "Remove admin" %}</button>
                                         {% else %}
-                                            <button type="submit" name="action" value="add" class="btn btn-ghost btn-xs whitespace-nowrap" aria-label="{% blocktranslate with email=member.profile.user.email %}Make {{ email }} a team admin{% endblocktranslate %}">{% translate "Make admin" %}</button>
+                                            <button type="submit" name="action" value="grant_admin" class="btn btn-ghost btn-xs whitespace-nowrap" aria-label="{% blocktranslate with email=member.profile.user.email %}Make {{ email }} a team admin{% endblocktranslate %}">{% translate "Make admin" %}</button>
                                         {% endif %}
                                     </form>
                                 {% endif %}
@@ -170,9 +171,10 @@
                                     <div class="muted text-sm">{% blocktranslate with name=sa.name %}Owns <span class="font-mono">{{ name }}</span>{% endblocktranslate %} <span class="whitespace-nowrap">· <a class="link" href="{% url 'service_account_transfer' sa.id %}">{% translate "Transfer" %}</a></span></div>
                                 {% empty %}
                                     {% blocktranslate with email=member.profile.user.email asvar remove_question %}Remove {{ email }}?{% endblocktranslate %}
-                                    <form method="post">
+                                    <form action="{% url 'team_members' team.id %}" method="post">
                                         {% csrf_token %}
-                                        <input type="hidden" name="user_profile_to_remove_id" value="{{ member.profile.id }}">
+                                        <input type="hidden" name="action" value="remove">
+                                        <input type="hidden" name="profile_id" value="{{ member.profile.id }}">
                                         <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="{% blocktranslate with email=member.profile.user.email %}Remove {{ email }} from the team{% endblocktranslate %}" title="{% translate "Remove from the team" %}"
                                                 {% confirm remove_question _("They lose access to the team and its service accounts.") _("Remove") %}>{% icon "delete" small=True %}</button>
                                     </form>

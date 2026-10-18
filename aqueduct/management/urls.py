@@ -54,9 +54,7 @@ urlpatterns = [
         views.ServiceAccountTransferOwnershipView.as_view(),
         name="service_account_transfer",
     ),
-    path(
-        "team/<int:id>/admins/", views.TeamAdminManagementView.as_view(), name="team_admins_manage"
-    ),
+    path("team/<int:id>/members/", views.TeamMembersView.as_view(), name="team_members"),
     # New URL for Model/Endpoint list
     path("models/", views.ModelListView.as_view(), name="models"),
     path("usage/", views.UsageDashboardView.as_view(), name="usage"),
