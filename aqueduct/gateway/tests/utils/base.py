@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 from typing import ClassVar, Literal
+from unittest import skipIf
 from unittest.mock import patch
 
 from django.conf import settings
@@ -163,6 +164,7 @@ class GatewayBatchesTestCase(GatewayIntegrationTestCase):
         return resp.json()["id"]
 
 
+@skipIf(INTEGRATION_TEST_BACKEND == "vllm", "TTS and STT tests require the OpenAI backend")
 class GatewayTTSSTTestCase(GatewayIntegrationTestCase):
     fixtures: ClassVar[list[str]] = ["gateway_data.json"]
     tts_model = "gpt-4o-mini-tts"
