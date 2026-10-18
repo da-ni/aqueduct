@@ -35,7 +35,7 @@ The management UI is server-rendered Django templates with no frontend build ste
 - A fragment used on more than one page is a partial named `_<name>.html` next to the pages, like `_new_key.html`. Create and edit forms live in `create/` and `edit/`. Delete confirmations use `common/confirm_delete.html`.
 - `management/_cdn.html` loads every third-party asset with a pinned version, then the theme in `css/aqueduct-theme.css` and the shared script in `js/aqueduct.js`. Add or upgrade an asset there and nowhere else.
 - Build pages from daisyUI components, and use Tailwind utilities for layout. Take colors from the daisyUI theme, such as `bg-base-200`, `text-base-content`, and `btn-primary`, so both light and dark mode work. The templates contain no hex colors.
-- New icons are inline SVGs that stroke `currentColor`, as in the redesign mockup, so they follow the theme. Add each one to the `Icon` enum in `management/icons.py` and render it with `{% icon "name" %}` from `{% load ui %}`. The `[[data-theme=dark]_&]:invert` class exists only for the older `<img>` icons.
+- New icons are inline SVGs that stroke `currentColor`, as in the redesign mockup, so they follow the theme. Add each one to the `Icon` enum in `management/icons.py` and render it with `{% icon "name" %}` from `{% load ui %}`.
 
 ## Check UI changes in a running instance
 
