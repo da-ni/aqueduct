@@ -24,8 +24,8 @@ Preconditions:
 - **No team.** Run `aqv login user --next /aqueduct/management/settings/`. `Teams` shows `None`, and `Personal keys` shows `1 of 3`.
 - **Roles.** `org-admin` shows `Org admin`. `admin` shows `Platform admin` and `0 of 3` personal keys.
 - **Limits from the account.** Run `aqv shell -c "from management.models import UserProfile; p = UserProfile.objects.get(user__username='user'); p.requests_per_minute = 30; p.save()"`, then `aqv login user --next /aqueduct/management/settings/`. `Requests per minute` shows `30` and the note says `Set for your account. Others use the organization default.`
+- **Sign out.** Run `aqv login team-member --next /aqueduct/management/settings/`, then `aqv click --selector "main button:has-text('Sign out')"`; the sidebar has a second `Sign out` button. The browser lands on `/login/`.
 - **Language.** Run `aqv login user --next /aqueduct/management/settings/`, then `aqv click --role button --name Deutsch --exact`. The page reloads in German, and `aqv shell -c "from management.models import UserProfile; print(UserProfile.objects.get(user__username='user').language)"` prints `de`.
-- **Sign out.** Run `aqv click --selector "main button:has-text('Sign out')"`; the sidebar has a second `Sign out` button. The browser lands on `/login/`.
 
 ## Gotchas
 
