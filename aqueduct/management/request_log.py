@@ -5,11 +5,10 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from http import HTTPStatus
 
-from django.contrib.sessions.backends.base import SessionBase
 from django.core.cache import cache
 from django.db.models import Count, F, Q, QuerySet
 from django.db.models.expressions import CombinedExpression, OrderBy
-from django.http import Http404, HttpRequest
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.http import urlencode
@@ -17,7 +16,9 @@ from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 
 from gateway.config import model_names
-from management.key_activity import FAILED, KeyAccess, grouped, of_keys, served
+from management.access import EveryOrg, KeyAct, TeamAct, Viewer, WholeOrg
+from management.ids import MAX_ID, parse_id
+from management.key_activity import FAILED, grouped, of_keys, served
 from management.model_catalog import scopes_for, usable_models
 from management.models import Org, Request, Team, Token, UserProfile
 from management.ownership import RELATED, of_orgs, of_teams, owner, personal
@@ -25,41 +26,7 @@ from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
 from management.usage_rollup import org_series
 
 PAGE_SIZE = 50
-_MAX_ID = 2**63 - 2
-_MAX_DIGITS = len(str(_MAX_ID))
-_MAX_PAGE = _MAX_ID // PAGE_SIZE
-
-
-def parse_id(raw: str | None) -> int | None:
-    if not (raw and len(raw) <= _MAX_DIGITS and raw.isascii() and raw.isdigit()):
-        return None
-    if int(raw) > _MAX_ID:
-        return None
-    return int(raw)
-
-
-SESSION_ORG = "org"
-ORG_BOUND_PARAMS = ("org", "key", "key_q", "before", "after", "request", "page")
-
-
-def remember_org(session: SessionBase, org: Org | None) -> None:
-    value = "all" if org is None else str(org.pk)
-    if session.get(SESSION_ORG) != value:
-        session[SESSION_ORG] = value
-
-
-def chosen_org(profile: UserProfile, request: HttpRequest) -> Org | None:
-    if not profile.is_admin():
-        return profile.org
-    raw = request.GET.get("org", request.session.get(SESSION_ORG))
-    org: Org | None = None
-    if raw != "all":
-        org_id = parse_id(raw)
-        org = Org.objects.filter(pk=org_id).first() if org_id is not None else None
-        if org is None:
-            return profile.org
-    remember_org(request.session, org)
-    return org
+_MAX_PAGE = MAX_ID // PAGE_SIZE
 
 
 def visible_tokens(profile: UserProfile, org: Org | None, teams: QuerySet[Team]) -> QuerySet[Token]:
@@ -151,12 +118,12 @@ class Key:
         return self.token.name
 
 
-def describe_key(token: Token, access: KeyAccess, *, with_org: bool = False) -> Key:
-    href = reverse("token_detail", args=[token.id]) if access.can_open(token) else None
+def describe_key(token: Token, viewer: Viewer, *, with_org: bool = False) -> Key:
+    href = reverse("token_detail", args=[token.id]) if viewer.may_key(KeyAct.OPEN, token) else None
     account, own = token.service_account, False
     if account is not None:
         note = gettext("Service account · %(team)s") % {"team": account.team.name}
-    elif token.user_id == access.user_id:
+    elif token.user_id == viewer.user_id:
         note, own = gettext("Personal"), True
     else:
         note = token.user.email
@@ -177,7 +144,7 @@ class Filters:
     key: Key | None
     key_q: str
     matches: tuple[Key, ...]
-    access: KeyAccess
+    viewer: Viewer
     page_params: tuple[tuple[str, str], ...]
     models: tuple[str, ...]
     model: str | None
@@ -224,32 +191,25 @@ def key_search(text: str, *, by_owner: bool) -> Q:
 
 
 def read_filters(
-    profile: UserProfile,
-    teams: QuerySet[Team],
-    params: Mapping[str, str],
-    *,
-    org: Org | None,
-    default_span: Span,
-    now: datetime,
+    viewer: Viewer, params: Mapping[str, str], *, default_span: Span, now: datetime
 ) -> Filters:
-    sees_others = org is None or profile.is_org_admin(org)
+    profile, teams = viewer.profile, viewer.teams(TeamAct.SEE)
+    org = viewer.chosen.org if isinstance(viewer.chosen, WholeOrg) else None
+    sees_others = viewer.sees_others
     requests = visible_requests(profile, org, teams)
     if sees_others:
         names = set(model_names())
     else:
         used = requests.order_by().values_list("model", flat=True).distinct()
-        names = {*usable_models(scopes_for(profile)), *used}
+        names = {*usable_models(scopes_for(profile, viewer.teams(TeamAct.MINE))), *used}
     models = tuple(sorted(names, key=lambda name: (name.casefold(), name)))
     team_ids = set(teams.values_list("id", flat=True))
     tokens = visible_tokens(profile, org, teams).select_related(*RELATED).order_by("name", "id")
 
-    access = KeyAccess.of(profile)
-
     def describe(token: Token) -> Key:
-        return describe_key(token, access, with_org=org is None)
+        return describe_key(token, viewer, with_org=isinstance(viewer.chosen, EveryOrg))
 
-    own = personal(profile.user_id) | of_teams(profile.teams.all())
-    keys = tuple(describe(token) for token in tokens.filter(own))
+    keys = tuple(describe(token) for token in tokens & viewer.keys(KeyAct.MINE))
     first_two = list(tokens[:2])
     only_key = describe(first_two[0]) if len(first_two) == 1 else None
     mine = sees_others and params.get("scope") == "mine"
@@ -277,11 +237,11 @@ def read_filters(
     period = Period.last(span, now)
 
     if org is None:
-        viewer: tuple[object, ...] = ("all orgs",)
+        seen: tuple[object, ...] = ("all orgs",)
     elif sees_others:
-        viewer = ("org", org.pk)
+        seen = ("org", org.pk)
     else:
-        viewer = ("keys of", org.pk, profile.user_id, *sorted(team_ids))
+        seen = ("keys of", org.pk, profile.user_id, *sorted(team_ids))
     narrowed = (
         ("mine", profile.user_id, *(k.token.id for k in keys)) if mine else (),
         key.token.id if key else None,
@@ -289,7 +249,7 @@ def read_filters(
     )
 
     return Filters(
-        can_pick_org=profile.is_admin(),
+        can_pick_org=viewer.can_switch_org,
         org=org,
         can_pick_scope=sees_others,
         mine=mine,
@@ -298,7 +258,7 @@ def read_filters(
         key=key,
         key_q=key_q,
         matches=matches,
-        access=access,
+        viewer=viewer,
         page_params=tuple(
             (name, value) for name, value in params.items() if name not in _NOT_PAGE_PARAMS
         ),
@@ -307,7 +267,7 @@ def read_filters(
         span=span,
         period=period,
         requests=requests,
-        visibility=(viewer, *narrowed),
+        visibility=(seen, *narrowed),
     )
 
 
@@ -704,7 +664,7 @@ def request_log(filters: Filters, params: Mapping[str, str]) -> RequestLog:
         page, pager = _page_by_offset(listed, sort, params.get("page"), counts[outcome])
 
     rows = tuple(
-        Row(request, describe_key(request.token, filters.access), request.id == open_id)
+        Row(request, describe_key(request.token, filters.viewer), request.id == open_id)
         for request in page
     )
     return RequestLog(

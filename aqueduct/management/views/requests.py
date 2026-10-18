@@ -15,15 +15,7 @@ class RequestLogView(BaseAqueductView, TemplateView):
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
         params = self.request.GET
-        teams = self.get_teams_for_user()
-        filters = read_filters(
-            self.profile,
-            teams,
-            params,
-            org=self.viewed_org,
-            default_span=Span.DAY,
-            now=timezone.now(),
-        )
+        filters = read_filters(self.viewer, params, default_span=Span.DAY, now=timezone.now())
         log = request_log(filters, params)
         context.update(
             log=log,

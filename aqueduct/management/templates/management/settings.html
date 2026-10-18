@@ -10,7 +10,7 @@
                 <h2 id="account-title" class="card-title">{% translate "Account" %}</h2>
                 <dl class="grid grid-cols-[8rem_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
                     <dt class="muted">{% translate "Email" %}</dt><dd class="break-all font-mono">{{ shell.viewer.email }}</dd>
-                    <dt class="muted">{% translate "Organization" %}</dt><dd>{{ view.profile.org.name }}</dd>
+                    <dt class="muted">{% translate "Organization" %}</dt><dd>{{ view.viewer.org.name }}</dd>
                     <dd class="muted col-start-2 -mt-2 text-xs">{% translate "Set by your sign-in provider." %}</dd>
                     <dt class="muted">{% translate "Role" %}</dt><dd>{% if shell.viewer.role %}<span class="badge badge-sm bg-base-100">{{ shell.viewer.role }}</span>{% else %}<span class="muted">{{ shell.viewer.role|dash }}</span>{% endif %}</dd>
                     <dt class="muted">{% translate "Teams" %}</dt>

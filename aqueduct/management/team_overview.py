@@ -85,7 +85,7 @@ class TeamList:
 
 
 def team_rows(
-    teams: QuerySet[Team], viewer: UserProfile, query: str, page: str | int, now: datetime
+    teams: QuerySet[Team], admin_of: frozenset[int], query: str, page: str | int, now: datetime
 ) -> TeamList:
     pages = Paginator(
         Team.objects.filter(id__in=teams.values("id"), name__icontains=query)
@@ -98,11 +98,6 @@ def team_rows(
         PAGE_SIZE,
     ).get_page(page)
     found = list(pages)
-    admin_of = set(
-        TeamMembership.objects.filter(user_profile=viewer, is_admin=True).values_list(
-            "team_id", flat=True
-        )
-    )
     activity = activity_by("token__service_account__team_id", (t.id for t in found), week(now))
     widths = _bar_widths(activity)
     rows = tuple(

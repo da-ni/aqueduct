@@ -6,8 +6,9 @@ from markdown_it.renderer import RendererHTML
 from markdown_it.token import Token
 from markdown_it.utils import EnvType, OptionsDict
 
-from management.models import Org, PrivacyNotice
-from management.request_log import chosen_org
+from management.access import WholeOrg
+from management.models import PrivacyNotice
+from management.org_choice import viewer_of
 
 # `html=False` escapes raw HTML, and markdown-it drops `javascript:`, `vbscript:`, `file:`, and
 # `data:` link targets.
@@ -28,12 +29,8 @@ def render_markdown(text: str) -> SafeString:
     return mark_safe(_markdown.render(text))  # noqa: S308 - the renderer escapes all HTML
 
 
-def viewer_org(request: HttpRequest) -> Org | None:
-    profile = getattr(request.user, "profile", None)
-    return chosen_org(profile, request) if profile is not None else None
-
-
 def notices_for(request: HttpRequest) -> QuerySet[PrivacyNotice]:
-    org = viewer_org(request)
-    scope = Q(org=None) | Q(org=org) if org is not None else Q(org=None)
+    viewer = viewer_of(request)
+    chosen = viewer.chosen if viewer is not None else None
+    scope = Q(org=None) | Q(org=chosen.org) if isinstance(chosen, WholeOrg) else Q(org=None)
     return PrivacyNotice.objects.filter(scope).order_by(F("org").asc(nulls_first=True))

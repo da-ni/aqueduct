@@ -21,19 +21,14 @@ from django.views.generic import CreateView, DeleteView, DetailView, TemplateVie
 
 from gateway.config import model_names
 from gateway.rate_limiting import get_per_token_usage
+from management.access import KeyAct, TeamAct
 from management.availability import Reach, configured_mcp_servers
 from management.deletion import deletion
 from management.forms import TokenCreateForm
-from management.key_activity import (
-    Expiry,
-    KeyAccess,
-    KeyKind,
-    key_list,
-    key_report,
-    personal_tokens,
-)
+from management.key_activity import Expiry, KeyKind, key_list, key_report, personal_tokens
 from management.models import LimitSet, Token
-from management.ownership import RELATED, is_personal_of, of_teams, org_id, team_of
+from management.org_choice import EVERY_ORG
+from management.ownership import RELATED, of_teams, org_id, team_of
 from management.request_log import Key, Row
 from management.views.base import ONLY_TEAM_ADMINS, BaseAqueductView, show_new_key
 
@@ -46,7 +41,7 @@ class UserTokensView(BaseAqueductView, TemplateView):
         kind = KeyKind.parse(self.request.GET.get("kind", ""))
         query = self.request.GET.get("q", "").strip()
         max_tokens = getattr(settings, "MAX_USER_TOKENS", 3)
-        keys = key_list(self.profile, kind, query, timezone.now())
+        keys = key_list(self.viewer, kind, query, timezone.now())
         context.update(
             keys=keys,
             kinds=tuple(KeyKind),
@@ -129,21 +124,17 @@ class TokenDetailView(BaseAqueductView, DetailView):
     context_object_name = "token"
 
     def get_queryset(self) -> QuerySet:
-        return KeyAccess.of(self.profile).tokens().select_related(*RELATED)
+        return self.viewer.keys(KeyAct.OPEN).select_related(*RELATED)
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        token = self.object
+        viewer, token = self.viewer, self.object
         now = timezone.now()
         report = key_report(token, now)
-        team = team_of(token)
-        own = is_personal_of(token, self.request.user.id)
         limits = token.get_limit()
         log_query: dict[str, object] = {"key": token.id, "span": "1m"}
-        if self.profile.is_admin() and self.viewed_org is not None:
-            key_org = org_id(token)
-            if key_org != self.viewed_org.id:
-                log_query["org"] = key_org or "all"
+        if not viewer.may_key(KeyAct.SEE, token):
+            log_query["org"] = org_id(token) or EVERY_ORG
         context.update(
             report=report,
             latest=tuple(Row(request, Key(token, None, ""), False) for request in report.latest),
@@ -154,9 +145,9 @@ class TokenDetailView(BaseAqueductView, DetailView):
             rate_windows=rate_windows(limits, get_per_token_usage([token.id])[token.id]),
             models=Reach.of(model_names(), token.model_exclusion_list()),
             mcp_servers=Reach.of(configured_mcp_servers(), token.mcp_server_exclusion_list()),
-            team=team,
-            own=own,
-            can_manage=self.profile.is_team_admin(team) if team else own,
+            team=team_of(token),
+            own=viewer.may_key(KeyAct.OWN, token),
+            can_manage=viewer.may_key(KeyAct.MANAGE, token),
         )
         return context
 
@@ -258,14 +249,14 @@ class TokenRegenerateView(BaseAqueductView, View):
     http_method_names: ClassVar[list] = ["post"]
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
-        service = Token.objects.filter(of_teams(self.profile.openable_teams()))
+        service = Token.objects.filter(of_teams(self.viewer.teams(TeamAct.OPEN)))
         token = get_object_or_404(
             (personal_tokens(request.user) | service).select_related("service_account__team"),
             pk=kwargs.get("id"),
         )
         team = team_of(token)
         back = reverse("team", kwargs={"id": team.id}) if team else reverse("tokens")
-        if team is not None and not self.profile.is_team_admin(team):
+        if team is not None and not self.viewer.may_team(TeamAct.MANAGE, team):
             messages.error(request, ONLY_TEAM_ADMINS)
             return redirect(back)
         new_key = token.regenerate_key()

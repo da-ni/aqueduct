@@ -1,7 +1,7 @@
 from django.urls import reverse
 
 from management.models import Team, UserGroup
-from management.request_log import SESSION_ORG
+from management.org_choice import SESSION_KEY
 from management.tests.helpers import RoleWorld
 
 ORG_SCOPED = ("usage", "usage_keys", "requests")
@@ -66,7 +66,7 @@ class OrgSwitchTest(OrgSwitchTestBase):
             self.assertContains(organization, f'href="{reverse("organization")}?org={org.id}"')
         picked = self.client.get(reverse("organization"), {"org": self.org.id})
         self.assertContains(picked, '<h1 class="text-3xl font-semibold">lab-org</h1>', html=True)
-        self.assertEqual(self.client.session[SESSION_ORG], str(self.org.id))
+        self.assertEqual(self.client.session[SESSION_KEY], str(self.org.id))
 
     def test_org_parameter_applies_and_stays_for_later_pages(self):
         self.as_user(self.far_admin)
@@ -103,17 +103,17 @@ class OrgSwitchTest(OrgSwitchTestBase):
                 self.as_user(user)
                 response = self.switch(self.other_org.id)
                 self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
-                self.assertNotIn(SESSION_ORG, self.client.session)
+                self.assertNotIn(SESSION_KEY, self.client.session)
                 self.assertEqual(self.viewed("usage", org=self.other_org.id), self.org)
                 self.assertEqual(self.viewed("requests", org="all"), self.org)
-                self.assertNotIn(SESSION_ORG, self.client.session)
+                self.assertNotIn(SESSION_KEY, self.client.session)
                 teams = self.client.get(reverse("org"), {"org": self.other_org.id})
                 self.assertNotContains(teams, "Foreign")
 
     def test_non_admins_ignore_an_org_left_in_the_session(self):
         self.as_user(self.org_admin)
         session = self.client.session
-        session[SESSION_ORG] = str(self.other_org.id)
+        session[SESSION_KEY] = str(self.other_org.id)
         session.save()
         self.assertEqual(self.viewed("usage"), self.org)
         self.assertNotContains(self.client.get(reverse("org")), "Foreign")

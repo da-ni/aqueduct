@@ -16,16 +16,15 @@ from django.utils.http import urlencode
 from django.utils.translation import gettext, ngettext
 from django.utils.translation import gettext_lazy as _
 
+from management.access import EveryOrg, KeyAct, Memberships, Viewer, WholeOrg
 from management.icons import Icon
 from management.key_activity import Expiry, grouped
 from management.models import (
     Batch,
     BatchStatus,
     FileObject,
-    Org,
     Team,
     Token,
-    UserProfile,
     VectorStore,
     VectorStoreFile,
     VectorStoreFileBatch,
@@ -33,7 +32,6 @@ from management.models import (
     VectorStoreStatus,
 )
 from management.ownership import is_personal_of, of_teams, personal
-from management.request_log import visible_tokens
 
 DAY_SECONDS = 86_400
 PAGE_SIZE = 50
@@ -65,13 +63,15 @@ class Scope:
                 return yours
 
 
-def scope(profile: UserProfile, org: Org | None) -> Scope:
-    keys = visible_tokens(profile, org, profile.teams.all())
-    if org is None:
-        return Scope(keys, Whose.EVERY_ORG)
-    if profile.is_org_admin(org):
-        return Scope(keys, Whose.ORG, org.name)
-    return Scope(keys, Whose.YOURS)
+def scope(viewer: Viewer) -> Scope:
+    keys = viewer.keys(KeyAct.SEE)
+    match viewer.shown:
+        case EveryOrg():
+            return Scope(keys, Whose.EVERY_ORG)
+        case WholeOrg(org):
+            return Scope(keys, Whose.ORG, org.name)
+        case Memberships():
+            return Scope(keys, Whose.YOURS)
 
 
 def syncable(user: AbstractBaseUser, teams: Iterable[Team], seen: Scope) -> Q:

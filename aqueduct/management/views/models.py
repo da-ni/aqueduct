@@ -2,6 +2,7 @@ from typing import Any
 
 from django.views.generic import TemplateView
 
+from management.access import TeamAct
 from management.model_catalog import Category, Scope, load_catalog, scopes_for
 from management.models import UserProfile
 from management.nav import gateway_url
@@ -13,13 +14,13 @@ class ModelListView(BaseAqueductView, TemplateView):
 
     def scopes(self) -> tuple[Scope, ...]:
         try:
-            return scopes_for(self.profile)
+            return scopes_for(self.viewer.profile, self.viewer.teams(TeamAct.MINE))
         except UserProfile.DoesNotExist:
             return ()
 
     def shows_served_model(self) -> bool:
         try:
-            return self.profile.is_org_admin(self.profile.org)
+            return self.viewer.administers(self.viewer.org)
         except UserProfile.DoesNotExist:
             return False
 

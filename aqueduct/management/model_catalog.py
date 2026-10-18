@@ -9,6 +9,7 @@ from enum import StrEnum, auto
 from typing import Any
 from urllib.parse import urlsplit
 
+from django.db.models import QuerySet
 from django.urls import reverse
 from django.utils.formats import number_format
 from django.utils.functional import Promise
@@ -18,7 +19,7 @@ from litellm.types.utils import LlmProviders
 
 from gateway.config import model_entries, model_info_with_context, model_names
 from management.key_activity import compact, grouped
-from management.models import Token, UserProfile
+from management.models import Team, Token, UserProfile
 
 
 class Category(StrEnum):
@@ -381,11 +382,13 @@ Exclusions = Callable[[Any, Any], list[str]]
 
 
 def scopes_for(
-    profile: UserProfile, exclusions: Exclusions = Token.exclusion_list_from_objects
+    profile: UserProfile,
+    teams: QuerySet[Team],
+    exclusions: Exclusions = Token.exclusion_list_from_objects,
 ) -> tuple[Scope, ...]:
     personal = Scope(None, frozenset(exclusions(profile, profile.org)))
-    teams = profile.teams.select_related("org").order_by("name")
-    return (personal, *(Scope(team.name, frozenset(exclusions(team, team.org))) for team in teams))
+    found = teams.select_related("org").order_by("name")
+    return (personal, *(Scope(team.name, frozenset(exclusions(team, team.org))) for team in found))
 
 
 def usable_models(scopes: Sequence[Scope]) -> list[str]:

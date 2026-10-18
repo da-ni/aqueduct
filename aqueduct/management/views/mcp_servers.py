@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.views.generic import TemplateView
 
 from gateway.config import MCPServerConfig, get_mcp_config
+from management.access import TeamAct
 from management.model_catalog import Availability, Scope, scopes_for, split_scopes
 from management.models import Token, UserProfile
 from management.views.base import BaseAqueductView
@@ -56,7 +57,12 @@ class MCPServersView(BaseAqueductView, TemplateView):
 
     def scopes(self) -> tuple[Scope, ...]:
         try:
-            return scopes_for(self.profile, Token._mcp_server_exclusion_list_from_objects)
+            viewer = self.viewer
+            return scopes_for(
+                viewer.profile,
+                viewer.teams(TeamAct.MINE),
+                Token._mcp_server_exclusion_list_from_objects,
+            )
         except UserProfile.DoesNotExist:
             return ()
 

@@ -16,8 +16,9 @@ from django.utils.translation import gettext, ngettext, pgettext, pgettext_lazy
 from django.utils.translation import gettext_lazy as _
 
 from gateway.config import model_names
-from management.models import Org, Request, ServiceAccount, Token, UserProfile
-from management.ownership import is_personal_of, of_orgs, of_teams, org_id, personal
+from management.access import KeyAct, TeamAct, Viewer
+from management.models import Request, ServiceAccount, Token
+from management.ownership import personal
 
 if TYPE_CHECKING:
     from management.usage_report import Period
@@ -235,55 +236,19 @@ def personal_tokens(user: AbstractBaseUser | AnonymousUser) -> QuerySet[Token]:
 
 
 @dataclass(frozen=True)
-class KeyAccess:
-    user_id: int
-    every_org: bool
-    org: Org | None
-    team_ids: frozenset[int]
-
-    @classmethod
-    def of(cls, profile: UserProfile) -> "KeyAccess":
-        org = profile.org
-        return cls(
-            user_id=profile.user_id,
-            every_org=profile.is_admin(),
-            org=org if org is not None and profile.is_org_admin(org) else None,
-            team_ids=frozenset(profile.teams.values_list("id", flat=True)),
-        )
-
-    def tokens(self) -> QuerySet[Token]:
-        if self.every_org:
-            return Token.objects.all()
-        found = personal(self.user_id) | of_teams(self.team_ids)
-        return Token.objects.filter(found | of_orgs({self.org.pk}) if self.org else found)
-
-    def can_open(self, token: Token) -> bool:
-        if self.every_org or is_personal_of(token, self.user_id):
-            return True
-        account = token.service_account
-        if account is not None and account.team_id in self.team_ids:
-            return True
-        return self.org is not None and org_id(token) == self.org.id
-
-
-@dataclass(frozen=True)
 class KeyList:
     rows: tuple[KeyRow, ...]
     personal_count: int
     has_service_accounts: bool
 
 
-def key_list(profile: UserProfile, kind: KeyKind | None, query: str, now: datetime) -> KeyList:
-    personal = list(personal_tokens(profile.user).order_by("-created_at"))
+def key_list(viewer: Viewer, kind: KeyKind | None, query: str, now: datetime) -> KeyList:
+    personal = list(viewer.keys(KeyAct.OWN).order_by("-created_at"))
     service = list(
-        ServiceAccount.objects.filter(team__in=profile.teams.all())
+        ServiceAccount.objects.filter(team__in=viewer.teams(TeamAct.MINE))
         .select_related("team__org", "token")
         .order_by("team__name", "name")
     )
-    administered_teams = {
-        team.id for team in {sa.team for sa in service} if profile.is_team_admin(team)
-    }
-    administered = {sa.id for sa in service if sa.team_id in administered_teams}
     entries: list[tuple[Token, KeyKind, str | None, str]] = [
         (token, KeyKind.PERSONAL, None, reverse("token_detail", kwargs={"id": token.id}))
         for token in personal
@@ -315,7 +280,7 @@ def key_list(profile: UserProfile, kind: KeyKind | None, query: str, now: dateti
             activity=(found := activity.get(token.id, Activity())),
             expiry=Expiry.of(token.expires_at, now),
             bar_width=round(100 * found.tokens / busiest) if busiest else 0,
-            manageable=entry_kind is KeyKind.PERSONAL or token.service_account_id in administered,
+            manageable=viewer.may_key(KeyAct.MANAGE, token),
         )
         for token, entry_kind, team, href in entries
     )
