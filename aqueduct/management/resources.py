@@ -8,6 +8,7 @@ keys created, as with a personal key on the API, and syncs what `syncable` allow
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import Enum, auto
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser
@@ -17,7 +18,10 @@ from django.db.models.functions import Coalesce
 from django.template.defaultfilters import filesizeformat
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.functional import Promise
 from django.utils.http import urlencode
+from django.utils.translation import gettext, ngettext
+from django.utils.translation import gettext_lazy as _
 
 from management.icons import Icon
 from management.key_activity import Expiry
@@ -45,13 +49,31 @@ NEWEST_FIRST = ("-created_at", "-id")
 API_DOCS = "https://tu-wien-datalab.github.io/aqueduct/api/"
 
 
+class Whose(Enum):
+    EVERY_ORG = auto()
+    ORG = auto()
+    YOURS = auto()
+
+
 @dataclass(frozen=True)
 class Scope:
     """The keys whose files, batches, and vector stores the viewer sees, the same keys whose
-    requests the request log shows, and `whose` names them after "No files" on an empty page."""
+    requests the request log shows. `whose` says which keys they are, so an empty page can name
+    them, and `org` names the org for `Whose.ORG`."""
 
     keys: QuerySet[Token]
-    whose: str
+    whose: Whose
+    org: str = ""
+
+    def empty(self, every_org: str, org: str, yours: str) -> str:
+        """The sentence of an empty page for this scope, one per `Whose`; `org` holds `%(org)s`."""
+        match self.whose:
+            case Whose.EVERY_ORG:
+                return every_org
+            case Whose.ORG:
+                return org % {"org": self.org}
+            case Whose.YOURS:
+                return yours
 
 
 def scope(profile: UserProfile, org: Org | None) -> Scope:
@@ -59,10 +81,10 @@ def scope(profile: UserProfile, org: Org | None) -> Scope:
     otherwise the viewer's personal keys and the service account keys of their teams."""
     keys = visible_tokens(profile, org, profile.teams.all())
     if org is None:
-        return Scope(keys, "")
+        return Scope(keys, Whose.EVERY_ORG)
     if profile.is_org_admin(org):
-        return Scope(keys, f" in {org.name}")
-    return Scope(keys, " from your keys or your teams' keys")
+        return Scope(keys, Whose.ORG, org.name)
+    return Scope(keys, Whose.YOURS)
 
 
 def syncable(user: AbstractBaseUser, teams: Iterable[Team], seen: Scope) -> Q:
@@ -82,29 +104,21 @@ def owns(user: AbstractBaseUser, token: Token | None) -> bool:
     return token is not None and token.service_account_id is None and token.user_id == user.pk
 
 
-def counted(count: int, noun: str) -> str:
-    plural = noun + ("es" if noun.endswith("ch") else "s")
-    return f"{count} {noun if count == 1 else plural}"
-
-
 def moment(timestamp: int | None) -> datetime | None:
     return None if timestamp is None else datetime.fromtimestamp(timestamp, tz=UTC)
 
 
-YOU = "You"
-
-
 def owner_of(token: Token, viewer: AbstractBaseUser) -> str:
-    """The team of a service account's key, `YOU` for the viewer's personal key, or the email
+    """The team of a service account's key, "You" for the viewer's personal key, or the email
     of another user's personal key, which only an org admin sees."""
     if token.service_account:
         return token.service_account.team.name
-    return YOU if token.user_id == viewer.pk else token.user.email
+    return gettext("You") if token.user_id == viewer.pk else token.user.email
 
 
 @dataclass(frozen=True)
 class Status:
-    label: str
+    label: str | Promise
     tone: str
     icon: Icon
 
@@ -113,47 +127,47 @@ class Status:
         return known.get(raw) or cls(raw.replace("_", " ").capitalize(), "st-off", Icon.OFF)
 
 
-def _working(label: str) -> Status:
+def _working(label: Promise) -> Status:
     return Status(label, "text-primary", Icon.PENDING)
 
 
-_DONE = Status("Completed", "st-ok", Icon.OK)
-_FAILED = Status("Failed", "st-err", Icon.FAILED)
-_CANCELLED = Status("Cancelled", "st-off", Icon.OFF)
-_EXPIRED = Status("Expired", "st-off", Icon.OFF)
+_DONE = Status(_("Completed"), "st-ok", Icon.OK)
+_FAILED = Status(_("Failed"), "st-err", Icon.FAILED)
+_CANCELLED = Status(_("Cancelled"), "st-off", Icon.OFF)
+_EXPIRED = Status(_("Expired"), "st-off", Icon.OFF)
 
 BATCH_STATUSES: Mapping[str, Status] = {
-    BatchStatus.VALIDATING: _working("Validating"),
-    BatchStatus.IN_PROGRESS: _working("In progress"),
-    BatchStatus.FINALIZING: _working("Finalizing"),
-    BatchStatus.CANCELLING: _working("Cancelling"),
+    BatchStatus.VALIDATING: _working(_("Validating")),
+    BatchStatus.IN_PROGRESS: _working(_("In progress")),
+    BatchStatus.FINALIZING: _working(_("Finalizing")),
+    BatchStatus.CANCELLING: _working(_("Cancelling")),
     BatchStatus.COMPLETED: _DONE,
     BatchStatus.FAILED: _FAILED,
     BatchStatus.EXPIRED: _EXPIRED,
     BatchStatus.CANCELLED: _CANCELLED,
 }
 CANCELLABLE = frozenset({BatchStatus.VALIDATING, BatchStatus.IN_PROGRESS, BatchStatus.FINALIZING})
-_READY = Status("Ready", "st-ok", Icon.OK)
+_READY = Status(_("Ready"), "st-ok", Icon.OK)
 STORE_STATUSES: Mapping[str, Status] = {
     VectorStoreStatus.COMPLETED: _READY,
-    VectorStoreStatus.IN_PROGRESS: _working("Indexing"),
+    VectorStoreStatus.IN_PROGRESS: _working(_("Indexing")),
     VectorStoreStatus.EXPIRED: _EXPIRED,
 }
 STORE_FILE_STATUSES: Mapping[str, Status] = {
     VectorStoreFileStatus.COMPLETED: _READY,
-    VectorStoreFileStatus.IN_PROGRESS: _working("Indexing"),
+    VectorStoreFileStatus.IN_PROGRESS: _working(_("Indexing")),
     VectorStoreFileStatus.FAILED: _FAILED,
     VectorStoreFileStatus.CANCELLED: _CANCELLED,
 }
-PURPOSES: Mapping[str, str] = {
-    "batch": "Batch input",
-    "batch_output": "Batch output",
-    "assistants": "Assistants",
-    "assistants_output": "Assistants output",
-    "user_data": "User data",
-    "fine-tune": "Fine-tune",
-    "vision": "Vision",
-    "evals": "Evals",
+PURPOSES: Mapping[str, str | Promise] = {
+    "batch": _("Batch input"),
+    "batch_output": _("Batch output"),
+    "assistants": _("Assistants"),
+    "assistants_output": _("Assistants output"),
+    "user_data": _("User data"),
+    "fine-tune": _("Fine-tune"),
+    "vision": _("Vision"),
+    "evals": _("Evals"),
 }
 
 
@@ -182,26 +196,16 @@ def page_holding(rows: QuerySet, row_id: str) -> int | None:
     return newer // PAGE_SIZE + 1
 
 
-@dataclass(frozen=True)
-class Quota:
-    owner: str
-    used: int
-    limit: int
-
-    def __str__(self) -> str:
-        return f"{self.owner} {self.used}/{self.limit}"
-
-
 def quotas(
-    label: str,
+    line: str,
     user: AbstractBaseUser,
     rows: QuerySet,
     teams: QuerySet[Team],
     limits: tuple[int, int],
 ) -> str:
     """What `rows` holds against the viewer's limit and against the limit of each team they
-    belong to, the limits the API enforces when it creates more, as "<label>: you 1/10 · <team>
-    0/25"."""
+    belong to, the limits the API enforces when it creates more, as "you 1/10 · <team> 0/25"
+    put into `line` at `%(quotas)s`."""
     user_limit, team_limit = limits
     per_team = dict(
         rows.filter(token__service_account__team__in=teams)
@@ -211,13 +215,14 @@ def quotas(
         .values_list("token__service_account__team", "n")
     )
     used = (
-        Quota("you", rows.filter(own(user)).count(), user_limit),
+        gettext("you %(used)s/%(limit)s")
+        % {"used": rows.filter(own(user)).count(), "limit": user_limit},
         *(
-            Quota(team.name, per_team.get(team.id, 0), team_limit)
+            f"{team.name} {per_team.get(team.id, 0)}/{team_limit}"
             for team in teams.order_by("name")
         ),
     )
-    return f"{label}: {' · '.join(map(str, used))}"
+    return line % {"quotas": " · ".join(used)}
 
 
 @dataclass(frozen=True)
@@ -244,18 +249,25 @@ class Progress:
 
     @property
     def label(self) -> str:
-        label = f"{self.completed + self.failed:,} of {self.total:,}"
-        return f"{label} · {self.failed:,} failed" if self.failed else label
+        done = gettext("%(done)s of %(total)s") % {
+            "done": f"{self.completed + self.failed:,}",
+            "total": f"{self.total:,}",
+        }
+        if not self.failed:
+            return done
+        failed = ngettext("%(count)s failed", "%(count)s failed", self.failed)
+        return f"{done} · {failed % {'count': f'{self.failed:,}'}}"
 
 
 @dataclass(frozen=True)
 class FileRow:
     file: FileObject
     owner: str
-    purpose: str
+    purpose: str | Promise
     created: datetime | None
     expiry: Expiry
-    deletable: bool
+    mine: bool
+    """Whether the viewer's personal key created it, which lets them delete it."""
 
 
 @dataclass(frozen=True)
@@ -268,10 +280,22 @@ class FileList:
 
     @property
     def summary(self) -> str:
+        count = self.pages.paginator.count
         limit = settings.AQUEDUCT_FILES_API_MAX_FILE_SIZE_MB
-        return (
-            f"{counted(self.pages.paginator.count, 'file')} · {filesizeformat(self.size)}"
-            f" · max {limit} MB each"
+        return " · ".join(
+            (
+                ngettext("%(count)s file", "%(count)s files", count) % {"count": count},
+                filesizeformat(self.size),
+                gettext("max %(limit)s MB each") % {"limit": limit},
+            )
+        )
+
+    @property
+    def empty(self) -> str:
+        return self.scope.empty(
+            gettext("No files yet."),
+            gettext("No files in %(org)s yet."),
+            gettext("No files from your keys or your teams' keys yet."),
         )
 
 
@@ -295,7 +319,7 @@ def file_list(
                 purpose=PURPOSES.get(file.purpose, file.purpose),
                 created=moment(file.created_at),
                 expiry=Expiry.of(moment(file.expires_at), now),
-                deletable=owns(user, file.token),
+                mine=owns(user, file.token),
             )
             for file in files
         ),
@@ -315,18 +339,23 @@ class BatchRow:
     deadline: datetime | None
     """When a running batch must finish, `None` once it stopped running."""
     deadline_today: bool
+    mine: bool
+    """Whether the viewer's personal key created it."""
     cancellable: bool
 
     @property
     def results(self) -> tuple[tuple[str, FileObject], ...]:
-        named = (("Output", self.batch.output_file), ("Errors", self.batch.error_file))
+        named = (
+            (gettext("Output"), self.batch.output_file),
+            (gettext("Errors"), self.batch.error_file),
+        )
         return tuple((label, file) for label, file in named if file)
 
     @property
     def note(self) -> str:
         if self.batch.status in CANCELLABLE:
-            return "Output pending"
-        return "No output file"
+            return gettext("Output pending")
+        return gettext("No output file")
 
 
 @dataclass(frozen=True)
@@ -337,6 +366,14 @@ class BatchList:
     scope: Scope
     docs = f"{API_DOCS}batches/"
 
+    @property
+    def empty(self) -> str:
+        return self.scope.empty(
+            gettext("No batches yet."),
+            gettext("No batches in %(org)s yet."),
+            gettext("No batches from your keys or your teams' keys yet."),
+        )
+
 
 ACTIVE_BATCH = Q(
     status__in=[BatchStatus.VALIDATING, BatchStatus.IN_PROGRESS, BatchStatus.CANCELLING]
@@ -345,6 +382,7 @@ ACTIVE_BATCH = Q(
 
 def batch_row(batch: Batch, user: AbstractBaseUser, now: datetime) -> BatchRow:
     running = batch.status in CANCELLABLE
+    mine = owns(user, batch.token)
     deadline = moment(batch.expires_at) if running else None
     return BatchRow(
         batch=batch,
@@ -355,7 +393,8 @@ def batch_row(batch: Batch, user: AbstractBaseUser, now: datetime) -> BatchRow:
         deadline=deadline,
         deadline_today=deadline is not None
         and timezone.localdate(deadline) == timezone.localdate(now),
-        cancellable=running and owns(user, batch.token),
+        mine=mine,
+        cancellable=running and mine,
     )
 
 
@@ -376,7 +415,9 @@ def batch_list(
     return BatchList(
         tuple(batch_row(batch, user, now) for batch in batches),
         pages,
-        quotas("Running", user, Batch.objects.filter(ACTIVE_BATCH), teams, limits),
+        quotas(
+            gettext("Running: %(quotas)s"), user, Batch.objects.filter(ACTIVE_BATCH), teams, limits
+        ),
         keys,
     )
 
@@ -408,6 +449,14 @@ class StoreList:
     summary: str
     scope: Scope
     docs = f"{API_DOCS}vector-stores/"
+
+    @property
+    def empty(self) -> str:
+        return self.scope.empty(
+            gettext("No vector stores yet."),
+            gettext("No vector stores in %(org)s yet."),
+            gettext("No vector stores from your keys or your teams' keys yet."),
+        )
 
 
 def store_rows(
@@ -447,7 +496,9 @@ def store_list(
     return StoreList(
         store_rows(stores, user, sync, now),
         pages,
-        quotas("Vector stores", user, VectorStore.objects.all(), teams, limits),
+        quotas(
+            gettext("Vector stores: %(quotas)s"), user, VectorStore.objects.all(), teams, limits
+        ),
         keys,
     )
 

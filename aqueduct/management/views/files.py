@@ -4,6 +4,7 @@ from django.db.models import QuerySet
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.utils import timezone
+from django.utils.translation import gettext
 from django.views.generic import DeleteView, TemplateView
 
 from gateway.config import get_files_api_client
@@ -43,13 +44,16 @@ class FileDeleteView(BaseAqueductView, DeleteView):
         try:
             client = get_files_api_client()
         except ValueError:
-            messages.error(self.request, "The Files API is not configured.")
+            messages.error(self.request, gettext("The Files API is not configured."))
             return redirect(self.get_success_url())
         if not async_to_sync(file.adelete_upstream)(client, raise_on_error=False):
-            messages.error(self.request, f"Could not delete {file.filename}. Try again later.")
+            messages.error(
+                self.request,
+                gettext("Could not delete %(name)s. Try again later.") % {"name": file.filename},
+            )
             return redirect(self.get_success_url())
         file.delete()
-        messages.success(self.request, f"File {file.filename} deleted.")
+        messages.success(self.request, gettext("File %(name)s deleted.") % {"name": file.filename})
         return redirect(self.get_success_url())
 
     def get_context_data(self, **kwargs) -> dict[str, object]:

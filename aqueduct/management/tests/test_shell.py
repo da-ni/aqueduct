@@ -168,6 +168,16 @@ class ShellTest(TestCase):
             list(settings.EXTRA_NAV_LINKS.items()),
         )
 
+    @override_settings(
+        EXTRA_NAV_LINKS={"Report a bug": "https://bugs.test/", "Status page": "https://status.test/"}
+    )
+    def test_help_links_translate_known_labels_and_keep_others_as_configured(self):
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "de"
+        shell = self.shell_on(reverse("sso"))
+        self.assertEqual(
+            [link.label for link in shell.help_links[:2]], ["Fehler melden", "Status page"]
+        )
+
     def test_current_page_follows_url_families(self):
         self.sign_in("admin")
         cases = {

@@ -1,22 +1,22 @@
-{% load ui %}
+{% load i18n ui %}
 <div class="flex flex-col gap-2">
     <p class="label-mono">{{ selected.mode.label }}</p>
     <h2 id="model-detail-name-{{ place }}" class="break-all font-mono text-xl font-semibold">{{ selected.name }}</h2>
     {% if selected.description %}<p class="text-sm">{{ selected.description }}</p>{% endif %}
-    {% if selected.available_with %}<p class="muted text-sm">Available with {{ selected.available_with }}.</p>{% endif %}
+    {% if selected.available_with %}<p class="muted text-sm">{% blocktranslate with keys=selected.available_with %}Available with {{ keys }}.{% endblocktranslate %}</p>{% endif %}
     <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
         {% if selected.model_card_url %}
-            <a class="link-plain inline-flex items-center gap-1" href="{{ selected.model_card_url }}" target="_blank" rel="noopener noreferrer">Model card{% icon "external" small=True %}</a>
+            <a class="link-plain inline-flex items-center gap-1" href="{{ selected.model_card_url }}" target="_blank" rel="noopener noreferrer">{% translate "Model card" %}{% icon "external" small=True %}</a>
         {% endif %}
-        <a class="link-plain" href="{% url 'usage' %}?model={{ selected.name|urlencode }}">Usage</a>
-        <a class="link-plain" href="{% url 'requests' %}?model={{ selected.name|urlencode }}">Requests</a>
+        <a class="link-plain" href="{% url 'usage' %}?model={{ selected.name|urlencode }}">{% translate "Usage" %}</a>
+        <a class="link-plain" href="{% url 'requests' %}?model={{ selected.name|urlencode }}">{% translate "Requests" %}</a>
     </div>
 </div>
 
 {% if selected.deprecation_date %}
     <div class="flex items-start gap-2 rounded-lg bg-base-100 px-3 py-2 text-sm">
         {% icon "warning" small=True extra_class="st-warn mt-0.5" %}
-        <span><span class="font-semibold">Deprecated.</span> Retirement date: {{ selected.deprecation_date|when:"date" }}.</span>
+        <span>{% blocktranslate with date=selected.deprecation_date|when:"date" %}<span class="font-semibold">Deprecated.</span> Retirement date: {{ date }}.{% endblocktranslate %}</span>
     </div>
 {% endif %}
 
@@ -30,7 +30,7 @@
         {% endfor %}
         {% if show_served_model and selected.served_model %}
             <div class="col-span-full flex flex-col rounded-lg bg-base-100 px-3 py-2">
-                <span class="muted text-xs">Served model</span>
+                <span class="muted text-xs">{% translate "Served model" %}</span>
                 <span class="break-all font-mono text-sm font-semibold">{{ selected.served_model }}</span>
             </div>
         {% endif %}
@@ -39,7 +39,7 @@
 
 {% if selected.aliases %}
     <div class="flex flex-col gap-2">
-        <span class="text-sm font-semibold">Aliases</span>
+        <span class="text-sm font-semibold">{% translate "Aliases" %}</span>
         <div class="flex flex-wrap gap-1.5">
             {% for alias in selected.aliases %}<span class="break-all rounded-md bg-base-100 px-2 py-0.5 font-mono text-xs">{{ alias }}</span>{% endfor %}
         </div>
@@ -48,7 +48,7 @@
 
 {% if selected.capabilities %}
     <div class="flex flex-col gap-2">
-        <span class="text-sm font-semibold">Capabilities</span>
+        <span class="text-sm font-semibold">{% translate "Capabilities" %}</span>
         <div class="flex flex-wrap gap-1.5">
             {% for capability in selected.capabilities %}<span class="badge badge-sm bg-base-100 font-mono">{{ capability }}</span>{% endfor %}
         </div>
@@ -58,9 +58,9 @@
 {% if snippet %}
     <div class="flex flex-col gap-2">
         <div class="flex items-center justify-between gap-2">
-            <span class="text-sm font-semibold">Use it</span>
+            <span class="text-sm font-semibold">{% translate "Use it" %}</span>
             <button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ snippet }}"
-                    aria-label="Copy example" title="Copy example">{% icon "copy" small=True %}</button>
+                    aria-label="{% translate 'Copy example' %}" title="{% translate 'Copy example' %}">{% icon "copy" small=True %}</button>
         </div>
         <pre class="overflow-x-auto rounded-lg bg-base-100 p-3 font-mono text-[11px] leading-relaxed">{{ snippet }}</pre>
     </div>

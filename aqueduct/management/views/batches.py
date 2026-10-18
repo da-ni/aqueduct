@@ -5,13 +5,22 @@ from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
+from django.utils.translation import gettext
 from django.views import View
 from django.views.generic import TemplateView
 from openai import OpenAIError
 
 from gateway.config import get_files_api_client
 from management.models import Batch
-from management.resources import CANCELLABLE, batch_list, list_url, own, scope
+from management.resources import (
+    BATCH_STATUSES,
+    CANCELLABLE,
+    Status,
+    batch_list,
+    list_url,
+    own,
+    scope,
+)
 from management.views.base import BaseAqueductView
 
 
@@ -37,12 +46,24 @@ class BatchCancelView(BaseAqueductView, View):
         batch = get_object_or_404(Batch.objects.filter(own(request.user)), pk=kwargs["id"])
         back = list_url("batches", request.POST.get("page"))
         if batch.status not in CANCELLABLE:
-            messages.error(request, f"Batch {batch.id} is {batch.status} and cannot be cancelled.")
+            messages.error(
+                request,
+                gettext("Batch %(id)s is %(status)s and cannot be cancelled.")
+                % {
+                    "id": batch.id,
+                    "status": str(Status.of(batch.status, BATCH_STATUSES).label).lower(),
+                },
+            )
             return redirect(back)
         try:
             async_to_sync(batch.acancel_upstream)(get_files_api_client())
         except (ValueError, OpenAIError):
-            messages.error(request, f"Could not cancel batch {batch.id}. Try again later.")
+            messages.error(
+                request,
+                gettext("Could not cancel batch %(id)s. Try again later.") % {"id": batch.id},
+            )
         else:
-            messages.success(request, f"Batch {batch.id} is being cancelled.")
+            messages.success(
+                request, gettext("Batch %(id)s is being cancelled.") % {"id": batch.id}
+            )
         return redirect(back)

@@ -1,15 +1,15 @@
 {% extends "management/_resource_list.html" %}
-{% load ui %}
+{% load i18n ui %}
 
-{% block heading %}Files{% endblock %}
+{% block heading %}{% translate "Files" %}{% endblock %}
 
 {% block columns %}
-    <th>File</th>
-    <th>Purpose</th>
-    <th class="text-right">Size</th>
-    <th>Created</th>
-    <th>Expires</th>
-    <th><span class="sr-only">Actions</span></th>
+    <th>{% translate "File" %}</th>
+    <th>{% translate "Purpose" %}</th>
+    <th class="text-right">{% translate "Size" %}</th>
+    <th>{% translate "Created" %}</th>
+    <th>{% translate "Expires" %}</th>
+    <th><span class="sr-only">{% translate "Actions" %}</span></th>
 {% endblock %}
 
 {% block rows %}
@@ -17,7 +17,7 @@
         <tr id="{{ row.file.id }}" class="file-row">
             <td>
                 <span class="font-semibold">{{ row.file.filename }}</span>
-                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.file.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.file.id }}" aria-label="Copy ID of {{ row.file.filename }}" title="Copy file ID">{% icon "copy" small=True %}</button>{% if row.owner != "You" %} · {{ row.owner }}{% endif %}</div>
+                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.file.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.file.id }}" aria-label="{% blocktranslate with name=row.file.filename %}Copy ID of {{ name }}{% endblocktranslate %}" title="{% translate 'Copy file ID' %}">{% icon "copy" small=True %}</button>{% if not row.mine %} · {{ row.owner }}{% endif %}</div>
             </td>
             <td><span class="badge badge-sm bg-base-100 font-mono">{{ row.purpose }}</span></td>
             <td class="text-right font-mono">{{ row.file.bytes|filesizeformat }}</td>
@@ -26,24 +26,24 @@
             <td>
                 <div class="flex justify-end gap-1">
                     {% if row.file.preview %}
-                        <button type="button" class="btn btn-ghost btn-sm btn-square" popovertarget="preview-{{ row.file.id }}" aria-label="Preview {{ row.file.filename }}" title="Preview">{% icon "file" small=True %}</button>
+                        <button type="button" class="btn btn-ghost btn-sm btn-square" popovertarget="preview-{{ row.file.id }}" aria-label="{% blocktranslate with name=row.file.filename %}Preview {{ name }}{% endblocktranslate %}" title="{% translate 'Preview' %}">{% icon "file" small=True %}</button>
                         <div id="preview-{{ row.file.id }}" popover class="m-auto w-[min(40rem,90vw)] rounded-box bg-base-100 p-5 text-left shadow-lg backdrop:bg-black/40">
                             <div class="flex items-center justify-between gap-4">
                                 <h2 class="font-semibold">{{ row.file.filename }}</h2>
-                                <button type="button" class="btn btn-ghost btn-sm" popovertarget="preview-{{ row.file.id }}" popovertargetaction="hide">Close</button>
+                                <button type="button" class="btn btn-ghost btn-sm" popovertarget="preview-{{ row.file.id }}" popovertargetaction="hide">{% translate "Close" %}</button>
                             </div>
-                            <p class="muted text-sm">The first lines of the file.</p>
+                            <p class="muted text-sm">{% translate "The first lines of the file." %}</p>
                             <pre class="mt-3 max-h-96 overflow-auto rounded-lg bg-base-200 p-3 font-mono text-xs">{{ row.file.preview }}</pre>
                         </div>
                     {% endif %}
-                    {% if row.deletable %}
-                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'file_delete' row.file.id %}?page={{ listing.pages.number }}" {% confirm_delete row.file %} aria-label="Delete {{ row.file.filename }}" title="Delete">{% icon "delete" small=True %}</a>
+                    {% if row.mine %}
+                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'file_delete' row.file.id %}?page={{ listing.pages.number }}" {% confirm_delete row.file %} aria-label="{% blocktranslate with name=row.file.filename %}Delete {{ name }}{% endblocktranslate %}" title="{% translate 'Delete' %}">{% icon "delete" small=True %}</a>
                     {% endif %}
                 </div>
             </td>
         </tr>
     {% empty %}
-        <tr><td colspan="6" class="muted">No files{{ listing.scope.whose }} yet. Upload with the <a class="link" href="{{ listing.docs }}">Files API</a>.</td></tr>
+        <tr><td colspan="6" class="muted">{{ listing.empty }} {% blocktranslate with docs=listing.docs %}Upload with the <a class="link" href="{{ docs }}">Files API</a>.{% endblocktranslate %}</td></tr>
     {% endfor %}
 {% endblock %}
 

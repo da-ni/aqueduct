@@ -37,19 +37,10 @@ UNTRANSLATED: frozenset[str] = frozenset()
 
 # Templates that still hold text outside {% translate %} and {% blocktranslate %}. An extraction
 # pull request wraps a template's text and removes the template here; the test fails on a listed
-# template that has no bare text left, so the list only shrinks.
+# template that has no bare text left, so the list only shrinks. The two left are Django admin
+# pages for platform admins, which stay English along with the admin forms in `admin.py`.
 UNTRANSLATED_TEMPLATES = frozenset(
-    {
-        "admin/management/snippet/change_list.html",
-        "admin/management/snippet/test_console.html",
-        "management/_model_detail.html",
-        "management/batches.html",
-        "management/files.html",
-        "management/mcp_servers.html",
-        "management/model_list.html",
-        "management/vector_store_detail.html",
-        "management/vector_stores.html",
-    }
+    {"admin/management/snippet/change_list.html", "admin/management/snippet/test_console.html"}
 )
 
 TEMPLATES = BASE_DIR / "management" / "templates"

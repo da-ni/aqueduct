@@ -9,6 +9,9 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from django.urls import reverse
+from django.utils.functional import Promise
+from django.utils.translation import gettext
+from django.utils.translation import gettext_lazy as _
 from litellm.types.utils import LlmProviders
 
 from gateway.config import get_router_config, model_info_with_context
@@ -24,8 +27,8 @@ class Category(StrEnum):
     OTHER = auto()
 
     @property
-    def label(self) -> str:
-        return self.value.title()
+    def label(self) -> Promise:
+        return _CATEGORY_LABELS[self]
 
     @classmethod
     def parse(cls, raw: str) -> "Category | None":
@@ -35,42 +38,56 @@ class Category(StrEnum):
             return None
 
 
+CONTEXT_LENGTH = _("Context length")
+_CATEGORY_LABELS = {
+    Category.CHAT: _("Chat"),
+    Category.EMBEDDINGS: _("Embeddings"),
+    Category.AUDIO: _("Audio"),
+    Category.IMAGES: _("Images"),
+    Category.OTHER: _("Other"),
+}
+
+
 @dataclass(frozen=True)
 class Mode:
     category: Category
-    label: str
+    label: str | Promise
     spellings: tuple[str, ...]
     endpoint: str | None = None
     fields: tuple[tuple[str, object], ...] = ()
     form: bool = False
     output: str | None = None
-    context_label: str = "Context length"
+    context_label: str | Promise = CONTEXT_LENGTH
     """The panel label of `max_input_tokens`. A chat model's `max_tokens` holds input and output."""
 
 
 MODES: tuple[Mode, ...] = (
     Mode(
         Category.CHAT,
-        "Chat",
+        _("Chat"),
         ("chat",),
         "gateway:chat_completions",
         (("messages", [{"role": "user", "content": "Hello"}]),),
     ),
     Mode(
-        Category.CHAT, "Completion", ("completion",), "gateway:completions", (("prompt", "Hello"),)
+        Category.CHAT,
+        _("Completion"),
+        ("completion",),
+        "gateway:completions",
+        (("prompt", "Hello"),),
     ),
-    Mode(Category.CHAT, "Responses", ("responses",), "gateway:responses", (("input", "Hello"),)),
+    Mode(Category.CHAT, _("Responses"), ("responses",), "gateway:responses", (("input", "Hello"),)),
     Mode(
         Category.EMBEDDINGS,
-        "Embeddings",
+        _("Embeddings"),
         ("embedding", "embeddings"),
         "gateway:embeddings",
         (("input", "Hello"),),
-        context_label="Max input tokens",
+        context_label=_("Max input tokens"),
     ),
     Mode(
         Category.AUDIO,
-        "Text to speech",
+        _("Text to speech"),
         ("audio_speech",),
         "gateway:speech",
         (("input", "Hello"), ("voice", "alloy")),
@@ -78,7 +95,7 @@ MODES: tuple[Mode, ...] = (
     ),
     Mode(
         Category.AUDIO,
-        "Speech to text",
+        _("Speech to text"),
         ("audio_transcription", "audio_transcriptions"),
         "gateway:transcriptions",
         (("file", "@speech.mp3"),),
@@ -86,13 +103,13 @@ MODES: tuple[Mode, ...] = (
     ),
     Mode(
         Category.IMAGES,
-        "Images",
+        _("Images"),
         ("image_generation", "image_generations"),
         "gateway:image_generation",
         (("prompt", "A lighthouse at dawn"),),
     ),
 )
-OTHER_MODE = Mode(Category.OTHER, "Other", ())
+OTHER_MODE = Mode(Category.OTHER, _("Other"), ())
 _MODE_BY_SPELLING = {spelling: mode for mode in MODES for spelling in mode.spellings}
 
 
@@ -123,10 +140,14 @@ def _text(value: object) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+_MODALITIES = {"text": _("text"), "image": _("image"), "audio": _("audio"), "video": _("video")}
+
+
 def _modalities(value: object) -> str:
     if not isinstance(value, list) or not value or not all(isinstance(v, str) for v in value):
         return ""
-    return ", ".join(value).capitalize()
+    joined = ", ".join(str(_MODALITIES.get(v.lower(), v.lower())) for v in value)
+    return joined[:1].upper() + joined[1:]
 
 
 def _date(value: object) -> date | None:
@@ -140,25 +161,25 @@ def _date(value: object) -> date | None:
     return None
 
 
-_SPECS: tuple[tuple[str, str, Callable[[object], str]], ...] = (
-    ("Quantization", "quantization", _text),
+_SPECS: tuple[tuple[str | Promise, str, Callable[[object], str]], ...] = (
+    (_("Quantization"), "quantization", _text),
     ("", "max_input_tokens", _number),
-    ("Max output tokens", "max_output_tokens", _number),
-    ("Dimensions", "output_vector_size", _number),
-    ("Input", "supported_modalities", _modalities),
-    ("Output", "supported_output_modalities", _modalities),
+    (_("Max output tokens"), "max_output_tokens", _number),
+    (_("Dimensions"), "output_vector_size", _number),
+    (_("Input"), "supported_modalities", _modalities),
+    (_("Output"), "supported_output_modalities", _modalities),
 )
-_CAPABILITIES: tuple[tuple[str, str], ...] = (
-    ("supports_vision", "Vision"),
-    ("supports_function_calling", "Tools"),
-    ("supports_response_schema", "JSON schema"),
-    ("supports_reasoning", "Reasoning"),
-    ("supports_web_search", "Web search"),
-    ("supports_pdf_input", "PDF input"),
-    ("supports_audio_input", "Audio input"),
-    ("supports_audio_output", "Audio output"),
-    ("supports_prompt_caching", "Prompt caching"),
-    ("supports_native_streaming", "Streaming"),
+_CAPABILITIES: tuple[tuple[str, str | Promise], ...] = (
+    ("supports_vision", _("Vision")),
+    ("supports_function_calling", _("Tools")),
+    ("supports_response_schema", _("JSON schema")),
+    ("supports_reasoning", _("Reasoning")),
+    ("supports_web_search", _("Web search")),
+    ("supports_pdf_input", _("PDF input")),
+    ("supports_audio_input", _("Audio input")),
+    ("supports_audio_output", _("Audio output")),
+    ("supports_prompt_caching", _("Prompt caching")),
+    ("supports_native_streaming", _("Streaming")),
 )
 
 
@@ -209,7 +230,7 @@ def _web_url(value: object) -> str | None:
 
 @dataclass(frozen=True)
 class Spec:
-    label: str
+    label: str | Promise
     value: str
 
 
@@ -222,12 +243,17 @@ class Scope:
 
     @property
     def name(self) -> str:
-        return f"{self.team} service accounts" if self.team else "your personal keys"
+        """The keys after "Available with", in the case German needs there."""
+        if self.team:
+            return gettext("%(team)s service accounts") % {"team": self.team}
+        return gettext("your personal keys")
 
 
 def _and_join(items: list[str]) -> str:
-    head, tail = items[:-1], items[-1:]
-    return " and ".join([", ".join(head), *tail] if head else tail)
+    *head, last = items or [""]
+    if not head:
+        return last
+    return gettext("%(items)s and %(last)s") % {"items": ", ".join(head), "last": last}
 
 
 def split_scopes(name: str, scopes: Sequence[Scope]) -> tuple[tuple[Scope, ...], tuple[Scope, ...]]:
@@ -264,7 +290,7 @@ class ModelCard(Availability):
     served_model: str | None
     context: str | None
     specs: tuple[Spec, ...]
-    capabilities: tuple[str, ...]
+    capabilities: tuple[str | Promise, ...]
     deprecation_date: date | None
 
     def matches(self, text: str) -> bool:
@@ -340,7 +366,9 @@ def parse_card(entry: Mapping[str, Any], scopes: Sequence[Scope] = ()) -> ModelC
     capabilities = tuple(label for key, label in _CAPABILITIES if info.get(key) is True)
     multiplier = info.get("request_limit_multiplier")
     if isinstance(multiplier, int | float) and not isinstance(multiplier, bool) and multiplier != 1:
-        capabilities += (f"{multiplier:g}x request limit",)
+        capabilities += (
+            gettext("%(multiplier)sx request limit") % {"multiplier": f"{multiplier:g}"},
+        )
     off_for, on_for = split_scopes(name, scopes)
     model_card_url = _web_url(info.get("model_card_url"))
     return ModelCard(
