@@ -32,10 +32,10 @@ Every new or changed view gets tests for who may use it and who may not. Cover a
 The management UI is server-rendered Django templates with no frontend build step. The redesign keeps that.
 
 - Pages extend `management/base.html` and fill `{% block content %}`. The navigation is data in `management/nav.py`. Add a page to the sidebar there, with `access` set to the check its view uses. `_sidebar.html` renders it on every page, and `header.html` renders it as the top bar of Django admin and Silk. Templates read the `shell` context variable. They do not check roles, read feature flags, or reverse URLs that only exist behind a flag. `management/tests/test_shell.py` opens every nav page whose route is mounted as a signed-out visitor, a user, an org admin, and an admin. It fails when the shell lists a page that does not return 200 for that role, leaves out a page that does, or lists a page whose route is not mounted.
-- A fragment used on more than one page is a partial named `_<name>.html` next to the pages, like `_new_key.html`. Create and edit forms live in `create/` and `edit/`. Delete confirmations use `common/confirm_delete.html`.
+- A fragment used on more than one page is a partial named `_<name>.html` next to the pages, like `_new_key.html`. Create and edit forms live in `create/` and `edit/`. Delete confirmations use `common/confirm_delete.html`. To ask before a destructive action on a page, put `{% confirm_delete obj %}` on a link to a delete view, or `{% confirm title detail action %}` on any other link or submit button, from `{% load ui %}`. `aqueduct.js` then asks in the shared confirm dialog.
 - `management/_cdn.html` loads every third-party asset with a pinned version, then the theme in `css/aqueduct-theme.css` and the shared script in `js/aqueduct.js`. Add or upgrade an asset there and nowhere else.
 - Build pages from daisyUI components, and use Tailwind utilities for layout. Take colors from the daisyUI theme, such as `bg-base-200`, `text-base-content`, and `btn-primary`, so both light and dark mode work. The templates contain no hex colors.
-- New icons are inline SVGs that stroke `currentColor`, as in the redesign mockup, so they follow the theme. Add each one to the `Icon` enum in `management/icons.py` and render it with `{% icon "name" %}` from `{% load ui %}`. The `[[data-theme=dark]_&]:invert` class exists only for the older `<img>` icons.
+- New icons are inline SVGs that stroke `currentColor`, as in the redesign mockup, so they follow the theme. Add each one to the `Icon` enum in `management/icons.py` and render it with `{% icon "name" %}` from `{% load ui %}`.
 
 ## Check UI changes in a running instance
 
@@ -49,109 +49,12 @@ The management pages come in English and German, in the formal "Sie". The langua
 - Translate whole sentences. Put values in through named placeholders, as in `{% blocktranslate with name=team.name %}Delete {{ name }}?{% endblocktranslate %}` or `gettext("Delete %(name)s?") % {"name": name}`. Never build a sentence by joining fragments, since German orders the words differently.
 - Use `{% blocktranslate count n=keys %}` or `ngettext` for every string with a number in it, never an `if` on the number.
 - Give each time span its own phrase, such as "in the last 7 days" and "today", instead of one sentence with the span put in.
-- Format dates a reader sees with `django.utils.dateformat` or the `date` filter, as in `dateformat.format(day, "j M")`, never with `strftime`, whose month and weekday names stay English.
+- Format dates a reader sees with a named format from `aqueduct/formats/` (`FORMAT_MODULE_PATH`), as in `date_format(day, "DAY_MONTH_FORMAT")` or `{{ day|date:"DAY_FORMAT" }}`, never with `strftime`, whose month and weekday names stay English. Define a new name in the `formats.py` of every language; `management/tests/test_number_formats.py` fails otherwise.
 - Avoid nouns for people, such as user or owner, where the sentence works without one, since German has to give them a gender. "Created by ana@example.com" translates without one, "Owner: ana@example.com" does not.
 - Language names are written in their own language, "Deutsch" and "English", and never translated.
 - Render a number inside a `style` attribute through `|unlocalize` from `{% load l10n %}`. German writes 12.5 as 12,5, which is no CSS number.
 - Script text comes from data attributes that the template renders, as the copy button's `data-copied` does. `aqueduct.js` holds no visible text.
 
-`management/tests/test_i18n.py` enforces these; its catalog checks need GNU gettext on PATH and skip without it. After changing a translatable string, run `uv run python manage.py makemessages -l de --no-obsolete --no-location` from `aqueduct/`, translate every new entry in `locale/de/LC_MESSAGES/django.po`, run `uv run python manage.py compilemessages -l de`, and commit both files. Its two lists only shrink. A template leaves `UNTRANSLATED_TEMPLATES` once all its text is wrapped, and a msgid in `UNTRANSLATED` is waiting for its German text.
+`management/tests/test_i18n.py` enforces these; its catalog checks need GNU gettext on PATH and skip without it. After changing a translatable string, run `uv run python manage.py makemessages -l de --no-obsolete --no-location` from `aqueduct/`, translate every new entry in `locale/de/LC_MESSAGES/django.po`, run `uv run python manage.py compilemessages -l de`, and commit both files. Every entry needs its German text. Only the admin templates in `ENGLISH_ONLY_TEMPLATES` keep bare English text.
 
-### Glossary
-
-| English | German |
-|---|---|
-| API key | API-Schlüssel |
-| Personal key | persönlicher Schlüssel |
-| Service account | Dienstkonto |
-| Organization | Organisation |
-| Platform admin | Plattform-Admin |
-| Org admin | Organisations-Admin |
-| Team admin | Team-Admin |
-| Member | Mitglied |
-| Request | Anfrage |
-| Request log | Anfrageprotokoll |
-| Token, tokens | Token |
-| Cached | aus dem Cache |
-| Rate-limited | Limit erreicht |
-| Usage | Nutzung |
-| Overview | Übersicht |
-| Models | Modelle |
-| Context length | Kontextlänge |
-| Answered, OK | OK |
-| Failed | Fehlgeschlagen |
-| Never | Nie |
-| Files | Dateien |
-| Batches | Batches |
-| Vector stores | Vektorspeicher |
-| MCP server | MCP-Server |
-| Median response time | Median der Antwortzeit |
-| Input, New input, Output | Eingabe, Neue Eingabe, Ausgabe |
-| Cache hits | Cache-Treffer |
-| Client error, Server error | Clientfehler, Serverfehler |
-| Time frame | Zeitraum |
-| Share (of a total) | Anteil |
-| Top keys | Meistgenutzte Schlüssel |
-| User ID (the `user` value a client sends) | User-ID |
-| Approximate | Näherungswert |
-| Search | Suchen |
-| n/a | k. A. |
-| Settings | Einstellungen |
-| Sign in, Sign out | Anmelden, Abmelden |
-| Terms of service | Nutzungsbedingungen |
-| Data protection information, Data protection (link) | Datenschutzinformation, Datenschutz |
-| Copy, Copied | Kopieren, Kopiert |
-| Delete, Cancel, Save | Löschen, Abbrechen, Speichern |
-| Account | Konto |
-| Role | Rolle |
-| Limit | Limit |
-| Organization default | Vorgabe der Organisation |
-| Viewing (an organization) | Ansicht |
-| Accept, Decline | Akzeptieren, Ablehnen |
-| Version of (a date) | Fassung vom |
-| Previous, Next | Zurück, Weiter |
-| First, Last (page) | Erste, Letzte |
-| Create, Edit | Erstellen, Bearbeiten |
-| Rotate (a key) | Erneuern |
-| Expires, No expiry, Expired | Ablauf, Kein Ablauf, Abgelaufen |
-| Hourly limit, Daily limit | Stundenlimit, Tageslimit |
-| Request ID | Anfrage-ID |
-| User agent | User-Agent |
-| Response (time) | Dauer |
-| Gateway overhead | Gateway-Overhead |
-| Error | Fehler |
-| Clear (a search) | Zurücksetzen |
-| Clear a box (of a checklist) | ein Häkchen entfernen |
-| Available, Unavailable, Availability | verfügbar, nicht verfügbar, Verfügbarkeit |
-| Hourly cap, Daily cap | Obergrenze pro Stunde, Obergrenze pro Tag |
-| Default (of the server) | Vorgabe |
-| Server setting | Servereinstellung |
-| Add, Remove | Hinzufügen, Entfernen |
-| Save changes | Änderungen speichern |
-| Select all, Select none | Alle auswählen, Keine auswählen |
-| Make admin, Remove admin | Zum Admin machen, Admin-Rechte entziehen |
-| Transfer, Transfer ownership (of a key) | Übertragen, Schlüssel übertragen |
-| Owns (a key), Current owner, New owner, No owner | Besitzt, Derzeit bei, Übertragen an, Nicht zugeordnet |
-| Everyone in (an organization) | Alle in |
-| Belongs to (a key's team, the viewer, or an email) | Zuordnung |
-| Purpose (of a file) | Zweck |
-| Progress | Fortschritt |
-| Preview | Vorschau |
-| Running (batches), Finish by | Laufend, Abschluss bis |
-| Keep running | Weiterlaufen lassen |
-| Completed, Cancelled, In progress | Abgeschlossen, Abgebrochen, In Bearbeitung |
-| Validating, Finalizing, Cancelling | Wird geprüft, Wird abgeschlossen, Wird abgebrochen |
-| Ready, Indexing (a vector store) | Bereit, Wird indexiert |
-| Sync status, synced | Status abgleichen, abgeglichen |
-| Available with (keys) | Verfügbar mit, then the dative: Ihren persönlichen Schlüsseln, den Dienstkonten von |
-| Model type, Other | Modelltyp, Sonstige |
-| Images, Text to speech, Speech to text | Bilder, Text zu Sprache, Sprache zu Text |
-| Aliases, Capabilities | Aliasse, Fähigkeiten |
-| Served model, Model card | Bereitgestelltes Modell, Modellkarte |
-| Deprecated, Retirement date | Veraltet, Abschaltung am |
-| Report a bug, Documentation | Fehler melden, Dokumentation |
-| Chat, Embeddings, Completion, Responses, Vision, Tools, Reasoning, Streaming | unchanged, as API terms |
-| Files API, Batches API, Vector Stores API | unchanged, as API names |
-| Aqueduct, Aqueduct AI Gateway | unchanged, as product names |
-
-German compact numbers use "Tsd.", "Mio.", "Mrd.", and "Bio.".
+Use the German terms in `aqueduct/locale/de/GLOSSARY.md`.

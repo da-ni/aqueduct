@@ -37,7 +37,7 @@ Preconditions:
 - **Limit.** Create keys until the page reads `3 of 3 keys used`. That is a disabled button instead of the `Create API key` link.
 - **Scope.** Sign in as `team-member` and open `/aqueduct/management/tokens/1/` and `/aqueduct/management/tokens/1/edit/`. Both return 404. Sign in as `org-admin` and open `/aqueduct/management/tokens/1/`. It returns 200 with no `Rotate`, `Edit`, or `Delete`, and `/aqueduct/management/tokens/1/edit/` returns 404. `other-org-admin` gets 404 on `/aqueduct/management/tokens/1/`. Read the key's name with `aqv shell` to show it did not change.
 - **Service accounts on the list.** As `team-admin`, the `verify-pipeline` row has `Rotate verify-pipeline`, `Edit verify-pipeline` (the service account form), and `Delete verify-pipeline`. Rotating there returns to the list with the new secret. As `team-member`, the row has no buttons.
-- **Phone width.** `aqv` fixes the viewport at 1440 px. For 390 px, connect Playwright to the run's `cdp_port` from `state.json`, call `page.set_viewport_size({"width": 390, "height": 900})`, and click `Actions for <name>`. The theme is `localStorage.selectedTheme` (`light` or `dark`); set it and reload.
+- **Phone width.** Run `aqv shot api-keys/phone-user --width 390`, or `aqv tour --pages /aqueduct/management/tokens/ --widths 390`. Each row shows an `Actions for <name>` menu in place of its buttons. For dark mode, run `aqv click --selector "[data-toggle-theme]"` once first.
 
 ## Gotchas
 

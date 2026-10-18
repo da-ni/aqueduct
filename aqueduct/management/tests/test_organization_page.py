@@ -113,7 +113,7 @@ class OrganizationPageTest(OrganizationTestBase):
         self.assertNotContains(response, "lab-org")
         self.assertNotContains(response, reverse("organization_limits", args=[self.org.id]))
 
-    def test_switch_offs_list_the_org_and_each_team_with_its_own(self):
+    def test_unavailable_models_list_the_org_and_each_team_with_its_own(self):
         self.org.excluded_models = ["dall-e-2"]
         self.org.save()
         self.team.excluded_models = ["gpt-image-1"]
@@ -276,7 +276,7 @@ class OrganizationEditFormTest(OrganizationTestBase):
         self.post("organization_limits", {**LIMITS, "requests_per_minute": ""})
         self.assertIsNone(Org.objects.get(pk=self.org.pk).requests_per_minute)
 
-    def test_without_an_mcp_config_the_stored_mcp_switch_offs_stay(self):
+    def test_without_an_mcp_config_the_stored_unavailable_mcp_servers_stay(self):
         self.org.excluded_mcp_servers = ["kept"]
         self.org.save()
         with mcp_config("/nonexistent/mcp.json"):
@@ -284,7 +284,7 @@ class OrganizationEditFormTest(OrganizationTestBase):
         self.assertEqual(response.status_code, HTTPStatus.FOUND)
         self.assertEqual(Org.objects.get(pk=self.org.pk).excluded_mcp_servers, ["kept"])
 
-    def test_mcp_servers_switch_off_for_the_org(self):
+    def test_mcp_servers_become_unavailable_for_the_org(self):
         with mcp_config(TEST_MCP_CONFIG):
             self.post("organization_availability", available("gpt-4.1-nano", mcp=("aqueduct",)))
         key = make_token(self.member, "laptop")
@@ -297,7 +297,7 @@ class OrganizationEditGatewayTest(OrganizationTestBase):
         url = reverse("organization_availability", args=[org.id])
         return self.as_user(user).post(url, data)
 
-    def test_switch_off_reaches_personal_and_service_account_keys_of_the_org(self):
+    def test_unavailability_reaches_personal_and_service_account_keys_of_the_org(self):
         personal = make_token(self.member, "laptop")
         foreign = make_token(self.other_org_admin, "elsewhere")
         self.assertFalse(enforced(personal).model_excluded("gpt-4.1-nano"))
@@ -312,7 +312,7 @@ class OrganizationEditGatewayTest(OrganizationTestBase):
         self.save(self.org_admin, self.org, available())
         self.assertFalse(enforced(personal).model_excluded("gpt-4.1-nano"))
 
-    def test_foreign_org_admin_cannot_switch_off_a_model_for_this_org(self):
+    def test_foreign_org_admin_cannot_make_a_model_unavailable_for_this_org(self):
         personal = make_token(self.member, "laptop")
         response = self.save(self.other_org_admin, self.org, available("gpt-4.1-nano"))
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)

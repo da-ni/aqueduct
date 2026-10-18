@@ -1,6 +1,6 @@
 # Organization switch
 
-Admins choose the org they look at, one org or all orgs, in the `Viewing` select at the top of the sidebar. The session keeps the choice, and the Overview, All keys, Requests, Teams, and Organization pages show that org. Teams shows one org at a time, so on `All organizations` it shows the admin's own org with the note `This page shows one organization at a time, so it shows your own.` Organization instead lists every org, and a name opens that org through `?org=<id>`. A `?org=<id>` or `?org=all` link applies that org and keeps it in the session. Org admins and users get no select, and `?org=` changes nothing for them.
+Admins choose the org they look at, one org or all orgs, in the `Viewing` select at the top of the sidebar. The session keeps the choice, and the Overview, All keys, Requests, Teams, and Organization pages show that org. On `All organizations`, Teams lists every team with an `Organization` column, and Organization lists every org, and a name opens that org through `?org=<id>`. A `?org=<id>` or `?org=all` link applies that org and keeps it in the session. Org admins and users get no select, and `?org=` changes nothing for them.
 
 ## Sub-features
 
@@ -30,4 +30,4 @@ Preconditions:
 
 - `Verify Org` has ID 1 and `Other Org` ID 2.
 - The admin's own org in the database does not change on a switch. Read it with `aqv shell -c "from management.models import UserProfile; print(UserProfile.objects.get(user__username='admin').org)"`.
-- `aqv` resets the viewport to 1440 px on every command. Check 390 px with Playwright over the run's `cdp_port`.
+- `aqv shot <name> --width 390` shows a page at phone width. Every other command resets the window to 1440 px, so opening the sidebar with `Open navigation` at 390 px needs Playwright over the run's `cdp_port`.

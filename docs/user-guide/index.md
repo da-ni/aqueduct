@@ -21,11 +21,11 @@ The sidebar on the left holds every page. Admins also get the **Viewing** select
 - Under **Admin**, org admins and admins get the [Organization](organization.md) page. Admins also get the **Admin panel**. See [Admin](admin.md).
 - At the bottom, [Settings](settings.md) shows your account, your teams, and the limits of your personal keys.
 
-The bottom of the sidebar shows the e-mail address and role you signed in with, a light and dark switch, and the **Sign out** button.
+The bottom of the sidebar shows the email address and role you signed in with, a light and dark switch, and the **Sign out** button.
 
 ## Choose an organization
 
-Admins choose the organization they look at, or **All organizations**, in the **Viewing** select at the top of the sidebar. The Overview, All keys, Requests, Teams, and Organization pages then show that organization until you change it or sign out. While you look at all of them, the Teams page shows your own organization and says so, and the Organization page lists every organization so you can open one. When you change the organization, the pages drop the key you had chosen and keep the model and time frame.
+Admins choose the organization they look at, or **All organizations**, in the **Viewing** select at the top of the sidebar. The Overview, All keys, Requests, Teams, and Organization pages then show that organization until you change it or sign out. While you look at all of them, the Teams page lists every team with its organization, and the Organization page lists every organization so you can open one. When you change the organization, the pages drop the key you had chosen and keep the model and time frame.
 
 A link with `?org=` in its address, such as a link someone shared, shows that organization and keeps it as your choice. Org admins and users always see their own organization and get no select.
 
@@ -37,7 +37,7 @@ What you see depends on your role:
 
 - A **Member** sees their own keys and the service accounts of their teams.
 - A **Team admin** also manages the members and the service accounts of their team.
-- An **Org admin** sees every key and team in their organization, creates and deletes teams, and edits the organization's limits and switched-off models.
+- An **Org admin** sees every key and team in their organization, creates and deletes teams, and edits the organization's limits and unavailable models.
 - A **Platform admin** also chooses any organization, or all of them, and opens the Admin panel.
 
 A page about a team or service account that you may not open answers **404**, the same as a page that does not exist.

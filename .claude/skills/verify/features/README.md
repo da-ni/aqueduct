@@ -14,7 +14,7 @@ This directory is the maintained source for verifying what users see and do in t
 - Start every recipe from a fresh launch unless it says otherwise. Recipes change data, and the seed runs only once per launch.
 - Sign in with `aqv login <username>`. Each recipe names the account.
 - Name elements by ARIA role and accessible name, as the recipes do. The icon buttons on the API keys page and the team page carry the item's name, such as `Rotate user-laptop` or `Delete verify-pipeline`.
-- Delete, Rotate, batch Cancel, and member removal open the shared confirm dialog, `<dialog id="confirm-dialog">`. Choose its action button with `aqv click --role button --name <Delete|Rotate|Remove|"Cancel batch"> --exact`, or the dismiss button, `Cancel` (`Keep running` in the batch dialog). The question and consequence are in `aqv text --selector '#confirm-dialog'`. The browser still accepts every `confirm()` dialog, which the team admin buttons use.
+- Delete, Rotate, batch Cancel, and member removal open the shared confirm dialog, `<dialog id="confirm-dialog">`. Choose its action button with `aqv click --role button --name <Delete|Rotate|Remove|"Cancel batch"> --exact`, or the dismiss button, `Cancel` (`Keep running` in the batch dialog). The question and consequence are in `aqv text --selector '#confirm-dialog'`.
 - Read stored values with `aqv shell -c`.
 
 ## Proof and skip reporting
@@ -38,7 +38,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Overview](./usage.md) covers the usage dashboard, the All keys page, their filters, and their role scoping.
 - [Requests](./requests.md) covers the request log, its status, key, and model filters, the row details, and the pages.
 - [Models](./models.md) covers the model table, its type tabs and search, the detail panel, and which keys may use a model.
-- [Settings](./settings.md) covers the account details, team roles, terms acceptance, the light and dark switch, and the personal key limits.
+- [Settings](./settings.md) covers the account details, team roles, terms acceptance, the language choice, and the personal key limits.
 - [Terms of service](./terms-of-service.md) covers the prompt a user sees before accepting the terms.
 - [Data protection information](./privacy.md) covers the public data protection page, the per-organization notice, and the empty state.
 - [Files, batches, and vector stores](./resources.md) covers the three resource lists, the file preview, file delete, batch cancel, and the vector store detail page.

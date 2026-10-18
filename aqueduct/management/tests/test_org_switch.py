@@ -5,7 +5,6 @@ from management.request_log import SESSION_ORG
 from management.tests.test_teams_pages import TeamsPagesTestBase
 
 ORG_SCOPED = ("usage", "usage_keys", "requests")
-FALLBACK_NOTE = "This page shows one organization at a time, so it shows your own."
 
 
 class OrgSwitchTestBase(TeamsPagesTestBase):
@@ -54,7 +53,6 @@ class OrgSwitchTest(OrgSwitchTestBase):
         self.assertContains(
             teams, '<span class="muted text-sm">All organizations</span>', html=True
         )
-        self.assertNotContains(teams, FALLBACK_NOTE)
 
     def test_all_organizations_lists_every_org_to_pick_one(self):
         self.as_user(self.admin)
@@ -63,7 +61,6 @@ class OrgSwitchTest(OrgSwitchTestBase):
         self.assertContains(
             organization, '<h1 class="text-3xl font-semibold">Organizations</h1>', html=True
         )
-        self.assertNotContains(organization, FALLBACK_NOTE)
         self.assertNotContains(organization, reverse("organization_limits", args=[self.org.id]))
         for org in (self.org, self.other_org):
             self.assertContains(organization, f'href="{reverse("organization")}?org={org.id}"')

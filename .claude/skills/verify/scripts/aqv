@@ -37,15 +37,20 @@ ROOT = Path("/tmp/aqueduct-verify")
 EVIDENCE_ROOT = ROOT / "evidence"
 VIEWPORT = {"width": 1440, "height": 900}
 TOUR_PAGES = [
+    "/aqueduct/management/usage/",
+    "/aqueduct/management/usage/keys/",
+    "/aqueduct/management/requests/",
     "/aqueduct/management/tokens/",
     "/aqueduct/management/org/",
     "/aqueduct/management/team/{team_id}",
-    "/aqueduct/management/usage/",
+    "/aqueduct/management/organization/",
     "/aqueduct/management/models/",
     "/aqueduct/management/files/",
     "/aqueduct/management/batches/",
     "/aqueduct/management/mcp-servers/",
     "/aqueduct/management/vector-stores/",
+    "/aqueduct/management/settings/",
+    "/aqueduct/management/privacy/",
 ]
 TOUR_USERS = ["user", "team-member", "team-admin", "org-admin", "admin", "other-org-admin"]
 PROCESSES = ("browser_pid", "server_pid", "mock_pid")
@@ -103,6 +108,10 @@ def django_env(state: dict) -> dict:
         OPENAI_API_KEY="aqv-mock-key",
         AQUEDUCT_FILES_API_URL=state["mock_base"],
         AQUEDUCT_FILES_API_KEY="aqv-mock-key",
+        LITELLM_ROUTER_CONFIG_FILE_PATH=os.environ.get(
+            "LITELLM_ROUTER_CONFIG_FILE_PATH", str(repo / "example_router_config.yaml")
+        ),
+        MCP_CONFIG_FILE_PATH=os.environ.get("MCP_CONFIG_FILE_PATH", str(repo / "test-mcp.json")),
         PYTHONPATH=os.pathsep.join([str(repo / "aqueduct"), str(SCRIPTS), str(BEDROCK_OVERLAY)]),
         PYTHONUNBUFFERED="1",
     )

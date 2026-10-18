@@ -29,7 +29,7 @@ The Overview page shows the token and request usage of the keys you can see. It 
 
 Choose **1 hour**, **24 hours**, **7 days**, or **30 days**. The page opens on **24 hours**.
 
-To show one model, choose it in **All models**. To show one key, open the key menu: it lists your own keys and your teams' service accounts. Org admins and admins can also type part of a key's name, or of its owner's e-mail address, in the search field of the menu and press Enter. The menu shows up to 20 matches. The [Requests](requests.md) page has the same filters.
+To show one model, choose it in **All models**. To show one key, open the key menu: it lists your own keys and your teams' service accounts. Org admins and admins can also type part of a key's name, or of its owner's email address, in the search field of the menu and press Enter. The menu shows up to 20 matches. The [Requests](requests.md) page has the same filters.
 
 A menu shows only when it offers a choice. If you can see only one key, the page has no key menu. If you can use only one model, it has no model menu.
 
@@ -41,7 +41,7 @@ The gateway keeps requests for a limited time, 30 days by default. If the time f
 - **Tokens per minute, hour, or day**: a chart of the time frame. **Tokens** and **Requests** switch what it counts.
 - **Requests**: the requests split into **OK** (`2xx`), **Rate-limited** (`429`), **Client error** (other `4xx`), and **Server error** (`5xx`). **Open the log**, or a status group, opens the [Requests](requests.md) page with the same filters.
 - **By model**: each model with requests in the time frame, with its tokens, **Input**, **Cached** (the share of input read from the cache), **Output**, requests, **Median time**, and share. The bar splits the tokens into cached input, new input, and output. Models that are not metered in tokens show **—** and come last, by requests. Choose a model to open the log for that model. When you see a whole organization or all organizations, over 24 hours or longer, the median is approximate, within about 5% or 1 ms, and shows as **≈**.
-- **Top keys**: the 10 keys that used the most tokens, with the columns of **By model** except the median. Under each key, org admins and admins see whose key it is: **You** for your own keys, the owner's e-mail address for other users' keys, and the team for service accounts. Choose a key to open its page. You can open your own keys and the service accounts of your teams. **View all keys** opens the [All keys](#see-the-usage-of-every-key) page with the same filters. If you can see only one key, the page has no **Top keys**.
+- **Top keys**: the 10 keys that used the most tokens, with the columns of **By model** except the median. Under each key, org admins and admins see whose key it is: **You** for your own keys, the owner's email address for other users' keys, and the team for service accounts. Choose a key to open its page. You can open your own keys and the service accounts of your teams. **View all keys** opens the [All keys](#see-the-usage-of-every-key) page with the same filters. If you can see only one key, the page has no **Top keys**.
 - **By organization**: the tokens of each organization, when an admin views all organizations.
 - **Activity across your organization**: the average tokens per hour for each weekday and hour over the last 28 days. This section covers every user and key of the organization, whatever the time frame, key, and model you chose above. Its own model menu, next to **Usage by weekday and hour**, shows one model. When an admin views all organizations, it covers all organizations.
 
@@ -52,7 +52,7 @@ On a narrow screen the tables hide the token bars and keep the figures, and the 
 The **All keys** page lists every key you can see that has requests in the time frame, 50 keys to a page. Choose **View all keys** under **Top keys** to open it. If you can see only one key, the page opens that key's page instead. The link shows only when **Top keys** leaves some keys out. **Overview** at the top of the page returns with the same filters. It has the same columns as **Top keys** and uses the same organization, key scope, model, and time frame filters, so its first rows are the **Top keys** of the Overview.
 
 - The **Key**, **Tokens**, and **Requests** column headings sort the list. The list opens sorted by tokens.
-- To find a key, type part of its name in the search field and press Enter. Org admins and admins can also type part of the owner's e-mail address.
+- To find a key, type part of its name in the search field and press Enter. Org admins and admins can also type part of the owner's email address.
 - **Share** is the key's share of all tokens in the time frame, also while you search. The token bars are scaled to the key with the most tokens.
 - **Previous** and **Next** move between pages. A change of filter, sort, or search returns to the first page.
 
