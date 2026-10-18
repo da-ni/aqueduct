@@ -1,13 +1,12 @@
 import json
 import logging
 import os
-import socket
 import subprocess
 import tempfile
 import time
 from contextlib import asynccontextmanager
 from copy import deepcopy
-from functools import wraps
+from http import HTTPStatus
 from pathlib import Path
 from typing import ClassVar
 
@@ -33,55 +32,19 @@ logger = logging.getLogger(__name__)
 # each other's config. Forked live servers inherit the path.
 MCP_CONFIG_PATH = Path(tempfile.gettempdir()) / f"aqueduct-test-mcp-{os.getpid()}" / "config.json"
 MCP_SERVER_LOG_PATH = MCP_CONFIG_PATH.parent / "server.log"
+INITIALIZE = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+        "protocolVersion": "2025-06-18",
+        "capabilities": {},
+        "clientInfo": {"name": "aqueduct-tests", "version": "1.0"},
+    },
+}
 MCP_TEST_CONFIG = {
     "mcpServers": {"test-server": {"type": "streamable-http", "url": "http://localhost:3001/mcp"}}
 }
-
-
-def _is_cancel_scope_error(exc):
-    """
-    Recursively check if an exception or ExceptionGroup contains a cancel scope error.
-
-    The cancel scope error is a known race condition in anyio's task group cleanup
-    that can occur during MCP session teardown. It manifests as nested ExceptionGroups
-    containing errors with "cancel scope" in the message.
-    """
-    if "cancel scope" in str(exc).lower():
-        return True
-    if isinstance(exc, ExceptionGroup):
-        for sub_exc in exc.exceptions:
-            if _is_cancel_scope_error(sub_exc):
-                return True
-    return False
-
-
-def skip_on_cancel_scope_error(test_func):
-    """
-    Decorator to skip MCP tests when encountering the cancel scope error.
-
-    This is a known race condition in anyio/MCP SDK where cancel scopes can get out of sync
-    during session cleanup. This can randomly occur on any MCP test. When detected, the test
-    is skipped rather than marked as failed.
-
-    Usage:
-        @async_to_sync
-        @skip_on_cancel_scope_error
-        async def test_something(self):
-            ...
-    """
-
-    @wraps(test_func)
-    async def wrapper(self, *args, **kwargs):
-        try:
-            return await test_func(self, *args, **kwargs)
-        except (Exception, ExceptionGroup) as e:
-            # Check if this is the cancel scope error (a race condition in anyio/MCP SDK)
-            # This can occur during session cleanup when cancel scopes exit in unexpected order.
-            if _is_cancel_scope_error(e):
-                self.skipTest(f"Skipping due to cancel scope race condition: {e}")
-            raise
-
-    return wrapper
 
 
 class MCPDaphneProcess(DaphneProcess):
@@ -206,34 +169,30 @@ class MCPLiveServerTestCase(ChannelsLiveServerTestCase):
         # Set global variables enabling the tests to share the MCP server process
         set_shared_mcp_server(cls.mcp_server_process, cls.mcp_server_port)
 
-        # Wait for server to be ready by checking if it accepts connections
-        logger.info("Waiting for MCP server to accept connections on port %s...", port)
-        start_time = time.time()
-        timeout = 30
-        last_error = None
-
-        while time.time() - start_time < timeout:
-            # Check if process is still running
+        # The port opens before the server answers MCP, so wait for an answer to `initialize`.
+        logger.info("Waiting for the MCP server on port %s to answer initialize...", port)
+        deadline = time.monotonic() + 30
+        last_error: Exception | None = None
+        while time.monotonic() < deadline:
             if cls.mcp_server_process.poll() is not None:
                 output = MCP_SERVER_LOG_PATH.read_text()
                 raise RuntimeError(f"MCP server failed to start. Output: {output}")
-
-            # Try to connect to the server
             try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    sock.settimeout(1.0)
-                    sock.connect(("localhost", port))
-                    logger.info("✓ MCP everything server started successfully on port %s", port)
+                response = httpx.post(
+                    f"http://localhost:{port}/mcp",
+                    json=INITIALIZE,
+                    headers={"Accept": "application/json, text/event-stream"},
+                    timeout=5,
+                )
+                if response.status_code == HTTPStatus.OK:
+                    logger.info("MCP everything server is ready on port %s", port)
                     return
-            except (ConnectionRefusedError, OSError) as e:
-                last_error = e
-                time.sleep(0.5)
+                last_error = RuntimeError(f"initialize answered {response.status_code}")
+            except httpx.HTTPError as err:
+                last_error = err
+            time.sleep(0.2)
 
-        # If we get here, timeout occurred
-        raise RuntimeError(
-            f"MCP server did not accept connections within {timeout} seconds. "
-            f"Last error: {last_error}"
-        )
+        raise RuntimeError(f"MCP server did not answer initialize within 30 s: {last_error}")
 
     @classmethod
     def setUpClass(cls):
