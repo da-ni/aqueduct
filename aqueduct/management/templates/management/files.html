@@ -19,7 +19,7 @@
                 <span class="font-semibold">{{ row.file.filename }}</span>
                 <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.file.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.file.id }}" aria-label="{% blocktranslate with name=row.file.filename %}Copy ID of {{ name }}{% endblocktranslate %}" title="{% translate 'Copy file ID' %}">{% icon "copy" small=True %}</button>{% if not row.mine %} · {{ row.owner }}{% endif %}</div>
             </td>
-            <td><span class="badge badge-sm bg-base-100 font-mono">{{ row.purpose }}</span></td>
+            <td><span class="badge badge-sm whitespace-nowrap bg-base-100 font-mono">{{ row.purpose }}</span></td>
             <td class="text-right font-mono">{{ row.file.bytes|filesizeformat }}</td>
             <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.created|when|dash }}</td>
             <td>{{ row.expiry|expiry }}</td>

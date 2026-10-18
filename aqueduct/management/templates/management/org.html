@@ -51,12 +51,12 @@
                                 <td class="min-w-0 max-lg:flex-1">
                                     <div class="flex items-center gap-2">
                                         <a class="link-plain row-link truncate" href="{% url 'team' row.team.id %}">{{ row.team.name }}</a>
-                                        {% if row.is_team_admin %}<span class="badge badge-sm bg-base-100 shrink-0 lg:hidden">{% translate "Team admin" %}</span>{% endif %}
+                                        {% if row.is_team_admin %}<span class="badge badge-sm whitespace-nowrap bg-base-100 shrink-0 lg:hidden">{% translate "Team admin" %}</span>{% endif %}
                                     </div>
-                                    {% if row.team.description %}<div class="muted truncate text-xs max-lg:hidden">{{ row.team.description }}</div>{% endif %}
+                                    {% if row.team.description %}<div class="muted truncate text-xs max-lg:hidden" title="{{ row.team.description }}">{{ row.team.description }}</div>{% endif %}
                                     <div class="muted text-sm lg:hidden">{% if all_orgs %}{{ row.team.org.name }} · {% endif %}{% blocktranslate count n=row.members %}{{ n }} member{% plural %}{{ n }} members{% endblocktranslate %} · {% blocktranslate count n=row.service_accounts %}{{ n }} service account{% plural %}{{ n }} service accounts{% endblocktranslate %} · {% blocktranslate with tokens=row.activity.tokens_short count n=row.activity.tokens %}{{ tokens }} token{% plural %}{{ tokens }} tokens{% endblocktranslate %}</div>
                                 </td>
-                                {% if all_orgs %}<td class="truncate max-lg:hidden">{{ row.team.org.name }}</td>{% elif not is_org_admin %}<td class="max-lg:hidden">{% if row.is_team_admin %}<span class="badge badge-sm bg-base-100">{% translate "Team admin" %}</span>{% endif %}</td>{% endif %}
+                                {% if all_orgs %}<td class="truncate max-lg:hidden">{{ row.team.org.name }}</td>{% elif not is_org_admin %}<td class="max-lg:hidden">{% if row.is_team_admin %}<span class="badge badge-sm whitespace-nowrap bg-base-100">{% translate "Team admin" %}</span>{% endif %}</td>{% endif %}
                                 <td class="text-right font-mono max-lg:hidden">{{ row.members }}</td>
                                 <td class="text-right font-mono max-lg:hidden">{{ row.service_accounts }}</td>
                                 <td class="text-right max-lg:hidden">{% if row.limit is None %}{% translate "No limit" %}{% else %}<span class="font-mono">{{ row.limit|grouped }}</span>{% endif %}</td>

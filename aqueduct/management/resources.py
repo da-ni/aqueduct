@@ -248,15 +248,20 @@ class Progress:
         return self._share(self.failed)
 
     @property
-    def label(self) -> str:
+    def parts(self) -> tuple[str, ...]:
+        """The label's phrases; a narrow column breaks the label between them, never inside one."""
         done = gettext("%(done)s of %(total)s") % {
             "done": grouped(self.completed + self.failed),
             "total": grouped(self.total),
         }
         if not self.failed:
-            return done
+            return (done,)
         failed = ngettext("%(count)s failed", "%(count)s failed", self.failed)
-        return f"{done} · {failed % {'count': grouped(self.failed)}}"
+        return done, failed % {"count": grouped(self.failed)}
+
+    @property
+    def label(self) -> str:
+        return " · ".join(self.parts)
 
 
 @dataclass(frozen=True)

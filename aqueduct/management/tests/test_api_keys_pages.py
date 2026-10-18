@@ -258,7 +258,9 @@ class KeyDetailTest(ApiKeysPagesTestBase):
             response,
             '<span class="st-warn inline-flex items-center gap-1.5" title="Too Many Requests">',
         )
-        self.assertContains(response, '<td class="text-right">5.6 s</td>', html=True)
+        self.assertContains(
+            response, '<td class="whitespace-nowrap text-right">5.6 s</td>', html=True
+        )
         log = reverse("requests")
         self.assertContains(
             response,
@@ -684,7 +686,8 @@ class ServiceAccountKeyDetailTest(ApiKeysPagesTestBase):
         response = self.detail(self.member)
         self.assertContains(
             response,
-            '<div class="flex items-baseline gap-2"><dt class="muted">Requests per minute</dt>'
+            '<div class="flex flex-wrap items-baseline gap-x-2">'
+            '<dt class="muted whitespace-nowrap">Requests per minute</dt>'
             '<dd><span class="font-mono font-semibold">7</span></dd></div>',
             html=True,
         )

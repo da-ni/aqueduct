@@ -142,6 +142,9 @@ a.row-link:focus-visible::after { outline: 3px solid var(--color-primary); outli
 .file-row:target { background: var(--aq-hover); }
 
 .model-table th, .key-table th, .resource-table th { font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--aq-muted); }
+/* German headings run about a third longer than English ones; they wrap between words instead of
+   running into the next column. */
+:lang(de) :is(.model-table, .key-table, .resource-table) th { white-space: normal; }
 .badge-deprecated { --badge-color: var(--aq-warn); }
 
 .copy-field { display: flex; align-items: center; gap: .25rem; min-width: 0; height: 2.5rem; padding: 0 .25rem 0 .75rem;

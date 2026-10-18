@@ -53,9 +53,9 @@
                 <p class="muted text-sm">{% translate "Default for every key. Team and personal limits override it." %}</p>
                 <dl class="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-base-300 pt-4 text-sm">
                     {% for label, value in page.multipliers %}
-                        <div class="flex items-baseline gap-2"><dt class="muted">{{ label }}</dt><dd><span class="font-mono font-semibold">{{ value }}</span></dd></div>
+                        <div class="flex flex-wrap items-baseline gap-x-2"><dt class="muted whitespace-nowrap">{{ label }}</dt><dd><span class="font-mono font-semibold">{{ value }}</span></dd></div>
                     {% endfor %}
-                    <div class="flex items-baseline gap-2"><dt class="muted">{% translate "Personal keys per person" %}</dt><dd><span class="font-mono font-semibold">{{ page.max_personal_keys }}</span> <span class="muted">{% translate "(server setting)" %}</span></dd></div>
+                    <div class="flex flex-wrap items-baseline gap-x-2"><dt class="muted whitespace-nowrap">{% translate "Personal keys per person" %}</dt><dd><span class="font-mono font-semibold">{{ page.max_personal_keys }}</span> <span class="muted">{% translate "(server setting)" %}</span></dd></div>
                 </dl>
             </div>
         </section>

@@ -42,7 +42,7 @@
             {% for stat in page.stats %}
                 <div class="card min-w-0 bg-base-200">
                     <div class="card-body gap-1 p-3 sm:p-4">
-                        <span class="muted text-sm">{{ stat.label }}</span>
+                        <span class="muted text-sm hyphens-auto de:max-sm:text-xs">{{ stat.label }}</span>
                         <span class="text-xl font-semibold sm:text-2xl">{{ stat.value }}</span>
                         {% include "management/_spark.html" with bars=stat.spark %}
                     </div>
@@ -179,7 +179,7 @@
                             {% if is_team_admin %}
                                 <td class="max-md:py-1 md:text-right">
                                     {% for sa in member.owned %}
-                                        <div class="muted text-sm">{% blocktranslate with name=sa.name %}Owns <span class="font-mono">{{ name }}</span>{% endblocktranslate %} · <a class="link" href="{% url 'service_account_transfer' sa.id %}">{% translate "Transfer" %}</a></div>
+                                        <div class="muted text-sm">{% blocktranslate with name=sa.name %}Owns <span class="font-mono">{{ name }}</span>{% endblocktranslate %} <span class="whitespace-nowrap">· <a class="link" href="{% url 'service_account_transfer' sa.id %}">{% translate "Transfer" %}</a></span></div>
                                     {% empty %}
                                         {% blocktranslate with email=member.profile.user.email asvar remove_question %}Remove {{ email }}?{% endblocktranslate %}
                                         <form method="post">

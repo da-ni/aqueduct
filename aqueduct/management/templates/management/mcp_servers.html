@@ -34,7 +34,7 @@
                             </div>
                         </div>
                         <div class="copy-field mt-auto">
-                            <span>{{ server.url }}</span>
+                            <span title="{{ server.url }}">{{ server.url }}</span>
                             <button type="button" class="btn btn-ghost btn-sm btn-square" data-copy="{{ server.url }}"
                                     aria-label="{% blocktranslate with name=server.name %}Copy {{ name }} URL{% endblocktranslate %}" title="{% translate 'Copy server URL' %}">{% icon "copy" small=True %}</button>
                         </div>
