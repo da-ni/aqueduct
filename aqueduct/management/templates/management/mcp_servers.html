@@ -22,15 +22,14 @@
                             <span class="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-base-100 font-mono text-lg font-semibold text-primary" aria-hidden="true">{{ server.initial }}</span>
                         {% endif %}
                         <div class="flex min-w-0 flex-1 flex-col gap-1">
-                            <h2 class="break-all text-xl font-semibold">{{ server.name }}</h2>
+                            <h2 class="card-title break-all">{{ server.name }}</h2>
                             {% if server.description %}<p class="muted text-sm">{{ server.description }}</p>{% endif %}
                             {% if server.available_with %}<p class="muted text-sm">{% blocktranslate with keys=server.available_with %}Available with {{ keys }}.{% endblocktranslate %}</p>{% endif %}
                         </div>
                     </div>
                     <div class="copy-field mt-auto">
                         <span title="{{ server.url }}">{{ server.url }}</span>
-                        <button type="button" class="btn btn-ghost btn-sm btn-square" data-copy="{{ server.url }}"
-                                aria-label="{% blocktranslate with name=server.name %}Copy {{ name }} URL{% endblocktranslate %}" title="{% translate 'Copy server URL' %}">{% icon "copy" small=True %}</button>
+                        {% blocktranslate with name=server.name asvar copy_label %}Copy {{ name }} URL{% endblocktranslate %}{% copy_button server.url copy_label _("Copy server URL") size="sm" %}
                     </div>
                 </div>
             </article>
@@ -40,14 +39,13 @@
     <section class="card bg-base-200">
         <div class="card-body grid grid-cols-1 gap-6 p-5 lg:grid-cols-3">
             <div class="flex flex-col gap-2">
-                <h2 class="text-xl font-semibold">{% translate "Connect a client" %}</h2>
+                <h2 class="card-title">{% translate "Connect a client" %}</h2>
                 {% url 'tokens' as tokens_url %}
                 <p class="muted text-sm">{% blocktranslate %}Paste into your MCP client's config and replace <code class="font-mono">sk-...</code> with your <a class="link-plain" href="{{ tokens_url }}">API key</a>.{% endblocktranslate %}</p>
             </div>
             <div class="relative lg:col-span-2">
                 <pre class="h-full overflow-x-auto rounded-lg bg-base-100 p-4 pr-12 font-mono text-xs leading-relaxed">{{ client_config }}</pre>
-                <button type="button" class="btn btn-ghost btn-sm btn-square absolute right-2 top-2" data-copy="{{ client_config }}"
-                        aria-label="{% translate 'Copy configuration' %}" title="{% translate 'Copy configuration' %}">{% icon "copy" small=True %}</button>
+                {% copy_button client_config _("Copy configuration") size="sm" extra_class="absolute right-2 top-2" %}
             </div>
         </div>
     </section>

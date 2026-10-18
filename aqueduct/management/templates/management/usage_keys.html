@@ -17,15 +17,8 @@
 <section class="card bg-base-200">
     <div class="card-body gap-3 p-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
-            <form method="get" role="search" class="w-full sm:w-80">
-                {% for name, value in filters.query.items %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
-                {% if order.value != "tokens" %}<input type="hidden" name="sort" value="{{ order.value }}">{% endif %}
-                <label class="input input-sm w-full">
-                    {% icon "search" small=True %}
-                    <input type="search" name="q" value="{{ q }}" placeholder="{% if filters.can_pick_scope %}{% translate "Key name or owner email" %}{% else %}{% translate "Key name" %}{% endif %}" aria-label="{% translate "Search keys" %}">
-                    <button type="submit" class="btn btn-ghost btn-xs -me-2">{% translate "Search" %}</button>
-                </label>
-            </form>
+            {% if filters.can_pick_scope %}{% translate "Key name or owner email" as search_hint %}{% else %}{% translate "Key name" as search_hint %}{% endif %}
+            {% include "management/_search.html" with name="q" value=q placeholder=search_hint label=_("Search keys") keep=filters.search_params form_class="w-full sm:w-80" width="w-full" button=True %}
         </div>
         {% if keys %}
             {% translate "Key" as first_column %}

@@ -5,20 +5,9 @@
 {% block body %}
 <div class="flex flex-wrap items-center gap-3">
     {% if catalog.categories|length > 1 %}
-        <nav class="join" aria-label="{% translate 'Model type' %}">
-            <a class="btn btn-sm join-item{% if not category %} btn-primary{% endif %}" href="{% querystring type=None model=None %}"{% if not category %} aria-current="page"{% endif %}>{% translate "All" %}</a>
-            {% for tab in catalog.categories %}
-                <a class="btn btn-sm join-item{% if tab == category %} btn-primary{% endif %}" href="{% querystring type=tab.value model=None %}"{% if tab == category %} aria-current="page"{% endif %}>{{ tab.label }}</a>
-            {% endfor %}
-        </nav>
+        {% include "management/_segmented.html" with label=_("Model type") param="type" tabs=catalog.categories current=category all_label=_("All") reset="model" %}
     {% endif %}
-    <form method="get" role="search">
-        {% if category %}<input type="hidden" name="type" value="{{ category.value }}">{% endif %}
-        <label class="input input-sm w-64">
-            {% icon "search" small=True %}
-            <input type="search" name="q" value="{{ query }}" placeholder="{% translate 'Search models and aliases' %}" aria-label="{% translate 'Search models and aliases' %}">
-        </label>
-    </form>
+    {% include "management/_search.html" with name="q" value=query placeholder=_("Search models and aliases") width="w-64" reset="model" %}
 </div>
 
 {% if selected %}

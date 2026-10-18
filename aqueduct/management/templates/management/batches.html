@@ -16,7 +16,7 @@
     {% for row in listing.rows %}
         <tr>
             <td>
-                <div class="flex items-center gap-1"><span class="font-mono font-semibold">{{ row.batch.id }}</span><button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.batch.id }}" aria-label="{% blocktranslate with id=row.batch.id %}Copy ID of batch {{ id }}{% endblocktranslate %}" title="{% translate 'Copy batch ID' %}">{% icon "copy" small=True %}</button></div>
+                <div class="flex items-center gap-1"><span class="font-mono font-semibold">{{ row.batch.id }}</span>{% blocktranslate with id=row.batch.id asvar copy_label %}Copy ID of batch {{ id }}{% endblocktranslate %}{% copy_button row.batch.id copy_label _("Copy batch ID") %}</div>
                 <div class="muted font-mono text-xs">{{ row.batch.endpoint }}{% if not row.mine %} · {{ row.owner }}{% endif %}</div>
             </td>
             <td>

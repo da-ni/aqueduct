@@ -18,7 +18,7 @@
         <tr>
             <td>
                 <a class="link-plain row-link" href="{% url 'vector_store_detail' id=row.store.id %}">{{ row.store.name }}</a>
-                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.store.id }}<button type="button" class="btn btn-ghost btn-xs btn-square relative z-10" data-copy="{{ row.store.id }}" aria-label="{% blocktranslate with name=row.store.name %}Copy ID of {{ name }}{% endblocktranslate %}" title="{% translate 'Copy vector store ID' %}">{% icon "copy" small=True %}</button></div>
+                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.store.id }}{% blocktranslate with name=row.store.name asvar copy_label %}Copy ID of {{ name }}{% endblocktranslate %}{% copy_button row.store.id copy_label _("Copy vector store ID") extra_class="relative z-10" %}</div>
             </td>
             <td>{{ row.owner }}</td>
             <td>{% include "management/_status.html" with status=row.status %}</td>

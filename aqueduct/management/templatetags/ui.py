@@ -1,9 +1,11 @@
 import shlex
+from collections.abc import Iterable
 from datetime import UTC, date, datetime
 
 from django import template
 from django.forms import BoundField
 from django.template.defaultfilters import date as format_date
+from django.template.defaulttags import querystring
 from django.utils import dateformat, timezone
 from django.utils.html import format_html, format_html_join
 from django.utils.safestring import SafeString
@@ -38,6 +40,53 @@ def icon(name: Icon | str, small: bool = False, extra_class: str = "") -> SafeSt
         classes,
         body,
     )
+
+
+@register.simple_tag
+def copy_button(
+    value: str, label: str, title: str = "", size: str = "xs", extra_class: str = ""
+) -> SafeString:
+    classes = " ".join(filter(None, ("btn btn-ghost", f"btn-{size}", "btn-square", extra_class)))
+    return format_html(
+        '<button type="button" class="{}" data-copy="{}" aria-label="{}" title="{}">{}</button>',
+        classes,
+        value,
+        label,
+        title or label,
+        icon(Icon.COPY, small=True),
+    )
+
+
+RESET_ON_FILTER = frozenset({"page", "key_q", "before", "after", "request"})
+
+
+def _names(groups: tuple[str, ...]) -> set[str]:
+    return {name for group in groups for name in group.split()}
+
+
+@register.simple_tag(takes_context=True)
+def hidden_params(
+    context: template.Context, *dropped: str, keep: Iterable[tuple[str, str]] | None = None
+) -> SafeString:
+    """Hidden inputs that carry a query to a GET form, minus `dropped` and paging.
+
+    `keep` names the parameters to carry; without it, the page's own query is carried.
+    """
+    skip = _names(dropped) | RESET_ON_FILTER
+    pairs = keep or (
+        (name, value) for name, values in context.request.GET.lists() for value in values
+    )
+    return format_html_join(
+        "",
+        '<input type="hidden" name="{}" value="{}">',
+        ((name, value) for name, value in pairs if name not in skip),
+    )
+
+
+@register.simple_tag(takes_context=True)
+def query_with(context: template.Context, name: str, value: object, dropped: str = "") -> str:
+    """`{% querystring %}` with a parameter name that comes from a variable."""
+    return querystring(context, **{name: value}, **dict.fromkeys(_names((dropped,))))
 
 
 @register.filter

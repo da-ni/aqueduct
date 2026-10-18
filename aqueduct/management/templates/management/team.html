@@ -46,7 +46,7 @@
 
 <section class="card bg-base-200" aria-labelledby="service-accounts-title">
     <div class="card-body gap-2 p-5">
-        <h2 id="service-accounts-title" class="text-xl font-semibold">{% translate "Service accounts" %}</h2>
+        <h2 id="service-accounts-title" class="card-title">{% translate "Service accounts" %}</h2>
         <table class="table key-table lg:table-fixed max-lg:block">
             <thead class="max-lg:hidden">
                 <tr>
@@ -71,7 +71,7 @@
                                 <div class="min-w-0 flex-1">
                                     {% if row.activity.tokens %}
                                         <span class="aq-tip-host relative z-10 block min-w-3" style="width: {{ row.bar_width|unlocalize }}%" role="img" aria-label="{{ row.tip }}">
-                                            <span class="tbar">{% for css, count in row.activity.segments %}{% if count %}<i class="{{ css }}" style="flex: {{ count|unlocalize }} 1 0%"></i>{% endif %}{% endfor %}</span>
+                                            {% include "management/_token_bar.html" with activity=row.activity width=100 %}
                                             {% include "management/_tip.html" with tip=row.tip %}
                                         </span>
                                     {% endif %}
@@ -116,13 +116,8 @@
     <div class="card-body gap-2 p-5">
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="flex flex-wrap items-center gap-3">
-                <h2 id="members-title" class="text-xl font-semibold">{% translate "Members" %}</h2>
-                <form method="get" role="search">
-                    <label class="input input-sm w-56">
-                        {% icon "search" small=True %}
-                        <input type="search" name="q" value="{{ member_query }}" placeholder="{% translate "Search members" %}" aria-label="{% translate "Search members by email" %}">
-                    </label>
-                </form>
+                <h2 id="members-title" class="card-title">{% translate "Members" %}</h2>
+                {% include "management/_search.html" with name="q" value=member_query placeholder=_("Search members") label=_("Search members by email") width="w-56" %}
             </div>
             {% if is_team_admin %}
                 <details class="group flex w-full flex-col items-end sm:w-auto"{% if add_form.errors %} open{% endif %}>
@@ -198,7 +193,7 @@
     <section class="card bg-base-200" aria-labelledby="limits-title">
         <div class="card-body gap-3 p-5">
             <div class="flex items-center justify-between gap-3">
-                <h2 id="limits-title" class="text-xl font-semibold">{% translate "Limits" %}</h2>
+                <h2 id="limits-title" class="card-title">{% translate "Limits" %}</h2>
                 {% if is_org_admin %}<a class="link-plain text-sm" href="{% url 'team_edit' team.id %}" aria-label="{% translate "Edit limits" %}">{% translate "Edit" %}</a>{% endif %}
             </div>
             {% include "management/_limits.html" with limits=page.limits note=_("Applies to each service account key.") %}

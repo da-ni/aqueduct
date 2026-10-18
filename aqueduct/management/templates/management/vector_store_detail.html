@@ -8,7 +8,7 @@
     {% if detail %}{% with row=detail.row %}
         <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
             {% include "management/_status.html" with status=row.status %}
-            <span class="flex items-center gap-1 font-mono">{{ row.store.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ row.store.id }}" aria-label="{% blocktranslate with name=row.store.name %}Copy ID of {{ name }}{% endblocktranslate %}" title="{% translate 'Copy vector store ID' %}">{% icon "copy" small=True %}</button></span>
+            <span class="flex items-center gap-1 font-mono">{{ row.store.id }}{% blocktranslate with name=row.store.name asvar copy_label %}Copy ID of {{ name }}{% endblocktranslate %}{% copy_button row.store.id copy_label _("Copy vector store ID") %}</span>
             <span>{{ row.owner }}</span>
             <span>{% blocktranslate with date=detail.created|when:"date" %}Created {{ date }}{% endblocktranslate %}</span>
             {% if detail.last_active %}<span>{% blocktranslate with date=detail.last_active|when:"date" %}Last active {{ date }}{% endblocktranslate %}</span>{% endif %}
@@ -27,19 +27,14 @@
 {% block body %}
 {% if detail %}
     <section class="grid grid-cols-2 gap-4">
-        <div class="card bg-base-200"><div class="card-body gap-1 p-4">
-            <span class="muted text-sm">{% translate "Files" %}</span>
-            <span class="text-2xl font-semibold">{% blocktranslate count files=detail.row.files with count=detail.row.files|grouped %}{{ count }} file{% plural %}{{ count }} files{% endblocktranslate %}</span>
-        </div></div>
-        <div class="card bg-base-200"><div class="card-body gap-1 p-4">
-            <span class="muted text-sm">{% translate "Size" %}</span>
-            <span class="text-2xl font-semibold">{{ detail.row.size|filesizeformat }}</span>
-        </div></div>
+        {% blocktranslate count files=detail.row.files with count=detail.row.files|grouped asvar file_count %}{{ count }} file{% plural %}{{ count }} files{% endblocktranslate %}
+        {% include "management/_stat_card.html" with label=_("Files") value=file_count %}
+        {% include "management/_stat_card.html" with label=_("Size") value=detail.row.size|filesizeformat %}
     </section>
 
     <section class="card bg-base-200">
         <div class="card-body gap-3 p-3">
-            <h2 class="px-3 pt-2 text-xl font-semibold">{% translate "Files" %}</h2>
+            <h2 class="card-title px-3 pt-2">{% translate "Files" %}</h2>
             <div class="overflow-x-auto">
                 <table class="table resource-table">
                     <thead><tr><th>{% translate "File" %}</th><th>{% translate "Status" %}</th><th class="text-right">{% translate "Size" %}</th><th>{% translate "Created" %}</th></tr></thead>
@@ -52,7 +47,7 @@
                                     {% else %}
                                         <span class="font-semibold">{{ file.entry.file_obj.filename }}</span>
                                     {% endif %}
-                                    <div class="muted flex items-center gap-1 font-mono text-xs">{{ file.entry.id }}<button type="button" class="btn btn-ghost btn-xs btn-square relative z-10" data-copy="{{ file.entry.id }}" aria-label="{% blocktranslate with name=file.entry.file_obj.filename %}Copy ID of {{ name }}{% endblocktranslate %}" title="{% translate 'Copy vector store file ID' %}">{% icon "copy" small=True %}</button></div>
+                                    <div class="muted flex items-center gap-1 font-mono text-xs">{{ file.entry.id }}{% blocktranslate with name=file.entry.file_obj.filename asvar copy_label %}Copy ID of {{ name }}{% endblocktranslate %}{% copy_button file.entry.id copy_label _("Copy vector store file ID") extra_class="relative z-10" %}</div>
                                 </td>
                                 <td>{% include "management/_status.html" with status=file.status %}</td>
                                 <td class="text-right font-mono">{{ file.entry.usage_bytes|filesizeformat }}</td>
@@ -71,14 +66,14 @@
     {% if detail.batches %}
         <section class="card bg-base-200">
             <div class="card-body gap-3 p-3">
-                <h2 class="px-3 pt-2 text-xl font-semibold">{% translate "File batches" %}</h2>
+                <h2 class="card-title px-3 pt-2">{% translate "File batches" %}</h2>
                 <div class="overflow-x-auto">
                     <table class="table resource-table">
                         <thead><tr><th>{% translate "Batch" %}</th><th>{% translate "Status" %}</th><th class="w-1/3">{% translate "Progress" %}</th><th>{% translate "Created" %}</th></tr></thead>
                         <tbody>
                             {% for batch in detail.batches %}
                                 <tr>
-                                    <td><div class="flex items-center gap-1 font-mono font-semibold">{{ batch.batch.id }}<button type="button" class="btn btn-ghost btn-xs btn-square" data-copy="{{ batch.batch.id }}" aria-label="{% blocktranslate with id=batch.batch.id %}Copy ID of file batch {{ id }}{% endblocktranslate %}" title="{% translate 'Copy file batch ID' %}">{% icon "copy" small=True %}</button></div></td>
+                                    <td><div class="flex items-center gap-1 font-mono font-semibold">{{ batch.batch.id }}{% blocktranslate with id=batch.batch.id asvar copy_label %}Copy ID of file batch {{ id }}{% endblocktranslate %}{% copy_button batch.batch.id copy_label _("Copy file batch ID") %}</div></td>
                                     <td>{% include "management/_status.html" with status=batch.status %}</td>
                                     <td>
                                         {% include "management/_progress.html" with progress=batch.progress %}

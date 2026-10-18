@@ -12,20 +12,9 @@
 {% block body %}
 <div class="flex flex-wrap items-center gap-3">
     {% if keys.has_service_accounts %}
-        <nav class="join" aria-label="{% translate "Key type" %}">
-            <a class="btn btn-sm join-item{% if not kind %} btn-primary{% endif %}" href="{% querystring kind=None %}"{% if not kind %} aria-current="page"{% endif %}>{% translate "All" %}</a>
-            {% for tab in kinds %}
-                <a class="btn btn-sm join-item{% if tab == kind %} btn-primary{% endif %}" href="{% querystring kind=tab.value %}"{% if tab == kind %} aria-current="page"{% endif %}>{{ tab.label }}</a>
-            {% endfor %}
-        </nav>
+        {% include "management/_segmented.html" with label=_("Key type") param="kind" tabs=kinds current=kind all_label=_("All") %}
     {% endif %}
-    <form method="get" role="search">
-        {% if kind %}<input type="hidden" name="kind" value="{{ kind.value }}">{% endif %}
-        <label class="input input-sm w-64">
-            {% icon "search" small=True %}
-            <input type="search" name="q" value="{{ query }}" placeholder="{% translate "Search keys" %}" aria-label="{% translate "Search keys" %}">
-        </label>
-    </form>
+    {% include "management/_search.html" with name="q" value=query placeholder=_("Search keys") width="w-64" %}
 </div>
 
 <section class="card bg-base-200">
@@ -58,11 +47,7 @@
                             <td>
                                 <div class="flex items-center gap-3">
                                     <div class="hidden min-w-0 flex-1 md:block">
-                                        {% if row.activity.tokens %}
-                                            <div class="tbar" style="width: {{ row.bar_width|unlocalize }}%">
-                                                {% for css, count in row.activity.segments %}{% if count %}<i class="{{ css }}" style="flex: {{ count|unlocalize }} 1 0%"></i>{% endif %}{% endfor %}
-                                            </div>
-                                        {% endif %}
+                                        {% if row.activity.tokens %}{% include "management/_token_bar.html" with activity=row.activity width=row.bar_width %}{% endif %}
                                     </div>
                                     <span class="w-full text-right font-mono md:w-14 de:md:w-22">{{ row.activity.tokens_short }}</span>
                                 </div>

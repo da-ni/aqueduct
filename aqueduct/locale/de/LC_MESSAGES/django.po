@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 14:55+0000\n"
+"POT-Creation-Date: 2026-10-18 14:59+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -724,9 +724,6 @@ msgstr "Schlüsselname oder E-Mail-Adresse"
 msgid "Search keys"
 msgstr "Schlüssel durchsuchen"
 
-msgid "Search"
-msgstr "Suchen"
-
 msgid "Matching keys"
 msgstr "Passende Schlüssel"
 
@@ -736,9 +733,6 @@ msgstr "Kein Schlüssel passt zu „%(q)s“"
 
 msgid "Model:"
 msgstr "Modell:"
-
-msgid "All models"
-msgstr "Alle Modelle"
 
 msgid "Time frame"
 msgstr "Zeitraum"
@@ -817,6 +811,9 @@ msgstr "Verwendung"
 msgid "Copy example"
 msgstr "Beispiel kopieren"
 
+msgid "All models"
+msgstr "Alle Modelle"
+
 msgid "Your key is ready"
 msgstr "Ihr Schlüssel ist bereit"
 
@@ -877,6 +874,12 @@ msgstr "Tageslimit"
 
 msgid "n/a"
 msgstr "k. A."
+
+msgid "Search"
+msgstr "Suchen"
+
+msgid "Clear"
+msgstr "Zurücksetzen"
 
 msgid "Main"
 msgstr "Hauptmenü"
@@ -1271,9 +1274,6 @@ msgstr "Anfragen durchsuchen"
 
 msgid "Request ID"
 msgstr "Anfrage-ID"
-
-msgid "Clear"
-msgstr "Zurücksetzen"
 
 msgid "Narrow to 7 days or pick a key or model to search text."
 msgstr ""

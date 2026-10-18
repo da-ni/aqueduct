@@ -13,8 +13,7 @@
         <div class="st-warn flex items-center gap-2 text-sm font-medium">{% icon "warning" small=True %}{% translate "Copy it now. You won't see it again." %}</div>
         <div class="relative">
             <pre class="overflow-x-auto rounded-lg bg-base-100 p-4 pr-12 font-mono text-xs leading-relaxed">{{ snippet }}</pre>
-            <button type="button" class="btn btn-ghost btn-sm btn-square absolute right-2 top-2" data-copy="{{ snippet }}"
-                    aria-label="{% translate "Copy command" %}" title="{% translate "Copy command" %}">{% icon "copy" small=True %}</button>
+            {% copy_button snippet _("Copy command") size="sm" extra_class="absolute right-2 top-2" %}
         </div>
     </div>
 </section>

@@ -38,13 +38,7 @@
     <h2 id="totals-title" class="muted text-sm font-medium">{% translate "Last 7 days" %}</h2>
     <div class="grid grid-cols-2 gap-4 md:grid-cols-5">
         {% for stat in report.stats %}
-            <div class="card bg-base-200">
-                <div class="card-body gap-1 p-4">
-                    <span class="muted text-sm">{{ stat.label }}</span>
-                    <span class="text-2xl font-semibold">{{ stat.value }}</span>
-                    {% include "management/_spark.html" with bars=stat.spark %}
-                </div>
-            </div>
+            {% include "management/_stat_card.html" with label=stat.label value=stat.value spark=stat.spark %}
         {% endfor %}
     </div>
 </section>
@@ -53,7 +47,7 @@
     <div class="card bg-base-200 lg:col-span-2" data-metric-scope>
         <div class="card-body gap-4 p-5">
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 class="text-xl font-semibold"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>{% translate "Tokens per day" %}</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>{% translate "Requests per day" %}</span></h2>
+                <h2 class="card-title"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>{% translate "Tokens per day" %}</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>{% translate "Requests per day" %}</span></h2>
                 <div class="flex flex-wrap items-center gap-4">
                     <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
                         {% include "management/_token_legend.html" %}
@@ -80,7 +74,7 @@
 
     <div class="card bg-base-200">
         <div class="card-body gap-4 p-5">
-            <h2 class="text-xl font-semibold">{% translate "Models" %}</h2>
+            <h2 class="card-title">{% translate "Models" %}</h2>
             <div class="-mx-2 flex flex-col gap-1">
                 {% for model in report.models %}
                     <div class="hover-row flex flex-col gap-1.5 rounded-lg px-2 py-1">
@@ -106,7 +100,7 @@
 <section class="card bg-base-200">
     <div class="card-body gap-3 p-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 class="text-xl font-semibold">{% translate "Latest requests" %}</h2>
+            <h2 class="card-title">{% translate "Latest requests" %}</h2>
             <a class="link-plain text-sm" href="{% url 'requests' %}?{{ log_query }}">{% translate "All requests" %}</a>
         </div>
         <div class="overflow-x-auto">
@@ -146,7 +140,7 @@
 <section class="card bg-base-200" aria-labelledby="limits-title">
     <div class="card-body gap-3 p-5">
         <div class="flex flex-wrap items-baseline gap-x-4 gap-y-2">
-            <h2 id="limits-title" class="text-xl font-semibold">{% translate "Limits" %}</h2>
+            <h2 id="limits-title" class="card-title">{% translate "Limits" %}</h2>
             {% include "management/_limits.html" %}
         </div>
         {% if limits.requests_per_minute is not None %}

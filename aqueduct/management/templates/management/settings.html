@@ -7,7 +7,7 @@
     <div class="flex flex-col gap-4">
         <section class="card bg-base-200" aria-labelledby="account-title">
             <div class="card-body gap-4 p-5">
-                <h2 id="account-title" class="text-xl font-semibold">{% translate "Account" %}</h2>
+                <h2 id="account-title" class="card-title">{% translate "Account" %}</h2>
                 <dl class="grid grid-cols-[8rem_minmax(0,1fr)] gap-x-4 gap-y-3 text-sm">
                     <dt class="muted">{% translate "Email" %}</dt><dd class="break-all font-mono">{{ shell.viewer.email }}</dd>
                     <dt class="muted">{% translate "Organization" %}</dt><dd>{{ view.profile.org.name }}</dd>
@@ -34,7 +34,7 @@
         <section class="card bg-base-200" aria-labelledby="language-title">
             <div class="card-body flex-row flex-wrap items-center justify-between gap-3 p-5">
                 <div class="flex flex-col gap-1">
-                    <h2 id="language-title" class="text-xl font-semibold">{% translate "Language" %}</h2>
+                    <h2 id="language-title" class="card-title">{% translate "Language" %}</h2>
                     {% if not language_chosen %}<span class="muted text-sm">{% translate "Follows your browser until you choose one." %}</span>{% endif %}
                 </div>
                 <form method="post" action="{% url 'language' %}" class="join">
@@ -51,7 +51,7 @@
             <section class="card bg-base-200">
                 <div class="card-body flex-row flex-wrap items-center justify-between gap-3 p-5">
                     <div class="flex flex-col gap-1">
-                        <h2 class="text-xl font-semibold">{% translate "Terms of service" %}</h2>
+                        <h2 class="card-title">{% translate "Terms of service" %}</h2>
                         <span class="muted text-sm">{% if terms_accepted_on %}{% blocktranslate with date=terms_accepted_on|when:"date" %}Accepted {{ date }}{% endblocktranslate %}{% else %}{% translate "Not accepted" %}{% endif %}</span>
                     </div>
                     <a class="link-plain" href="{% url 'tos' %}">{% translate "Read the terms" %}</a>
@@ -63,7 +63,7 @@
     <div class="flex flex-col gap-4">
         <section class="card bg-base-200" aria-labelledby="limits-title">
             <div class="card-body gap-4 p-5">
-                <h2 id="limits-title" class="text-xl font-semibold">{% translate "Personal key limits" %}</h2>
+                <h2 id="limits-title" class="card-title">{% translate "Personal key limits" %}</h2>
                 {% include "management/_limits.html" %}
                 <dl class="flex items-baseline gap-2 text-sm">
                     <dt class="muted">{% translate "Personal keys" %}</dt><dd><span class="font-mono font-semibold">{% blocktranslate with used=personal_keys limit=max_tokens %}{{ used }} of {{ limit }}{% endblocktranslate %}</span></dd>

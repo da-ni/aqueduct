@@ -96,6 +96,7 @@ body { overflow-x: clip; }
 .join > .btn.join-item:first-child { border-start-start-radius: 9999px; border-end-start-radius: 9999px; }
 .join > .btn.join-item:last-child { border-start-end-radius: 9999px; border-end-end-radius: 9999px; }
 .card { box-shadow: none; }
+.card-title { --cardtitle-fs: 1.25rem; line-height: 1.75rem; }
 .label-mono { font: 500 12px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--color-primary); }
 .muted { color: var(--aq-muted); }
 :focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }

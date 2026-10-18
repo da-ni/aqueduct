@@ -21,13 +21,7 @@
 
 <section aria-label="{% translate "Totals" %}" class="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
     {% for kpi in kpis %}
-        <div class="card bg-base-200">
-            <div class="card-body gap-1 p-4">
-                <span class="muted text-sm">{{ kpi.label }}</span>
-                <span class="text-2xl font-semibold">{{ kpi.value }}</span>
-                {% include "management/_spark.html" with bars=kpi.spark %}
-            </div>
-        </div>
+        {% include "management/_stat_card.html" with label=kpi.label value=kpi.value spark=kpi.spark %}
     {% endfor %}
 </section>
 
@@ -35,7 +29,7 @@
     <div class="card bg-base-200 lg:col-span-2" data-metric-scope>
         <div class="card-body gap-4 p-5">
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 class="text-xl font-semibold"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>{{ period.step.tokens_title }}</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>{{ period.step.requests_title }}</span></h2>
+                <h2 class="card-title"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>{{ period.step.tokens_title }}</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>{{ period.step.requests_title }}</span></h2>
                 <div class="flex flex-wrap items-center gap-4">
                     <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
                         {% include "management/_token_legend.html" %}
@@ -67,7 +61,7 @@
     <div class="card bg-base-200">
         <div class="card-body gap-4 p-5">
             <div class="flex items-center justify-between gap-3">
-                <h2 class="text-xl font-semibold">{% translate "Requests" %}</h2>
+                <h2 class="card-title">{% translate "Requests" %}</h2>
                 <a class="link-plain text-sm" href="{{ filters.log_url }}">{% translate "Open the log" %}</a>
             </div>
             <div class="flex h-3 gap-0.5 overflow-hidden rounded-full bg-base-300">
@@ -92,7 +86,7 @@
 <section class="card bg-base-200">
     <div class="card-body gap-3 p-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 class="text-xl font-semibold">{% translate "By model" %}</h2>
+            <h2 class="card-title">{% translate "By model" %}</h2>
             <div class="hidden items-center gap-4 text-sm md:flex">
                 {% include "management/_token_legend.html" %}
             </div>
@@ -137,7 +131,7 @@
 <section class="card bg-base-200">
     <div class="card-body gap-3 p-5">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 class="text-xl font-semibold">{% if filters.key %}{% translate "By user ID" %}{% else %}{% translate "Top keys" %}{% endif %}</h2>
+            <h2 class="card-title">{% if filters.key %}{% translate "By user ID" %}{% else %}{% translate "Top keys" %}{% endif %}</h2>
             {% if more_keys %}<a class="link-plain text-sm" href="{{ all_keys_url }}">{% translate "View all keys" %}</a>{% endif %}
         </div>
         {% if keys %}
@@ -153,7 +147,7 @@
 {% if orgs_usage %}
     <section class="card bg-base-200">
         <div class="card-body gap-3 p-5">
-            <h2 class="text-xl font-semibold">{% translate "By organization" %}</h2>
+            <h2 class="card-title">{% translate "By organization" %}</h2>
             <div class="-mx-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto">
                 {% for org in orgs_usage %}
                     <div class="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_4rem] de:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_5.5rem] items-center gap-4 rounded-lg px-2 py-1 text-sm">
@@ -177,17 +171,7 @@
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex flex-wrap items-center gap-3">
                     <h3 class="font-semibold">{% translate "Usage by weekday and hour" %}</h3>
-                    {% if filters.models|length > 1 %}
-                    <details class="dropdown">
-                        <summary class="btn btn-sm">{% icon "models" small=True %}<span class="sr-only">{% translate "Heatmap model:" %} </span>{% if heat_model %}{{ heat_model }}{% else %}{% translate "All models" %}{% endif %}</summary>
-                        <ul class="menu dropdown-content z-10 mt-1 max-h-80 w-64 flex-nowrap overflow-y-auto rounded-box bg-base-100 p-2 shadow">
-                            <li><a href="{% querystring heat_model=None key_q=None %}#org-activity"{% if not heat_model %} aria-current="true" class="menu-active"{% endif %}>{% translate "All models" %}</a></li>
-                            {% for name in filters.models %}
-                                <li><a class="font-mono{% if name == heat_model %} menu-active{% endif %}" href="{% querystring heat_model=name key_q=None %}#org-activity"{% if name == heat_model %} aria-current="true"{% endif %}>{{ name }}</a></li>
-                            {% endfor %}
-                        </ul>
-                    </details>
-                    {% endif %}
+                    {% if filters.models|length > 1 %}{% include "management/_model_menu.html" with label=_("Heatmap model:") models=filters.models current=heat_model param="heat_model" reset="key_q" anchor="#org-activity" %}{% endif %}
                 </div>
                 <div class="muted flex flex-wrap items-center gap-2 font-mono text-xs">
                     <span class="mr-3">{% translate "Average tokens per hour" %}</span>

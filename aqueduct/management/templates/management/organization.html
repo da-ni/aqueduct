@@ -14,7 +14,7 @@
     <section class="card bg-base-200 lg:col-span-2" aria-labelledby="limits-title">
         <div class="card-body gap-4 p-5">
             <div class="flex items-center justify-between gap-3">
-                <h2 id="limits-title" class="text-xl font-semibold">{% translate "Limits" %}</h2>
+                <h2 id="limits-title" class="card-title">{% translate "Limits" %}</h2>
                 <a class="link-plain text-sm" href="{% url 'organization_limits' org_object.id %}" aria-label="{% translate "Edit limits" %}">{% translate "Edit" %}</a>
             </div>
             {% include "management/_limits.html" with limits=page.limits %}
@@ -31,7 +31,7 @@
     <section class="card bg-base-200 lg:col-span-3" aria-labelledby="unavailable-title">
         <div class="card-body gap-4 p-5">
             <div class="flex items-center justify-between gap-3">
-                <h2 id="unavailable-title" class="text-xl font-semibold">{% translate "Unavailable" %}</h2>
+                <h2 id="unavailable-title" class="card-title">{% translate "Unavailable" %}</h2>
                 <a class="link-plain text-sm" href="{% url 'organization_availability' org_object.id %}" aria-label="{% translate "Edit availability" %}">{% translate "Edit" %}</a>
             </div>
             <div class="overflow-x-auto">
