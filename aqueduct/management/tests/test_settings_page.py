@@ -6,14 +6,13 @@ from tos.models import TermsOfService, UserAgreement
 
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
 from management.models import Org, Team, TeamMembership, UserGroup, UserProfile
-from management.tests.helpers import PAGES, make_token, make_user
+from management.tests.helpers import make_token, make_user
 
 User = get_user_model()
 
 urlpatterns = [path("terms-of-service/", include("tos.urls")), *aqueduct_urlpatterns]
 
 
-@PAGES
 class SettingsPageTest(TestCase):
     def setUp(self):
         self.org = Org.objects.create(name="Informatics", requests_per_minute=600)
@@ -124,7 +123,6 @@ def html_lang(response) -> str:
     return response.content.decode().split('<html lang="', 1)[1].split('"', 1)[0]
 
 
-@PAGES
 class LanguageTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="ana", email="ana@example.com")

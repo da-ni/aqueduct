@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from management import usage_rollup as rollup
 from management.models import Org, Request, ServiceAccount, Team, TeamMembership, Token, UserGroup
-from management.tests.helpers import PAGES, make_token, make_user
+from management.tests.helpers import make_token, make_user
 from management.usage_report import APPROXIMATE_MEDIAN
 
 User = get_user_model()
@@ -18,7 +18,6 @@ EMBEDDING = "text-embedding-ada-002"
 KEY_NAMES = ("solo-laptop", "member-laptop", "pipeline", "foreign-laptop")
 
 
-@PAGES
 class UsagePageTestBase(TestCase):
     def setUp(self):
         self.org = Org.objects.create(name="lab-org")

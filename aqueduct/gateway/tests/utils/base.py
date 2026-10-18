@@ -1,6 +1,5 @@
 import json
 import os
-from pathlib import Path
 from typing import ClassVar, Literal
 from unittest import skipIf
 from unittest.mock import patch
@@ -25,18 +24,12 @@ INTEGRATION_TEST_BACKEND: Literal["vllm", "openai"] = os.environ.get(
 if INTEGRATION_TEST_BACKEND not in ["vllm", "openai"]:
     raise ValueError("Integration test backend must be one of 'vllm' or 'openai'.")
 
-ROOT = Path(__file__).parent.parent.parent.parent.parent
-
-ROUTER_CONFIG_PATH = ROOT / "example_router_config.yaml"
-with ROUTER_CONFIG_PATH.open() as f:
-    ROUTER_CONFIG = f.read()
 
 User = get_user_model()
 
 
 @override_settings(
     AUTHENTICATION_BACKENDS=["gateway.authentication.TokenAuthenticationBackend"],
-    LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG_PATH,
     API_MAX_RETRIES=1,  # sometimes 1st request to the mock API fails (503)
 )
 class GatewayIntegrationTestCase(TestCase):

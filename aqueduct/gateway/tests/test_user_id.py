@@ -1,6 +1,5 @@
 import json
 from http import HTTPStatus
-from pathlib import Path
 from unittest.mock import patch
 
 from django.conf import settings
@@ -14,12 +13,9 @@ from mcp.types import JSONRPCMessage
 from gateway.tests.utils.base import GatewayIntegrationTestCase
 from management.models import FileObject, Request, Token, VectorStore, VectorStoreStatus
 
-ROOT_DIR = Path(__file__).parent.parent.parent.parent
-
 
 @override_settings(
     OIDC_OP_JWKS_ENDPOINT="https://example.com/application/o/example/jwks/",
-    LITELLM_ROUTER_CONFIG_FILE_PATH=Path(ROOT_DIR / "example_router_config.yaml"),
     AQUEDUCT_FILES_API_URL="https://files-api.example.com",
     AQUEDUCT_FILES_API_KEY="test_key",
 )

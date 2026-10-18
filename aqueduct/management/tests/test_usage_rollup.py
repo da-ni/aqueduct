@@ -26,7 +26,7 @@ from management.models import (
 from management.models.token import of_org
 from management.request_log import visible_tokens
 from management.signals import mark_rollups_dirty
-from management.tests.helpers import PAGES, make_token, make_user
+from management.tests.helpers import make_token, make_user
 from management.usage_report import DAY, MEDIAN, TOKENS, TOTALS, Period, Span, org_requests, series
 
 User = get_user_model()
@@ -87,7 +87,6 @@ class SplitTest(SimpleTestCase):
         )
 
 
-@PAGES
 class UsageRollupTest(TestCase):
     @classmethod
     def setUpTestData(cls):

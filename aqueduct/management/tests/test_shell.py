@@ -1,7 +1,6 @@
 import re
 from datetime import UTC, date, datetime, timedelta
 from http import HTTPStatus
-from pathlib import Path
 from typing import ClassVar
 
 from django.conf import settings
@@ -22,7 +21,6 @@ from management.nav import HELP, NAV, NAV_BOTTOM, Shell, build_shell
 
 User = get_user_model()
 
-ROUTER_CONFIG_PATH = Path(settings.BASE_DIR).parent / "example_router_config.yaml"
 
 FIXTURE_USER_PK_BY_ROLE = {"anonymous": None, "user": 3, "org-admin": 2, "admin": 1}
 
@@ -63,7 +61,6 @@ urlpatterns = [
 ]
 
 
-@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG_PATH)
 class ShellTest(TestCase):
     fixtures: ClassVar[list[str]] = ["gateway_data.json"]
 

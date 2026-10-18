@@ -23,12 +23,11 @@ from management.models import (
     UserProfile,
 )
 from management.models.token import HIERARCHY
-from management.tests.helpers import PAGES, make_token, make_user, secret_on
+from management.tests.helpers import make_token, make_user, secret_on
 
 User = get_user_model()
 
 
-@PAGES
 class ApiKeysPagesTestBase(TestCase):
     def setUp(self):
         self.org = Org.objects.create(name="keys-org")

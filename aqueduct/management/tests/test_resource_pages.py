@@ -29,11 +29,13 @@ from mock_api.mock_configs import MockConfig
 
 User = get_user_model()
 
-PAGES = override_settings(MCP_CONFIG_FILE_PATH=Path(settings.BASE_DIR).parent / "test-mcp.json")
+TEST_MCP_SERVERS = override_settings(
+    MCP_CONFIG_FILE_PATH=Path(settings.BASE_DIR).parent / "test-mcp.json"
+)
 NOW = int(time.time())
 
 
-@PAGES
+@TEST_MCP_SERVERS
 class ResourcePagesTestBase(TestCase):
     def setUp(self):
         self.org = Org.objects.create(name="lab-org")

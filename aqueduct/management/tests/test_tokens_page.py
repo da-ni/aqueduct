@@ -2,17 +2,15 @@ from typing import ClassVar
 from unittest import mock
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from django.urls import reverse
 
 from gateway.rate_limiting import check_and_reserve
-from gateway.tests.utils.base import ROUTER_CONFIG_PATH
 from management.models import LimitSet
 
 User = get_user_model()
 
 
-@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG_PATH)
 class TokensPageTest(TestCase):
     fixtures: ClassVar[list[str]] = ["gateway_data.json"]
 

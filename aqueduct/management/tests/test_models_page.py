@@ -3,16 +3,15 @@ import json
 import re
 import shlex
 import tempfile
-from pathlib import Path
 from typing import ClassVar
 from urllib.parse import urlsplit
 
 import yaml
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import resolve, reverse
 
+from gateway.tests.utils.test_runner import EXAMPLE_ROUTER_CONFIG
 from management.model_catalog import (
     MODES,
     OTHER_MODE,
@@ -28,8 +27,7 @@ from management.models import Org, Team, Token, UserGroup, UserProfile
 
 User = get_user_model()
 
-ROUTER_CONFIG_PATH = Path(settings.BASE_DIR).parent / "example_router_config.yaml"
-EXAMPLE_ENTRIES = yaml.safe_load(ROUTER_CONFIG_PATH.read_text())["model_list"]
+EXAMPLE_ENTRIES = yaml.safe_load(EXAMPLE_ROUTER_CONFIG.read_text())["model_list"]
 
 RICH_ENTRY = {
     "model_name": "rich",
@@ -352,7 +350,6 @@ def selected_panel(content: str) -> str:
     return re.search(r'<h2 id="model-detail-name-panel"[^>]*>([^<]+)</h2>', content).group(1)
 
 
-@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG_PATH)
 class ModelsPageTest(TestCase):
     fixtures: ClassVar[list[str]] = ["gateway_data.json"]
 

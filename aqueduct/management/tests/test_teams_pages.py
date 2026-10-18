@@ -12,12 +12,11 @@ from django.urls import reverse
 from django.utils import timezone
 
 from management.models import Org, Request, ServiceAccount, Team, TeamMembership, Token, UserGroup
-from management.tests.helpers import PAGES, make_token, make_user, secret_on
+from management.tests.helpers import make_token, make_user, secret_on
 
 User = get_user_model()
 
 
-@PAGES
 class TeamsPagesTestBase(TestCase):
     def setUp(self):
         self.org = Org.objects.create(name="lab-org")

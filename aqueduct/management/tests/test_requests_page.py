@@ -15,7 +15,7 @@ from management import usage_rollup as rollup
 from management.key_activity import served
 from management.models import Org, Request, ServiceAccount, Team, TeamMembership, Token, UserGroup
 from management.request_log import PAGE_SIZE, Outcome, Place
-from management.tests.helpers import PAGES, make_token, make_user
+from management.tests.helpers import make_token, make_user
 from management.usage_report import STATUSES, Period, Span, org_requests
 
 User = get_user_model()
@@ -25,7 +25,6 @@ OTHER_MODEL = "text-embedding-ada-002"
 PATHS = ("/own", "/others", "/team-sa", "/side-sa", "/sent-as-owner", "/foreign")
 
 
-@PAGES
 class RequestsPageTestBase(TestCase):
     def setUp(self):
         self.org = Org.objects.create(name="lab-org")

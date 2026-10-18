@@ -1,8 +1,7 @@
 import json
-from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TransactionTestCase, override_settings
+from django.test import SimpleTestCase
 from openai.types.chat import ChatCompletion
 
 from gateway.config import (
@@ -13,388 +12,87 @@ from gateway.config import (
 )
 from gateway.tests.utils import _build_chat_headers
 from gateway.tests.utils.base import GatewayIntegrationTestCase
-from gateway.tests.utils.test_runner import ROUTER_CACHES
 from management.models import Org, Request
+from management.tests.helpers import router_config
 
 
-@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH="router.yaml")
-class ModelAliasConfigValidationTest(TransactionTestCase):
-    def setUp(self):
-        for cached in ROUTER_CACHES:
-            self.addCleanup(cached.cache_clear)
+def entry(name: str, **model_info) -> dict:
+    return {
+        "model_name": name,
+        "litellm_params": {"model": f"openai/{name}", "api_key": "os.environ/OPENAI_API_KEY"},
+        "model_info": model_info,
+    }
 
-    def test_config_load_with_valid_aliases(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "gpt-4.1-nano",
-                    "litellm_params": {
-                        "model": "openai/gpt-4.1-nano",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["main", "coding"]},
-                },
-                {
-                    "model_name": "text-embedding-ada-002",
-                    "litellm_params": {
-                        "model": "openai/text-embedding-ada-002",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"mode": "embedding", "aliases": ["embedding"]},
-                },
-            ]
-        }
 
-        with (
-            patch("pathlib.Path.open"),
-            patch("yaml.safe_load", return_value=mock_config) as mock_load,
-        ):
-            get_router_config.cache_clear()
-
-            loaded_config = get_router_config()
-
-            self.assertIsInstance(loaded_config, dict)
-            self.assertIn("model_list", loaded_config)
-
-            first_model = loaded_config["model_list"][0]
-            self.assertIn("model_info", first_model)
-            self.assertIn("aliases", first_model["model_info"])
-            self.assertEqual(first_model["model_info"]["aliases"], ["main", "coding"])
-            mock_load.assert_called_once()
+class ModelAliasConfigValidationTest(SimpleTestCase):
+    def test_config_load_keeps_every_alias_of_a_model(self):
+        entries = [
+            entry("gpt-4.1-nano", aliases=["main", "coding"]),
+            entry("text-embedding-ada-002", mode="embedding", aliases=["embedding"]),
+        ]
+        with router_config(entries):
+            loaded = get_router_config()["model_list"]
+        self.assertEqual(
+            [model["model_info"]["aliases"] for model in loaded],
+            [["main", "coding"], ["embedding"]],
+        )
 
     def test_config_load_with_duplicate_aliases_raises_error(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "gpt-4.1-nano",
-                    "litellm_params": {
-                        "model": "openai/gpt-4.1-nano",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["main"]},
-                },
-                {
-                    "model_name": "text-embedding-ada-002",
-                    "litellm_params": {
-                        "model": "openai/text-embedding-ada-002",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["main"]},
-                },
-            ]
-        }
+        entries = [
+            entry("gpt-4.1-nano", aliases=["main"]),
+            entry("text-embedding-ada-002", aliases=["main"]),
+        ]
+        with router_config(entries), self.assertRaises(RuntimeError) as context:
+            get_router_config()
+        self.assertIn("Duplicate alias", str(context.exception))
+        self.assertIn("main", str(context.exception))
 
-        with (
-            patch("pathlib.Path.open"),
-            patch("yaml.safe_load", return_value=mock_config) as mock_load,
-        ):
-            get_router_config.cache_clear()
+    def test_aliases_differing_only_in_case_are_distinct(self):
+        entries = [
+            entry("gpt-4.1-nano", aliases=["Main"]),
+            entry("text-embedding-ada-002", aliases=["main"]),
+        ]
+        with router_config(entries):
+            loaded = get_router_config()["model_list"]
+        self.assertEqual([model["model_info"]["aliases"] for model in loaded], [["Main"], ["main"]])
 
-            with self.assertRaises(RuntimeError) as context:
-                get_router_config()
+    def test_request_limit_multiplier_per_model_and_alias(self):
+        entries = [
+            entry("gpt-4.1-nano", aliases=["main"], request_limit_multiplier=1.5),
+            entry("gpt-4o", aliases=["default"]),
+            entry("text-embedding-ada-002", mode="embedding", request_limit_multiplier=0.5),
+        ]
+        with router_config(entries):
+            for model, expected in (
+                ("gpt-4.1-nano", 1.5),
+                ("main", 1.5),
+                ("gpt-4o", 1.0),
+                ("default", 1.0),
+                ("text-embedding-ada-002", 0.5),
+                ("unknown-model", 1.0),
+            ):
+                with self.subTest(model=model):
+                    self.assertEqual(get_model_request_limit_multiplier(model), expected)
+            self.assertEqual(
+                get_all_model_request_limit_multipliers(),
+                {"gpt-4.1-nano": 1.5, "gpt-4o": 1.0, "text-embedding-ada-002": 0.5},
+            )
 
-            self.assertIn("Duplicate alias", str(context.exception))
-            self.assertIn("main", str(context.exception))
-            mock_load.assert_called_once()
-
-    def test_config_load_with_multiple_aliases_per_model(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "gpt-4.1-nano",
-                    "litellm_params": {
-                        "model": "openai/gpt-4.1-nano",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["main", "coding", "default", "primary"]},
-                }
-            ]
-        }
-
-        with (
-            patch("pathlib.Path.open"),
-            patch("yaml.safe_load", return_value=mock_config) as mock_load,
-        ):
-            get_router_config.cache_clear()
-
-            loaded_config = get_router_config()
-
-            self.assertIsInstance(loaded_config, dict)
-            model = loaded_config["model_list"][0]
-            self.assertEqual(len(model["model_info"]["aliases"]), 4)
-            self.assertIn("main", model["model_info"]["aliases"])
-            self.assertIn("primary", model["model_info"]["aliases"])
-            mock_load.assert_called_once()
-
-    def test_alias_case_sensitivity(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "gpt-4.1-nano",
-                    "litellm_params": {
-                        "model": "openai/gpt-4.1-nano",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["Main"]},
-                },
-                {
-                    "model_name": "text-embedding-ada-002",
-                    "litellm_params": {
-                        "model": "openai/text-embedding-ada-002",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["main"]},
-                },
-            ]
-        }
-
-        with (
-            patch("pathlib.Path.open"),
-            patch("yaml.safe_load", return_value=mock_config) as mock_load,
-        ):
-            get_router_config.cache_clear()
-
-            loaded_config = get_router_config()
-
-            self.assertIsInstance(loaded_config, dict)
-
-            all_aliases = []
-            for model in loaded_config["model_list"]:
-                if "model_info" in model and "aliases" in model["model_info"]:
-                    all_aliases.extend(model["model_info"]["aliases"])
-
-            self.assertIn("Main", all_aliases)
-            self.assertIn("main", all_aliases)
-            self.assertEqual(len([a for a in all_aliases if a.lower() == "main"]), 2)
-            mock_load.assert_called_once()
-
-    def test_config_load_with_request_limit_multiplier(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "gpt-4.1-nano",
-                    "litellm_params": {
-                        "model": "openai/gpt-4.1-nano",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["main"], "request_limit_multiplier": 2},
-                },
-                {
-                    "model_name": "gpt-4o",
-                    "litellm_params": {
-                        "model": "openai/gpt-4o",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["default"]},
-                },
-            ]
-        }
-
-        with patch("pathlib.Path.open"), patch("yaml.safe_load", return_value=mock_config):
-            get_router_config.cache_clear()
-
-            loaded_config = get_router_config()
-
-            self.assertIsInstance(loaded_config, dict)
-            first_model = loaded_config["model_list"][0]
-            self.assertEqual(first_model["model_info"]["request_limit_multiplier"], 2)
-
-    def test_get_model_request_limit_multiplier_returns_configured_value(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "gpt-4.1-nano",
-                    "litellm_params": {
-                        "model": "openai/gpt-4.1-nano",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["main"], "request_limit_multiplier": 1.5},
-                }
-            ]
-        }
-
-        with patch("pathlib.Path.open"), patch("yaml.safe_load", return_value=mock_config):
-            get_router_config.cache_clear()
-
-            multiplier = get_model_request_limit_multiplier("gpt-4.1-nano")
-            self.assertEqual(multiplier, 1.5)
-
-    def test_get_model_request_limit_multiplier_returns_default_for_unconfigured(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "gpt-4o",
-                    "litellm_params": {
-                        "model": "openai/gpt-4o",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["default"]},
-                }
-            ]
-        }
-
-        with patch("pathlib.Path.open"), patch("yaml.safe_load", return_value=mock_config):
-            get_router_config.cache_clear()
-
-            multiplier = get_model_request_limit_multiplier("gpt-4o")
-            self.assertEqual(multiplier, 1.0)
-
-    def test_get_model_request_limit_multiplier_resolves_alias(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "gpt-4.1-nano",
-                    "litellm_params": {
-                        "model": "openai/gpt-4.1-nano",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["main"], "request_limit_multiplier": 2},
-                }
-            ]
-        }
-
-        with patch("pathlib.Path.open"), patch("yaml.safe_load", return_value=mock_config):
-            get_router_config.cache_clear()
-
-            multiplier = get_model_request_limit_multiplier("main")
-            self.assertEqual(multiplier, 2.0)
-
-    def test_get_model_request_limit_multiplier_returns_1_for_unknown_model(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "gpt-4o",
-                    "litellm_params": {
-                        "model": "openai/gpt-4o",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["default"]},
-                }
-            ]
-        }
-
-        with patch("pathlib.Path.open"), patch("yaml.safe_load", return_value=mock_config):
-            get_router_config.cache_clear()
-
-            multiplier = get_model_request_limit_multiplier("unknown-model")
-            self.assertEqual(multiplier, 1.0)
-
-    def test_get_model_supports_response_format_returns_false_when_configured(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "gpt-image-1",
-                    "litellm_params": {
-                        "model": "openai/gpt-image-1",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"supports_response_format": False},
-                }
-            ]
-        }
-
-        with patch("pathlib.Path.open"), patch("yaml.safe_load", return_value=mock_config):
-            get_router_config.cache_clear()
-
-            self.assertFalse(get_model_supports_response_format("gpt-image-1"))
-
-    def test_get_model_supports_response_format_defaults_to_true(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "dall-e-2",
-                    "litellm_params": {
-                        "model": "openai/dall-e-2",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["image"]},
-                }
-            ]
-        }
-
-        with patch("pathlib.Path.open"), patch("yaml.safe_load", return_value=mock_config):
-            get_router_config.cache_clear()
-
-            self.assertTrue(get_model_supports_response_format("dall-e-2"))
-
-    def test_get_model_supports_response_format_resolves_alias(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "gpt-image-1",
-                    "litellm_params": {
-                        "model": "openai/gpt-image-1",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["img"], "supports_response_format": False},
-                }
-            ]
-        }
-
-        with patch("pathlib.Path.open"), patch("yaml.safe_load", return_value=mock_config):
-            get_router_config.cache_clear()
-
-            self.assertFalse(get_model_supports_response_format("img"))
-
-    def test_get_model_supports_response_format_true_for_unknown_model(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "gpt-4o",
-                    "litellm_params": {
-                        "model": "openai/gpt-4o",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["default"]},
-                }
-            ]
-        }
-
-        with patch("pathlib.Path.open"), patch("yaml.safe_load", return_value=mock_config):
-            get_router_config.cache_clear()
-
-            self.assertTrue(get_model_supports_response_format("unknown-model"))
-
-    def test_get_all_model_request_limit_multipliers(self):
-        mock_config = {
-            "model_list": [
-                {
-                    "model_name": "gpt-4.1-nano",
-                    "litellm_params": {
-                        "model": "openai/gpt-4.1-nano",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["main"], "request_limit_multiplier": 2.0},
-                },
-                {
-                    "model_name": "gpt-4o",
-                    "litellm_params": {
-                        "model": "openai/gpt-4o",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"aliases": ["default"]},
-                },
-                {
-                    "model_name": "text-embedding-ada-002",
-                    "litellm_params": {
-                        "model": "openai/text-embedding-ada-002",
-                        "api_key": "os.environ/OPENAI_API_KEY",
-                    },
-                    "model_info": {"mode": "embedding", "request_limit_multiplier": 0.5},
-                },
-            ]
-        }
-
-        with patch("pathlib.Path.open"), patch("yaml.safe_load", return_value=mock_config):
-            get_router_config.cache_clear()
-            get_all_model_request_limit_multipliers.cache_clear()
-
-            multipliers = get_all_model_request_limit_multipliers()
-
-            self.assertEqual(multipliers["gpt-4.1-nano"], 2.0)
-            self.assertEqual(multipliers["gpt-4o"], 1.0)
-            self.assertEqual(multipliers["text-embedding-ada-002"], 0.5)
-            self.assertEqual(len(multipliers), 3)
+    def test_response_format_support_per_model_and_alias(self):
+        entries = [
+            entry("gpt-image-1", aliases=["img"], supports_response_format=False),
+            entry("dall-e-2", aliases=["image"]),
+        ]
+        with router_config(entries):
+            for model, expected in (
+                ("gpt-image-1", False),
+                ("img", False),
+                ("dall-e-2", True),
+                ("image", True),
+                ("unknown-model", True),
+            ):
+                with self.subTest(model=model):
+                    self.assertEqual(get_model_supports_response_format(model), expected)
 
 
 class ModelAliasRoutingTest(GatewayIntegrationTestCase):

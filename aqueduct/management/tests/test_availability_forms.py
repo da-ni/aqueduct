@@ -14,8 +14,6 @@ from management.tests.helpers import make_token
 from management.tests.test_organization_page import TEST_MCP_CONFIG, mcp_config
 from management.tests.test_teams_pages import TeamsPagesTestBase
 
-ROUTER_CONFIG = Path(__file__).resolve().parents[3] / "example_router_config.yaml"
-
 
 def posted(form) -> dict:
     data = {name: form[name].value() for name in form.fields}
@@ -27,7 +25,6 @@ def posted(form) -> dict:
     return {name: value for name, value in data.items() if value not in (None, False)}
 
 
-@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG)
 class TeamAvailabilityAdminFormTest(TestCase):
     def setUp(self):
         self.team = Team.objects.create(name="Whale", org=Org.objects.create(name="E060"))
@@ -123,7 +120,6 @@ class RepeatedModelNameTest(TestCase):
         self.assertEqual(Reach.of(list(model_names()), ["a"]).usable, 1)
 
 
-@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG)
 class ProfileAvailabilityAdminFormTest(TeamsPagesTestBase):
     def test_a_cleared_box_is_what_the_gateway_refuses(self):
         profile = self.member.profile
@@ -137,7 +133,6 @@ class ProfileAvailabilityAdminFormTest(TeamsPagesTestBase):
         self.assertFalse(key.model_excluded("dall-e-2"))
 
 
-@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG)
 class TeamAvailabilityPageTest(TeamsPagesTestBase):
     def url(self, team: Team | None = None) -> str:
         return reverse("team_availability", args=[(team or self.team).id])

@@ -1,7 +1,10 @@
 import re
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
-from django.conf import settings
+import yaml
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
@@ -19,9 +22,14 @@ from management.models import (
 
 User = get_user_model()
 
-PAGES = override_settings(
-    LITELLM_ROUTER_CONFIG_FILE_PATH=Path(settings.BASE_DIR).parent / "example_router_config.yaml"
-)
+
+@contextmanager
+def router_config(entries: list[dict]) -> Iterator[None]:
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "router.yaml"
+        path.write_text(yaml.safe_dump({"model_list": entries}))
+        with override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=str(path)):
+            yield
 
 
 def make_user(name: str, org: Org, group: UserGroup = UserGroup.USER):
@@ -41,7 +49,6 @@ def join(user, team: Team, is_admin: bool = False) -> None:
     TeamMembership.objects.create(user_profile=user.profile, team=team, is_admin=is_admin)
 
 
-@PAGES
 class RoleWorld(TestCase):
     @classmethod
     def setUpTestData(cls):
