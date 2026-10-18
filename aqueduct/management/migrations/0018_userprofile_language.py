@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='userprofile',
             name='language',
-            field=models.CharField(blank=True, choices=[('en', 'English'), ('de', 'Deutsch')], help_text='Language of the management pages. Blank follows the browser.', max_length=8),
+            field=models.CharField(blank=True, db_default='', choices=[('en', 'English'), ('de', 'Deutsch')], help_text='Language of the management pages. Blank follows the browser.', max_length=8),
         ),
     ]

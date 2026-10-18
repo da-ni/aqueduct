@@ -10,7 +10,7 @@ from django.core.cache import cache
 from django.core.handlers.asgi import ASGIRequest
 from tos.models import has_user_agreed_latest_tos  # type: ignore[import-untyped]
 
-from gateway.authentication import token_from_request
+from gateway.authentication import token_from_request, usable_token
 from gateway.decorators.types import AsyncView, Decorator, ViewResult
 from gateway.response_error import error_response
 from management.models import Token
@@ -60,7 +60,7 @@ def token_authenticated(token_auth_only: bool) -> Decorator:
                 return unauthorized_response
 
             if token_key:
-                token = await sync_to_async(Token.find_by_key)(token_key)
+                token = await sync_to_async(usable_token)(token_key)
             else:
                 # user authenticated but not via token -> use Token.objects for async ORM
                 token = (

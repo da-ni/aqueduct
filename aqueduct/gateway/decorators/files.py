@@ -58,7 +58,9 @@ def _lookup_relay_model_name(model_name: str) -> str | None:
         return None
 
     relay_model: str
-    relay_model, _, _, _ = litellm.get_llm_provider(deployment_model)
+    relay_model, _, _, _ = litellm.get_llm_provider(
+        deployment_model, custom_llm_provider=getattr(litellm_params, "custom_llm_provider", None)
+    )
     return relay_model
 
 
@@ -74,8 +76,11 @@ def rewrite_batch_file_models(content: bytes, excluded_models: set[str]) -> byte
             body = request.get("body", {})
             if "model" in body:
                 original_model = body["model"]
-                canonical_model = resolve_model_alias(original_model)
-                relay_model = _lookup_relay_model_name(canonical_model)
+                canonical_model = original_model
+                relay_model = None
+                if isinstance(original_model, str):
+                    canonical_model = resolve_model_alias(original_model)
+                    relay_model = _lookup_relay_model_name(canonical_model)
                 if relay_model is None or canonical_model in excluded_models:
                     custom_id = request.get("custom_id", "<missing custom_id>")
                     raise ValueError(
@@ -108,7 +113,7 @@ def check_batch_file_models(content: bytes, excluded_models: set[str]) -> None:
             raise ValueError(f"Line {i + 1} is not a JSON object")  # noqa: TRY004
         body = request.get("body")
         model = body.get("model") if isinstance(body, dict) else None
-        if model is not None and model not in allowed:
+        if model is not None and (not isinstance(model, str) or model not in allowed):
             named = [name for name, relay in relays.items() if relay == model]
             custom_id = request.get("custom_id", "<missing custom_id>")
             raise ValueError(

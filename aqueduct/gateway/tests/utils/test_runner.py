@@ -5,13 +5,12 @@ import shutil
 import signal
 import subprocess
 import unittest
-from typing import override
 
 from django.conf import settings
 from django.core.cache import caches
 from django.core.signals import setting_changed
 from django.dispatch import receiver
-from django.test.runner import DiscoverRunner
+from django.test.runner import DiscoverRunner, ParallelTestSuite, RemoteTestResult, RemoteTestRunner
 from django.utils import translation
 
 from gateway import config
@@ -115,8 +114,7 @@ def clear_caches_built_from_the_setting(*, setting: str, **kwargs) -> None:
 
 
 class _ResetSharedStateBeforeEachTest(unittest.TestResult):
-    @override
-    def startTest(self, test):
+    def startTest(self, test):  # noqa: N802
         for cache in caches.all(initialized_only=True):
             cache.clear()
         # LocaleMiddleware activates a request's language on this thread and never deactivates it.
@@ -126,6 +124,18 @@ class _ResetSharedStateBeforeEachTest(unittest.TestResult):
         super().startTest(test)
 
 
+class _IsolatedRemoteTestResult(_ResetSharedStateBeforeEachTest, RemoteTestResult):
+    pass
+
+
+class _IsolatedRemoteTestRunner(RemoteTestRunner):
+    resultclass = _IsolatedRemoteTestResult
+
+
+class _IsolatedParallelTestSuite(ParallelTestSuite):
+    runner_class = _IsolatedRemoteTestRunner
+
+
 class MockServerTestRunner(DiscoverRunner):
     """
     Custom Django test runner that starts a single mock server instance
@@ -133,6 +143,8 @@ class MockServerTestRunner(DiscoverRunner):
 
     It also stops the test MCP server if it has been started by any tests that needed it.
     """
+
+    parallel_test_suite = _IsolatedParallelTestSuite
 
     def get_resultclass(self):
         result = super().get_resultclass() or unittest.TextTestResult

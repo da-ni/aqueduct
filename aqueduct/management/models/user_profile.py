@@ -54,6 +54,7 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
         max_length=8,
         choices=settings.LANGUAGES,
         blank=True,
+        db_default="",
         help_text=_("Language of the management pages. Blank follows the browser."),
     )
 

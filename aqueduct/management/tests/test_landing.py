@@ -3,10 +3,13 @@ from unittest import mock
 from urllib.parse import parse_qs, urlparse
 
 from django.conf import settings
+from django.contrib.auth import SESSION_KEY, get_user_model
 from django.test import override_settings
 from django.urls import reverse
 
 from management.tests.test_usage_page import UsagePageTestBase
+
+User = get_user_model()
 
 OIDC = override_settings(
     OIDC_RP_CLIENT_ID="aqueduct", OIDC_OP_AUTHORIZATION_ENDPOINT="https://sso.example.com/authorize"
@@ -90,3 +93,10 @@ class LandingTest(UsagePageTestBase):
         self.assertNotIn(settings.LANGUAGE_COOKIE_NAME, landing.cookies)
         page = self.client.get(reverse("settings"), HTTP_ACCEPT_LANGUAGE="de")
         self.assertContains(page, '<html lang="de"')
+
+    def test_user_without_a_profile_signs_in_without_a_language(self):
+        bootstrap = User.objects.create_superuser("root@example.com", "root@example.com")
+        landing = self.sign_in(bootstrap)
+        self.assertEqual(landing.status_code, 302)
+        self.assertNotIn(settings.LANGUAGE_COOKIE_NAME, landing.cookies)
+        self.assertEqual(self.client.session[SESSION_KEY], str(bootstrap.pk))
