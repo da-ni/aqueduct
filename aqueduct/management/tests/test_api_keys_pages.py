@@ -315,10 +315,6 @@ class KeyDetailTest(ApiKeysPagesTestBase):
             f"Expires {expires:%-d %b %Y}</time>",
         )
 
-    def test_other_users_key_is_not_found(self):
-        response = self.get(self.other, "token_detail", self.key.id)
-        self.assertEqual(response.status_code, 404)
-
     def test_unknown_key_is_not_found(self):
         response = self.get(self.owner, "token_detail", 999_999)
         self.assertEqual(response.status_code, 404)
@@ -502,19 +498,6 @@ class OrgAdminKeyAccessTest(ApiKeysPagesTestBase):
                 self.assertEqual(response.status_code, 404)
         self.assertEqual(Token.objects.values().get(id=self.key.id), before)
 
-    def test_org_admin_of_another_org_gets_not_found(self):
-        for key in (self.key, self.pipeline_key):
-            with self.subTest(key=key.name):
-                self.assertEqual(self.get(self.far_admin, "token_detail", key.id).status_code, 404)
-
-    def test_admin_opens_any_key_whatever_org_the_switch_shows(self):
-        self.client.force_login(self.admin)
-        self.client.get(reverse("tokens"), {"org": Org.objects.get(name="elsewhere").id})
-        for key in (self.key, self.pipeline_key):
-            with self.subTest(key=key.name):
-                response = self.client.get(reverse("token_detail", args=[key.id]))
-                self.assertEqual(response.status_code, 200)
-
     def test_admin_follows_a_key_into_the_log_whatever_org_the_switch_shows(self):
         self.request_log(self.pipeline_key, timedelta(hours=1))
         self.client.force_login(self.admin)
@@ -660,11 +643,6 @@ class ServiceAccountKeyDetailTest(ApiKeysPagesTestBase):
         self.assertNotContains(response, reverse("token_regenerate", args=[self.pipeline_key.id]))
         self.assertNotContains(response, reverse("service_account_edit", args=[self.pipeline.id]))
         self.assertNotContains(response, reverse("service_account_delete", args=[self.pipeline.id]))
-
-    def test_users_outside_the_team_get_not_found(self):
-        for user in (self.other, self.owner, self.other_org_admin):
-            with self.subTest(user=user.username):
-                self.assertEqual(self.detail(user).status_code, 404)
 
     def test_team_page_links_each_service_account_to_its_key(self):
         response = self.get(self.plain_member, "team", self.team.id)

@@ -122,25 +122,12 @@ class UsageAccessTest(UsagePageTestBase):
         self.assertContains(response, "Top keys")
         self.assertEqual([key.detail for key in response.context["keys"]], [""])
 
-    def test_team_member_sees_their_key_and_the_team_service_account(self):
-        response = self.page(self.member)
-        self.assert_keys(response, "member-laptop", "pipeline")
-        self.assertContains(
-            response, f'href="{reverse("token_detail", args=[self.pipeline_key.id])}"'
-        )
-        self.assertNotContains(response, f"key={self.solo_key.id}")
-
     def test_org_admin_sees_and_links_every_key_of_their_org(self):
         response = self.page(self.org_admin)
         self.assert_keys(response, "solo-laptop", "member-laptop", "pipeline")
         self.assertEqual(self.kpi(response, "Requests"), "3")
         for key in (self.solo_key, self.member_key, self.pipeline_key):
             self.assertContains(response, f'href="{reverse("token_detail", args=[key.id])}"')
-
-    def test_my_keys_narrows_an_org_admin_to_their_own_keys(self):
-        response = self.page(self.org_admin, scope="mine")
-        self.assert_keys(response)
-        self.assertEqual(self.kpi(response, "Requests"), "0")
 
     def test_admin_sees_every_org_split_by_org(self):
         response = self.page(self.admin, org="all")
@@ -155,38 +142,6 @@ class UsageAccessTest(UsagePageTestBase):
         response = self.page(self.admin, org="all")
         self.assertContains(response, "root@example.com · No organization")
         self.assertNotContains(response, "· None")
-
-    def test_admin_may_pick_another_org(self):
-        response = self.page(self.admin, org=self.other_org.id)
-        self.assertEqual(self.kpi(response, "Input"), "7K")
-        self.assertNotContains(response, "By organization")
-
-    def test_org_admin_cannot_pick_another_org(self):
-        for org in (self.org.id, "all"):
-            response = self.page(self.other_org_admin, org=org)
-            self.assertEqual(self.kpi(response, "Input"), "7K")
-            self.assertContains(response, "Activity across other-org")
-
-    def test_key_filter_accepts_the_owners_key(self):
-        response = self.page(self.solo, key=self.solo_key.id)
-        self.assertContains(response, "for the key")
-        self.assertEqual(self.kpi(response, "Requests"), "1")
-
-    def test_key_filter_hides_keys_outside_the_viewers_scope(self):
-        self.client.force_login(self.solo)
-        for token in (self.member_key, self.foreign_key):
-            response = self.client.get(reverse("usage"), {"key": token.id})
-            self.assertEqual(response.status_code, 404)
-            self.assertNotContains(response, token.name, status_code=404)
-        self.assertEqual(self.page(self.other_org_admin, key=self.solo_key.id).status_code, 404)
-        self.assertEqual(self.page(self.solo, key="abc").status_code, 404)
-
-    def test_key_filter_accepts_a_service_account_key_for_its_team_only(self):
-        response = self.page(self.member, key=self.pipeline_key.id)
-        self.assertContains(response, "for the key")
-        self.assertEqual(self.kpi(response, "Requests"), "1")
-        self.assertEqual(self.page(self.solo, key=self.pipeline_key.id).status_code, 404)
-        self.assertEqual(self.page(self.other_org_admin, key=self.pipeline_key.id).status_code, 404)
 
     def test_key_filter_lets_an_org_admin_name_any_key_of_their_org(self):
         response = self.page(self.org_admin, key=self.member_key.id)

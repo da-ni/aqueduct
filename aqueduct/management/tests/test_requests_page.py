@@ -83,49 +83,6 @@ class RequestsScopeTest(RequestsPageTestBase):
             response, f"{reverse('sso')}?next={url}", fetch_redirect_response=False
         )
 
-    def test_user_sees_their_own_keys_only_even_where_a_request_names_them(self):
-        make_token(self.owner, "owner-desktop")
-        response = self.get(self.owner)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.paths_on(response), {"/own"})
-        self.assertContains(
-            response, f'href="{reverse("token_detail", args=[self.key.id])}"', count=1
-        )
-        self.assertNotContains(response, "other-laptop")
-        self.assertNotContains(response, "other@example.com")
-        self.assertEqual(self.get(self.owner, key=self.others_key.id).status_code, 404)
-
-    def test_other_user_does_not_see_the_owners_requests(self):
-        response = self.get(self.other)
-        self.assertEqual(self.paths_on(response), {"/others", "/sent-as-owner"})
-        self.assertNotContains(response, "owner-laptop")
-
-    def test_team_member_sees_their_teams_service_account_only(self):
-        response = self.get(self.member)
-        self.assertEqual(self.paths_on(response), {"/team-sa"})
-        self.assertNotContains(response, "side-sa")
-
-    def test_org_admin_sees_the_whole_org_and_nothing_outside(self):
-        response = self.get(self.org_admin)
-        self.assertEqual(self.paths_on(response), set(PATHS) - {"/foreign"})
-        self.assertNotContains(response, "foreign-laptop")
-
-    def test_other_org_admin_sees_only_their_org(self):
-        response = self.get(self.other_org_admin)
-        self.assertEqual(self.paths_on(response), {"/foreign"})
-
-    def test_non_admin_cannot_pick_another_org(self):
-        response = self.get(self.owner, org=self.other_org.id)
-        self.assertEqual(self.paths_on(response), {"/own"})
-        response = self.get(self.other_org_admin, org="all")
-        self.assertEqual(self.paths_on(response), {"/foreign"})
-        self.assertNotContains(response, 'name="org"')
-
-    def test_admin_picks_an_org_or_all_orgs(self):
-        self.assertEqual(self.paths_on(self.get(self.admin)), set(PATHS) - {"/foreign"})
-        self.assertEqual(self.paths_on(self.get(self.admin, org=self.other_org.id)), {"/foreign"})
-        self.assertEqual(self.paths_on(self.get(self.admin, org="all")), set(PATHS))
-
     def test_matches_the_overview_status_counts_for_every_role(self):
         self.log(self.key, "/retired", model="not-in-the-router")
         self.log(self.others_key, "/limited", status_code=429, user_id="owner@example.com")
@@ -231,12 +188,6 @@ class RequestsScopeTest(RequestsPageTestBase):
         self.assertNotContains(recent, ">/last-week</div>")
         self.assertEqual(self.paths_on(recent), {"/own"})
 
-    def test_my_keys_narrows_the_log_for_an_org_admin(self):
-        self.log(make_token(self.org_admin, "admin-laptop"), "/admin-own")
-        response = self.get(self.org_admin, scope="mine")
-        self.assertEqual(self.paths_on(response), set())
-        self.assertIn(">/admin-own</div>", response.content.decode())
-
     def test_page_shows_no_ip_address(self):
         self.log(self.key, "/with-ip", ip_address="203.0.113.7", user_agent="probe/1")
         response = self.get(self.owner, request=Request.objects.get(path="/with-ip").id)
@@ -274,10 +225,6 @@ class RequestsFilterTest(RequestsPageTestBase):
         self.assertIn(OTHER_MODEL, member)
         self.assertNotIn("dall-e-2", member)
         self.assertIn("dall-e-2", self.get(self.org_admin).context["filters"].models)
-
-    def test_key_filter(self):
-        response = self.get(self.owner, key=self.key.id)
-        self.assertEqual(self.paths_on(response), {"/own"})
 
     def test_key_search_names_the_org_of_each_key_across_all_orgs(self):
         matches = self.matches(self.admin, "laptop", org="all")
@@ -347,24 +294,11 @@ class RequestsFilterTest(RequestsPageTestBase):
         filters = self.get(user, key_q=query, **params).context["filters"]
         return [key.name + " · " + key.note for key in filters.matches]
 
-    def test_key_outside_the_scope_is_not_found(self):
-        response = self.get(self.owner, key=self.foreign_key.id)
-        self.assertEqual(response.status_code, 404)
-        self.assertNotContains(response, "foreign-laptop", status_code=404)
-        self.assertEqual(self.get(self.owner, key="abc").status_code, 404)
-
     def test_model_cell_filters_the_log_on_its_model(self):
         response = self.get(self.owner, status="2xx")
         self.assertContains(
             response, f'href="?status=2xx&amp;model={MODEL}" title="Show only {MODEL}"', count=1
         )
-
-    def test_model_filter(self):
-        self.log(self.key, "/embed", model=OTHER_MODEL)
-        response = self.get(self.owner, model=OTHER_MODEL)
-        content = response.content.decode()
-        self.assertIn(">/embed</div>", content)
-        self.assertNotIn(">/own</div>", content)
 
     def test_detail_opens_only_for_a_request_on_the_page(self):
         own = Request.objects.get(path="/own")

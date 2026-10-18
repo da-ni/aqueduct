@@ -12,22 +12,27 @@ LAB = {
     "/solo-laptop",
     "/member-laptop",
     "/member-embed",
+    "/sent-as-solo",
     "/pipeline",
     "/side-sa",
     "/org-admin-laptop",
 }
 FOREIGN = {"/foreign-laptop", "/foreign-sa"}
-KEY_OF = {"/member-embed": "member-laptop"}
+KEY_OF = {"/member-embed": "member-laptop", "/sent-as-solo": "member-laptop"}
+MEMBER = {"/member-laptop", "/member-embed", "/sent-as-solo"}
 NOT_FOUND = 404
 
 ROWS = (
     ("solo", {}, {"/solo-laptop"}),
     ("solo", {"scope": "mine"}, {"/solo-laptop"}),
     ("solo", {"org": "all"}, {"/solo-laptop"}),
+    ("solo", {"org": "other_org"}, {"/solo-laptop"}),
     ("solo", {"key": "solo-laptop"}, {"/solo-laptop"}),
+    ("solo", {"key": "member-laptop"}, NOT_FOUND),
     ("solo", {"key": "pipeline"}, NOT_FOUND),
     ("solo", {"key": "foreign-laptop"}, NOT_FOUND),
-    ("member", {}, {"/member-laptop", "/member-embed", "/pipeline"}),
+    ("solo", {"key": "abc"}, NOT_FOUND),
+    ("member", {}, MEMBER | {"/pipeline"}),
     ("member", {"model": EMBEDDING}, {"/member-embed"}),
     ("member", {"key": "pipeline"}, {"/pipeline"}),
     ("member", {"key": "side-sa"}, NOT_FOUND),
@@ -36,7 +41,7 @@ ROWS = (
     ("team_admin", {"key": "side-sa"}, NOT_FOUND),
     ("org_admin", {}, LAB),
     ("org_admin", {"scope": "mine"}, {"/org-admin-laptop"}),
-    ("org_admin", {"key": "member-laptop"}, {"/member-laptop", "/member-embed"}),
+    ("org_admin", {"key": "member-laptop"}, MEMBER),
     ("org_admin", {"key": "side-sa", "model": CHAT}, {"/side-sa"}),
     ("org_admin", {"org": "all"}, LAB),
     ("org_admin", {"key": "foreign-laptop"}, NOT_FOUND),
@@ -50,26 +55,24 @@ ROWS = (
     ("other_org_admin", {"org": "all"}, FOREIGN),
     ("other_org_admin", {"org": "org"}, FOREIGN),
     ("other_org_admin", {"key": "solo-laptop"}, NOT_FOUND),
+    ("other_org_admin", {"key": "pipeline"}, NOT_FOUND),
 )
 
 ALL_KEYS_REDIRECT_TO = {"solo": "solo-laptop", "team_admin": "pipeline"}
 
-OPENS = {
-    "solo": {"solo-laptop"},
-    "member": {"member-laptop", "pipeline"},
-    "team_admin": {"pipeline"},
-    "org_admin": {"solo-laptop", "member-laptop", "pipeline", "side-sa", "org-admin-laptop"},
-    "admin": {
-        "solo-laptop",
-        "member-laptop",
-        "pipeline",
-        "side-sa",
-        "org-admin-laptop",
-        "foreign-laptop",
-        "foreign-sa",
-    },
-    "other_org_admin": {"foreign-laptop", "foreign-sa"},
-}
+LAB_KEYS = {"solo-laptop", "member-laptop", "pipeline", "side-sa", "org-admin-laptop"}
+FOREIGN_KEYS = {"foreign-laptop", "foreign-sa"}
+OPENS = (
+    ("solo", None, {"solo-laptop"}),
+    ("member", None, {"member-laptop", "pipeline"}),
+    ("team_admin", None, {"pipeline"}),
+    ("org_admin", None, LAB_KEYS),
+    ("org_admin", "all", LAB_KEYS),
+    ("admin", None, LAB_KEYS | FOREIGN_KEYS),
+    ("admin", "other_org", LAB_KEYS | FOREIGN_KEYS),
+    ("admin", "all", LAB_KEYS | FOREIGN_KEYS),
+    ("other_org_admin", None, FOREIGN_KEYS),
+)
 
 
 class VisibilityMatrixTest(RoleWorld):
@@ -85,15 +88,27 @@ class VisibilityMatrixTest(RoleWorld):
             for token in Token.objects.all()
         ]
         rows.append(Request(token=cls.member_key, path="/member-embed", model=EMBEDDING, **sent))
+        rows.append(
+            Request(
+                token=cls.member_key,
+                path="/sent-as-solo",
+                model=CHAT,
+                user_id="solo@example.com",
+                **sent,
+            )
+        )
         Request.objects.bulk_create(rows)
 
     def query(self, params: dict[str, str]) -> dict[str, object]:
         resolved: dict[str, object] = dict(params)
-        if "key" in params:
-            resolved["key"] = Token.objects.get(name=params["key"]).id
+        if token := Token.objects.filter(name=params.get("key", "")).first():
+            resolved["key"] = token.id
         if params.get("org") in ("org", "other_org"):
             resolved["org"] = getattr(self, params["org"]).id
         return resolved
+
+    def key_id(self, name: str) -> int:
+        return Token.objects.get(name=name).id
 
     def get(self, role: str, name: str, params: dict[str, object]):
         self.client.force_login(getattr(self, role))
@@ -107,6 +122,7 @@ class VisibilityMatrixTest(RoleWorld):
                 log = self.get(role, "requests", query)
                 if expected == NOT_FOUND:
                     self.assertEqual((overview.status_code, log.status_code), (404, 404))
+                    self.assertNotContains(log, params["key"], status_code=404)
                     continue
                 filters = overview.context["filters"]
                 shown = filters.period.of(filters.requests)
@@ -115,6 +131,7 @@ class VisibilityMatrixTest(RoleWorld):
                 self.assertEqual(kpis["Requests"], str(len(expected)))
                 rows = log.context["log"].rows
                 self.assertEqual({row.request.path for row in rows}, expected)
+                self.assertEqual(log.context["filters"].can_pick_org, role == "admin")
 
     def test_all_keys_lists_the_keys_behind_those_requests(self):
         for role, params, expected in ROWS:
@@ -131,13 +148,20 @@ class VisibilityMatrixTest(RoleWorld):
                     )
                     continue
                 keys = {KEY_OF.get(path, path.removeprefix("/")) for path in expected}
-                self.assertEqual({key.name for key in response.context["keys"]}, keys)
+                listed = response.context["keys"]
+                self.assertEqual({key.name for key in listed}, keys)
+                self.assertEqual(
+                    {key.href for key in listed},
+                    {reverse("token_detail", args=[self.key_id(name)]) for name in keys},
+                )
 
     def test_the_key_page_opens_exactly_the_keys_each_role_may_see(self):
-        for role, opens in OPENS.items():
+        for role, viewed_org, opens in OPENS:
             self.client.force_login(getattr(self, role))
+            if viewed_org is not None:
+                self.client.get(reverse("tokens"), self.query({"org": viewed_org}))
             for token in Token.objects.all():
-                with self.subTest(role=role, key=token.name):
+                with self.subTest(role=role, viewed_org=viewed_org, key=token.name):
                     response = self.client.get(reverse("token_detail", args=[token.id]))
                     self.assertEqual(response.status_code, 200 if token.name in opens else 404)
 
