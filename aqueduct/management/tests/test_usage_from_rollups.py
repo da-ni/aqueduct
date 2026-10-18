@@ -39,30 +39,31 @@ class UsageFromRollupsTest(TestCase):
     """The Overview and All keys pages read the rollups when the viewer sees a whole org, and
     show the figures the requests give."""
 
-    def setUp(self):
-        self.now = timezone.now()
-        self.org = Org.objects.create(name="lab-org")
-        self.other_org = Org.objects.create(name="other-org")
-        self.team = Team.objects.create(name="NLP Lab", org=self.org)
-        self.admin = make_user("admin", self.org, UserGroup.ADMIN)
-        self.org_admin = make_user("org-admin", self.org, UserGroup.ORG_ADMIN)
-        self.member = make_user("member", self.org)
-        TeamMembership.objects.create(user_profile=self.member.profile, team=self.team)
-        foreigner = make_user("foreigner", self.other_org)
-        pipeline = ServiceAccount.objects.create(name="pipeline", team=self.team)
+    @classmethod
+    def setUpTestData(cls):
+        cls.now = timezone.now()
+        cls.org = Org.objects.create(name="lab-org")
+        cls.other_org = Org.objects.create(name="other-org")
+        cls.team = Team.objects.create(name="NLP Lab", org=cls.org)
+        cls.admin = make_user("admin", cls.org, UserGroup.ADMIN)
+        cls.org_admin = make_user("org-admin", cls.org, UserGroup.ORG_ADMIN)
+        cls.member = make_user("member", cls.org)
+        TeamMembership.objects.create(user_profile=cls.member.profile, team=cls.team)
+        foreigner = make_user("foreigner", cls.other_org)
+        pipeline = ServiceAccount.objects.create(name="pipeline", team=cls.team)
         keys = [
-            make_token(self.member, "laptop"),
-            make_token(self.member, "pipeline", service_account=pipeline),
-            make_token(self.org_admin, "Scripts"),
+            make_token(cls.member, "laptop"),
+            make_token(cls.member, "pipeline", service_account=pipeline),
+            make_token(cls.org_admin, "Scripts"),
             make_token(foreigner, "foreign"),
-            *(make_token(self.org_admin, f"batch-{n:02d}") for n in range(12)),
+            *(make_token(cls.org_admin, f"batch-{n:02d}") for n in range(12)),
         ]
         draw = random.Random(7)
         Request.objects.bulk_create(
             Request(
                 token=draw.choice(keys),
                 model=draw.choice((CHAT, CHAT, EMBEDDING, "retired-model")),
-                timestamp=self.now - timedelta(minutes=draw.randrange(1, 35 * 24 * 60)),
+                timestamp=cls.now - timedelta(minutes=draw.randrange(1, 35 * 24 * 60)),
                 status_code=draw.choice((200, 200, 200, 429, 400, 404, 500, 502, None)),
                 response_time_ms=draw.choice((None, int(draw.lognormvariate(5, 1)))),
                 input_tokens=(tokens := draw.randrange(0, 5000)),

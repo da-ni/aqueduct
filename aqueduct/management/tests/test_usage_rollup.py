@@ -74,27 +74,28 @@ class SplitTest(SimpleTestCase):
 
 @PAGES
 class UsageRollupTest(TestCase):
-    def setUp(self):
-        self.now = timezone.now()
-        self.org = Org.objects.create(name="lab-org")
-        self.other_org = Org.objects.create(name="other-org")
-        self.team = Team.objects.create(name="NLP Lab", org=self.org)
-        self.other_team = Team.objects.create(name="Vision", org=self.other_org)
-        self.member = make_user("member", self.org)
-        self.foreigner = make_user("foreigner", self.other_org)
-        self.member_key = make_token(self.member, "laptop")
-        self.pipeline = ServiceAccount.objects.create(name="pipeline", team=self.team)
-        self.pipeline_key = make_token(self.member, "pipeline", service_account=self.pipeline)
-        self.foreign_key = make_token(self.foreigner, "foreign")
-        self.orphan_key = make_token(User.objects.create_user(username="orphan"), "orphan")
+    @classmethod
+    def setUpTestData(cls):
+        cls.now = timezone.now()
+        cls.org = Org.objects.create(name="lab-org")
+        cls.other_org = Org.objects.create(name="other-org")
+        cls.team = Team.objects.create(name="NLP Lab", org=cls.org)
+        cls.other_team = Team.objects.create(name="Vision", org=cls.other_org)
+        cls.member = make_user("member", cls.org)
+        cls.foreigner = make_user("foreigner", cls.other_org)
+        cls.member_key = make_token(cls.member, "laptop")
+        cls.pipeline = ServiceAccount.objects.create(name="pipeline", team=cls.team)
+        cls.pipeline_key = make_token(cls.member, "pipeline", service_account=cls.pipeline)
+        cls.foreign_key = make_token(cls.foreigner, "foreign")
+        cls.orphan_key = make_token(User.objects.create_user(username="orphan"), "orphan")
 
         draw = random.Random(42)
-        keys = (self.member_key, self.pipeline_key, self.foreign_key, self.orphan_key)
+        keys = (cls.member_key, cls.pipeline_key, cls.foreign_key, cls.orphan_key)
         requests = [
             Request(
                 token=draw.choice(keys),
                 model=draw.choice((CHAT, CHAT, EMBEDDING, UNSERVED, "")),
-                timestamp=self.now - timedelta(minutes=draw.randrange(0, 40 * 24 * 60)),
+                timestamp=cls.now - timedelta(minutes=draw.randrange(0, 40 * 24 * 60)),
                 status_code=draw.choice(STATUSES),
                 response_time_ms=draw.choice((None, 0, int(draw.lognormvariate(6, 2)))),
                 input_tokens=(tokens := draw.randrange(0, 5000)),
