@@ -149,7 +149,9 @@ async def mock_endpoint(path: str, request: Request) -> Response:
 
     logger.debug("Got a request to %s", path)
 
-    if delays_enabled:
+    if config.delay_seconds:
+        await asyncio.sleep(config.delay_seconds)
+    elif delays_enabled:
         delay = 0.1 + (secrets.randbelow(900) / 1000)
         logger.debug("Adding %.2fs delay to request", delay)
         await asyncio.sleep(delay)

@@ -599,7 +599,8 @@ class ChatCompletionsIntegrationTest(ChatCompletionsBase):
         After the request, checks that the database contains one request,
         the endpoint matches, and input/output tokens are > 0.
         """
-        response = self._send_chat_completion(self.MESSAGES)
+        with self.upstream_too_slow("chat/completions"):
+            response = self._send_chat_completion(self.MESSAGES)
 
         self.assertEqual(
             response.status_code,
@@ -623,7 +624,8 @@ class ChatCompletionsIntegrationTest(ChatCompletionsBase):
         # Clear any existing requests
         Request.objects.all().delete()
 
-        response = self._send_chat_completion(self.MESSAGES)
+        with self.upstream_too_slow("chat/completions"):
+            response = self._send_chat_completion(self.MESSAGES)
 
         # Verify we get a timeout response
         self.assertEqual(
@@ -732,7 +734,8 @@ class ChatCompletionsIntegrationTest(ChatCompletionsBase):
         # Clear existing requests
         await Request.objects.all().adelete()
 
-        response = await self._send_chat_completion_streaming(self.MESSAGES)
+        with self.upstream_too_slow("chat/completions"):
+            response = await self._send_chat_completion_streaming(self.MESSAGES)
 
         # Verify we get a timeout response
         self.assertEqual(

@@ -109,12 +109,13 @@ class SpeechEndpointTest(GatewayTTSSTTestCase):
 
         payload = {"model": self.tts_model, "input": "Hello, this is a test.", "voice": "alloy"}
 
-        response = self.client.post(
-            self.url_tts,
-            data=json.dumps(payload),
-            headers=self.headers,
-            content_type="application/json",
-        )
+        with self.upstream_too_slow("audio/speech"):
+            response = self.client.post(
+                self.url_tts,
+                data=json.dumps(payload),
+                headers=self.headers,
+                content_type="application/json",
+            )
 
         self.assertEqual(
             response.status_code, 504, f"Expected 504 Gateway Timeout, got {response.status_code}"
@@ -356,11 +357,12 @@ class TranscriptionsEndpointTest(GatewayTTSSTTestCase):
         if INTEGRATION_TEST_BACKEND == "vllm":
             self.skipTest("STT tests require OpenAI backend")
 
-        response = self.client.post(
-            self.url_stt,
-            {"file": self.test_audio_file, "model": self.stt_model},
-            headers=self.multipart_headers,
-        )
+        with self.upstream_too_slow("audio/transcriptions"):
+            response = self.client.post(
+                self.url_stt,
+                {"file": self.test_audio_file, "model": self.stt_model},
+                headers=self.multipart_headers,
+            )
 
         self.assertEqual(
             response.status_code, 504, f"Expected 504 Gateway Timeout, got {response.status_code}"

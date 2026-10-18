@@ -15,6 +15,7 @@ from tos.models import TermsOfService, UserAgreement
 from gateway.tests.utils import _build_chat_headers, _build_chat_payload
 from gateway.tests.utils.test_runner import get_shared_mock_server
 from management.models import Org, Token, UserProfile
+from mock_api.mock_configs import MockConfig
 from mock_api.mock_server import MockAPIServer
 
 INTEGRATION_TEST_BACKEND: Literal["vllm", "openai"] = os.environ.get(
@@ -91,6 +92,10 @@ class GatewayIntegrationTestCase(TestCase):
         if hasattr(cls, "_patcher") and cls._patcher:
             cls._patcher.stop()
         super().tearDownClass()
+
+    def upstream_too_slow(self, path: str):
+        """Make the mock API answer `path` long after any timeout a test sets."""
+        return self.mock_server.patch_external_api(path, MockConfig(delay_seconds=5))
 
     @staticmethod
     def create_new_user() -> tuple[str, int]:
