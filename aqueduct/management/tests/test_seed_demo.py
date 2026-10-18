@@ -14,7 +14,8 @@ from django.db.models import Count
 from django.test import TestCase, override_settings
 
 from gateway.config import model_names
-from management.management.commands.seed_demo import Builder, capped
+from management.demo.builder import Builder
+from management.demo.traffic import capped
 from management.models import Org, Request, ServiceAccount, Team, Token, UserGroup, UserProfile
 
 User = get_user_model()
