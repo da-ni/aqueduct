@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.utils.translation import gettext
 from django.views import View
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DeleteView, DetailView, TemplateView, UpdateView
@@ -121,7 +122,7 @@ class TokenCreateView(BaseAqueductView, CreateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["view_title"] = "New API key"
+        context["view_title"] = gettext("New API key")
         return context
 
 
@@ -144,7 +145,9 @@ class TokenEditView(BaseAqueductView, UpdateView):
 
     def form_valid(self, form) -> HttpResponse:
         response = super().form_valid(form)
-        messages.success(self.request, f"API key {self.object.name} saved.")
+        messages.success(
+            self.request, gettext("API key %(name)s saved.") % {"name": self.object.name}
+        )
         return response
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
@@ -165,7 +168,7 @@ class TokenDeleteView(BaseAqueductView, DeleteView):
     def form_valid(self, form) -> HttpResponse:
         token_name = self.object.name
         response = super().form_valid(form)
-        messages.success(self.request, f"API key {token_name} deleted.")
+        messages.success(self.request, gettext("API key %(name)s deleted.") % {"name": token_name})
         return response
 
     def get_context_data(self, **kwargs) -> dict[str, object]:

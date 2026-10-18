@@ -5,6 +5,7 @@ Covers the ``_rate_usage.html`` include driven by
 """
 
 from typing import ClassVar
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -61,6 +62,20 @@ class TokensPageTest(TestCase):
         self.assertContains(resp, "6/14,400")  # day (intcomma)
         # The per-minute bar is not rendered.
         self.assertNotContains(resp, "6/10")
+
+    def test_bars_warn_from_80_percent_and_turn_red_from_100(self):
+        user = User.objects.get(pk=1)
+        user.profile.requests_per_minute = 10  # 600 per hour, 14,400 per day
+        user.profile.save(update_fields=["requests_per_minute"])
+        usage = {1: {"min": {"req": 0}, "hour": {"req": 540}, "day": {"req": 21600}}}
+        self.client.force_login(user)
+        with mock.patch("management.views.tokens.get_per_token_usage", return_value=usage):
+            resp = self.client.get(reverse("token_detail", args=[1]))
+
+        self.assertContains(resp, 'class="progress w-full progress-warning" value="90"')
+        self.assertContains(resp, 'class="progress w-full progress-error" value="100"')
+        self.assertContains(resp, "540/600")
+        self.assertContains(resp, "21600/14,400")
 
     def test_page_says_no_limit_when_no_request_limit(self):
         """No limit at all -> no progress bar, and the limits read "No limits"."""

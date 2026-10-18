@@ -1,23 +1,23 @@
 {% extends "management/base.html" %}
-{% load humanize l10n ui %}
+{% load humanize i18n l10n ui %}
 
 {% block page_background %}{% endblock %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
     <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
-        <h1 class="text-3xl font-semibold">API keys</h1>
+        <h1 class="text-3xl font-semibold">{% translate "API keys" %}</h1>
         {% if can_add_token %}
-            <a class="btn btn-primary" href="{% url 'token_create' %}">{% icon "plus" small=True %}Create API key<span class="font-mono text-xs font-normal opacity-70">{{ keys.personal_count }}/{{ max_tokens }}</span></a>
+            <a class="btn btn-primary" href="{% url 'token_create' %}">{% icon "plus" small=True %}{% translate "Create API key" %}<span class="font-mono text-xs font-normal opacity-70">{{ keys.personal_count }}/{{ max_tokens }}</span></a>
         {% else %}
-            <button type="button" class="btn btn-primary" disabled>{{ max_tokens }} of {{ max_tokens }} keys used</button>
+            <button type="button" class="btn btn-primary" disabled>{% blocktranslate count n=max_tokens %}{{ n }} of {{ n }} key used{% plural %}{{ n }} of {{ n }} keys used{% endblocktranslate %}</button>
         {% endif %}
     </header>
 
     <div class="flex flex-wrap items-center gap-3">
         {% if keys.has_service_accounts %}
-            <nav class="join" aria-label="Key type">
-                <a class="btn btn-sm join-item{% if not kind %} btn-primary{% endif %}" href="{% querystring kind=None %}"{% if not kind %} aria-current="page"{% endif %}>All</a>
+            <nav class="join" aria-label="{% translate "Key type" %}">
+                <a class="btn btn-sm join-item{% if not kind %} btn-primary{% endif %}" href="{% querystring kind=None %}"{% if not kind %} aria-current="page"{% endif %}>{% translate "All" %}</a>
                 {% for tab in kinds %}
                     <a class="btn btn-sm join-item{% if tab == kind %} btn-primary{% endif %}" href="{% querystring kind=tab.value %}"{% if tab == kind %} aria-current="page"{% endif %}>{{ tab.label }}</a>
                 {% endfor %}
@@ -27,7 +27,7 @@
             {% if kind %}<input type="hidden" name="kind" value="{{ kind.value }}">{% endif %}
             <label class="input input-sm w-64">
                 {% icon "search" small=True %}
-                <input type="search" name="q" value="{{ query }}" placeholder="Search keys" aria-label="Search keys">
+                <input type="search" name="q" value="{{ query }}" placeholder="{% translate "Search keys" %}" aria-label="{% translate "Search keys" %}">
             </label>
         </form>
     </div>
@@ -38,12 +38,12 @@
                 <table class="table table-fixed key-table md:min-w-[800px]">
                     <thead>
                         <tr>
-                            <th>Key</th>
-                            <th class="hidden w-32 md:table-cell">Last used</th>
-                            <th class="w-20 md:w-[22%]">Tokens, 7 days</th>
-                            <th class="hidden w-24 text-right md:table-cell">Requests</th>
-                            <th class="hidden w-28 md:table-cell">Expires</th>
-                            <th class="w-12 md:w-36"><span class="sr-only">Actions</span></th>
+                            <th>{% translate "Key" %}</th>
+                            <th class="hidden w-32 md:table-cell">{% translate "Last used" %}</th>
+                            <th class="w-20 md:w-[22%]">{% translate "Tokens, 7 days" %}</th>
+                            <th class="hidden w-24 text-right md:table-cell">{% translate "Requests" %}</th>
+                            <th class="hidden w-28 md:table-cell">{% translate "Expires" %}</th>
+                            <th class="w-12 md:w-36"><span class="sr-only">{% translate "Actions" %}</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -52,7 +52,7 @@
                                 <td>
                                     <a class="link-plain font-mono row-link" href="{{ row.href }}">{{ row.token.name }}</a>
                                     <div class="muted text-xs">
-                                        {% if row.team %}Service account · <a class="link-plain relative z-10" href="{% url 'team' row.token.service_account.team_id %}">{{ row.team }}</a>{% else %}Personal{% endif %}
+                                        {% if row.team %}{% translate "Service account" %} · <a class="link-plain relative z-10" href="{% url 'team' row.token.service_account.team_id %}">{{ row.team }}</a>{% else %}{% translate "Personal" %}{% endif %}
                                         · <span class="font-mono">{{ row.token.key_preview }}</span>
                                     </div>
                                 </td>
@@ -77,7 +77,7 @@
                                             {% include "management/_key_actions.html" with button="btn btn-ghost btn-sm btn-square" %}
                                         </div>
                                         <details class="dropdown dropdown-end relative z-10 flex justify-end md:hidden">
-                                            <summary class="btn btn-ghost btn-sm btn-square" aria-label="Actions for {{ row.token.name }}">⋯</summary>
+                                            <summary class="btn btn-ghost btn-sm btn-square" aria-label="{% blocktranslate with name=row.token.name %}Actions for {{ name }}{% endblocktranslate %}">⋯</summary>
                                             <div class="dropdown-content z-20 mt-1 flex w-40 flex-col rounded-box border border-base-300 bg-base-100 p-1 shadow">
                                                 {% include "management/_key_actions.html" with button="btn btn-ghost btn-sm justify-start" labelled=True %}
                                             </div>
@@ -87,9 +87,9 @@
                             </tr>
                         {% empty %}
                             <tr><td colspan="6">
-                                {% if query or kind %}<span class="muted">No key matches.</span>
+                                {% if query or kind %}<span class="muted">{% translate "No key matches." %}</span>
                                 {% else %}
-                                    <div class="flex flex-wrap items-center gap-3"><span class="muted">No keys yet.</span>{% if can_add_token %}<a class="btn btn-primary btn-sm" href="{% url 'token_create' %}">{% icon "plus" small=True %}Create</a>{% endif %}</div>
+                                    <div class="flex flex-wrap items-center gap-3"><span class="muted">{% translate "No keys yet." %}</span>{% if can_add_token %}<a class="btn btn-primary btn-sm" href="{% url 'token_create' %}">{% icon "plus" small=True %}{% translate "Create" %}</a>{% endif %}</div>
                                 {% endif %}
                             </td></tr>
                         {% endfor %}

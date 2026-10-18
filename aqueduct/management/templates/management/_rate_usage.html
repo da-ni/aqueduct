@@ -18,35 +18,37 @@ clamped to 100%; the count text shows the real ``used/limit`` counts (which may
 exceed the cap when over limit).
 Colors shift to warning at >=80% and error at >=100%.
 {% endcomment %}
-{% load humanize %}
+{% load humanize i18n ui %}
 <div class="flex w-full gap-6">
     {# per hour — windows()[1] = ("hour", 3600, rpm*hourly_mult, ...) #}
     {% with limit=limits.windows.1.2 used=usage.hour.req %}
-        <div class="flex-1 min-w-0" title="{{ used|floatformat:"0" }} / {{ limit|default:"—" }} requests this hour">
+        <div class="flex-1 min-w-0" title="{% blocktranslate count limit=limit with used=used|floatformat:"0" %}{{ used }} / {{ limit }} request this hour{% plural %}{{ used }} / {{ limit }} requests this hour{% endblocktranslate %}">
             <div class="flex items-baseline justify-between mb-1">
-                <span class="text-[0.7rem] opacity-60">Hourly limit</span>
+                <span class="text-[0.7rem] opacity-60">{% translate "Hourly limit" %}</span>
                 <span class="text-[0.7rem] tabular-nums opacity-70">
                     {% if limit %}{{ used|floatformat:"0" }}/{{ limit|intcomma }}{% else %}—{% endif %}
                 </span>
             </div>
             {% if limit %}
-                {% widthratio used limit 100 as pct %}
-                <progress class="progress w-full {% if pct >= 100 %}progress-error{% elif pct >= 80 %}progress-warning{% else %}progress-primary{% endif %}" value="{% if pct > 100 %}100{% else %}{{ pct }}{% endif %}" max="100"></progress>
+                {% with pct=used|percent_of:limit %}
+                    <progress class="progress w-full {% if pct >= 100 %}progress-error{% elif pct >= 80 %}progress-warning{% else %}progress-primary{% endif %}" value="{% if pct > 100 %}100{% else %}{{ pct }}{% endif %}" max="100"></progress>
+                {% endwith %}
             {% endif %}
         </div>
     {% endwith %}
     {# per day — windows()[2] = ("day", 86400, rpm*daily_mult, ...) #}
     {% with limit=limits.windows.2.2 used=usage.day.req %}
-        <div class="flex-1 min-w-0" title="{{ used|floatformat:"0" }} / {{ limit|default:"—" }} requests today">
+        <div class="flex-1 min-w-0" title="{% blocktranslate count limit=limit with used=used|floatformat:"0" %}{{ used }} / {{ limit }} request today{% plural %}{{ used }} / {{ limit }} requests today{% endblocktranslate %}">
             <div class="flex items-baseline justify-between mb-1">
-                <span class="text-[0.7rem] opacity-60">Daily limit</span>
+                <span class="text-[0.7rem] opacity-60">{% translate "Daily limit" %}</span>
                 <span class="text-[0.7rem] tabular-nums opacity-70">
                     {% if limit %}{{ used|floatformat:"0" }}/{{ limit|intcomma }}{% else %}—{% endif %}
                 </span>
             </div>
             {% if limit %}
-                {% widthratio used limit 100 as pct %}
-                <progress class="progress w-full {% if pct >= 100 %}progress-error{% elif pct >= 80 %}progress-warning{% else %}progress-primary{% endif %}" value="{% if pct > 100 %}100{% else %}{{ pct }}{% endif %}" max="100"></progress>
+                {% with pct=used|percent_of:limit %}
+                    <progress class="progress w-full {% if pct >= 100 %}progress-error{% elif pct >= 80 %}progress-warning{% else %}progress-primary{% endif %}" value="{% if pct > 100 %}100{% else %}{{ pct }}{% endif %}" max="100"></progress>
+                {% endwith %}
             {% endif %}
         </div>
     {% endwith %}
