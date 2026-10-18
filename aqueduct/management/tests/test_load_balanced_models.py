@@ -6,6 +6,7 @@ import yaml
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from gateway.config import resolve_model_alias
 from management.models import Org, Request, UserGroup
 from management.tests.helpers import make_token, make_user
 
@@ -18,10 +19,12 @@ def deployment(name: str, served: str, mode: str) -> dict:
     }
 
 
+WEST = deployment("qwen", "qwen-west", "audio_transcription")
+WEST["model_info"]["aliases"].append("qwen-west")
 LOAD_BALANCED = [
     deployment("qwen", "qwen-east", "chat"),
     deployment("solo", "solo", "embedding"),
-    deployment("qwen", "qwen-west", "audio_transcription"),
+    WEST,
 ]
 
 
@@ -51,6 +54,11 @@ class LoadBalancedModelTest(TestCase):
         self.assertContains(response, "openai/qwen-east")
         self.assertNotContains(response, "openai/qwen-west")
         self.assertNotContains(response, "/audio/transcriptions")
+
+    def test_an_alias_of_any_deployment_names_the_model(self):
+        self.assertEqual(resolve_model_alias("qwen-alias"), "qwen")
+        self.assertEqual(resolve_model_alias("qwen-west"), "qwen")
+        self.assertEqual(resolve_model_alias("solo"), "solo")
 
     def test_the_overview_lists_the_model_once(self):
         key = make_token(self.member, "laptop")

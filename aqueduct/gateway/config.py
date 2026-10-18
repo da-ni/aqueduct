@@ -44,17 +44,17 @@ def _models_in(config: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
     return models
 
 
-def _validate_router_config(config: dict[str, Any]) -> None:
-    alias_to_model: dict[str, str] = {}
-    for model_name, model in _models_in(config).items():
-        aliases = model.get("model_info", {}).get("aliases", [])
-        for alias in aliases:
-            if alias in alias_to_model:
+def _aliases_in(config: Mapping[str, Any]) -> dict[str, str]:
+    aliases: dict[str, str] = {}
+    for entry in config.get("model_list") or ():
+        name = entry["model_name"]
+        for alias in entry.get("model_info", {}).get("aliases", []):
+            if aliases.setdefault(alias, name) != name:
                 raise RuntimeError(
                     f"Duplicate alias '{alias}' found in router config. "
-                    f"Alias is used by both '{alias_to_model[alias]}' and '{model_name}'."
+                    f"Alias is used by both '{aliases[alias]}' and '{name}'."
                 )
-            alias_to_model[alias] = model_name
+    return aliases
 
 
 @lru_cache(maxsize=1)
@@ -72,7 +72,7 @@ def get_router_config() -> dict[str, Any]:
     if data is None:
         raise RuntimeError(f"Unable to load router config from {path}")
 
-    _validate_router_config(data)
+    _aliases_in(data)
 
     return cast("dict[str, Any]", data)
 
@@ -133,16 +133,10 @@ def resolve_model_alias(model_or_alias: str) -> str:
     Returns:
         The actual model name
     """
-    for model_name, model in model_entries().items():
-        if model_name == model_or_alias:
-            return model_name
-
-        aliases = cast("list[str]", model.get("model_info", {}).get("aliases", []))
-        if model_or_alias in aliases:
-            return model_name
-
-    # Not an alias or a model; still return as-is to return standard error down the line
-    return model_or_alias
+    config = get_router_config()
+    if model_or_alias in _models_in(config):
+        return model_or_alias
+    return _aliases_in(config).get(model_or_alias, model_or_alias)
 
 
 def model_info_with_context(model: Mapping[str, Any]) -> dict[str, Any]:
