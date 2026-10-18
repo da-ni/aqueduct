@@ -63,7 +63,7 @@ class ServiceAccountCreateView(BaseTeamView, TeamAdminRequiredMixin, CreateView)
         form.instance.team = self.team
         self.object = form.save()
         token = Token(
-            name=f"Initial token for {self.object.name}",
+            name=self.object.name,
             user=self.request.user,
             service_account=self.object,
             expires_at=form.cleaned_data.get("token_expires_at"),

@@ -586,6 +586,17 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
         sa = ServiceAccount.objects.get(name="rag", team=self.team)
         self.assertEqual(Token.find_by_key(secret_on(response)), sa.token)
 
+    def test_the_key_is_named_after_its_service_account_and_follows_a_rename(self):
+        client = self.as_user(self.team_admin)
+        create = reverse("service_account_create", args=[self.team.id])
+        client.post(create, {"name": "rag", "description": "", "token_expires_at": ""})
+        sa = ServiceAccount.objects.get(name="rag", team=self.team)
+        self.assertEqual(sa.token.name, "rag")
+        edit = reverse("service_account_edit", args=[sa.id])
+        client.post(edit, {"name": "rag-2", "description": "", "token_expires_at": ""})
+        sa.token.refresh_from_db()
+        self.assertEqual(sa.token.name, "rag-2")
+
     def test_a_failed_key_leaves_no_service_account_behind(self):
         url = reverse("service_account_create", args=[self.team.id])
         client = self.as_user(self.team_admin)
