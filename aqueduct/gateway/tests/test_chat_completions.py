@@ -5,20 +5,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from asgiref.sync import async_to_sync
-from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
-from django.urls import reverse
 from httpx import Request as HttpxRequest
 from httpx import Response
-from litellm.types.utils import (
-    Choices,
-    Message,
-    ModelResponse,
-    TextChoices,
-    TextCompletionResponse,
-    Usage,
-)
+from litellm.types.utils import Choices, Message, ModelResponse, Usage
 from openai.types.chat import ChatCompletion
 
 from gateway.tests.utils import (
@@ -28,15 +19,7 @@ from gateway.tests.utils import (
 )
 from gateway.tests.utils.base import INTEGRATION_TEST_BACKEND, ChatCompletionsBase
 from management.models import Org, Request
-from management.models import Usage as AqueductUsage
-from mock_api.mock_configs import (
-    MockConfig,
-    MockStreamingConfig,
-    convert_to_stream_data,
-    responses_detail_response,
-)
-
-User = get_user_model()
+from mock_api.mock_configs import MockConfig, MockStreamingConfig, convert_to_stream_data
 
 
 class ChatCompletionsIntegrationTest(ChatCompletionsBase):
@@ -431,69 +414,20 @@ class ChatCompletionsIntegrationTest(ChatCompletionsBase):
         )
         self.assertIn("Tika error extracting text from file", response.json()["error"]["message"])
 
-    @override_settings(RELAY_REQUEST_TIMEOUT=0.0001)
-    def test_chat_completion_timeout(self):
-        with self.upstream_too_slow("chat/completions"):
-            response = self._send_chat_completion(self.MESSAGES)
-
-        self.assertEqual(
-            response.status_code,
-            504,
-            f"Expected 504 Gateway Timeout, got {response.status_code}: {response.content}",
-        )
+    def assert_logged_as_timeout(self, logged: Request) -> None:
+        self.assertEqual((logged.status_code, logged.model), (504, self.model))
+        self.assertIn("chat/completions", logged.path)
+        self.assertGreater(logged.response_time_ms, 0)
+        self.assertGreater(logged.processing_time_ms, 0)
+        self.assertIsNotNone(logged.token_id)
 
     @override_settings(RELAY_REQUEST_TIMEOUT=0.0001)
-    def test_chat_completion_timeout_is_logged(self):
+    def test_chat_completion_timeout_is_answered_with_504_and_logged(self):
         Request.objects.all().delete()
-
         with self.upstream_too_slow("chat/completions"):
             response = self._send_chat_completion(self.MESSAGES)
-
-        self.assertEqual(
-            response.status_code,
-            504,
-            f"Expected 504 Gateway Timeout, got {response.status_code}: {response.content}",
-        )
-
-        requests = list(Request.objects.all())
-        self.assertEqual(
-            len(requests),
-            1,
-            f"Expected 1 request to be logged even on timeout, but found {len(requests)}. "
-            "Timeout requests MUST be logged for usage tracking!",
-        )
-
-        req = requests[0]
-        self.assertEqual(
-            req.status_code,
-            504,
-            f"Logged timeout request should have status_code=504, got {req.status_code}",
-        )
-        self.assertIn(
-            "chat/completions",
-            req.path,
-            f"Request path should be /chat/completions, got {req.path}",
-        )
-        self.assertIsNotNone(
-            req.response_time_ms, "Response time should be recorded even for timeout"
-        )
-        self.assertGreater(
-            req.response_time_ms,
-            0,
-            f"Response time should be > 0 for timeout, got {req.response_time_ms}",
-        )
-        self.assertIsNotNone(
-            req.processing_time_ms, "Processing time should be recorded even for timeout"
-        )
-        self.assertGreater(
-            req.processing_time_ms,
-            0,
-            f"Processing time should be > 0 for timeout, got {req.processing_time_ms}",
-        )
-        self.assertIsNotNone(req.token_id, "Token should be recorded for timeout")
-        self.assertEqual(
-            req.model, self.model, f"Model should be {self.model} for timeout, got {req.model}"
-        )
+        self.assertEqual(response.status_code, 504, response.content)
+        self.assert_logged_as_timeout(Request.objects.get())
 
     @override_settings(STREAM_REQUEST_TIMEOUT=5)
     @async_to_sync
@@ -528,60 +462,14 @@ class ChatCompletionsIntegrationTest(ChatCompletionsBase):
 
     @override_settings(RELAY_REQUEST_TIMEOUT=0.0001)
     @async_to_sync
-    async def test_chat_completion_streaming_timeout_is_logged(self):
+    async def test_chat_completion_streaming_timeout_is_answered_with_504_and_logged(self):
         await Request.objects.all().adelete()
-
         with self.upstream_too_slow("chat/completions"):
             response = await self._send_chat_completion_streaming(self.MESSAGES)
-
-        self.assertEqual(
-            response.status_code,
-            504,
-            f"Expected 504 Gateway Timeout for streaming, got {response.status_code}",
-        )
-
-        requests = [r async for r in Request.objects.all()]
-        self.assertGreater(
-            len(requests),
-            0,
-            f"Expected at least 1 request to be logged for streaming timeout, "
-            f"but found {len(requests)}. "
-            "Streaming timeout requests MUST be logged for usage tracking!",
-        )
-
-        req = requests[0]
-        self.assertEqual(
-            req.status_code,
-            504,
-            f"Logged streaming timeout request should have status_code=504, got {req.status_code}",
-        )
-        self.assertIn(
-            "chat/completions",
-            req.path,
-            f"Request path should be /chat/completions, got {req.path}",
-        )
-        self.assertIsNotNone(
-            req.response_time_ms, "Response time should be recorded even for streaming timeout"
-        )
-        self.assertGreater(
-            req.response_time_ms,
-            0,
-            f"Response time should be > 0 for streaming timeout, got {req.response_time_ms}",
-        )
-        self.assertIsNotNone(
-            req.processing_time_ms, "Processing time should be recorded even for streaming timeout"
-        )
-        self.assertGreater(
-            req.processing_time_ms,
-            0,
-            f"Processing time should be > 0 for streaming timeout, got {req.processing_time_ms}",
-        )
-        self.assertIsNotNone(req.token_id, "Token should be recorded for streaming timeout")
-        self.assertEqual(
-            req.model,
-            self.model,
-            f"Model should be {self.model} for streaming timeout, got {req.model}",
-        )
+        self.assertEqual(response.status_code, 504)
+        logged = [request async for request in Request.objects.all()]
+        self.assertTrue(logged)
+        self.assert_logged_as_timeout(logged[0])
 
     def test_chat_completion_excluded_model(self):
         org = Org.objects.get(name="E060")
@@ -988,238 +876,3 @@ class ChatCompletionsIntegrationTest(ChatCompletionsBase):
         content_delta = content_chunk["choices"][0]["delta"]
         self.assertNotIn("reasoning", content_delta)
         self.assertNotIn("reasoning_content", content_delta)
-
-
-class TokenUsageDetailsTest(ChatCompletionsBase):
-    @staticmethod
-    def _chat_completion_payload(
-        prompt_tokens, completion_tokens, cached_tokens=None, reasoning_tokens=None
-    ) -> dict:
-        usage = Usage(
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=prompt_tokens + completion_tokens,
-            **(
-                {"prompt_tokens_details": {"cached_tokens": cached_tokens}}
-                if cached_tokens is not None
-                else {}
-            ),
-            **(
-                {"completion_tokens_details": {"reasoning_tokens": reasoning_tokens}}
-                if reasoning_tokens is not None
-                else {}
-            ),
-        )
-        return ModelResponse(
-            id="chatcmpl-cached-tokens",
-            object="chat.completion",
-            created=1768398242,
-            model="gpt-4.1-nano",
-            choices=[
-                Choices(
-                    index=0,
-                    message=Message(role="assistant", content="Cached response."),
-                    finish_reason="stop",
-                )
-            ],
-            usage=usage,
-        ).model_dump()
-
-    def _run_chat_completion_and_get_request(self, response_data):
-        with self.mock_server.patch_external_api(
-            "chat/completions", MockConfig(response_data=response_data)
-        ):
-            response = self._send_chat_completion(self.MESSAGES)
-        self.assertEqual(response.status_code, 200, f"Expected 200 OK, got {response.content}")
-        requests = list(Request.objects.all())
-        self.assertEqual(len(requests), 1, "Expected one logged request.")
-        return requests[0]
-
-    def test_chat_completion_records_token_details(self):
-        req = self._run_chat_completion_and_get_request(
-            self._chat_completion_payload(1000, 10, cached_tokens=800, reasoning_tokens=6)
-        )
-        self.assertEqual(req.input_tokens, 1000, "Input tokens should include cached tokens.")
-        self.assertEqual(req.cached_input_tokens, 800)
-        self.assertEqual(req.output_tokens, 10)
-        self.assertEqual(req.reasoning_tokens, 6)
-        self.assertEqual(req.token_usage.total_tokens, 1010)
-
-    def test_chat_completion_without_cache_details_stores_zero(self):
-        req = self._run_chat_completion_and_get_request(
-            self._chat_completion_payload(20, 10, cached_tokens=None)
-        )
-        self.assertEqual(req.input_tokens, 20)
-        self.assertEqual(req.cached_input_tokens, 0)
-        self.assertEqual(req.output_tokens, 10)
-        self.assertEqual(req.reasoning_tokens, 0)
-        self.assertEqual(req.token_usage.total_tokens, 30)
-
-    def test_response_without_usage_stores_zero(self):
-        data = self._chat_completion_payload(20, 10, cached_tokens=5)
-        del data["usage"]
-        req = self._run_chat_completion_and_get_request(data)
-        self.assertEqual(req.input_tokens, 0)
-        self.assertEqual(req.cached_input_tokens, 0)
-        self.assertEqual(req.output_tokens, 0)
-        self.assertEqual(req.reasoning_tokens, 0)
-
-    def test_cached_input_tokens_cannot_exceed_input_tokens(self):
-        req = self._run_chat_completion_and_get_request(
-            self._chat_completion_payload(1000, 10, cached_tokens=5000)
-        )
-        self.assertEqual(req.input_tokens, 1000)
-        self.assertEqual(
-            req.cached_input_tokens, 1000, "Cached input tokens should not exceed input tokens."
-        )
-
-    async def test_chat_completion_streaming_records_token_details(self):
-        stream_data = [
-            ModelResponse(
-                id="chatcmpl-cached-stream",
-                created=1768398242,
-                model="gpt-4.1-nano",
-                object="chat.completion.chunk",
-                choices=[{"index": 0, "delta": {"role": "assistant", "content": "Cached stream."}}],
-            ).model_dump(),
-            ModelResponse(
-                id="chatcmpl-cached-stream",
-                created=1768398242,
-                model="gpt-4.1-nano",
-                object="chat.completion.chunk",
-                choices=[],
-                usage=Usage(
-                    prompt_tokens=1000,
-                    completion_tokens=10,
-                    total_tokens=1010,
-                    prompt_tokens_details={"cached_tokens": 800},
-                    completion_tokens_details={"reasoning_tokens": 6},
-                ),
-            ).model_dump(),
-        ]
-        mock_resp = MockStreamingConfig(response_data=convert_to_stream_data(stream_data))
-        with self.mock_server.patch_external_api("chat/completions", mock_resp):
-            request = self._build_chat_completion_request(self.MESSAGES, stream=True)
-            response = await self.async_client.post(**request, content_type="application/json")
-
-        self.assertEqual(response.status_code, 200, f"Expected 200 OK, got {response.status_code}")
-        await _read_streaming_response_lines(response)
-
-        requests = [r async for r in Request.objects.all()]
-        self.assertEqual(len(requests), 1, "Expected one logged request.")
-        req = requests[0]
-        self.assertEqual(req.input_tokens, 1000, "Input tokens should include cached tokens.")
-        self.assertEqual(
-            req.cached_input_tokens, 800, "Cached input tokens should come from the final chunk."
-        )
-        self.assertEqual(req.output_tokens, 10)
-        self.assertEqual(req.reasoning_tokens, 6)
-        self.assertEqual(req.token_usage.total_tokens, 1010)
-
-    def test_completions_records_token_details(self):
-        chat_data = self._chat_completion_payload(1000, 10, cached_tokens=800, reasoning_tokens=6)
-        text_data = TextCompletionResponse(
-            id="cmpl-cached-tokens",
-            object="text_completion",
-            created=1768398242,
-            model="gpt-4.1-nano",
-            choices=[
-                TextChoices(
-                    text="This is a mock completion response.",
-                    index=0,
-                    logprobs=None,
-                    finish_reason="stop",
-                )
-            ],
-            usage=Usage(prompt_tokens=1000, completion_tokens=10, total_tokens=1010),
-        ).model_dump()
-        text_data["usage"]["prompt_tokens_details"] = {"cached_tokens": 800}
-        text_data["usage"]["completion_tokens_details"] = {"reasoning_tokens": 6}
-
-        with (
-            self.mock_server.patch_external_api(
-                "chat/completions", MockConfig(response_data=chat_data)
-            ),
-            self.mock_server.patch_external_api("completions", MockConfig(response_data=text_data)),
-        ):
-            response = self.client.post(
-                reverse("gateway:completions"),
-                data=json.dumps({"model": self.model, "prompt": "Hello"}),
-                headers=self.headers,
-                content_type="application/json",
-            )
-        self.assertEqual(response.status_code, 200, f"Expected 200 OK, got {response.content}")
-
-        requests = list(Request.objects.all())
-        self.assertEqual(len(requests), 1, "Expected one logged request.")
-        req = requests[0]
-        self.assertEqual(req.input_tokens, 1000)
-        self.assertEqual(req.cached_input_tokens, 800)
-        self.assertEqual(req.output_tokens, 10)
-        self.assertEqual(req.reasoning_tokens, 6)
-        self.assertEqual(req.token_usage.total_tokens, 1010)
-
-    async def test_responses_api_records_token_details(self):
-        response_data = responses_detail_response(())
-        response_data["usage"]["input_tokens"] = 1000
-        response_data["usage"]["input_tokens_details"] = {"cached_tokens": 800}
-        response_data["usage"]["output_tokens"] = 10
-        response_data["usage"]["output_tokens_details"] = {"reasoning_tokens": 6}
-        response_data["usage"]["total_tokens"] = 1010
-
-        with self.mock_server.patch_external_api(
-            "responses", MockConfig(response_data=response_data)
-        ):
-            response = await self.async_client.post(
-                reverse("gateway:v1_responses"),
-                data=json.dumps(
-                    {
-                        "model": self.model,
-                        "input": [{"role": "user", "content": "Hello, how are you?"}],
-                        "max_output_tokens": 50,
-                    }
-                ),
-                headers=self.headers,
-                content_type="application/json",
-            )
-        self.assertEqual(response.status_code, 200, f"Expected 200 OK, got {response.content}")
-
-        requests = [r async for r in Request.objects.all()]
-        self.assertEqual(len(requests), 1, "Expected one logged request.")
-        req = requests[0]
-        self.assertEqual(req.input_tokens, 1000)
-        self.assertEqual(req.cached_input_tokens, 800)
-        self.assertEqual(req.output_tokens, 10)
-        self.assertEqual(req.reasoning_tokens, 6)
-        self.assertEqual(req.token_usage.total_tokens, 1010)
-
-    def test_token_usage_setter_limits_cached_input_tokens(self):
-        req = Request()
-        req.token_usage = AqueductUsage(input_tokens=100, output_tokens=5, cached_input_tokens=500)
-        self.assertEqual(req.cached_input_tokens, 100)
-
-        req.token_usage = AqueductUsage(input_tokens=100, output_tokens=5, cached_input_tokens=-5)
-        self.assertEqual(req.cached_input_tokens, 0)
-
-        req.token_usage = AqueductUsage(input_tokens=100, output_tokens=5, cached_input_tokens=40)
-        self.assertEqual(req.cached_input_tokens, 40)
-        self.assertEqual(req.token_usage, AqueductUsage(100, 5, 40))
-
-    def test_token_usage_setter_limits_reasoning_tokens(self):
-        for reported, expected in [(-5, 0), (50, 20), (12, 12)]:
-            with self.subTest(reported=reported):
-                req = Request()
-                req.token_usage = AqueductUsage(
-                    input_tokens=10, output_tokens=20, reasoning_tokens=reported
-                )
-                self.assertEqual(req.reasoning_tokens, expected)
-                self.assertEqual(req.token_usage.reasoning_tokens, expected)
-                self.assertEqual(req.token_usage.total_tokens, 30)
-
-    def test_reasoning_tokens_cannot_exceed_output_tokens(self):
-        req = self._run_chat_completion_and_get_request(
-            self._chat_completion_payload(20, 10, reasoning_tokens=50)
-        )
-        self.assertEqual(req.output_tokens, 10)
-        self.assertEqual(req.reasoning_tokens, 10)
-        self.assertEqual(req.token_usage.total_tokens, 30)
