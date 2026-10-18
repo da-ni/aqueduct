@@ -17,6 +17,7 @@ from django.views.generic import TemplateView
 
 from management import usage_report as report
 from management import usage_rollup as rollup
+from management.ids import parse_id
 from management.key_activity import Activity
 from management.model_catalog import model_kinds
 from management.models import Org, Request, Token
@@ -29,7 +30,6 @@ from management.request_log import (
     counts_whole_org,
     describe_key,
     key_search,
-    parse_id,
     read_filters,
 )
 from management.views.base import BaseAqueductView
@@ -80,7 +80,7 @@ def _org_tokens(filters: Filters) -> QuerySet[Token]:
 def _describe(filters: Filters) -> Callable[[Token], Key]:
 
     def describe(token: Token) -> Key:
-        key = describe_key(token, filters.access, with_org=filters.org is None)
+        key = describe_key(token, filters.viewer, with_org=filters.org is None)
         if not filters.can_pick_scope:
             return replace(key, note="")
         return replace(key, note=gettext("You")) if key.own else key
@@ -94,16 +94,8 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         params = self.request.GET
-        profile = self.profile
         now = timezone.now()
-        filters = read_filters(
-            profile,
-            self.get_teams_for_user(),
-            params,
-            org=self.viewed_org,
-            default_span=report.DEFAULT_SPAN,
-            now=now,
-        )
+        filters = read_filters(self.viewer, params, default_span=report.DEFAULT_SPAN, now=now)
         selected_org, selected_key, period = filters.org, filters.key, filters.period
         reqs = filters.requests
 
@@ -185,12 +177,7 @@ class KeyUsageView(BaseAqueductView, TemplateView):
         params = request.GET.copy()
         params.pop("key", None)
         filters = read_filters(
-            self.profile,
-            self.get_teams_for_user(),
-            params,
-            org=self.viewed_org,
-            default_span=report.DEFAULT_SPAN,
-            now=timezone.now(),
+            self.viewer, params, default_span=report.DEFAULT_SPAN, now=timezone.now()
         )
         only_key = filters.only_key
         if not filters.can_pick_scope and only_key is not None and only_key.href is not None:

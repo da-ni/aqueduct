@@ -11,10 +11,11 @@ from django.utils.translation import gettext
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, UpdateView
 
+from management.access import TeamAct, WholeOrg
 from management.deletion import deletion
 from management.forms import MemberEmailForm, TeamAvailabilityForm, TeamCreateForm, TeamLimitsForm
+from management.ids import parse_id
 from management.models import Org, ServiceAccount, Team, UserProfile
-from management.request_log import parse_id
 from management.team_overview import team_page
 from management.views.base import (
     ONLY_TEAM_ADMINS,
@@ -37,10 +38,11 @@ class TeamCreateView(BaseAqueductView, OrgAdminRequiredMixin, CreateView):
 
     @cached_property
     def target_org(self) -> Org:
+        chosen = self.viewer.chosen
         if self.request.method != "POST":
-            return self.org
-        org = Org.objects.filter(pk=parse_id(self.request.POST.get("org"))).first()
-        if org is None or not self.profile.is_org_admin(org):
+            return chosen.org if isinstance(chosen, WholeOrg) else self.viewer.org
+        org = self.viewer.orgs().filter(pk=parse_id(self.request.POST.get("org"))).first()
+        if org is None:
             raise Http404("No organization found.")
         return org
 
@@ -61,7 +63,7 @@ class TeamCreateView(BaseAqueductView, OrgAdminRequiredMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context["view_title"] = gettext("Create a team")
         context["target_org"] = self.target_org
-        context["names_target_org"] = self.is_admin()
+        context["names_target_org"] = self.viewer.can_switch_org
         return context
 
 
@@ -72,7 +74,7 @@ class TeamUpdateView(BaseTeamView, TeamAdminRequiredMixin, UpdateView):
     context_object_name = "team"  # Match DetailView/template usage
 
     def manages_team(self) -> bool:
-        return self.profile.is_org_admin(self.team.org)
+        return self.viewer.may_team(TeamAct.ADMINISTER, self.team)
 
     def get_form_class(self) -> type[TeamCreateForm]:
         return TeamLimitsForm if self.manages_team() else TeamCreateForm
@@ -111,7 +113,7 @@ class TeamAvailabilityEditView(BaseTeamView, UpdateView):
 
     def get_object(self, queryset=None) -> Team:
         team = self.get_team_object()
-        if not self.profile.is_org_admin(team.org):
+        if not self.viewer.may_team(TeamAct.ADMINISTER, team):
             raise Http404("No team found.")
         return team
 
@@ -166,7 +168,7 @@ class TeamAdminManagementView(BaseTeamView, TeamAdminRequiredMixin, View):
             UserProfile, id=profile_id, org=self.team_org
         )  # Use team_org for consistency
 
-        if profile == self.profile:
+        if profile == self.viewer.profile:
             messages.warning(request, gettext("Org admins already have team admin rights."))
             return redirect(reverse("team", kwargs={"id": team.id}))
 
@@ -236,11 +238,11 @@ class TeamDetailView(BaseTeamView, DetailView):
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         team = self.team
-        can_manage_admins = self.profile.is_org_admin(self.team_org)
+        can_manage_admins = self.viewer.may_team(TeamAct.ADMINISTER, team)
         member_query = self.request.GET.get("q", "").strip()
         page = team_page(
             team,
-            self.profile,
+            self.viewer.profile,
             can_manage_admins,
             member_query,
             self.request.GET.get("page", 1),
@@ -251,7 +253,7 @@ class TeamDetailView(BaseTeamView, DetailView):
         context.update(
             page=page,
             member_query=member_query,
-            is_team_admin=self.profile.is_team_admin(team),
+            is_team_admin=self.viewer.may_team(TeamAct.MANAGE, team),
             can_manage_admins=can_manage_admins,
             is_org_admin=can_manage_admins,
             shows_limits=can_manage_admins or not page.limits.is_unlimited,
@@ -264,10 +266,10 @@ class TeamDetailView(BaseTeamView, DetailView):
     def post(self, request, *args, **kwargs) -> HttpResponse:
         """Handles adding/removing team members. Requires Team Admin privileges."""
         team = self.team
-        profile = self.profile
+        viewer = self.viewer
         redirect_url = reverse("team", kwargs={"id": team.id})
 
-        if not profile.is_team_admin(team):
+        if not viewer.may_team(TeamAct.MANAGE, team):
             messages.error(request, ONLY_TEAM_ADMINS)
             return redirect(redirect_url)
 
@@ -304,7 +306,9 @@ class TeamDetailView(BaseTeamView, DetailView):
                 messages.success(
                     request, gettext("%(email)s removed.") % {"email": leaving.user.email}
                 )
-                if not profile.openable_teams().filter(pk=team.pk).exists():
+                if leaving == viewer.profile and not viewer.leaving(team).may_team(
+                    TeamAct.OPEN, team
+                ):
                     redirect_url = reverse("org")
         else:
             messages.warning(request, gettext("Nothing to change."))

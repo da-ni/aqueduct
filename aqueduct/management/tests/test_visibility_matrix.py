@@ -164,12 +164,12 @@ class VisibilityMatrixTest(RoleWorld):
                     response = self.client.get(reverse("token_detail", args=[token.id]))
                     self.assertEqual(response.status_code, 200 if token.name in opens else 404)
 
-    def test_pinned_disagreement_org_admin_in_another_orgs_team_opens_its_key_but_not_its_log(self):
+    def test_org_admin_in_another_orgs_team_opens_neither_its_key_nor_its_log(self):
         join(self.org_admin, self.foreign_team)
         foreign_sa = Token.objects.get(name="foreign-sa")
         self.client.force_login(self.org_admin)
         key_page = self.client.get(reverse("token_detail", args=[foreign_sa.id]))
-        self.assertEqual(key_page.status_code, 200)
+        self.assertEqual(key_page.status_code, 404)
         log = self.client.get(reverse("requests"))
         self.assertEqual({row.request.path for row in log.context["log"].rows}, LAB)
         self.assertEqual(

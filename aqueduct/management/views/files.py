@@ -21,7 +21,7 @@ class UserFilesView(BaseAqueductView, TemplateView):
         context = super().get_context_data(**kwargs)
         context["listing"] = file_list(
             self.request.user,
-            scope(self.profile, self.viewed_org),
+            scope(self.viewer),
             timezone.now(),
             page=self.request.GET.get("page"),
             file_id=self.request.GET.get("file"),

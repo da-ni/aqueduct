@@ -10,6 +10,7 @@ from django.utils.translation import gettext
 from django.views import View
 from django.views.generic import TemplateView
 
+from management.access import TeamAct
 from management.models import VectorStore
 from management.resources import scope, store_detail, store_list, syncable
 from management.views.base import BaseAqueductView
@@ -22,12 +23,12 @@ class UserVectorStoresView(BaseAqueductView, TemplateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        seen = scope(self.profile, self.viewed_org)
+        seen = scope(self.viewer)
         context["listing"] = store_list(
             self.request.user,
             seen,
-            syncable(self.request.user, self.get_teams_for_user(), seen),
-            self.profile.teams.all(),
+            syncable(self.request.user, self.viewer.teams(TeamAct.SEE), seen),
+            self.viewer.teams(TeamAct.MINE),
             timezone.now(),
             self.request.GET.get("page"),
         )
@@ -39,12 +40,12 @@ class VectorStoreDetailView(BaseAqueductView, TemplateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        seen = scope(self.profile, self.viewed_org)
+        seen = scope(self.viewer)
         context["detail"] = store_detail(
             self.kwargs["id"],
             self.request.user,
             seen,
-            syncable(self.request.user, self.get_teams_for_user(), seen),
+            syncable(self.request.user, self.viewer.teams(TeamAct.SEE), seen),
             timezone.now(),
             self.request.GET.get("page"),
         )
@@ -74,11 +75,11 @@ class VectorStoreCardRefreshView(BaseAqueductView, View):
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
         vector_store_id = self.kwargs.get("id")
-        seen = scope(self.profile, self.viewed_org)
+        seen = scope(self.viewer)
 
         try:
             vs = VectorStore.objects.get(
-                syncable(request.user, self.get_teams_for_user(), seen), id=vector_store_id
+                syncable(request.user, self.viewer.teams(TeamAct.SEE), seen), id=vector_store_id
             )
         except VectorStore.DoesNotExist:
             messages.error(request, gettext("Vector store not found."))
@@ -104,11 +105,11 @@ class VectorStoreDetailRefreshView(BaseAqueductView):
 
     def post(self, request, *args, **kwargs) -> HttpResponse:
         vector_store_id = self.kwargs.get("id")
-        seen = scope(self.profile, self.viewed_org)
+        seen = scope(self.viewer)
 
         try:
             vs = VectorStore.objects.get(
-                syncable(request.user, self.get_teams_for_user(), seen), id=vector_store_id
+                syncable(request.user, self.viewer.teams(TeamAct.SEE), seen), id=vector_store_id
             )
         except VectorStore.DoesNotExist:
             messages.error(request, gettext("Vector store not found."))

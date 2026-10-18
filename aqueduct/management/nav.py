@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from django.conf import settings
 from django.contrib import admin
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.core.exceptions import ValidationError
 from django.http import HttpRequest
 from django.urls import NoReverseMatch, reverse
 from django.utils.functional import Promise
@@ -11,9 +11,10 @@ from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from silk.config import SilkyConfig
 
+from management.access import WholeOrg
 from management.icons import Icon
 from management.models import Org
-from management.request_log import chosen_org
+from management.org_choice import viewer_of
 
 Access = Callable[[HttpRequest], bool]
 
@@ -31,8 +32,8 @@ def django_admin(request: HttpRequest) -> bool:
 
 
 def org_admin(request: HttpRequest) -> bool:
-    profile = getattr(request.user, "profile", None)
-    return profile is not None and profile.is_org_admin(profile.org)
+    viewer = viewer_of(request)
+    return viewer is not None and viewer.administers(viewer.org)
 
 
 def mounted(url_name: str) -> bool:
@@ -216,18 +217,20 @@ def build_shell(request: HttpRequest) -> Shell:
 
 
 def _org_switch(request: HttpRequest) -> OrgSwitch | None:
-    profile = getattr(request.user, "profile", None)
-    if profile is None or not profile.is_admin():
+    viewer = viewer_of(request)
+    if viewer is None or not viewer.can_switch_org:
         return None
-    return OrgSwitch(tuple(Org.objects.order_by("name")), chosen_org(profile, request))
+    chosen = viewer.chosen.org if isinstance(viewer.chosen, WholeOrg) else None
+    return OrgSwitch(tuple(viewer.orgs().order_by("name")), chosen)
 
 
 def _viewer(request: HttpRequest) -> Viewer | None:
     user = request.user
     if not user.is_authenticated:
         return None
+    viewer = viewer_of(request)
     try:
-        role: str | None = str(user.profile.group.label)
-    except (ObjectDoesNotExist, ValidationError):
+        role: str | None = str(viewer.profile.group.label) if viewer is not None else None
+    except ValidationError:
         role = None
     return Viewer(email=user.email, role=role)

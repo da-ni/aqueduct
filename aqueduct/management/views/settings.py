@@ -29,10 +29,12 @@ class SettingsView(BaseAqueductView, TemplateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        profile = self.profile
+        profile = self.viewer.profile
         show_terms = terms_of_service(self.request)
         context.update(
-            memberships=profile.teammembership_set.select_related("team").order_by("team__name"),
+            memberships=profile.teammembership_set.filter(team_id__in=self.viewer.member_of)
+            .select_related("team")
+            .order_by("team__name"),
             limits=LimitSet.from_objects(profile, profile.org),
             limits_set_for_account=not LimitSet.from_objects(profile, None).is_unlimited,
             personal_keys=personal_tokens(self.request.user).count(),
@@ -53,7 +55,8 @@ class LanguageView(BaseAqueductView):
         if language not in LANGUAGE_CODES:
             messages.error(request, _("Choose one of the offered languages."))
             return response
-        self.profile.language = language
-        self.profile.save(update_fields=["language"])
+        profile = self.viewer.profile
+        profile.language = language
+        profile.save(update_fields=["language"])
         remember_language(response, language)
         return response

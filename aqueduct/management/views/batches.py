@@ -11,6 +11,7 @@ from django.views.generic import TemplateView
 from openai import OpenAIError
 
 from gateway.config import get_files_api_client
+from management.access import TeamAct
 from management.models import Batch
 from management.resources import (
     BATCH_STATUSES,
@@ -31,8 +32,8 @@ class UserBatchesView(BaseAqueductView, TemplateView):
         context = super().get_context_data(**kwargs)
         context["listing"] = batch_list(
             self.request.user,
-            scope(self.profile, self.viewed_org),
-            self.profile.teams.all(),
+            scope(self.viewer),
+            self.viewer.teams(TeamAct.MINE),
             timezone.now(),
             self.request.GET.get("page"),
         )

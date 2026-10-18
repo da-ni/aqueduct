@@ -11,9 +11,8 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone, translation
 
-from management.key_activity import Expiry, KeyAccess
+from management.key_activity import Expiry
 from management.models import Request, ServiceAccount, TeamMembership, Token
-from management.ownership import RELATED
 from management.tests.helpers import RoleWorld, make_token, secret_on
 
 User = get_user_model()
@@ -478,29 +477,6 @@ class OrgAdminKeyAccessTest(ApiKeysPagesTestBase):
         )
         self.assertEqual(response.redirect_chain, [(detail, 302)])
         self.assertEqual(Token.find_by_key(secret_on(response)), self.pipeline_key)
-
-    def test_key_links_agree_with_the_keys_that_open(self):
-        plain = self.user("plain")
-        TeamMembership.objects.create(user_profile=plain.profile, team=self.team)
-        everyone = Token.objects.select_related(*RELATED)
-        for user in (
-            self.solo,
-            self.team_admin,
-            plain,
-            self.org_admin,
-            self.other_org_admin,
-            self.admin,
-        ):
-            access = KeyAccess.of(user.profile)
-            with self.subTest(user=user.username):
-                self.assertEqual(
-                    {token.id for token in everyone if access.can_open(token)},
-                    set(access.tokens().values_list("id", flat=True)),
-                )
-        self.assertEqual(
-            {token.name for token in KeyAccess.of(self.org_admin.profile).tokens()},
-            {"solo-laptop", "member-laptop", "others-laptop", "pipeline", "hidden-sa"},
-        )
 
 
 class KeyLinksTest(ApiKeysPagesTestBase):

@@ -1,9 +1,8 @@
 from typing import TYPE_CHECKING
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from django.contrib import messages
 from django.db.models import Count
-from django.http import Http404, HttpResponse
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -12,10 +11,11 @@ from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView, UpdateView, View
 
+from management.access import EveryOrg, TeamAct, WholeOrg
 from management.forms import OrgAvailabilityForm, OrgLimitsForm
-from management.models import Org, Team
+from management.models import Org
+from management.org_choice import switch, without_org_params
 from management.org_overview import org_page
-from management.request_log import ORG_BOUND_PARAMS, parse_id, remember_org
 from management.team_overview import team_rows
 from management.views.base import BaseAqueductView, OrgAdminRequiredMixin
 
@@ -29,33 +29,35 @@ class OrgView(BaseAqueductView, TemplateView):
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         query = self.request.GET.get("q", "").strip()
-        all_orgs = self.viewed_org is None
-        teams = Team.objects.all() if all_orgs else self.get_teams_for_user()
+        viewer = self.viewer
+        is_org_admin = viewer.administers(viewer.org)
+        teams = viewer.teams(TeamAct.SEE)
         context.update(
-            is_org_admin=self.is_org_admin(),
-            all_orgs=all_orgs,
-            in_no_team=not self.is_org_admin() and not teams.exists(),
+            is_org_admin=is_org_admin,
+            all_orgs=isinstance(viewer.chosen, EveryOrg),
+            in_no_team=not is_org_admin and not teams.exists(),
             query=query,
             teams=team_rows(
-                teams, self.profile, query, self.request.GET.get("page", 1), timezone.now()
+                teams, viewer.admin_of, query, self.request.GET.get("page", 1), timezone.now()
             ),
-            org_object=self.org,
+            org_object=viewer.chosen.org if isinstance(viewer.chosen, WholeOrg) else viewer.org,
         )
         return context
 
 
 class OrganizationView(BaseAqueductView, OrgAdminRequiredMixin, TemplateView):
     def get_template_names(self) -> list[str]:
-        if self.viewed_org is None:
+        if isinstance(self.viewer.chosen, EveryOrg):
             return ["management/organizations.html"]
         return ["management/organization.html"]
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        if self.viewed_org is None:
+        chosen = self.viewer.chosen
+        if isinstance(chosen, EveryOrg):
             context["orgs"] = Org.objects.annotate(team_count=Count("teams")).order_by("name")
         else:
-            context.update(org_object=self.org, page=org_page(self.org))
+            context.update(org_object=chosen.org, page=org_page(chosen.org))
         return context
 
 
@@ -69,10 +71,7 @@ class OrgEditView(BaseAqueductView, UpdateView):
     saved: "_StrPromise"
 
     def get_object(self, queryset=None) -> Org:
-        org = get_object_or_404(Org, pk=self.kwargs[self.pk_url_kwarg])
-        if not self.profile.is_org_admin(org):
-            raise Http404("No organization found.")
-        return org
+        return get_object_or_404(self.viewer.orgs(), pk=self.kwargs[self.pk_url_kwarg])
 
     def form_valid(self, form) -> HttpResponse:
         response = super().form_valid(form)
@@ -97,30 +96,18 @@ class OrgAvailabilityEditView(OrgEditView):
 
 class OrgSwitchView(BaseAqueductView, View):
     def post(self, request, *args, **kwargs) -> HttpResponse:
-        if not self.is_admin():
+        if not self.viewer.can_switch_org:
             messages.error(request, gettext("Only platform admins can do that."))
             return redirect(reverse("org"))
 
-        raw = request.POST.get("org_id", "")
-        org = None if raw == "all" else get_object_or_404(Org, pk=parse_id(raw))
-        remember_org(request.session, org)
+        choice = switch(request, request.POST.get("org_id", ""))
         messages.success(
             request,
-            gettext("Viewing %(name)s.") % {"name": org.name}
-            if org
+            gettext("Viewing %(name)s.") % {"name": choice.org.name}
+            if isinstance(choice, WholeOrg)
             else gettext("Viewing all organizations."),
         )
         back = request.POST.get("next", "")
         if url_has_allowed_host_and_scheme(back, {request.get_host()}, request.is_secure()):
-            return redirect(_without_org_params(back))
+            return redirect(without_org_params(back))
         return redirect(reverse("org"))
-
-
-def _without_org_params(url: str) -> str:
-    parts = urlsplit(url)
-    query = [
-        (name, value)
-        for name, value in parse_qsl(parts.query, keep_blank_values=True)
-        if name not in ORG_BOUND_PARAMS
-    ]
-    return urlunsplit(parts._replace(query=urlencode(query)))

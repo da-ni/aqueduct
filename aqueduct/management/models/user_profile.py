@@ -146,13 +146,6 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
             case _:
                 return False
 
-    def openable_teams(self) -> "models.QuerySet[Team]":
-        if self.is_admin():
-            return Team.objects.all()
-        if self.is_org_admin(self.org):
-            return self.org.teams.all()
-        return self.teams.all()
-
     def is_team_admin(self, team_to_check: Team) -> bool:
         """
         Checks if the user is an administrator for the given team.
