@@ -1,6 +1,7 @@
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
@@ -8,9 +9,10 @@ from django.contrib.auth.models import AbstractBaseUser, AnonymousUser
 from django.db.models import Count, F, OuterRef, Q, QuerySet, Subquery, Sum
 from django.db.models.functions import TruncDate
 from django.urls import reverse
-from django.utils import dateformat, timezone
+from django.utils import timezone
+from django.utils.formats import date_format, get_format, number_format
 from django.utils.functional import Promise
-from django.utils.translation import gettext, ngettext
+from django.utils.translation import gettext, ngettext, pgettext, pgettext_lazy
 from django.utils.translation import gettext_lazy as _
 
 from gateway.config import get_router_config
@@ -22,25 +24,48 @@ if TYPE_CHECKING:
 
 EXPIRY_WARNING = timedelta(days=7)
 FAILED = Q(status_code__gte=400)
-_SUFFIXES, _STEP = ("", "K", "M", "B", "T"), 1000
+_STEP = 1000
+_SCALES = (
+    pgettext_lazy("compact number", "%(number)sK"),
+    pgettext_lazy("compact number", "%(number)sM"),
+    pgettext_lazy("compact number", "%(number)sB"),
+    pgettext_lazy("compact number", "%(number)sT"),
+)
+
+
+def grouped(count: int) -> str:
+    """`count` with the viewer's thousands separator: 1,440 in English, 1.440 in German."""
+    return number_format(count, force_grouping=True)
+
+
+def decimal(value: float, places: int) -> str:
+    """`value` rounded to `places` decimals, with the viewer's decimal separator."""
+    return number_format(Decimal(f"{value:.{places}f}"))
 
 
 def compact(count: int) -> str:
-    magnitude = float(abs(count))
-    for suffix in _SUFFIXES:
-        digits = f"{magnitude:.1f}"
-        if float(digits) < _STEP or suffix == _SUFFIXES[-1]:
+    """`count` in at most four significant digits: 29.3B in English, 29,3 Mrd. in German."""
+    magnitude, scale = float(abs(count)), None
+    for next_scale in _SCALES:
+        if float(f"{magnitude:.1f}") < _STEP:
             break
-        magnitude /= _STEP
-    return ("-" if count < 0 else "") + digits.removesuffix(".0") + suffix
+        magnitude, scale = magnitude / _STEP, next_scale
+    digits = decimal(magnitude, 1).removesuffix(f"{get_format('DECIMAL_SEPARATOR')}0")
+    number = ("-" if count < 0 else "") + digits
+    return number if scale is None else scale % {"number": number}
 
 
 MISSING = "—"
 """What a page shows for a value that does not exist, such as the cache hit rate of no input."""
 
 
+def as_percent(number: float) -> str:
+    """`number` percent, rounded: 12% in English, 12 % in German."""
+    return pgettext("percent", "%(number)s%%") % {"number": grouped(round(number))}
+
+
 def percent(part: int, whole: int) -> str:
-    return f"{round(100 * part / whole)}%" if whole else MISSING
+    return as_percent(100 * part / whole) if whole else MISSING
 
 
 def as_tokens(count: float) -> str:
@@ -55,17 +80,17 @@ def as_cached(count: float) -> str:
 
 def as_requests(count: float) -> str:
     n = round(count)
-    return ngettext("%(count)s request", "%(count)s requests", n) % {"count": f"{n:,}"}
+    return ngettext("%(count)s request", "%(count)s requests", n) % {"count": grouped(n)}
 
 
 def as_failed(count: float) -> str:
     n = round(count)
-    return ngettext("%(count)s failed", "%(count)s failed", n) % {"count": f"{n:,}"}
+    return ngettext("%(count)s failed", "%(count)s failed", n) % {"count": grouped(n)}
 
 
 def day_label(day: date) -> str:
     """A day as a chart names it, "18 Oct", with the month in the viewer's language."""
-    return dateformat.format(day, "j M")
+    return date_format(day, "DAY_MONTH_FORMAT")
 
 
 TOKEN_SERIES = {"c": _("Cached"), "n": _("New input"), "o": _("Output")}
@@ -114,7 +139,7 @@ class Expiry:
                     "days": days
                 }
             return cls(label, sentence, "st-warn font-semibold", expires_at)
-        day = dateformat.format(timezone.localtime(expires_at), "j M Y")
+        day = date_format(timezone.localtime(expires_at), "DAY_FORMAT")
         return cls(day, gettext("Expires %(date)s") % {"date": day}, at=expires_at)
 
 
@@ -427,7 +452,7 @@ class Window:
             ),
             Stat(gettext("Cache hits"), totals.cache_hits, spark(daily("cached"), as_cached)),
             Stat(
-                gettext("Requests"), f"{totals.requests:,}", spark(daily("requests"), as_requests)
+                gettext("Requests"), grouped(totals.requests), spark(daily("requests"), as_requests)
             ),
             Stat(gettext("Failed"), totals.failed_share, spark(daily("failed"), as_failed)),
         )
@@ -460,7 +485,7 @@ def chart(
 
     def tip(label: str, segs: tuple[tuple[str, int], ...]) -> Tip:
         total = sum(n for _, n in segs)
-        parts = tuple((css, names[css], f"{n:,}") for css, n in segs) if total else ()
+        parts = tuple((css, names[css], grouped(n)) for css, n in segs) if total else ()
         return Tip(label, show(total), parts)
 
     return tuple(

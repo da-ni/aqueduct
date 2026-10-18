@@ -1,5 +1,5 @@
 {% extends "management/_resource_list.html" %}
-{% load humanize i18n ui %}
+{% load i18n ui %}
 
 {% block heading %}{% translate "Vector stores" %}{% endblock %}
 
@@ -22,7 +22,7 @@
             </td>
             <td>{{ row.owner }}</td>
             <td>{% include "management/_status.html" with status=row.status %}</td>
-            <td class="text-right font-mono">{{ row.files|intcomma }}</td>
+            <td class="text-right font-mono">{{ row.files|grouped }}</td>
             <td class="text-right font-mono">{{ row.size|filesizeformat }}</td>
             <td>{{ row.expiry|expiry }}</td>
             <td>

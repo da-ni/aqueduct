@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load humanize i18n l10n ui %}
+{% load i18n l10n ui %}
 {% block title %}{{ token.name }} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
@@ -141,9 +141,9 @@
                                     <td>
                                         {% include "management/_request_status.html" %}
                                     </td>
-                                    <td class="text-right">{{ request.input_tokens|intcomma }}</td>
-                                    <td class="text-right">{{ request.cached_input_tokens|intcomma }}</td>
-                                    <td class="text-right">{{ request.output_tokens|intcomma }}</td>
+                                    <td class="text-right">{{ request.input_tokens|grouped }}</td>
+                                    <td class="text-right">{{ request.cached_input_tokens|grouped }}</td>
+                                    <td class="text-right">{{ request.output_tokens|grouped }}</td>
                                     <td class="text-right">{{ row.response_time }}</td>
                                 </tr>
                             {% endwith %}

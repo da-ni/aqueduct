@@ -4,18 +4,20 @@ import shlex
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from enum import StrEnum, auto
 from typing import Any
 from urllib.parse import urlsplit
 
 from django.urls import reverse
+from django.utils.formats import number_format
 from django.utils.functional import Promise
 from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from litellm.types.utils import LlmProviders
 
 from gateway.config import get_router_config, model_info_with_context
-from management.key_activity import compact, router_models
+from management.key_activity import compact, grouped, router_models
 from management.models import Token, UserProfile
 
 
@@ -133,7 +135,7 @@ def _tokens(value: object) -> str:
 
 def _number(value: object) -> str:
     count = _count(value)
-    return "" if count is None else f"{count:,}"
+    return "" if count is None else grouped(count)
 
 
 def _text(value: object) -> str:
@@ -367,7 +369,8 @@ def parse_card(entry: Mapping[str, Any], scopes: Sequence[Scope] = ()) -> ModelC
     multiplier = info.get("request_limit_multiplier")
     if isinstance(multiplier, int | float) and not isinstance(multiplier, bool) and multiplier != 1:
         capabilities += (
-            gettext("%(multiplier)sx request limit") % {"multiplier": f"{multiplier:g}"},
+            gettext("%(multiplier)sx request limit")
+            % {"multiplier": number_format(Decimal(f"{multiplier:g}"))},
         )
     off_for, on_for = split_scopes(name, scopes)
     model_card_url = _web_url(info.get("model_card_url"))

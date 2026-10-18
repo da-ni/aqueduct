@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load humanize i18n ui %}
+{% load i18n ui %}
 
 {% block page_background %}{% endblock %}
 
@@ -18,7 +18,7 @@
             {% for tab in log.tabs %}
                 <a class="btn btn-sm join-item{% if tab.outcome == outcome %} btn-primary{% endif %}"
                    href="{% querystring key_q=None status=tab.value before=None after=None page=None request=None %}"
-                   {% if tab.outcome == outcome %}aria-current="page"{% endif %}>{{ tab.label }}{% if tab.outcome.codes %} <span class="font-mono text-[10px] font-normal opacity-60">{{ tab.outcome.codes }}</span>{% endif %} <span class="font-mono text-xs opacity-70">{{ tab.count|intcomma }}</span></a>
+                   {% if tab.outcome == outcome %}aria-current="page"{% endif %}>{{ tab.label }}{% if tab.outcome.codes %} <span class="font-mono text-[10px] font-normal opacity-60">{{ tab.outcome.codes }}</span>{% endif %} <span class="font-mono text-xs opacity-70">{{ tab.count|grouped }}</span></a>
             {% endfor %}
         </nav>
         <form method="get" role="search" class="flex items-center gap-2 max-sm:w-full sm:ms-auto">
@@ -68,7 +68,7 @@
                                     </td>
                                     <td class="min-w-0 flex-1 md:hidden">
                                         <div class="flex items-center gap-1.5 whitespace-nowrap"><span class="muted">{{ request.timestamp|when:"recent" }}</span> · {% include "management/_request_status.html" %} · {{ row.response_time }}</div>
-                                        <div class="flex gap-1.5 whitespace-nowrap"><span class="truncate">{{ request.model|default:_("n/a") }}</span><span class="shrink-0">· {{ request.input_tokens|intcomma }} → {{ request.output_tokens|intcomma }}</span></div>
+                                        <div class="flex gap-1.5 whitespace-nowrap"><span class="truncate">{{ request.model|default:_("n/a") }}</span><span class="shrink-0">· {{ request.input_tokens|grouped }} → {{ request.output_tokens|grouped }}</span></div>
                                         {% if log.shows_key %}<div class="muted truncate font-sans text-xs">{{ row.key.name }}</div>{% endif %}
                                     </td>
                                     <td class="muted whitespace-nowrap max-md:hidden">{{ request.timestamp|when:"recent" }}</td>
@@ -85,9 +85,9 @@
                                     <td class="max-md:hidden">
                                         {% include "management/_request_status.html" %}
                                     </td>
-                                    <td class="text-right max-md:hidden">{{ request.input_tokens|intcomma }}</td>
-                                    <td class="text-right max-md:hidden">{{ request.cached_input_tokens|intcomma }}</td>
-                                    <td class="text-right max-md:hidden">{{ request.output_tokens|intcomma }}</td>
+                                    <td class="text-right max-md:hidden">{{ request.input_tokens|grouped }}</td>
+                                    <td class="text-right max-md:hidden">{{ request.cached_input_tokens|grouped }}</td>
+                                    <td class="text-right max-md:hidden">{{ request.output_tokens|grouped }}</td>
                                     <td class="text-right max-md:hidden">{{ row.response_time }}</td>
                                 </tr>
                                 {% if row.is_open %}
@@ -114,7 +114,7 @@
             </div>
             <div class="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-1">
                 <span class="muted font-mono text-xs">
-                    {% if log.pager.start and log.rows %}{% blocktranslate with start=log.pager.start|intcomma end=log.end|intcomma total=log.count|intcomma %}{{ start }}–{{ end }} of {{ total }}{% endblocktranslate %}{% else %}{% blocktranslate count n=log.count with total=log.count|intcomma %}{{ total }} request{% plural %}{{ total }} requests{% endblocktranslate %}{% endif %}
+                    {% if log.pager.start and log.rows %}{% blocktranslate with start=log.pager.start|grouped end=log.end|grouped total=log.count|grouped %}{{ start }}–{{ end }} of {{ total }}{% endblocktranslate %}{% else %}{% blocktranslate count n=log.count with total=log.count|grouped %}{{ total }} request{% plural %}{{ total }} requests{% endblocktranslate %}{% endif %}
                     {% if not log.pager.next %}· {% blocktranslate count days=retention_days %}Requests are kept for {{ days }} day{% plural %}Requests are kept for {{ days }} days{% endblocktranslate %}{% endif %}
                 </span>
                 {% if log.pager.previous or log.pager.next %}

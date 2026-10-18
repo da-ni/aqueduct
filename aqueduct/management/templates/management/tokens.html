@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load humanize i18n l10n ui %}
+{% load i18n l10n ui %}
 
 {% block page_background %}{% endblock %}
 
@@ -69,7 +69,7 @@
                                         <span class="w-full text-right font-mono md:w-14">{{ row.activity.tokens_short }}</span>
                                     </div>
                                 </td>
-                                <td class="hidden text-right font-mono md:table-cell">{{ row.activity.requests|intcomma }}</td>
+                                <td class="hidden text-right font-mono md:table-cell">{{ row.activity.requests|grouped }}</td>
                                 <td class="hidden md:table-cell">{{ row.expiry|expiry }}</td>
                                 <td>
                                     {% if row.manageable %}

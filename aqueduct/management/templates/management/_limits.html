@@ -1,16 +1,16 @@
-{% load humanize i18n %}
+{% load i18n ui %}
 {% if limits.requests_per_minute is None and limits.input_tokens_per_minute is None and limits.output_tokens_per_minute is None %}
     <p class="muted text-sm">{% translate "No limits" %}</p>
 {% else %}
     <dl class="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
         {% if limits.requests_per_minute is not None %}
-            <div class="flex items-baseline gap-2"><dt class="muted">{% translate "Requests per minute" %}</dt><dd><span class="font-mono font-semibold">{{ limits.requests_per_minute|intcomma }}</span></dd></div>
+            <div class="flex items-baseline gap-2"><dt class="muted">{% translate "Requests per minute" %}</dt><dd><span class="font-mono font-semibold">{{ limits.requests_per_minute|grouped }}</span></dd></div>
         {% endif %}
         {% if limits.input_tokens_per_minute is not None %}
-            <div class="flex items-baseline gap-2"><dt class="muted">{% translate "Input tokens per minute" %}</dt><dd><span class="font-mono font-semibold">{{ limits.input_tokens_per_minute|intcomma }}</span></dd></div>
+            <div class="flex items-baseline gap-2"><dt class="muted">{% translate "Input tokens per minute" %}</dt><dd><span class="font-mono font-semibold">{{ limits.input_tokens_per_minute|grouped }}</span></dd></div>
         {% endif %}
         {% if limits.output_tokens_per_minute is not None %}
-            <div class="flex items-baseline gap-2"><dt class="muted">{% translate "Output tokens per minute" %}</dt><dd><span class="font-mono font-semibold">{{ limits.output_tokens_per_minute|intcomma }}</span></dd></div>
+            <div class="flex items-baseline gap-2"><dt class="muted">{% translate "Output tokens per minute" %}</dt><dd><span class="font-mono font-semibold">{{ limits.output_tokens_per_minute|grouped }}</span></dd></div>
         {% endif %}
     </dl>
     {% if note %}<p class="muted text-sm">{{ note }}</p>{% endif %}

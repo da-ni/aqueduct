@@ -22,6 +22,7 @@ from management.key_activity import (
     as_tokens,
     compact,
     day_label,
+    grouped,
     key_activity,
     spark,
     week,
@@ -148,7 +149,7 @@ class ServiceAccountRow:
         return Tip(
             gettext("Tokens, 7 days"),
             as_tokens(self.activity.tokens),
-            tuple((css, TOKEN_SERIES[css], f"{n:,}") for css, n in self.activity.segments),
+            tuple((css, TOKEN_SERIES[css], grouped(n)) for css, n in self.activity.segments),
         )
 
 
@@ -165,7 +166,7 @@ def team_stats(week_window: Window) -> tuple[Stat, ...]:
         ),
         Stat(
             gettext("Requests"),
-            f"{totals.requests:,}",
+            grouped(totals.requests),
             spark(daily(lambda a: a.requests), as_requests),
         ),
         Stat(gettext("Failed"), totals.failed_share, spark(daily(lambda a: a.failed), as_failed)),

@@ -401,6 +401,11 @@ class UsageGermanTest(UsagePageTestBase):
         self.assertIn("3 Anfragen (OK 1, Fehlgeschlagen 2)", overview)
         self.assertIn("Limit erreicht", overview)
         self.assertIn("Mo 00:00 bis 01:00", overview)
+        months = r"(Jan\.|Feb\.|März|April|Mai|Juni|Juli|Aug\.|Sept\.|Okt\.|Nov\.|Dez\.)"
+        self.assertRegex(overview, rf">\d{{1,2}}\. {months}<")
+        tokens = self.client.get(reverse("usage"), {"span": "1w"}, HTTP_ACCEPT_LANGUAGE="de")
+        self.assertEqual(self.kpi(tokens, "Ausgabe"), "1,5\xa0Tsd.")
+        self.assertEqual(self.kpi(tokens, "Fehlgeschlagen"), "67\xa0%")
         keys = self.client.get(reverse("usage_keys"), HTTP_ACCEPT_LANGUAGE="de")
         self.assertContains(keys, "3 Schlüssel</span>")
 

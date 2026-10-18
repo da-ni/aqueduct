@@ -6,7 +6,6 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models import QuerySet
 from django.utils import timezone
-from django.utils.formats import number_format
 from django.utils.translation import gettext, ngettext
 from django.utils.translation import gettext_lazy as _
 
@@ -17,6 +16,7 @@ from .availability import (
     Checklist,
     configured_mcp_servers,
 )
+from .key_activity import grouped
 from .models import Org, ServiceAccount, Team, Token, UserProfile
 
 NAME_INPUT = "input w-full max-w-md"
@@ -185,7 +185,7 @@ class TeamLimitsForm(TeamCreateForm):
                 gettext("Leave it empty for no limit.")
                 if fallback is None
                 else gettext("Leave it empty for the organization's limit, %(limit)s.")
-                % {"limit": number_format(fallback, force_grouping=True)}
+                % {"limit": grouped(fallback)}
             )
 
 

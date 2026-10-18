@@ -418,6 +418,9 @@ LANGUAGE_CODE = "en"
 LANGUAGES = [("en", "English"), ("de", "Deutsch")]
 LOCALE_PATHS = [BASE_DIR / "locale"]
 USE_I18N = True
+# Date formats of the management pages per language, under names of their own so that the Django
+# admin keeps Django's. Use them through `django.utils.formats.date_format`.
+FORMAT_MODULE_PATH = "aqueduct.formats"
 
 STORAGES = {
     # ...

@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load humanize i18n l10n ui %}
+{% load i18n l10n ui %}
 
 {% block page_background %}{% endblock %}
 
@@ -59,13 +59,13 @@
                                 {% if all_orgs %}<td class="truncate max-lg:hidden">{{ row.team.org.name }}</td>{% elif not is_org_admin %}<td class="max-lg:hidden">{% if row.is_team_admin %}<span class="badge badge-sm bg-base-100">{% translate "Team admin" %}</span>{% endif %}</td>{% endif %}
                                 <td class="text-right font-mono max-lg:hidden">{{ row.members }}</td>
                                 <td class="text-right font-mono max-lg:hidden">{{ row.service_accounts }}</td>
-                                <td class="text-right max-lg:hidden">{% if row.limit is None %}{% translate "No limit" %}{% else %}<span class="font-mono">{{ row.limit|intcomma }}</span>{% endif %}</td>
+                                <td class="text-right max-lg:hidden">{% if row.limit is None %}{% translate "No limit" %}{% else %}<span class="font-mono">{{ row.limit|grouped }}</span>{% endif %}</td>
                                 <td class="max-lg:hidden">
                                     <div class="flex items-center gap-3">
                                         <div class="min-w-0 flex-1">
                                             {% if row.activity.tokens %}<div class="onebar" style="width: {{ row.bar_width|unlocalize }}%"></div>{% endif %}
                                         </div>
-                                        <span class="w-14 text-right font-mono">{{ row.activity.tokens_short }}</span>
+                                        <span class="w-14 text-right font-mono de:w-22">{{ row.activity.tokens_short }}</span>
                                     </div>
                                 </td>
                                 <td class="max-lg:px-1">
