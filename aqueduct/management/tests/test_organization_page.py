@@ -6,7 +6,8 @@ from django.forms.models import model_to_dict
 from django.test import override_settings
 from django.urls import reverse
 
-from management.availability import configured_mcp_servers, configured_models
+from gateway.config import model_names
+from management.availability import configured_mcp_servers
 from management.models import Org, ServiceAccount, Token, UserGroup
 from management.models.token import HIERARCHY
 from management.tests.helpers import make_token
@@ -30,8 +31,8 @@ LIMITS = {
 
 def available(*unavailable: str, mcp: tuple[str, ...] | None = None) -> dict:
     data: dict = {
-        "available_models": [m for m in configured_models() if m not in unavailable],
-        "available_models-shown": configured_models(),
+        "available_models": [m for m in list(model_names()) if m not in unavailable],
+        "available_models-shown": list(model_names()),
     }
     if mcp is not None:
         data["available_mcp_servers"] = [s for s in configured_mcp_servers() if s not in mcp]
@@ -217,7 +218,7 @@ class OrganizationEditFormTest(OrganizationTestBase):
         return self.as_user(self.org_admin).get(url).context["form"]
 
     def test_every_box_starts_checked(self):
-        self.assertEqual(self.form()["available_models"].value(), configured_models())
+        self.assertEqual(self.form()["available_models"].value(), list(model_names()))
 
     def test_saving_unchanged_keeps_what_is_stored(self):
         self.org.excluded_models = ["retired-model", "whisper-1", "gpt-4.1-nano"]

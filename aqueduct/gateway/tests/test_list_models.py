@@ -1,8 +1,10 @@
+import tempfile
 from datetime import timedelta
-from importlib import import_module
 from unittest.mock import patch
 
+import yaml
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.utils import timezone
 
 from gateway.config import get_router_config
@@ -40,8 +42,6 @@ class ListModelsIntegrationTest(GatewayIntegrationTestCase):
         self.assertIn("models", req.path, "Request endpoint should be for model listing.")
 
     def test_model_group_info_exposes_context_window(self):
-        models_view = import_module("gateway.views.models")
-
         config = {
             "model_list": [
                 {
@@ -65,7 +65,7 @@ class ListModelsIntegrationTest(GatewayIntegrationTestCase):
                 },
             ]
         }
-        with patch.object(models_view, "get_router_config", return_value=config):
+        with patch("gateway.config.get_router_config", return_value=config):
             response = self.client.get(
                 "/model_group/info", content_type="application/json", headers=self.headers
             )
@@ -78,6 +78,31 @@ class ListModelsIntegrationTest(GatewayIntegrationTestCase):
         self.assertTrue(info["supports_vision"])
         self.assertEqual(entries["explicit-model"]["model_info"]["max_input_tokens"], 999999)
         self.assertNotIn("max_input_tokens", entries["no-info-model"]["model_info"])
+
+    def test_a_load_balanced_model_is_listed_once(self):
+        deployments = [
+            {
+                "model_name": name,
+                "litellm_params": {"model": f"openai/{served}"},
+                "model_info": {"aliases": [f"{name}-alias"], "max_tokens": tokens},
+            }
+            for name, served, tokens in (
+                ("qwen", "qwen-east", 1000),
+                ("solo", "solo", 10),
+                ("qwen", "qwen-west", 2000),
+            )
+        ]
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml") as config:
+            yaml.safe_dump({"model_list": deployments}, config)
+            with override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=config.name):
+                listed = self._send_model_list_request().json()["data"]
+                groups = self.client.get("/model_group/info", headers=self.headers).json()
+
+        self.assertEqual([model["id"] for model in listed], ["qwen", "solo"])
+        self.assertEqual(
+            [(group["model_group"], group["model_info"]["max_input_tokens"]) for group in groups],
+            [("qwen", 1000), ("solo", 10)],
+        )
 
     def test_list_models_with_invalid_token(self):
         headers = {

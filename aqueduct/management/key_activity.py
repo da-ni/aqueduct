@@ -15,7 +15,7 @@ from django.utils.functional import Promise
 from django.utils.translation import gettext, ngettext, pgettext, pgettext_lazy
 from django.utils.translation import gettext_lazy as _
 
-from gateway.config import get_router_config
+from gateway.config import model_names
 from management.models import Org, Request, ServiceAccount, Token, UserProfile
 from management.models.token import of_org
 
@@ -170,12 +170,8 @@ def week(now: datetime) -> "Period":
     return Period.last(Span.WEEK, now)
 
 
-def router_models() -> list[str]:
-    return [entry["model_name"] for entry in get_router_config().get("model_list", [])]
-
-
 def served(requests: QuerySet[Request]) -> QuerySet[Request]:
-    return requests.filter(model__in=router_models())
+    return requests.filter(model__in=model_names())
 
 
 LISTED_KEYS = 500

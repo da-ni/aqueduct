@@ -23,7 +23,7 @@ from django.db import connection, transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from management.key_activity import router_models
+from gateway.config import model_names
 from management.model_catalog import hugging_face_repo, quantization_in
 from management.models import (
     Batch,
@@ -781,7 +781,7 @@ class Command(BaseCommand):
         )
 
     def checked(self, models: list[ModelSpec]) -> list[ModelSpec]:
-        missing = sorted({m.name for m in models} - set(router_models()))
+        missing = sorted({m.name for m in models} - set(model_names()))
         if missing:
             msg = (
                 f"Not in the router config ({settings.LITELLM_ROUTER_CONFIG_FILE_PATH}): "

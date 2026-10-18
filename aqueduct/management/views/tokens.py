@@ -16,8 +16,9 @@ from django.views import View
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DeleteView, DetailView, TemplateView, UpdateView
 
+from gateway.config import model_names
 from gateway.rate_limiting import get_per_token_usage
-from management.availability import Reach, configured_mcp_servers, configured_models
+from management.availability import Reach, configured_mcp_servers
 from management.deletion import deletion
 from management.forms import TokenCreateForm
 from management.key_activity import (
@@ -86,7 +87,7 @@ class TokenDetailView(BaseAqueductView, DetailView):
             expiry=Expiry.of(token.expires_at, now),
             limits=token.get_limit(),
             usage=get_per_token_usage([token.id])[token.id],
-            models=Reach.of(configured_models(), token.model_exclusion_list()),
+            models=Reach.of(model_names(), token.model_exclusion_list()),
             mcp_servers=Reach.of(configured_mcp_servers(), token.mcp_server_exclusion_list()),
             team=team,
             own=own,

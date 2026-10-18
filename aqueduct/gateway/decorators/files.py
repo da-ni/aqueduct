@@ -8,7 +8,7 @@ import litellm
 from asgiref.sync import sync_to_async
 from django.core.handlers.asgi import ASGIRequest
 
-from gateway.config import get_files_api_client, get_router, get_router_config, resolve_model_alias
+from gateway.config import get_files_api_client, get_router, model_names, resolve_model_alias
 from gateway.decorators.types import AsyncView, ViewResult
 from gateway.response_error import error_response
 
@@ -100,10 +100,7 @@ def rewrite_batch_file_models(content: bytes, excluded_models: set[str]) -> byte
 
 
 def check_batch_file_models(content: bytes, excluded_models: set[str]) -> None:
-    relays = {
-        entry["model_name"]: _lookup_relay_model_name(entry["model_name"])
-        for entry in get_router_config()["model_list"]
-    }
+    relays = {name: _lookup_relay_model_name(name) for name in model_names()}
     allowed = {relay for name, relay in relays.items() if name not in excluded_models}
     for i, line in enumerate(content.decode("utf-8").splitlines()):
         if not line.strip():
