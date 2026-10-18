@@ -201,44 +201,37 @@ class UsageFiguresTest(UsagePageTestBase):
 
 
 class UsageChartTest(UsagePageTestBase):
-    def series(self, response) -> dict[str, tuple[bool, str]]:
+    def series(self, response) -> dict[str, str]:
         html = response.content.decode()
         found = {}
-        opening = re.compile(r'<div class="flex h-72[^"]*" data-metric="(\w+)"( hidden)?>')
+        opening = re.compile(r'<div class="flex h-72[^"]*" data-metric="(\w+)">')
         matches = list(opening.finditer(html))
         for match, following in zip(matches, [*matches[1:], None], strict=True):
             end = following.start() if following else html.index("</section>", match.end())
             labels = re.findall(r'chart-col[^>]*aria-label="([^"]*)"', html[match.end() : end])
-            found[match.group(1)] = (match.group(2) is None, " ".join(labels))
+            found[match.group(1)] = " ".join(labels)
         return found
 
-    def test_both_series_are_on_the_page_and_tokens_is_shown_first(self):
-        series = self.series(self.page(self.org_admin))
-        self.assertEqual(series.keys(), {"tokens", "requests"})
-        self.assertTrue(series["tokens"][0])
-        self.assertFalse(series["requests"][0])
-        self.assertIn("Output", series["tokens"][1])
-        self.assertIn("OK 1, Failed 2", series["requests"][1])
-
-    def test_the_metric_parameter_picks_the_series_shown(self):
-        response = self.page(self.org_admin, metric="requests")
+    def test_both_series_are_on_the_page_and_tokens_is_picked_first(self):
+        response = self.page(self.org_admin)
         series = self.series(response)
-        self.assertFalse(series["tokens"][0])
-        self.assertTrue(series["requests"][0])
-        self.assertContains(response, '<span data-metric="requests">Requests per hour</span>')
+        self.assertEqual(series.keys(), {"tokens", "requests"})
+        self.assertIn("Output", series["tokens"])
+        self.assertIn("OK 1, Failed 2", series["requests"])
+        self.assertContains(response, '<input type="radio" name="metric" value="tokens"', count=1)
+        self.assertContains(response, 'aria-label="Tokens" checked>', count=1)
 
-    def test_the_metric_links_still_load_the_page_without_scripts(self):
-        response = self.page(self.org_admin, span="1m", key_q="lap")
-        html = response.content.decode()
-        self.assertIn('href="?span=1m" data-metric-show="tokens" aria-current="page"', html)
-        self.assertIn('href="?span=1m&amp;metric=requests" data-metric-show="requests"', html)
+    def test_the_switch_needs_no_reload_and_links_do_not_carry_it(self):
+        html = self.page(self.org_admin, span="1m").content.decode()
+        self.assertIn('<input type="radio" name="metric" value="requests"', html)
+        self.assertIsNone(re.search(r"[?;]metric=", html))
 
 
 class UsageGermanTest(UsagePageTestBase):
     def test_a_german_browser_reads_the_overview_and_all_keys_in_german(self):
         self.client.force_login(self.org_admin)
         overview = self.client.get(
-            reverse("usage"), {"span": "1w", "metric": "requests"}, HTTP_ACCEPT_LANGUAGE="de"
+            reverse("usage"), {"span": "1w"}, HTTP_ACCEPT_LANGUAGE="de"
         ).content.decode()
         self.assertIn('aria-current="page">7 Tage</a>', overview)
         self.assertIn('<span data-metric="requests">Anfragen pro Tag</span>', overview)

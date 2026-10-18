@@ -71,7 +71,6 @@ class TokenDetailView(BaseAqueductView, DetailView):
         report = key_report(token, now)
         team = team_of(token)
         own = is_personal_of(token, self.request.user.id)
-        metric = "requests" if self.request.GET.get("metric") == "requests" else "tokens"
         log_query: dict[str, object] = {"key": token.id, "span": "1m"}
         if self.profile.is_admin() and self.viewed_org is not None:
             key_org = org_id(token)
@@ -80,7 +79,6 @@ class TokenDetailView(BaseAqueductView, DetailView):
         context.update(
             report=report,
             latest=tuple(Row(request, Key(token, None, ""), False) for request in report.latest),
-            metric=metric,
             log_query=urlencode(log_query),
             charts=tuple((shown, report.chart(shown)) for shown in ("tokens", "requests")),
             expiry=Expiry.of(token.expires_at, now),

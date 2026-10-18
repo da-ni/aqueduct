@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 15:10+0000\n"
+"POT-Creation-Date: 2026-10-18 15:13+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -780,6 +780,9 @@ msgstr "Anteil"
 msgid "No limits"
 msgstr "Keine Limits"
 
+msgid "Chart metric"
+msgstr "Kennzahl im Diagramm"
+
 #, python-format
 msgid "Available with %(keys)s."
 msgstr "Verfügbar mit %(keys)s."
@@ -1544,9 +1547,6 @@ msgstr "Token pro Tag"
 
 msgid "Requests per day"
 msgstr "Anfragen pro Tag"
-
-msgid "Chart metric"
-msgstr "Kennzahl im Diagramm"
 
 msgid "No requests in the last 7 days."
 msgstr "Keine Anfragen in den letzten 7 Tagen."

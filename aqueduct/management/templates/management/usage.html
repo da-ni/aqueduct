@@ -26,37 +26,8 @@
 </section>
 
 <section class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-    <div class="card bg-base-200 lg:col-span-2" data-metric-scope>
-        <div class="card-body gap-4 p-5">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 class="card-title"><span data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>{{ period.step.tokens_title }}</span><span data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>{{ period.step.requests_title }}</span></h2>
-                <div class="flex flex-wrap items-center gap-4">
-                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" data-metric="tokens"{% if metric != "tokens" %} hidden{% endif %}>
-                        {% include "management/_token_legend.html" %}
-                    </div>
-                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" data-metric="requests"{% if metric != "requests" %} hidden{% endif %}>
-                        <span class="flex items-center gap-2"><span class="sw i"></span>{% translate "OK" %}</span>
-                        <span class="flex items-center gap-2 whitespace-nowrap"><span class="sw f"></span>{% translate "Failed" %}</span>
-                    </div>
-                    <nav class="join" aria-label="{% translate "Chart metric" %}">
-                        <a class="btn btn-sm join-item{% if metric == 'tokens' %} btn-primary{% endif %}" href="{% querystring metric=None key_q=None %}" data-metric-show="tokens"{% if metric == 'tokens' %} aria-current="page"{% endif %}>{% translate "Tokens" %}</a>
-                        <a class="btn btn-sm join-item{% if metric == 'requests' %} btn-primary{% endif %}" href="{% querystring metric='requests' key_q=None %}" data-metric-show="requests"{% if metric == 'requests' %} aria-current="page"{% endif %}>{% translate "Requests" %}</a>
-                    </nav>
-                </div>
-            </div>
-            {% if requests_in_period %}
-                {% for shown, chart in charts %}
-                    <div class="flex h-72 gap-px sm:gap-1" data-metric="{{ shown }}"{% if shown != metric %} hidden{% endif %}>
-                        {% for column in chart %}
-                            {% include "management/_chart_column.html" %}
-                        {% endfor %}
-                    </div>
-                {% endfor %}
-            {% else %}
-                <p class="muted flex h-72 items-center justify-center text-sm">{% translate "No requests in this time frame." %}</p>
-            {% endif %}
-        </div>
-    </div>
+    {% if not requests_in_period %}{% translate "No requests in this time frame." as no_requests %}{% endif %}
+    {% include "management/_metric_chart.html" with tokens_title=period.step.tokens_title requests_title=period.step.requests_title chart_class="flex h-72 gap-px sm:gap-1" empty=no_requests %}
 
     <div class="card bg-base-200">
         <div class="card-body gap-4 p-5">

@@ -118,7 +118,6 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         else:
             timeline, models = report.series(reqs, period), report.model_usage(in_period)
         total = timeline.total
-        metric = "requests" if params.get("metric") == "requests" else "tokens"
         heat_weeks = max(1, min(4, int(retention_days // 7)))
         heat_model = params.get("heat_model")
         heat_model = heat_model if heat_model in filters.models else None
@@ -144,7 +143,6 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 "period": period,
                 "kpis": report.kpis(report.slots(timeline.points, period.step)),
                 "requests_in_period": total.requests,
-                "metric": metric,
                 "charts": tuple(
                     (shown, report.columns(timeline.points, period.step, shown))
                     for shown in ("tokens", "requests")
