@@ -1,6 +1,5 @@
 import hashlib
 import secrets
-from enum import Enum
 from typing import TYPE_CHECKING, Any, Optional
 
 from django.conf import settings
@@ -9,34 +8,13 @@ from django.db import models
 from django.utils import timezone
 
 from gateway.config import resolve_model_alias
+from management.models.exclusions import Exclusion, excluded
 from management.models.mixins import LimitSet
-from management.models.org import Org
 from management.models.service_account import ServiceAccount
 from management.ownership import RELATED, loaded, of_teams, owner, personal
 
 if TYPE_CHECKING:
     from management.models import Team, UserProfile
-
-
-class Exclusion(Enum):
-    MODELS = ("excluded_models", "merge_exclusion_lists", "AQUEDUCT_DEFAULT_MODEL_EXCLUSION_LIST")
-    MCP_SERVERS = (
-        "excluded_mcp_servers",
-        "merge_mcp_server_exclusion_lists",
-        "AQUEDUCT_DEFAULT_MCP_SERVER_EXCLUSION_LIST",
-    )
-
-
-def excluded(holder: "Org | Team | UserProfile", kind: Exclusion) -> frozenset[str]:
-    """Walk holder, its org, then the settings default, while each level merges upward."""
-    names, merges, default = kind.value
-    chain = (holder,) if isinstance(holder, Org) else (holder, holder.org)
-    found: set[str] = set()
-    for level in chain:
-        found.update(getattr(level, names))
-        if not getattr(level, merges):
-            return frozenset(found)
-    return frozenset(found.union(getattr(settings, default)))
 
 
 class Token(models.Model):

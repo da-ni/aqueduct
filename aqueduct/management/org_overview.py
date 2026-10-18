@@ -5,7 +5,7 @@ from django.utils.translation import gettext, ngettext
 
 from management.key_activity import grouped
 from management.models import LimitSet, Org, ServiceAccount, Team
-from management.models.token import Exclusion, excluded
+from management.models.exclusions import Exclusion, excluded
 
 
 @dataclass(frozen=True)

@@ -3,7 +3,7 @@ from itertools import product
 from django.test import TestCase, override_settings
 
 from management.models import Org, ServiceAccount, Team, Token
-from management.models.token import Exclusion, excluded
+from management.models.exclusions import Exclusion, excluded
 from management.tests.helpers import make_token, make_user
 
 FIELDS = {

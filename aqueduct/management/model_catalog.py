@@ -20,7 +20,7 @@ from litellm.types.utils import LlmProviders
 from gateway.config import model_entries, model_info_with_context, model_names
 from management.key_activity import compact, grouped
 from management.models import Team, UserProfile
-from management.models.token import Exclusion, excluded
+from management.models.exclusions import Exclusion, excluded
 
 
 class Category(StrEnum):

@@ -10,7 +10,7 @@ from gateway.config import MCPServerConfig, get_mcp_config
 from management.access import TeamAct
 from management.model_catalog import Availability, Scope, scopes_for, split_scopes
 from management.models import UserProfile
-from management.models.token import Exclusion
+from management.models.exclusions import Exclusion
 from management.views.base import BaseAqueductView
 
 

@@ -39,7 +39,7 @@ from management.models import (
     UserGroup,
     UserProfile,
 )
-from management.models.token import Exclusion, excluded
+from management.models.exclusions import Exclusion, excluded
 
 PAGE_SIZE = 50
 
