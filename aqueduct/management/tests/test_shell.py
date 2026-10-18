@@ -18,7 +18,6 @@ from django.urls import NoReverseMatch, include, path, reverse
 from django.utils import timezone, translation
 
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
-from management.models import PrivacyNotice
 from management.nav import HELP, NAV, NAV_BOTTOM, Shell, build_shell
 
 User = get_user_model()
@@ -82,8 +81,6 @@ class ShellTest(TestCase):
         return reverse("sso") if FIXTURE_USER_PK_BY_ROLE[role] is None else reverse("tokens")
 
     def test_nav_shows_exactly_the_pages_the_viewer_may_open(self):
-        # The Privacy page opens without a notice but is linked only once one exists.
-        PrivacyNotice.objects.create(content="Notice.")
         extra = set(settings.EXTRA_NAV_LINKS.values())
         mounted, unmounted = set(), set()
         for page in every_page():
@@ -109,7 +106,6 @@ class ShellTest(TestCase):
                 self.assertSetEqual(labels(shell) & unmounted, set())
 
     def test_every_page_renders_in_german_for_every_role(self):
-        PrivacyNotice.objects.create(content="Notice.")
         for role in FIXTURE_USER_PK_BY_ROLE:
             self.sign_in(role)
             self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "de"
@@ -165,11 +161,14 @@ class ShellTest(TestCase):
         self.assertEqual(shell.sections, ())
         self.assertEqual(
             [(link.label, link.href) for link in shell.help_links],
-            list(settings.EXTRA_NAV_LINKS.items()),
+            [*settings.EXTRA_NAV_LINKS.items(), ("Data protection", reverse("privacy"))],
         )
 
     @override_settings(
-        EXTRA_NAV_LINKS={"Report a bug": "https://bugs.test/", "Status page": "https://status.test/"}
+        EXTRA_NAV_LINKS={
+            "Report a bug": "https://bugs.test/",
+            "Status page": "https://status.test/",
+        }
     )
     def test_help_links_translate_known_labels_and_keep_others_as_configured(self):
         self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = "de"

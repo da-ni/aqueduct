@@ -13,10 +13,13 @@ from silk.config import SilkyConfig
 
 from management.icons import Icon
 from management.models import Org
-from management.privacy import notices_for
 from management.request_log import chosen_org
 
 Access = Callable[[HttpRequest], bool]
+
+
+def everyone(request: HttpRequest) -> bool:
+    return True
 
 
 def signed_in(request: HttpRequest) -> bool:
@@ -46,11 +49,6 @@ def silk_profiling(request: HttpRequest) -> bool:
 
 def terms_of_service(request: HttpRequest) -> bool:
     return mounted("tos")
-
-
-def privacy_notice(request: HttpRequest) -> bool:
-    """The page opens for everyone, but its link shows only once there is a notice to read."""
-    return notices_for(request).exists()
 
 
 @dataclass(frozen=True)
@@ -126,7 +124,7 @@ NAV: tuple[Group, ...] = (
 NAV_BOTTOM: tuple[Page, ...] = (Page(_("Settings"), "settings", Icon.SETTINGS),)
 HELP: tuple[Page, ...] = (
     Page(_("Terms of service"), "tos", Icon.FILE, access=terms_of_service),
-    Page(_("Privacy"), "privacy", Icon.FILE, access=privacy_notice),
+    Page(_("Data protection"), "privacy", Icon.FILE, access=everyone),
 )
 
 

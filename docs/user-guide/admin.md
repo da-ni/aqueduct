@@ -179,11 +179,11 @@ profile.
 
 ![Admin Panel User Orgs](../assets/user_guide/admin_user_org.png)
 
-## Privacy Notice
+## Data Protection Information
 
-The **Privacy** page at `/aqueduct/management/privacy/` shows the privacy
-information you publish. Anyone can open it, signed in or not. Edit it under
-**Privacy notices** in the admin panel.
+The **Data protection information** page at `/aqueduct/management/privacy/`
+shows the data protection information you publish. Anyone can open it, signed
+in or not. Edit it under **Privacy notices** in the admin panel.
 
 1. Add a notice and leave **Org** empty. This is the site-wide notice that
    every visitor sees.
@@ -198,9 +198,10 @@ lists, emphasis, links, and tables. The page does not render raw HTML or
 images, and it drops `javascript:` and `data:` links. Each notice shows the
 date of its last change.
 
-The footer and the sign-in page link to the page only while there is a notice
-for the visitor to read. Until you add one, the page says that no privacy
-information has been published yet.
+The footer of every page, including the sign-in page and the terms prompt,
+links to the page as **Data protection**. Until you add a notice, the page says
+that no data protection information has been published yet. Platform admins
+also see a link to the admin page that adds one.
 
 ## Managing User Limits
 
