@@ -16,7 +16,7 @@ from management.outcomes import Outcome
 from management.ownership import RELATED
 
 if TYPE_CHECKING:
-    from management.request_log import Key
+    from management.request_filters import Key
 
 TOP_KEYS = 10
 TOP_USER_IDS = 25

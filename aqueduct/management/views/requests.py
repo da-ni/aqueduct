@@ -5,7 +5,8 @@ from django.utils import timezone
 from django.views.generic import TemplateView
 
 from management.periods import Span
-from management.request_log import read_filters, request_log
+from management.request_filters import read_filters
+from management.request_log import request_log
 from management.views.base import BaseAqueductView
 
 

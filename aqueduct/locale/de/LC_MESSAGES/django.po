@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 22:58+0000\n"
+"POT-Creation-Date: 2026-10-18 23:07+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -623,12 +623,8 @@ msgstr "Keine Anfragen in den letzten 30 Tagen."
 msgid "Service account · %(team)s"
 msgstr "Dienstkonto · %(team)s"
 
-msgid "No status was recorded."
-msgstr "Es wurde kein Status erfasst."
-
-#, python-format
-msgid "%(speed)s tok/s"
-msgstr "%(speed)s Token/s"
+msgid "All"
+msgstr "Alle"
 
 msgid "First"
 msgstr "Erste"
@@ -642,8 +638,12 @@ msgstr "Weiter"
 msgid "Last"
 msgstr "Letzte"
 
-msgid "All"
-msgstr "Alle"
+msgid "No status was recorded."
+msgstr "Es wurde kein Status erfasst."
+
+#, python-format
+msgid "%(speed)s tok/s"
+msgstr "%(speed)s Token/s"
 
 msgid "You"
 msgstr "Sie"

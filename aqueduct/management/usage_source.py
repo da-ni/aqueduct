@@ -44,7 +44,7 @@ from management.usage_rollup import (
 )
 
 if TYPE_CHECKING:
-    from management.request_log import Filters
+    from management.request_filters import Filters
 
 CURRENT = timedelta(hours=2)
 

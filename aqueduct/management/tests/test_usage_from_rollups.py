@@ -26,7 +26,7 @@ from management.models import (
     UsageRollupState,
     UserGroup,
 )
-from management.request_log import Key
+from management.request_filters import Key
 from management.tests.helpers import make_token, make_user, median_error
 from management.usage_source import UsageSource
 
