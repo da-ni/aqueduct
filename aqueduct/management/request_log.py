@@ -24,12 +24,11 @@ from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
 from management.usage_rollup import org_series
 
 PAGE_SIZE = 50
-_MAX_ID = 2**63 - 2  # the largest bigint that `Cursor.just_before` can still add one to
+_MAX_ID = 2**63 - 2
 _MAX_DIGITS = len(str(_MAX_ID))
 
 
 def parse_id(raw: str | None) -> int | None:
-    """A database id from a URL parameter, or `None` for anything else."""
     if not (raw and len(raw) <= _MAX_DIGITS and raw.isascii() and raw.isdigit()):
         return None
     if int(raw) > _MAX_ID:
@@ -39,7 +38,6 @@ def parse_id(raw: str | None) -> int | None:
 
 SESSION_ORG = "org"
 ORG_BOUND_PARAMS = ("org", "key", "key_q", "before", "after", "request", "page")
-"""The URL parameters that name something of one org, which a page drops on a change of org."""
 
 
 def remember_org(session: SessionBase, org: Org | None) -> None:
@@ -49,9 +47,6 @@ def remember_org(session: SessionBase, org: Org | None) -> None:
 
 
 def chosen_org(profile: UserProfile, request: HttpRequest) -> Org | None:
-    """The org the viewer looks at, `None` for every org. An admin chooses it with the org switch
-    or a `?org=` link, an org id or `all`, and the session keeps it for later pages. Everyone
-    else always sees their own org."""
     if not profile.is_admin():
         return profile.org
     raw = request.GET.get("org", request.session.get(SESSION_ORG))
@@ -66,8 +61,6 @@ def chosen_org(profile: UserProfile, request: HttpRequest) -> Org | None:
 
 
 def visible_tokens(profile: UserProfile, org: Org | None, teams: QuerySet[Team]) -> QuerySet[Token]:
-    """Keys whose requests the viewer may see in `org`: every key for an org admin, else their
-    personal keys and their teams' service accounts. `org=None` means every org."""
     if org is None:
         return Token.objects.all()
     if profile.is_org_admin(org):
@@ -80,7 +73,6 @@ def visible_tokens(profile: UserProfile, org: Org | None, teams: QuerySet[Team])
 def visible_requests(
     profile: UserProfile, org: Org | None, teams: QuerySet[Team]
 ) -> QuerySet[Request]:
-    """Requests of the `visible_tokens`, limited to the models the router serves."""
     if org is None:
         return served(Request.objects.all())
     return served(of_keys(Request.objects.all(), visible_tokens(profile, org, teams)))
@@ -92,9 +84,6 @@ _OVERVIEW_STATUS = {
 
 
 class Outcome(StrEnum):
-    """The Overview page's status groups, as filters of the request log. `ERRORS` is every
-    failed request, as the Overview page's Failed total counts them."""
-
     ERRORS = "failed"
     OK = "2xx"
     RATE_LIMITED = "429"
@@ -107,7 +96,6 @@ class Outcome(StrEnum):
 
     @property
     def codes(self) -> str | None:
-        """The status codes of a group, `None` for `ERRORS`, which spans several groups."""
         return None if self is Outcome.ERRORS else self.value
 
     @property
@@ -157,7 +145,6 @@ class Key:
     href: str | None
     note: str
     own: bool = False
-    """Whether it is the viewer's personal key."""
 
     @property
     def name(self) -> str:
@@ -165,9 +152,6 @@ class Key:
 
 
 def describe_key(token: Token, access: KeyAccess, *, with_org: bool = False) -> Key:
-    """How the log names a key: a link when the viewer may open it, whose key it is, and, with
-    `with_org`, its org. Load the relations `KeyAccess.can_open` reads, or each key costs
-    queries."""
     href = reverse("token_detail", args=[token.id]) if access.can_open(token) else None
     account, own = token.service_account, False
     if account is not None:
@@ -184,16 +168,6 @@ def describe_key(token: Token, access: KeyAccess, *, with_org: bool = False) -> 
 
 @dataclass(frozen=True)
 class Filters:
-    """The selection the Overview page and the request log share: org, whose keys, key, model,
-    and time frame. `requests` holds the visible requests narrowed by all but the time frame.
-    `visibility` names everything that decides which requests `requests` holds, for cache keys.
-
-    The key picker lists `keys`, the viewer's own keys, and `matches`, the visible keys that
-    match the search `key_q`. `only_key` is the one key the viewer may see, when they see just
-    one, so that there is no key to choose. `access` decides which keys link to their pages.
-    `page_params` holds the page's own parameters, such
-    as the log's status tab, which the key search keeps."""
-
     can_pick_org: bool
     org: Org | None
     can_pick_scope: bool
@@ -232,11 +206,9 @@ class Filters:
 
     @property
     def search_params(self) -> tuple[tuple[str, str], ...]:
-        """What the key search submits besides `key_q`."""
         return tuple((dict(self.page_params) | self.query).items())
 
     def log_url(self, **narrower: str) -> str:
-        """The request log with this selection, narrowed or overridden by `narrower`."""
         return f"{reverse('requests')}?{urlencode(self.query | narrower)}"
 
 
@@ -247,9 +219,6 @@ _NOT_PAGE_PARAMS = frozenset(
 
 
 def key_search(text: str, *, by_owner: bool) -> Q:
-    """Keys whose name holds `text`, or, with `by_owner`, whose owner's email does. Only a
-    viewer who sees the whole org may search by owner, or they would learn who created a
-    service account's key."""
     found = Q(name__icontains=text)
     return found | Q(user__email__icontains=text) if by_owner else found
 
@@ -263,14 +232,11 @@ def read_filters(
     default_span: Span,
     now: datetime,
 ) -> Filters:
-    """Parse the shared filters of `org`, every org when `None`. A key outside what the viewer
-    may see is a 404."""
     sees_others = org is None or profile.is_org_admin(org)
     requests = visible_requests(profile, org, teams)
     if sees_others:
         names = set(router_models())
     else:
-        # A user's list: what their keys may use, and what their requests used.
         used = requests.order_by().values_list("model", flat=True).distinct()
         names = {*usable_models(scopes_for(profile)), *used}
     models = tuple(sorted(names, key=lambda name: (name.casefold(), name)))
@@ -370,7 +336,6 @@ class Row:
 
     @property
     def error(self) -> str | None:
-        """What a failed request's status means, `None` for a successful one."""
         outcome = self.outcome
         if outcome is None:
             return gettext("No status was recorded.")
@@ -409,9 +374,6 @@ class Tab:
 
 
 class Column(StrEnum):
-    """A column the log sorts by. `TIME` pages by cursor. The others page by offset, which
-    sorts every matching request, so the log offers them only on a `bounded_scan`."""
-
     TIME = "time"
     MODEL = "model"
     STATUS = "status"
@@ -420,7 +382,6 @@ class Column(StrEnum):
 
     @property
     def expression(self) -> F | CombinedExpression:
-        """What the column sorts on. `TOKENS` is the total, input plus output tokens."""
         if self is Column.TOKENS:
             return F("input_tokens") + F("output_tokens")
         field = {
@@ -433,14 +394,11 @@ class Column(StrEnum):
 
     @property
     def starts_descending(self) -> bool:
-        """The direction of a first sort: newest, worst, largest and slowest first, models A-Z."""
         return self is not Column.MODEL
 
 
 @dataclass(frozen=True)
 class Sort:
-    """An order of the log. In a URL it reads `<column>`, or `-<column>` for descending."""
-
     column: Column
     descending: bool
 
@@ -456,7 +414,6 @@ class Sort:
 
     @property
     def ordering(self) -> tuple[OrderBy, OrderBy]:
-        """Ties are broken by id in the same direction, and missing values come last."""
         nulls_last = True if self.column in (Column.STATUS, Column.RESPONSE) else None
         if self.descending:
             return self.column.expression.desc(nulls_last=nulls_last), F("id").desc()
@@ -464,7 +421,6 @@ class Sort:
 
     @property
     def param(self) -> str | None:
-        """The `sort` URL value, `None` for the default order."""
         return None if self == NEWEST else str(self)
 
 
@@ -473,10 +429,6 @@ BOUNDED_SPAN = timedelta(days=7)
 
 
 def bounded_scan(filters: Filters) -> bool:
-    """Whether the log may read every request of the selection, to sort by any column or search
-    their text: the selection spans at most `BOUNDED_SPAN`, is one key or one model, or is no
-    wider than the viewer's own keys and teams. Sorting by time and finding a request by id
-    stay cheap on any selection, because they read an index."""
     return (
         not counts_whole_org(filters)
         or filters.model is not None
@@ -486,10 +438,6 @@ def bounded_scan(filters: Filters) -> bool:
 
 @dataclass(frozen=True)
 class Header:
-    """A sortable column heading. `choice` is the `sort` value a click sets; `aria_sort` is
-    `ascending` or `descending` on the column the log is sorted by. A heading the selection is
-    too wide to sort by has `sortable` false."""
-
     sortable: bool
     choice: str | None
     aria_sort: str | None
@@ -509,10 +457,6 @@ def _headers(sort: Sort, free: bool) -> dict[str, Header]:
 
 @dataclass(frozen=True)
 class Cursor:
-    """A place in the log, at the request at `timestamp` with `id`. `rank` is that request's
-    1-based position in the log's order, when known. In a URL it reads
-    `<microseconds since the epoch>,<id>`, with `,<rank>` when the rank is known."""
-
     timestamp: datetime
     id: int
     rank: int | None = None
@@ -540,8 +484,6 @@ class Cursor:
 
     @property
     def older(self) -> Q:
-        """Requests older than this one. The first term lets Postgres range-scan an index on
-        the timestamp."""
         return Q(timestamp__lte=self.timestamp) & (
             Q(timestamp__lt=self.timestamp) | Q(id__lt=self.id)
         )
@@ -553,8 +495,6 @@ class Cursor:
         )
 
     def just_before(self, newest_first: bool) -> "Cursor":
-        """The cursor whose next page, in a log sorted `newest_first` or oldest first, starts
-        with this request."""
         rank = None if self.rank is None else self.rank - 1
         return Cursor(self.timestamp, self.id + (1 if newest_first else -1), rank)
 
@@ -565,10 +505,6 @@ LAST = "last"
 
 @dataclass(frozen=True)
 class Place:
-    """The URL parameters that open a page of the log. At most one is set, and none opens
-    the first page. `before` and `after` are cursors, older or newer than which the page
-    lists requests; `page` is a page number, or `last`."""
-
     before: str | None = None
     after: str | None = None
     page: str | None = None
@@ -576,9 +512,6 @@ class Place:
 
 @dataclass(frozen=True)
 class Pager:
-    """Where a page sits. `here` reopens it, and the links are `None` where there is no page
-    to go to. `start` is the position of the page's first row, `None` when unknown."""
-
     here: Place
     first: Place | None
     previous: Place | None
@@ -598,10 +531,6 @@ class Pager:
 
 @dataclass(frozen=True)
 class RequestLog:
-    """One page of the log, of the requests in the chosen tab that match `search`, by id alone
-    unless `searches_text`. `count` is the number of them. `shows_key` is false when every row
-    is of the same key, and `shows_overhead` is true for a viewer who sees the whole org."""
-
     rows: tuple[Row, ...]
     tabs: tuple[Tab, ...]
     count: int
@@ -616,7 +545,6 @@ class RequestLog:
 
     @property
     def text_blocked(self) -> bool:
-        """Whether the search is text the selection is too wide to search."""
         return bool(self.search) and not self.searches_text and parse_id(self.search) is None
 
     @property
@@ -626,8 +554,6 @@ class RequestLog:
 
 
 def counts_whole_org(filters: Filters) -> bool:
-    """Whether the selection is every request of its org, or of every org, narrowed at most by
-    model, as the usage rollups count them."""
     return filters.can_pick_scope and not filters.mine and filters.key is None
 
 
@@ -635,8 +561,6 @@ SEARCH_MAX = 256
 
 
 def request_search(text: str, *, by_text: bool) -> Q:
-    """Requests whose id is `text`, or, with `by_text`, whose path, user ID sent by the client,
-    or user agent holds it. No index serves the text: only a `bounded_scan` may search it."""
     pk = parse_id(text)
     found = Q(pk__in=[]) if pk is None else Q(pk=pk)
     if by_text:
@@ -651,9 +575,6 @@ COUNTS_SECONDS = 60
 def _tab_counts(
     filters: Filters, filtered: QuerySet[Request], search: str
 ) -> dict[Outcome | None, int]:
-    """The requests in each tab, `None` for All, cached for `COUNTS_SECONDS` under everything
-    that decides them, so paging and sorting do not count again. An org-wide selection without
-    a search reads the rollups."""
 
     def count() -> dict[Outcome | None, int]:
         if counts_whole_org(filters) and not search:
@@ -680,8 +601,6 @@ def _tab_counts(
 
 
 def _nearest(listed: QuerySet[Request], cursor: Cursor | None, *, older: bool) -> list[Request]:
-    """Up to `PAGE_SIZE + 1` requests older or newer than `cursor`, nearest first. Without a
-    cursor, from the newest or the oldest end."""
     if older:
         found = listed.order_by("-timestamp", "-id")
         found = found.filter(cursor.older) if cursor else found
@@ -698,16 +617,13 @@ def _page_by_time(
     open_id: int | None,
     count: int,
 ) -> tuple[list[Request], Pager]:
-    """A page of the log sorted by time, paged by cursor, never by offset. Without a cursor the
-    page is the first one, or the page that starts at `open_id` when the first page does not
-    hold it. Each link carries its rank, so the page knows its position without counting."""
     forward, backward = ("before", "after") if newest_first else ("after", "before")
     before, after = Cursor.parse(params.get("before")), Cursor.parse(params.get("after"))
     cursor, side = (before, "before") if before else (after, "after")
     last = cursor is None and params.get("page") == LAST
     if cursor is not None and side == backward:
         found = _nearest(listed, cursor, older=not newest_first)
-        if len(found) <= PAGE_SIZE:  # less than a page before the cursor: the first page
+        if len(found) <= PAGE_SIZE:
             cursor = None
 
     start: int | None
@@ -760,8 +676,6 @@ def _page_by_time(
 def _page_by_offset(
     listed: QuerySet[Request], sort: Sort, raw_page: str | None, count: int
 ) -> tuple[list[Request], Pager]:
-    """A page of the log in another order than time, paged by offset. `count` may be up to
-    `COUNTS_SECONDS` old, so a page past it still links to the next one when it holds more."""
     pages = max(1, -(-count // PAGE_SIZE))
     number = pages if raw_page == LAST else max(parse_id(raw_page) or 1, 1)
     offset = (number - 1) * PAGE_SIZE
@@ -782,9 +696,6 @@ def _page_by_offset(
 
 
 def request_log(filters: Filters, params: Mapping[str, str]) -> RequestLog:
-    """The page of the log that `params` asks for: its status tab (`status`), search
-    (`q`), order (`sort`), place (`before`, `after` or `page`), and open request (`request`).
-    An order the selection is too wide for falls back to newest first."""
     outcome = Outcome.parse(params.get("status", ""))
     search = params.get("q", "").strip()[:SEARCH_MAX]
     free = bounded_scan(filters)

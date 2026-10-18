@@ -497,9 +497,6 @@ class TeamFormsTest(TeamsPagesTestBase):
 
 
 class TeamLimitsEditTest(TeamsPagesTestBase):
-    """Admins of the team's org set its limits in the Edit team form, validated as in the Django
-    admin. Team admins edit the same form without the limits."""
-
     LIMITS: ClassVar[dict] = {
         "requests_per_minute": "120",
         "input_tokens_per_minute": "50000",
@@ -693,9 +690,6 @@ class ServiceAccountFormsTest(TeamsPagesTestBase):
 
 
 class TeamScopeTest(TeamsPagesTestBase):
-    """Every URL that names a team or service account answers 404 to someone who may not open
-    the team, and one toast without the team's name to a member who lacks the rights."""
-
     def requests(self) -> list[tuple[str, str, dict]]:
         team, sa = [self.team.id], [self.pipeline.id]
         return [

@@ -1,11 +1,3 @@
-"""Rollups of the request log, so that org-wide figures read thousands of rows, not millions.
-
-`refresh()` keeps per-hour totals of each org and model (`OrgUsageHour`, `OrgLatencyHour`) up
-to the last sealed hour. `refresh_key_windows()` keeps the 7- and 30-day totals of each key
-(`KeyUsageWindow`). The read helpers combine those rows with the raw requests they do not cover,
-so they return what the raw queries in `usage_report` return, except that medians are
-approximate. Without rollups they read the raw requests only."""
-
 import math
 import operator
 from collections import Counter, defaultdict
@@ -49,13 +41,9 @@ from management.usage_report import (
 )
 
 SETTLE = timedelta(minutes=15)
-"""How long a request may still change before its hour is sealed."""
 REWRITE = timedelta(hours=24)
-"""How far back each refresh recounts sealed hours, to pick up late status and token updates."""
 KEY_WINDOWS: Mapping[int, Span] = {7: Span.WEEK, 30: Span.MONTH}
 CURRENT = timedelta(hours=2)
-"""How far the sealed hours may lag behind, with refreshes every 10 minutes, and still count as
-current."""
 
 BUCKETS_PER_DOUBLING = 8
 ZERO_BUCKET = -1
@@ -65,7 +53,6 @@ BUCKET = Case(
         Floor(Ln("response_time_ms") * Value(BUCKETS_PER_DOUBLING / math.log(2))), IntegerField()
     ),
 )
-"""Bucket `b` holds response times in [2^(b/8), 2^((b+1)/8)) ms, and `ZERO_BUCKET` those of 0 ms."""
 
 STATUS_COLUMNS = ("ok", "rate_limited", "client_error", "server_error")
 _COUNT_STATUSES = {
@@ -85,18 +72,15 @@ _HOUR_TOTALS = {
     "cached": Sum("cached_input_tokens", default=0),
     "output": Sum("output_tokens", default=0),
 }
-"""`usage_report.TOTALS` over `OrgUsageHour` rows."""
 _HOUR_STATUS_COUNTS = {f"s{i}": Sum(column, default=0) for i, column in enumerate(STATUS_COLUMNS)}
-"""`usage_report.STATUS_COUNTS` over `OrgUsageHour` rows."""
 
 
 Row = dict[str, Any]
 Grouped = dict[tuple[Any, ...], Counter[str]]
-"""Summed counts per group key."""
 
 
 def floor_hour(moment: datetime) -> datetime:
-    """The start of the local hour of `moment`, in UTC so that adding hours stays exact."""
+    """In UTC: adding a timedelta to a zoned datetime is wall-clock arithmetic."""
     return HOUR.floor(moment).astimezone(UTC)
 
 
@@ -107,9 +91,7 @@ def _ceil_hour(moment: datetime) -> datetime:
 
 @cache
 def steady_hours(zone: str) -> bool:
-    """Whether local hours in `zone` start the same minutes past UTC hours all year, as
-    `_local_hour` needs. Not so in Lord Howe, whose clocks move by 30 minutes: there the org
-    rollups stay empty and the read helpers count raw requests."""
+    """Lord Howe Island's daylight saving time moves its clocks by 30 minutes."""
     tz = ZoneInfo(zone)
     year = timezone.now().year
     shifts = {
@@ -120,8 +102,6 @@ def steady_hours(zone: str) -> bool:
 
 
 def _local_hour() -> Expression:
-    """`Trunc("timestamp", "hour")` in the local time zone, as an instant the database can insert
-    as it is. Local hours start a fixed `shift` past UTC hours where `steady_hours` holds."""
     shift = (timezone.localtime().utcoffset() or timedelta()) % HOUR.size
     if not shift:
         return Trunc("timestamp", "hour", tzinfo=UTC)
@@ -132,13 +112,7 @@ def key_window_name(days: int) -> str:
     return f"keys-{days}d"
 
 
-# Writing ----------------------------------------------------------------------------------------
-
-
 def refresh(now: datetime | None = None, *, full: bool = False) -> None:
-    """Recount the hours since 24 hours before the last sealed hour, or every hour when `full`,
-    when the rollups are missing or marked dirty, or when they were bucketed in another time
-    zone. Seals the hours that ended 15 minutes before `now`."""
     if not steady_hours(settings.TIME_ZONE):
         return
     sealed = floor_hour((now or timezone.now()) - SETTLE)
@@ -175,8 +149,6 @@ def rebuild(now: datetime | None = None) -> None:
 
 
 def refresh_key_windows(now: datetime | None = None) -> None:
-    """Recount each key's last 7 and 30 days, as `Period.last` bounds them, up to the last
-    sealed hour."""
     now = now or timezone.now()
     end = floor_hour(now - SETTLE)
     for days, span in KEY_WINDOWS.items():
@@ -205,8 +177,6 @@ def _locked(name: str) -> UsageRollupState:
 
 
 def _insert(table: type[models.Model], rows: QuerySet[Any, Row], **fixed: int) -> None:
-    """Insert the grouped `rows`, plus the `fixed` values, without fetching them: an ORM insert
-    of a full rebuild's few hundred thousand rows takes several times as long as the grouping."""
     names = [*fixed, *rows.query.values_select, *rows.query.annotation_select]
     quote = connection.ops.quote_name
     column = {field.attname: field.column for field in table._meta.concrete_fields}
@@ -221,9 +191,6 @@ def _insert(table: type[models.Model], rows: QuerySet[Any, Row], **fixed: int) -
         )
 
 
-# Reading ----------------------------------------------------------------------------------------
-
-
 def org_series(
     org: Org | None,
     model: str | None,
@@ -231,9 +198,6 @@ def org_series(
     sealed: "Sealed | None" = None,
     requests: QuerySet[Request] | None = None,
 ) -> Series:
-    """`usage_report.series` of the requests of `org`, every org when `None`, and of `model`,
-    every served model when `None`. `requests` are `usage_report.org_requests(org)`, which a
-    page looks up once for all its figures; they are looked up now when `None`."""
     found = _gather(
         org,
         requests,
@@ -263,8 +227,6 @@ def org_models(
     sealed: "Sealed | None" = None,
     requests: QuerySet[Request] | None = None,
 ) -> dict[str, ModelUsage]:
-    """Activity and approximate median response time per model, for the models with requests.
-    Each median is within 4.5% of the lower median response time, or 1 ms below 12 ms."""
     if requests is None:
         requests = org_requests(org)
     args = (org, requests, model, period.start, period.end)
@@ -300,7 +262,6 @@ def org_models(
 def org_tokens(
     model: str | None, period: Period, sealed: "Sealed | None" = None
 ) -> dict[int | None, int]:
-    """Tokens per org id, `None` for keys of no org, as `usage_report.org_tokens` sums them."""
     found = _gather(
         None,
         None,
@@ -326,8 +287,6 @@ def org_heat(
     requests: QuerySet[Request] | None = None,
     model: str | None = None,
 ) -> dict[tuple[int, int], int]:
-    """Tokens per ISO weekday and local hour of day, as `usage_report.heat` sums them, of
-    `model`, every served model when `None`."""
     found = _gather(
         org,
         requests,
@@ -350,8 +309,6 @@ def org_heat(
 def key_window_totals(
     tokens: QuerySet[Token] | None, model: str | None, period: Period
 ) -> dict[int, Activity]:
-    """Activity per key id in `period`, for the keys of `tokens`, every key when `None`, with
-    requests in the period. Reads a key window when one starts where `period` does."""
     requests = served(Request.objects.all())
     kept = KeyUsageWindow.objects.filter(model__in=router_models())
     if tokens is not None:
@@ -365,7 +322,7 @@ def key_window_totals(
     )
     rows: list[Row] = []
     raw_start = period.start
-    for _ in range(2):  # Use the rows only if no refresh replaced them while they were read.
+    for _ in range(2):
         window = windows.first()
         if window is None or window.sealed_until is None:
             break
@@ -397,8 +354,6 @@ def key_window_totals(
 
 
 def approximate_median(counts: Mapping[int, int]) -> int | None:
-    """The lower median of response times counted per `BUCKET`, as its bucket's geometric
-    midpoint."""
     total = sum(counts.values())
     if not total:
         return None
@@ -414,9 +369,6 @@ def approximate_median(counts: Mapping[int, int]) -> int | None:
 
 @dataclass(frozen=True)
 class Sealed:
-    """Where the hours the org rollups hold end, `None` when there are no usable rollups. A page
-    reads it once, so that all its figures split rollups and requests at the same hour."""
-
     until: datetime | None
 
     @classmethod
@@ -430,15 +382,12 @@ class Sealed:
         )
 
     def current(self, now: datetime) -> bool:
-        """Whether the rollups hold all but the last `CURRENT` before `now`."""
         return self.until is not None and self.until >= now - CURRENT
 
 
 def _split(
     start: datetime, end: datetime, sealed_until: datetime | None
 ) -> tuple[Q | None, Q | None]:
-    """The hours of [start, end) that the rollups hold, and the requests of the rest. A range
-    the rollups leave empty is dropped, so that the planner can scan one timestamp range."""
     if sealed_until is not None:
         first, last = _ceil_hour(start), min(sealed_until, floor_hour(end))
         if first < last:
@@ -463,8 +412,6 @@ def _gather(
     from_requests: Callable[[QuerySet[Request]], Iterable[Row]],
     sealed: Sealed | None,
 ) -> Grouped:
-    """Counts per `keys` over [start, end), from rollup rows up to `sealed`, read now when
-    `None`, and from the `requests` of `org`, looked up now when `None`, elsewhere."""
     hours, rest = _split(start, end, (sealed or Sealed.read()).until)
     if requests is None:
         requests = org_requests(org)

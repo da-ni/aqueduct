@@ -111,7 +111,6 @@ class LimitValidationTest(TestCase):
         / "example_router_config.yaml"
     )
     def test_full_clean_surfaces_multiplier_error_via_admin_form(self):
-        """The admin ModelForm runs full_clean(), surfacing the clean() bounds."""
         form = OrgAdminForm(
             data={
                 "name": "OrgViaForm",

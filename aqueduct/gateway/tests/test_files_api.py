@@ -375,8 +375,6 @@ class TestFilesAPI(GatewayFilesTestCase):
         self.assertIsNone(FileObjectModel.objects.first())
 
     def test_creator_s_personal_key_and_team_key_keep_their_files_apart(self):
-        """Token pk=2 is a service account key on team Whale created by user 1, whose personal
-        key is `self.headers`."""
         team_key = Token.objects.get(pk=2)
         team_headers = {"Authorization": f"Bearer {team_key._set_new_key()}"}
         team_key.save(update_fields=["key_hash", "key_preview"])

@@ -47,8 +47,6 @@
     if (event.button === 1) toggleRow(event);
   });
 
-  // The chart's metric links show a series the page already holds instead of loading the page
-  // again. The address, and the links and searches that reload this page, keep the choice.
   function showMetric(event, link) {
     if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
@@ -60,7 +58,7 @@
       if (other === link) other.setAttribute('aria-current', 'page');
       else other.removeAttribute('aria-current');
     });
-    // The raw attribute: an empty href, the default metric, would resolve against the address set below.
+    // `link.href` resolves an empty attribute, the default metric, to the current address.
     const metric = new URLSearchParams(link.getAttribute('href').split('?')[1] ?? '').get('metric');
     const keep = (url) => {
       if (metric === null) url.searchParams.delete('metric');
@@ -86,8 +84,6 @@
 
   let pendingToggle;
 
-  // A click on a log row follows its arrow link. Links in the row, text selection, and
-  // double-clicks keep their usual effect, and a modified or middle click opens a new tab.
   function toggleRow(event) {
     clearTimeout(pendingToggle);
     const row = event.target.closest('[data-row-toggle]');
@@ -103,9 +99,6 @@
     }, 250);
   }
 
-  // A link or submit button with data-confirm asks in the shared dialog first. The dialog posts
-  // a link's address; a button submits its own form, so its name and value still count. A
-  // modified or middle click on a link opens the confirm page behind it, as without JavaScript.
   let confirming = null;
   document.addEventListener('click', (event) => {
     const trigger = event.target.closest('a[href][data-confirm], button[type=submit][data-confirm]');
@@ -131,7 +124,6 @@
     const form = event.target;
     if (!form.closest('#confirm-dialog') || form.method === 'dialog') return;
     if (event.submitter?.getAttribute('formmethod') === 'dialog') return;
-    // One confirmed post only: a second click would delete a deleted object and land on a 404.
     if (confirming?.matches('a')) return setTimeout(() => { event.submitter.disabled = true; });
     event.preventDefault();
     const button = confirming;
@@ -141,12 +133,10 @@
   document.addEventListener('close', (event) => {
     if (event.target.id === 'confirm-dialog') confirming?.focus();
   }, true);
-  // Back after a confirmed delete can restore the page from the cache with the dialog open.
   window.addEventListener('pageshow', (event) => {
     if (event.persisted) document.getElementById('confirm-dialog')?.close();
   });
 
-  // Success and info messages leave after a few seconds, but not while the pointer or focus is on them.
   function autodismiss(alert) {
     setTimeout(() => {
       if (alert.matches(':hover, :focus-within')) autodismiss(alert);

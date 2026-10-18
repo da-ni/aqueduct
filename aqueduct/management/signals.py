@@ -12,11 +12,6 @@ ATTRIBUTION: Mapping[type[models.Model], tuple[str, ...]] = {
     ServiceAccount: ("team_id",),
     Team: ("org_id",),
 }
-"""The fields that decide which org a key's requests count for in the usage rollups. Changing
-one, deleting a key or a profile, or giving a key owner a profile marks the rollups dirty once
-the change commits, so a refresh running meanwhile cannot clear the flag before it sees the
-change. `QuerySet.update()` bypasses this. No receiver listens to `Request`, so deleting a key
-still deletes its requests in bulk."""
 
 
 def mark_rollups_dirty() -> None:

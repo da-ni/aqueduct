@@ -270,11 +270,11 @@ class RequestsFilterTest(RequestsPageTestBase):
         self.team.merge_exclusion_lists = False
         self.team.save()
         owner = self.get(self.owner).context["filters"].models
-        self.assertIn(MODEL, owner)  # unavailable now, but in the owner's requests
+        self.assertIn(MODEL, owner)
         self.assertNotIn(OTHER_MODEL, owner)
         self.assertNotIn("dall-e-2", owner)
         member = self.get(self.member).context["filters"].models
-        self.assertIn(OTHER_MODEL, member)  # the team's service account may use it
+        self.assertIn(OTHER_MODEL, member)
         self.assertNotIn("dall-e-2", member)
         self.assertIn("dall-e-2", self.get(self.org_admin).context["filters"].models)
 

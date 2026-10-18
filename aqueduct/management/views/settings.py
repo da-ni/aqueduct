@@ -48,8 +48,6 @@ class SettingsView(BaseAqueductView, TemplateView):
 
 
 class LanguageView(BaseAqueductView):
-    """Saves the language of the management pages in the viewer's profile."""
-
     def post(self, request, *args, **kwargs) -> HttpResponse:
         back = request.POST.get("next")
         response = redirect(back if is_safe(request, back) else reverse("settings"))

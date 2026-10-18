@@ -100,7 +100,6 @@ ROUTER_CACHES = (
     config.get_openai_client,
     config.get_all_model_request_limit_multipliers,
 )
-# The gateway caches what it builds from these settings for the life of the process.
 CACHES_BUILT_FROM_SETTING = {
     "LITELLM_ROUTER_CONFIG_FILE_PATH": ROUTER_CACHES,
     "MCP_CONFIG_FILE_PATH": (config.get_mcp_config,),
@@ -111,23 +110,16 @@ CACHES_BUILT_FROM_SETTING = {
 
 @receiver(setting_changed)
 def clear_caches_built_from_the_setting(*, setting: str, **kwargs) -> None:
-    """Make override_settings reach the gateway's config, entering and leaving."""
     for cached in CACHES_BUILT_FROM_SETTING.get(setting, ()):
         cached.cache_clear()
 
 
 class _ResetSharedStateBeforeEachTest(unittest.TestResult):
-    """The cache outlives each test's rollback, and object ids repeat across tests, so a key
-    cached by one test can answer the next. The mock server's captured requests outlive each
-    test too, so `get_last_request` could return an earlier test's request. The active
-    language outlives each test too: `LocaleMiddleware` activates the language of a test
-    client's request on the test thread and never deactivates it, so a German request would
-    turn the next test German."""
-
     @override
     def startTest(self, test):
         for cache in caches.all(initialized_only=True):
             cache.clear()
+        # LocaleMiddleware activates a request's language on this thread and never deactivates it.
         translation.activate(settings.LANGUAGE_CODE)
         if MockServerState._mock_server is not None:
             MockServerState._mock_server.forget_requests()

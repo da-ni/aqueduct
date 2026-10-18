@@ -4,8 +4,6 @@ from management.privacy import notices_for
 
 
 class PrivacyView(TemplateView):
-    """Public: data protection information applies before sign-in too."""
-
     template_name = "management/privacy.html"
 
     def get_context_data(self, **kwargs) -> dict[str, object]:

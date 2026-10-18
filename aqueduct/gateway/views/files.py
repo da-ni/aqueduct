@@ -86,7 +86,6 @@ async def sync_batch_file_if_needed(
     if not remote_file_id:
         return None
 
-    # Another key within reach, such as a teammate's service account key, may have synced it.
     try:
         return await FileObject.objects.aget(token.reach(), id=remote_file_id)
     except FileObject.DoesNotExist:

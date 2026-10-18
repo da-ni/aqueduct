@@ -54,8 +54,6 @@ class ApiKeysPagesTestBase(TestCase):
         return Request.objects.create(token=token, timestamp=timezone.now() - ago, **fields)
 
     def request_today(self, token: Token, **fields) -> Request:
-        """A request at the start of today, which a chart's today column holds even in the first
-        minutes after midnight, when a request minutes ago falls on yesterday."""
         midnight = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
         return self.request_log(token, timezone.now() - midnight, **fields)
 
@@ -139,7 +137,7 @@ class KeyListTest(ApiKeysPagesTestBase):
         response = self.get(self.owner, "tokens")
         row = response.content.decode().split(self.key.key_preview, 1)[1]
         self.assertIn("1\xa0hour ago", row)
-        self.assertIn("2.5K", row)  # 2,000 input + 500 output, the old request left out
+        self.assertIn("2.5K", row)
         self.assertIn('<td class="hidden text-right font-mono md:table-cell">2</td>', row)
 
     def test_unused_key_and_key_without_expiry_read_as_such(self):
@@ -218,8 +216,8 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         response = self.get(self.owner, "token_detail", self.key.id)
         self.assertEqual(response.status_code, 200)
         page = response.content.decode()
-        self.assertIn("3K", page)  # input tokens
-        self.assertIn("50%", page)  # one of two requests failed
+        self.assertIn("3K", page)
+        self.assertIn("50%", page)
         self.assertIn("curl/8.5.0 100%", page)
         self.assertIn("/responses", page)
         self.assertIn("Last 7 days", page)
@@ -337,7 +335,6 @@ class SevenDaysTest(ApiKeysPagesTestBase):
             detail = self.get(self.owner, "token_detail", self.key.id).context["report"]
             overview = self.get(self.owner, "usage", key=self.key.id, span="1w").context["kpis"]
         requests = next(kpi.value for kpi in overview if kpi.label == "Requests")
-        # 20:00 seven days back falls before the window; 01:00 six days back falls inside.
         self.assertEqual((listed, detail.totals.requests, requests), (2, 2, "2"))
         self.assertEqual(sum(day.activity.requests for day in detail.days), 2)
 
@@ -352,7 +349,6 @@ class SevenDaysTest(ApiKeysPagesTestBase):
         requests = next(kpi.value for kpi in overview if kpi.label == "Requests")
         self.assertEqual((listed.requests, detail["report"].totals.requests, requests), (1, 1, "1"))
         self.assertEqual(sum(day.activity.requests for day in detail["report"].days), 1)
-        # A key used only for files must not look unused, so "Last used" counts every request.
         self.assertEqual(
             (listed.last_used, detail["report"].totals.last_used),
             (no_model.timestamp, no_model.timestamp),
@@ -468,8 +464,6 @@ class ExpiryTest(SimpleTestCase):
 
 
 class OrgAdminKeyAccessTest(ApiKeysPagesTestBase):
-    """Org admins open every key of their org read-only; admins open every key."""
-
     def setUp(self):
         super().setUp()
         self.org_admin = self.user("org-admin")
@@ -544,9 +538,6 @@ class OrgAdminKeyAccessTest(ApiKeysPagesTestBase):
 
 
 class KeyLinksTest(ApiKeysPagesTestBase):
-    """The request log, the Overview's Top keys and All keys link a key exactly when the viewer
-    may open it."""
-
     PAGES = ("requests", "usage", "usage_keys")
 
     def setUp(self):
@@ -605,8 +596,6 @@ class KeyLinksTest(ApiKeysPagesTestBase):
 
 
 class ServiceAccountKeyDetailTest(ApiKeysPagesTestBase):
-    """Whoever may see a team sees its service account keys' usage page, and nobody else."""
-
     def setUp(self):
         super().setUp()
         self.plain_member = self.user("plain-member")

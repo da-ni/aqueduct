@@ -60,7 +60,6 @@ class Mode:
     form: bool = False
     output: str | None = None
     context_label: str | Promise = CONTEXT_LENGTH
-    """The panel label of `max_input_tokens`. A chat model's `max_tokens` holds input and output."""
 
 
 MODES: tuple[Mode, ...] = (
@@ -186,10 +185,8 @@ _CAPABILITIES: tuple[tuple[str, str | Promise], ...] = (
 
 
 _PROVIDERS = frozenset(provider.value for provider in LlmProviders)
-# Providers that serve Hugging Face checkpoints under their repo ID, as vLLM and TGI do.
 _REPO_PROVIDERS = frozenset({"openai", "hosted_vllm", "vllm", "huggingface", "openai_like"})
 _REPO = re.compile(r"(?P<org>[A-Za-z0-9][\w.-]*)/[A-Za-z0-9][\w.-]*")
-# Name parts that mark a quantized checkpoint, as Hugging Face repos spell them.
 _QUANTIZATIONS = {
     spelling.casefold(): spelling
     for spelling in (
@@ -200,12 +197,6 @@ _QUANTIZATIONS = {
 
 
 def hugging_face_repo(served: str | None, name: str) -> str | None:
-    """Return the Hugging Face repo, as `org/name`, that a model is served from.
-
-    A route such as `hosted_vllm/Qwen/Qwen3-8B` names it after its provider prefix. Without a
-    repo in the route, a model name such as `Qwen/Qwen3-8B` names it, unless the route goes to a
-    provider with its own catalog, such as `openrouter/` or `bedrock/`.
-    """
     provider, _, rest = (served or "").partition("/")
     if provider in _PROVIDERS:
         if provider not in _REPO_PROVIDERS:
@@ -238,14 +229,11 @@ class Spec:
 
 @dataclass(frozen=True)
 class Scope:
-    """Keys of the viewer that share one exclusion list: their personal keys, or one team's."""
-
     team: str | None
     excluded: frozenset[str]
 
     @property
     def name(self) -> str:
-        """The keys after "Available with", in the case German needs there."""
         if self.team:
             return gettext("%(team)s service accounts") % {"team": self.team}
         return gettext("your personal keys")
@@ -272,12 +260,10 @@ class Availability:
 
     @property
     def usable(self) -> bool:
-        """Whether one of the viewer's keys may use it. Without scopes nothing is excluded."""
         return bool(self.on_for) or not self.off_for
 
     @property
     def available_with(self) -> str:
-        """The keys that may use it, when only some of the viewer's keys may."""
         return _and_join([scope.name for scope in self.on_for]) if self.off_for else ""
 
 
@@ -403,13 +389,10 @@ def scopes_for(
 
 
 def usable_models(scopes: Sequence[Scope]) -> list[str]:
-    """The router's models that one of the viewer's keys may use, as the gateway decides."""
     return [name for name in router_models() if Availability(*split_scopes(name, scopes)).usable]
 
 
 def load_catalog(scopes: Sequence[Scope]) -> Catalog:
-    """The router's models that one of the viewer's keys may use. A model none of them may use
-    does not appear, as `/v1/models` leaves it out for a key."""
     entries = get_router_config().get("model_list") or ()
     cards = (parse_card(entry, scopes) for entry in entries)
     return Catalog(tuple(card for card in cards if card.usable))

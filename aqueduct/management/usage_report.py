@@ -1,5 +1,3 @@
-"""Figures for the Overview page, computed from a queryset of requests the viewer may see."""
-
 import math
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -65,7 +63,6 @@ TOKENS = F("input_tokens") + F("output_tokens")
 NO_ORG = _("No organization")
 APPROXIMATE_MEDIAN = _("Approximate")
 ORG = Coalesce("token__service_account__team__org", "token__user__profile__org")
-"""A service account's key counts for its team's org, a personal key for its owner's org."""
 TOTALS = {
     "requests": Count("id"),
     "failed": Count("id", filter=FAILED),
@@ -80,11 +77,8 @@ class Step:
     kind: str
     size: timedelta
     label_format: str
-    """A format name from `aqueduct.formats`, or a `django.utils.dateformat` format without
-    month names."""
     zeroed: tuple[str, ...]
     short_format: str
-    """The axis label below the `sm` breakpoint."""
     tokens_title: str | Promise
     requests_title: str | Promise
 
@@ -134,12 +128,10 @@ class Span(StrEnum):
 
     @property
     def label(self) -> str:
-        """The span on its own, as a button names it: "7 days"."""
         return str(SPANS[self].label)
 
     @property
     def in_the_last(self) -> str:
-        """The span within a sentence: "in the last 7 days"."""
         return str(SPANS[self].in_the_last)
 
     @classmethod
@@ -152,9 +144,6 @@ class Span(StrEnum):
 
 @dataclass(frozen=True)
 class SpanSpec:
-    """How a span reads and how it is charted: `count` buckets of `step`. German declines the
-    span in a sentence, so each one has its own phrase for both uses."""
-
     label: Promise
     in_the_last: Promise
     step: Step
@@ -172,15 +161,12 @@ SPANS: Mapping[Span, SpanSpec] = {
 
 @dataclass(frozen=True)
 class Period:
-    """Requests with `start <= timestamp < end`, charted in buckets of `step`."""
-
     start: datetime
     end: datetime
     step: Step
 
     @classmethod
     def last(cls, span: Span, now: datetime) -> "Period":
-        """The last `span` before `now`."""
         spec = SPANS[span]
         end = spec.step.floor(now) + spec.step.size
         return cls(end - spec.count * spec.step.size, end, spec.step)
@@ -220,16 +206,9 @@ STATUSES: tuple[tuple[Promise, str, str, str, Q], ...] = (
     ),
     (_("Server error"), "5xx", "failed", "st-err", Q(status_code__gte=500)),
 )
-"""Label, status codes, icon, tone, and match of each status group, as the Overview and the
-request log name them. "Failed" is every group but the first."""
 
 
 class Median(Aggregate):
-    """The lower median of the non-null values, one per group.
-
-    SQLite has no ordered-set aggregates, so there the values are collected and the median is
-    picked in Python, which is fine at development scale."""
-
     function = "PERCENTILE_DISC"
     template = "%(function)s(0.5) WITHIN GROUP (ORDER BY %(expressions)s)"
     output_field = IntegerField()
@@ -262,9 +241,6 @@ STATUS_COUNTS = {f"s{i}": Count("id", filter=match) for i, (*_, match) in enumer
 
 @dataclass(frozen=True)
 class Series:
-    """Activity per bucket of a period, empty buckets included, and the requests per status
-    group of `STATUSES` over the whole period."""
-
     points: list[tuple[datetime, Activity]]
     status_counts: tuple[int, ...]
 
@@ -327,14 +303,11 @@ def _summed(activities: Sequence[Activity]) -> Activity:
 
 @dataclass(frozen=True)
 class Slot:
-    """The buckets one spark bar covers."""
-
     label: str
     activity: Activity
 
 
 def slots(points: Sequence[tuple[datetime, Activity]], step: Step) -> tuple[Slot, ...]:
-    """The period's buckets grouped into at most `SPARK_BARS` spark bars."""
     size = math.ceil(len(points) / SPARK_BARS) or 1
 
     def slot(group: Sequence[tuple[datetime, Activity]]) -> Slot:
@@ -347,7 +320,6 @@ def slots(points: Sequence[tuple[datetime, Activity]], step: Step) -> tuple[Slot
 
 
 def kpis(spark_slots: Sequence[Slot]) -> tuple[Kpi, ...]:
-    """The headline figures of the period, each with a spark bar per slot."""
     now = _summed([s.activity for s in spark_slots])
 
     def bars_of(
@@ -379,7 +351,6 @@ def kpis(spark_slots: Sequence[Slot]) -> tuple[Kpi, ...]:
 
 
 def statuses(timeline: Series, link: Callable[..., str]) -> tuple[StatusRow, ...]:
-    """Requests per status group. `link(status=codes)` opens the log on that group."""
     total = timeline.total.requests
     return tuple(
         StatusRow(label, codes, icon, tone, count, percent(count, total), link(status=codes))
@@ -402,16 +373,12 @@ class HeatRow:
 
 
 def org_requests(org: Org | None) -> QuerySet[Request]:
-    """Every request of the keys of `org`, whoever owns them, limited to the models the router
-    serves. `None` means every org."""
     if org is None:
         return served(Request.objects.all())
     return served(of_keys(Request.objects.all(), Token.objects.filter(of_org(org))))
 
 
 def heat(tokens: Mapping[tuple[int, int], int], weeks: int) -> tuple[HeatRow, ...]:
-    """Average tokens per hour for each weekday and hour, from the `tokens` per ISO weekday and
-    hour of day over `weeks` weeks."""
     average = {slot: count / weeks for slot, count in tokens.items()}
     top = max(average.values(), default=0)
     levels = len(HEAT_CLASSES) - 1
@@ -434,8 +401,6 @@ def heat(tokens: Mapping[tuple[int, int], int], weeks: int) -> tuple[HeatRow, ..
 
 
 class Figures:
-    """The token columns of a usage table row, `MISSING` for a row without tokens."""
-
     activity: Activity
 
     def _metered(self, value: str) -> str:
@@ -461,7 +426,6 @@ class ModelRow(Figures):
     activity: Activity
     median: str
     approximate: bool
-    """Whether `median` is approximate."""
     share: str
     width: int
     log_url: str
@@ -474,7 +438,6 @@ class ModelUsage:
 
 
 def model_usage(requests: QuerySet[Request]) -> dict[str, ModelUsage]:
-    """Activity and lower median response time per model, for the models with requests."""
     found = {}
     for row in requests.values("model").annotate(**TOTALS, median=MEDIAN).order_by():
         model, median = row.pop("model"), row.pop("median")
@@ -489,9 +452,6 @@ def model_rows(
     *,
     approximate: bool = False,
 ) -> tuple[ModelRow, ...]:
-    """Every model with requests, busiest first, then the models not metered in tokens by
-    requests. `link(model=name)` opens the log on one.
-    `approximate` marks the medians as such."""
     found = {name: u.activity for name, u in usage.items()}
     ranked = sorted(found.items(), key=lambda item: (-item[1].tokens, -item[1].requests, item[0]))
     total = sum(a.tokens for a in found.values())
@@ -514,8 +474,6 @@ def model_rows(
 
 @dataclass(frozen=True)
 class KeyShare(Figures):
-    """One row of the Overview's Top keys or By user ID table, laid out like `ModelRow`."""
-
     name: str
     detail: str
     href: str | None
@@ -525,7 +483,6 @@ class KeyShare(Figures):
 
 
 def _widths(values: Iterable[int], top: int | None = None) -> list[int]:
-    """Bar widths in percent of `top`, by default of the largest value."""
     values = list(values)
     top = max(values, default=0) if top is None else top
     return [round(100 * v / top) if top else 0 for v in values]
@@ -534,9 +491,6 @@ def _widths(values: Iterable[int], top: int | None = None) -> list[int]:
 def _figures(
     activities: Sequence[Activity], total: int, busiest: int | None = None
 ) -> list[tuple[Activity, str, int]]:
-    """Activity, token share, and bar width of each row, as `model_rows` shows them. `total` is
-    the period's token count, and `busiest` the token count of a full-width bar, by default the
-    first row's."""
     return [
         (activity, percent(activity.tokens, total) if activity.tokens else MISSING, width)
         for activity, width in zip(
@@ -550,22 +504,17 @@ def _activity(row: Mapping[str, Any]) -> Activity:
 
 
 class KeyOrder(StrEnum):
-    """How the All keys page sorts its rows."""
-
     TOKENS = "tokens"
     REQUESTS = "requests"
     NAME = "name"
 
     @property
     def ascending(self) -> bool:
-        """Names sort A-Z, figures largest first."""
         return self is KeyOrder.NAME
 
     @property
     def ordering(self) -> tuple[str | Subquery, ...]:
         if self is KeyOrder.NAME:
-            # A join on the token would sort every request by name before grouping. The
-            # subquery runs once per key, after grouping by `token_id`.
             name = Token.objects.filter(pk=OuterRef("token_id")).values(lower=Lower("name"))
             return (Subquery(name), "token_id")
         if self is KeyOrder.REQUESTS:
@@ -581,7 +530,6 @@ class KeyOrder(StrEnum):
 
 
 KeyRow = tuple[int, Activity]
-"""A key's id and its activity in a period."""
 
 
 def _key_row(row: Mapping[str, Any]) -> KeyRow:
@@ -594,9 +542,6 @@ def _by_key(requests: QuerySet[Request]) -> QuerySet[Request, dict[str, Any]]:
 
 @dataclass(frozen=True)
 class KeyTotals:
-    """The keys with requests in a period, the token count of the busiest one, and the tokens
-    of all of them."""
-
     keys: int
     busiest: int
     tokens: int
@@ -619,7 +564,6 @@ def key_totals(requests: QuerySet[Request]) -> KeyTotals:
 def ranked_keys(
     requests: QuerySet[Request], order: KeyOrder = KeyOrder.TOKENS
 ) -> QuerySet[Request, dict[str, Any]]:
-    """One row of totals per key, in `order`."""
     return _by_key(requests).order_by(*order.ordering)
 
 
@@ -630,15 +574,13 @@ def top_keys(requests: QuerySet[Request], limit: int = TOP_KEYS) -> list[KeyRow]
 def ranked_totals(
     totals: Mapping[int, Activity], order: KeyOrder, tokens: QuerySet[Token]
 ) -> list[KeyRow]:
-    """`ranked_keys` of activity already counted per key. Sorting by name orders `tokens`, which
-    hold the keys of `totals`, in the database, so that names collate as in `ranked_keys`."""
     if order is KeyOrder.NAME:
         named = [
             token_id
             for token_id in tokens.order_by(Lower("name"), "id").values_list("id", flat=True)
             if token_id in totals
         ]
-        gone = sorted(set(totals) - set(named))  # deleted since the count
+        gone = sorted(set(totals) - set(named))
         return [(token_id, totals[token_id]) for token_id in [*named, *gone]]
     if order is KeyOrder.REQUESTS:
         return sorted(totals.items(), key=lambda r: (-r[1].requests, -r[1].tokens, r[0]))
@@ -647,9 +589,6 @@ def ranked_totals(
 
 @dataclass(frozen=True)
 class CountedKeys:
-    """`ranked_keys` whose number is already known, so that a `Paginator` slices them without
-    counting them again."""
-
     rows: QuerySet[Request, dict[str, Any]]
     size: int
 
@@ -666,12 +605,10 @@ def key_shares(
     describe: Callable[[Token], "Key"],
     busiest: int | None = None,
 ) -> tuple[KeyShare, ...]:
-    """The ranked `rows` as table rows. `describe` names a key and links it where the viewer may
-    open it. Bars are as wide as `busiest` tokens, by default the first row's."""
     tokens = Token.objects.select_related(
         "user__profile__org", "service_account__team__org"
     ).in_bulk([token_id for token_id, _ in rows])
-    rows = [row for row in rows if row[0] in tokens]  # deleted since the grouping
+    rows = [row for row in rows if row[0] in tokens]
     keys = [describe(tokens[token_id]) for token_id, _ in rows]
     figures = _figures([activity for _, activity in rows], total, busiest)
     return tuple(
@@ -681,7 +618,6 @@ def key_shares(
 
 
 def user_id_shares(requests: QuerySet[Request], total: int) -> tuple[KeyShare, ...]:
-    """Tokens per `user` value the client sent, for one key."""
     rows = list(
         requests.values("user_id")
         .annotate(**TOTALS, tokens=Sum(TOKENS, default=0))
@@ -695,7 +631,6 @@ def user_id_shares(requests: QuerySet[Request], total: int) -> tuple[KeyShare, .
 
 
 def org_tokens(requests: QuerySet[Request]) -> dict[int | None, int]:
-    """Tokens per org id, `None` for keys of no org."""
     return {
         row["org_id"]: row["tokens"]
         for row in requests.values(org_id=ORG).annotate(tokens=Sum(TOKENS, default=0)).order_by()
@@ -703,7 +638,6 @@ def org_tokens(requests: QuerySet[Request]) -> dict[int | None, int]:
 
 
 def org_shares(tokens: Mapping[int | None, int]) -> tuple[Share, ...]:
-    """The `tokens` of each org, busiest first."""
     orgs = Org.objects.in_bulk([org_id for org_id in tokens if org_id is not None])
     no_org = str(NO_ORG)
     rows = sorted(

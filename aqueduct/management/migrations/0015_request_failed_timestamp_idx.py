@@ -4,11 +4,8 @@ from django.db import migrations, models
 
 
 class AddIndexConcurrentlyOnPostgres(migrations.AddIndex):
-    """`AddIndexConcurrently` on Postgres, a plain `AddIndex` elsewhere.
-
-    `django.contrib.postgres.operations` needs psycopg, which SQLite installs lack.
-    A failed concurrent build leaves an INVALID index behind. Forwards drops any
-    index of this name before building, so rerunning `migrate` recovers.
+    """`django.contrib.postgres.operations` needs psycopg, which SQLite installs lack.
+    A failed concurrent build leaves an INVALID index behind, so forwards drops it first.
     """
 
     def database_forwards(self, app_label, schema_editor, from_state, to_state):

@@ -112,5 +112,4 @@ class TokenAuthenticationBackend(BaseBackend):
         return token_instance.user
 
     def get_user(self, user_id: int) -> "AuthUser | None":
-        """The signed-in user of a session, or `None` once an admin has deactivated them."""
         return User.objects.filter(pk=user_id, is_active=True).first()

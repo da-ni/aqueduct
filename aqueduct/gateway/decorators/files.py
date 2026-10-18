@@ -63,20 +63,6 @@ def _lookup_relay_model_name(model_name: str) -> str | None:
 
 
 def rewrite_batch_file_models(content: bytes, excluded_models: set[str]) -> bytes:
-    """
-    Rewrite model names in a batch input JSONL file.
-
-    Each line is a JSON object with structure:
-    {"custom_id": "...", "method": "POST", "url": "/v1/chat/completions",
-     "body": {"model": "relay-model-name", ...}}
-
-    This function:
-    1. Ensures custom_id is a string type (required by OpenAI Batch API)
-    2. Replaces the model name in each request body with the actual upstream model name
-    3. Rejects unknown models with a ValueError that includes custom_id
-    4. Rejects models in `excluded_models` (the key's switch-offs, by canonical name) with
-       the same ValueError, so a key cannot tell a switched-off model from a missing one
-    """
     lines = content.decode("utf-8").splitlines()
     rewritten_lines = []
 
@@ -98,6 +84,7 @@ def rewrite_batch_file_models(content: bytes, excluded_models: set[str]) -> byte
                 body["model"] = relay_model
                 request["body"] = body
             if "custom_id" in request:
+                # The OpenAI Batch API requires a string custom_id.
                 request["custom_id"] = str(request["custom_id"])
             rewritten_lines.append(json.dumps(request, separators=(",", ":")))
         except json.JSONDecodeError:
@@ -108,8 +95,6 @@ def rewrite_batch_file_models(content: bytes, excluded_models: set[str]) -> byte
 
 
 def check_batch_file_models(content: bytes, excluded_models: set[str]) -> None:
-    """Reject a stored batch file, whose lines name upstream models since the upload rewrote
-    them, when a line's model is no longer one the key may use, with the upload's error."""
     relays = {
         entry["model_name"]: _lookup_relay_model_name(entry["model_name"])
         for entry in get_router_config()["model_list"]
@@ -142,21 +127,6 @@ def extract_preview(content: bytes, num_lines: int = 10) -> str:
 
 
 def process_batch_file(view_func: AsyncView) -> AsyncView:
-    """
-    Decorator for batch file upload that processes file content before proxying.
-
-    This decorator (applied after @parse_body):
-    1. Reads the file content ONCE from the uploaded file
-    2. Extracts a preview (first 10 lines) of the original content
-    3. For batch files: rewrites model names using router config and rejects models
-       the key cannot use
-    4. Passes processed data to the view via kwargs:
-       - file_content: bytes - the raw file content (or rewritten for batch)
-       - file_preview: str | None - first 10 lines for batch files
-
-    This follows the existing decorator pattern (like @parse_body) of reading
-    data once and passing it via kwargs to avoid multiple reads.
-    """
 
     @wraps(view_func)
     async def wrapper(request: ASGIRequest, *args: Any, **kwargs: Any) -> ViewResult:

@@ -58,7 +58,7 @@ class Request(models.Model):
         Token,
         on_delete=models.CASCADE,  # If Token is deleted, delete its associated Requests
         related_name="requests",
-        db_index=False,  # The (token, timestamp) index serves token lookups.
+        db_index=False,
     )
     model = models.CharField(
         max_length=255, blank=True, default="", help_text="Model used in request"

@@ -228,9 +228,6 @@ class UpdateUserRoleTestCase(TestCase):
 
 @override_settings(**ROLE_SETTINGS)
 class UserRoleIntegrationTestCase(TestCase):
-    """Test role assignment through create_user and update_user. The snippets name no org, so
-    every user lands in the default org."""
-
     def setUp(self):
         self.backend = OIDCBackend()
         self.org = Org.objects.create(name=DEFAULT_ORG_NAME)

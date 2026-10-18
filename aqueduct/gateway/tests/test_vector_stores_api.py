@@ -244,8 +244,6 @@ class TestVectorStores(TestVectorStoresBase):
         self.assertEqual(len(data["data"]), 1)
 
     def test_creator_s_personal_key_cannot_reach_the_team_s_vector_store(self):
-        """Token pk=2 is a service account key on team Whale created by the owner of
-        `self.headers`."""
         self.vs_obj.token = Token.objects.get(pk=2)
         self.vs_obj.save()
 

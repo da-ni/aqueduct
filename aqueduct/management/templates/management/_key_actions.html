@@ -1,8 +1,4 @@
 {% load i18n ui %}
-{% comment %}
-Rotate, Edit and Delete of a row of the API keys list, each a `button`-styled control.
-`labelled` spells the action out, for the overflow menu; otherwise each is an icon.
-{% endcomment %}
 {% with token=row.token account=row.token.service_account %}
 {% blocktranslate with name=token.name asvar rotate_question %}Rotate {{ name }}?{% endblocktranslate %}
 {% blocktranslate with name=token.name asvar rotate_label %}Rotate {{ name }}{% endblocktranslate %}

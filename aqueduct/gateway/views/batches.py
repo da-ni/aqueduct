@@ -83,7 +83,6 @@ async def batches(
     except FileObject.DoesNotExist:
         return error_response("Input file not found.", param="input_file_id", status=404)
 
-    # The key's switch-offs may have changed since the upload checked the file's models.
     excluded_models = set(await sync_to_async(token.model_exclusion_list)())
     stored = await client.files.content(file_obj.id)
     try:

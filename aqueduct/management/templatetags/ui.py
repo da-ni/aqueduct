@@ -117,8 +117,6 @@ AGO_UNITS = (
 
 
 def ago(value: datetime, now: datetime) -> str:
-    """How long ago, or how soon, `value` is, in one unit rounded half up: "2 days ago" for 1
-    day and 18 hours, "1 day ago" for 23 hours and 40 minutes, "in 3 hours"."""
     seconds = (now - value).total_seconds()
     for index, (size, _past, _future) in enumerate(AGO_UNITS):
         if abs(seconds) >= size:
@@ -135,17 +133,11 @@ register.filter("grouped", grouped)
 
 @register.filter
 def dash(value: object) -> object:
-    """`value`, or a dash when it is missing. Unlike `default`, it keeps 0 and False, which are
-    values, not gaps."""
     return MISSING if value is None or value == "" else value
 
 
 @register.simple_tag
 def confirm(title: str, detail: str = "", action: str = "", dismiss: str = "") -> SafeString:
-    """Attributes that make a link or a submit button ask `title` in the shared confirm dialog
-    first. `action` labels the button that goes ahead, "Delete" by default. `dismiss` labels the
-    button that backs out, for when "Cancel" would read as the action. See
-    `management/_confirm_dialog.html`."""
     attrs = format_html(
         'data-confirm="{}" data-confirm-detail="{}" data-confirm-action="{}"',
         title,
@@ -159,7 +151,6 @@ def confirm(title: str, detail: str = "", action: str = "", dismiss: str = "") -
 
 @register.simple_tag
 def confirm_delete(obj: Token | ServiceAccount | Team | FileObject) -> SafeString:
-    """`confirm` with what deleting `obj` takes with it, the question its confirm page asks."""
     question = deletion(obj)
     return confirm(question.title, question.detail, question.action)
 
@@ -171,14 +162,11 @@ def markdown(text: str) -> SafeString:
 
 @register.filter
 def percent_of(part: float, whole: float) -> int:
-    """`part` as a whole percentage of `whole`, a number to compare, where `{% widthratio %}`
-    gives text."""
     return round(part * 100 / whole)
 
 
 @register.filter
 def expiry(value: Expiry, wording: str = "label") -> SafeString:
-    """`value` as a table cell words it, or with `wording` "sentence" as a sentence of its own."""
     text = value.sentence if wording == "sentence" else value.label
     label = _time(value.at, text) if value.at else text
     return format_html('<span class="{}">{}</span>', value.tone, label)

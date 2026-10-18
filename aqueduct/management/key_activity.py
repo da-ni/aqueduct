@@ -34,17 +34,14 @@ _SCALES = (
 
 
 def grouped(count: int) -> str:
-    """`count` with the viewer's thousands separator: 1,440 in English, 1.440 in German."""
     return number_format(count, force_grouping=True)
 
 
 def decimal(value: float, places: int) -> str:
-    """`value` rounded to `places` decimals, with the viewer's decimal separator."""
     return number_format(Decimal(f"{value:.{places}f}"))
 
 
 def compact(count: int) -> str:
-    """`count` in at most four significant digits: 29.3B in English, 29,3 Mrd. in German."""
     magnitude, scale = float(abs(count)), None
     for next_scale in _SCALES:
         if float(f"{magnitude:.1f}") < _STEP:
@@ -56,11 +53,9 @@ def compact(count: int) -> str:
 
 
 MISSING = "—"
-"""What a page shows for a value that does not exist, such as the cache hit rate of no input."""
 
 
 def as_percent(number: float) -> str:
-    """`number` percent, rounded: 12% in English, 12 % in German."""
     return pgettext("percent", "%(number)s%%") % {"number": grouped(round(number))}
 
 
@@ -89,7 +84,6 @@ def as_failed(count: float) -> str:
 
 
 def day_label(day: date) -> str:
-    """A day as a chart names it, "18 Oct", with the month in the viewer's language."""
     return date_format(day, "DAY_MONTH_FORMAT")
 
 
@@ -115,9 +109,6 @@ class KeyKind(StrEnum):
 
 @dataclass(frozen=True)
 class Expiry:
-    """When something expires, as a table cell words it in `label` ("In 3 days") and as a
-    sentence of its own in `sentence` ("Expires in 3 days")."""
-
     label: str
     sentence: str
     tone: str = "muted"
@@ -151,9 +142,6 @@ class Activity:
     cached: int = 0
     output: int = 0
     last_used: datetime | None = None
-    """The newest request of any kind, so a key used only for files or batches never reads as
-    unused. Only per-key activity (`key_activity`, `key_report`) fills it in; it stays empty on
-    team totals. The counts cover only what `served` keeps."""
 
     @property
     def tokens(self) -> int:
@@ -173,13 +161,11 @@ class Activity:
 
     @property
     def segments(self) -> tuple[tuple[str, int], ...]:
-        """Cached input, new input and output, as CSS class and token count."""
         return (("c", self.cached), ("n", self.input - self.cached), ("o", self.output))
 
 
 def week(now: datetime) -> "Period":
-    """The 7 days every page shows: today and the six days before, as on the Overview."""
-    from management.usage_report import Period, Span  # usage_report imports this module
+    from management.usage_report import Period, Span
 
     return Period.last(Span.WEEK, now)
 
@@ -189,8 +175,6 @@ def router_models() -> list[str]:
 
 
 def served(requests: QuerySet[Request]) -> QuerySet[Request]:
-    """The requests every page counts and lists: those for a model the router serves. Calls
-    that name no model, such as listing models or files, are left out."""
     return requests.filter(model__in=router_models())
 
 
@@ -198,9 +182,8 @@ LISTED_KEYS = 500
 
 
 def of_keys(requests: QuerySet[Request], tokens: QuerySet[Token]) -> QuerySet[Request]:
-    """The `requests` of the keys of `tokens`. Up to `LISTED_KEYS` keys are named by id, so the
-    planner sees how few requests they have and reads them through the token index, instead of
-    scanning every org's requests by model or time. More keys stay a subquery."""
+    """Postgres estimates rows for a literal id list but not for a subquery, so up to
+    `LISTED_KEYS` ids keep the plan on the (token, timestamp) index."""
     ids = list(tokens.order_by().values_list("id", flat=True)[: LISTED_KEYS + 1])
     if len(ids) > LISTED_KEYS:
         return requests.filter(token__in=tokens)
@@ -214,12 +197,9 @@ _SUMS = {
     "cached": Sum("cached_input_tokens", default=0),
     "output": Sum("output_tokens", default=0),
 }
-"""The `Activity` counts, for requests already narrowed to `served` ones in the `week`."""
 
 
 def activity_by(field: str, ids: Iterable[int], period: "Period") -> dict[int, Activity]:
-    """Activity in `period` grouped by `field`, a lookup that names a token or a team id.
-    Leaves `last_used` empty; `key_activity` fills it in."""
     rows = (
         served(period.of(Request.objects.filter(**{f"{field}__in": list(ids)})))
         .values(field)
@@ -232,7 +212,6 @@ def activity_by(field: str, ids: Iterable[int], period: "Period") -> dict[int, A
 def key_activity(token_ids: Iterable[int], now: datetime) -> dict[int, Activity]:
     ids = list(token_ids)
     activity = activity_by("token_id", ids, week(now))
-    # One probe of the (token, timestamp) index per key, however much history it has.
     newest = Request.objects.filter(token=OuterRef("pk")).order_by("-timestamp")
     used = Token.objects.filter(id__in=ids).annotate(used=Subquery(newest.values("timestamp")[:1]))
     return {
@@ -251,8 +230,6 @@ class KeyRow:
     expiry: Expiry
     bar_width: int
     manageable: bool
-    """Whether the viewer may rotate, edit and delete the key: their own personal key, or a
-    service account of a team they administer."""
 
 
 def personal_tokens(user: AbstractBaseUser | AnonymousUser) -> QuerySet[Token]:
@@ -263,14 +240,9 @@ def personal_tokens(user: AbstractBaseUser | AnonymousUser) -> QuerySet[Token]:
 
 @dataclass(frozen=True)
 class KeyAccess:
-    """Whose key pages a viewer may open: an admin every key, an org admin every key of their
-    org, anyone else their personal keys and their teams' service accounts. Opening a key shows
-    its usage; changing it takes ownership or team admin rights, as the key's views check."""
-
     user_id: int
     every_org: bool
     org: Org | None
-    """The org whose every key an org admin may open."""
     team_ids: frozenset[int]
 
     @classmethod
@@ -292,8 +264,6 @@ class KeyAccess:
         return Token.objects.filter(found | of_org(self.org) if self.org else found)
 
     def can_open(self, token: Token) -> bool:
-        """`token` in `tokens()`, without a query when its service account's team, or for a
-        personal key its owner's profile, is already loaded."""
         if self.every_org:
             return True
         account = token.service_account
@@ -371,12 +341,9 @@ class Day:
 
 @dataclass(frozen=True)
 class Tip:
-    """What a chart mark shows on hover and tells a screen reader."""
-
     heading: str
     value: str
     parts: tuple[tuple[str, str | Promise, str], ...] = ()
-    """Swatch CSS class, series name and value of each stacked segment."""
 
     def __str__(self) -> str:
         detail = ", ".join(f"{name} {value}" for _, name, value in self.parts)
@@ -392,7 +359,6 @@ class SparkBar:
 def spark(
     points: Sequence[tuple[str, float]], show: Callable[[float], str]
 ) -> tuple[SparkBar, ...]:
-    """One bar per labelled value, its height in percent of the largest."""
     return tuple(
         SparkBar(height, Tip(label, show(value)))
         for (label, value), height in zip(points, heights([v for _, v in points]), strict=True)
@@ -412,7 +378,6 @@ class Column:
     tip: Tip
     segments: tuple[tuple[str, int], ...]
     short: str = ""
-    """The axis label below the `sm` breakpoint, when it differs from `label`."""
 
     @property
     def height(self) -> int:
@@ -433,8 +398,6 @@ def heights(values: Sequence[float]) -> tuple[int, ...]:
 
 @dataclass(frozen=True)
 class Window:
-    """Totals over the `week` and one entry per day."""
-
     totals: Activity
     days: tuple[Day, ...]
 
@@ -475,9 +438,6 @@ class KeyReport(Window):
 def chart(
     points: Sequence[tuple[str, Activity]], metric: str, every: int = 1
 ) -> tuple[Column, ...]:
-    """One column per point, its segments as CSS class and percent of the busiest point.
-
-    Only every `every`-th column keeps its axis label, so dense charts stay readable."""
     values: list[tuple[tuple[str, int], ...]]
     if metric == "requests":
         names, show = REQUEST_SERIES, as_requests
@@ -523,8 +483,7 @@ def window(requests: QuerySet[Request], now: datetime) -> Window:
 
 
 def key_report(token: Token, now: datetime, latest: int = 10, top: int = 5) -> KeyReport:
-    """`latest` covers the 30 days the request log opens on, so each row's link shows it."""
-    from management.usage_report import Period, Span  # usage_report imports this module
+    from management.usage_report import Period, Span
 
     every = Request.objects.filter(token=token)
     requests = served(every)

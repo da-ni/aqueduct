@@ -28,8 +28,6 @@ from mock_api.helpers import get_available_port
 
 logger = logging.getLogger(__name__)
 
-# One directory per test run, so concurrent runs on one machine neither overwrite nor delete
-# each other's config. Forked live servers inherit the path.
 MCP_CONFIG_PATH = Path(tempfile.gettempdir()) / f"aqueduct-test-mcp-{os.getpid()}" / "config.json"
 MCP_SERVER_LOG_PATH = MCP_CONFIG_PATH.parent / "server.log"
 INITIALIZE = {
@@ -52,7 +50,6 @@ class MCPDaphneProcess(DaphneProcess):
         from django.conf import settings
 
         settings.MCP_CONFIG_FILE_PATH = str(MCP_CONFIG_PATH)
-        # A forked server inherits the config an earlier test cached in the parent process.
         get_mcp_config.cache_clear()
         logger.info("Updating MCP_CONFIG_FILE_PATH: %s", settings.MCP_CONFIG_FILE_PATH)
 
@@ -169,7 +166,6 @@ class MCPLiveServerTestCase(ChannelsLiveServerTestCase):
         # Set global variables enabling the tests to share the MCP server process
         set_shared_mcp_server(cls.mcp_server_process, cls.mcp_server_port)
 
-        # The port opens before the server answers MCP, so wait for an answer to `initialize`.
         logger.info("Waiting for the MCP server on port %s to answer initialize...", port)
         deadline = time.monotonic() + 30
         last_error: Exception | None = None

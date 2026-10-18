@@ -15,13 +15,10 @@ OIDC = override_settings(
 
 @OIDC
 class LandingTest(UsagePageTestBase):
-    """Every role lands on the Overview after signing in, unless `next` names a page here."""
-
     def roles(self):
         return {"admin": self.admin, "org admin": self.org_admin, "user": self.solo}
 
     def sign_in(self, user, **params):
-        """Sign in through the SSO flow from the login page, as the browser follows it."""
         self.client.logout()
         login = self.client.get(reverse("sso"), params)
         init = re.search(r'href="([^"]*)" class="btn btn-primary', login.content.decode())

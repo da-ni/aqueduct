@@ -18,7 +18,6 @@ class ModelListView(BaseAqueductView, TemplateView):
             return ()
 
     def shows_served_model(self) -> bool:
-        """The route behind a model is operator detail, for admins of the viewer's org."""
         try:
             return self.profile.is_org_admin(self.profile.org)
         except UserProfile.DoesNotExist:

@@ -1,14 +1,3 @@
-"""Checks that keep the German catalog and the templates ready for translation.
-
-The catalog checks need GNU gettext (`xgettext`, `msgmerge`, `msgfmt`) on PATH and skip without
-it. After changing a translatable string, run from `aqueduct/`:
-
-    uv run python manage.py makemessages -l de --no-obsolete --no-location
-    uv run python manage.py compilemessages -l de
-
-then translate every new entry in `locale/de/LC_MESSAGES/django.po` and commit both files.
-"""
-
 import ast
 import re
 import shutil
@@ -30,15 +19,8 @@ MO = PO.with_suffix(".mo")
 GETTEXT = all(shutil.which(tool) for tool in ("xgettext", "msgmerge", "msgfmt"))
 NO_GETTEXT = "GNU gettext (xgettext, msgmerge, msgfmt) is not on PATH, so the catalog is unchecked"
 
-# msgids that may stay untranslated in the German catalog for now. A pull request that extracts
-# strings but leaves their translation to a later one lists them here; the later one removes
-# them. The test fails on an entry that is translated or gone, so the list only shrinks.
 UNTRANSLATED: frozenset[str] = frozenset()
 
-# Templates that still hold text outside {% translate %} and {% blocktranslate %}. An extraction
-# pull request wraps a template's text and removes the template here; the test fails on a listed
-# template that has no bare text left, so the list only shrinks. The two left are Django admin
-# pages for platform admins, which stay English along with the admin forms in `admin.py`.
 UNTRANSLATED_TEMPLATES = frozenset(
     {"admin/management/snippet/change_list.html", "admin/management/snippet/test_console.html"}
 )
@@ -73,7 +55,6 @@ class _BareText(HTMLParser):
 
 
 def bare_text(source: str) -> list[str]:
-    """Text a reader sees that no translate tag wraps, with each template tag cut out."""
     parser = _BareText()
     parser.feed(NOT_TEXT.sub(" ", source))
     parser.close()
@@ -114,8 +95,6 @@ class TemplateTextTest(SimpleTestCase):
 
 
 class StyleNumbersTest(SimpleTestCase):
-    """German formats 12.5 as 12,5, which is no CSS number."""
-
     def test_numbers_in_style_attributes_are_unlocalized(self):
         localized = {
             f"{path.relative_to(BASE_DIR)}: {variable}"
@@ -128,7 +107,6 @@ class StyleNumbersTest(SimpleTestCase):
 
 
 def po_entries(po: str) -> list[tuple[str, list[str], bool]]:
-    """(msgid, msgstrs, fuzzy) of every entry but the header."""
     entries = []
     for block in po.split("\n\n"):
         fields: dict[str, str] = {}
@@ -152,7 +130,7 @@ def without_creation_date(po: str) -> str:
 
 def catalog(mo: Path) -> dict:
     with mo.open("rb") as file:
-        return GNUTranslations(file)._catalog  # type: ignore[attr-defined]
+        return GNUTranslations(file)._catalog
 
 
 class GermanCatalogTest(SimpleTestCase):

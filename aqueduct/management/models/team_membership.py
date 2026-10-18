@@ -21,5 +21,4 @@ class TeamMembership(models.Model):
 
     @property
     def role(self) -> Role:
-        """The role the membership itself gives, whatever the member's org role."""
         return Role.TEAM_ADMIN if self.is_admin else Role.MEMBER

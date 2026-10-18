@@ -181,9 +181,6 @@ class TokenDeleteView(BaseAqueductView, DeleteView):
 
 @method_decorator(require_POST, name="dispatch")
 class TokenRegenerateView(BaseAqueductView, View):
-    """Gives a key a new secret: a personal key for its owner, a service account key for the
-    admins of its team. A key the user may not see answers 404."""
-
     http_method_names: ClassVar[list] = ["post"]
 
     def post(self, request, *args, **kwargs) -> HttpResponse:

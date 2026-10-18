@@ -23,7 +23,6 @@ from management.views.base import BaseServiceAccountView, BaseTeamView, TeamAdmi
 User = get_user_model()
 
 OWNER_CHOICES = 50
-"""Up to this many team members, the new owner is chosen from a list. Above it, by email."""
 
 
 # --- Create View ---
@@ -80,7 +79,6 @@ class ServiceAccountCreateView(BaseTeamView, TeamAdminRequiredMixin, CreateView)
             # Save the token (hash and preview are now set)
             new_token.save()
 
-            # The "Your key is ready" panel says it all, as for a personal key.
             messages.info(self.request, f"{secret_key}", extra_tags="token-regenerated-key")
 
         except Exception as e:
@@ -201,10 +199,6 @@ class ServiceAccountUpdateView(BaseServiceAccountView, UpdateView):
 
 
 class ServiceAccountTransferOwnershipView(BaseServiceAccountView, View):
-    """Hands a service account's key to another member of its team, picked from a list or, in a
-    team of more than `OWNER_CHOICES` members, named by email. Requires the requesting user to be
-    an admin of the service account's team."""
-
     template_name = "management/transfer_service_account.html"
     pk_url_kwarg = "service_account_id"
 

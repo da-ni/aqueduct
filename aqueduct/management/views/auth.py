@@ -8,7 +8,7 @@ from django.utils.translation import gettext_noop
 from django.views.decorators.cache import never_cache
 from django.views.generic import TemplateView
 from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
-from tos import views as tos_views  # type: ignore[import-untyped]
+from tos import views as tos_views
 
 
 def is_safe(request: HttpRequest, url: str | None) -> bool:
@@ -18,7 +18,6 @@ def is_safe(request: HttpRequest, url: str | None) -> bool:
 
 
 def safe_next(request: HttpRequest) -> str | None:
-    """The `next` parameter when it points into this site, else `None`."""
     next_url = request.GET.get("next")
     return next_url if is_safe(request, next_url) else None
 
@@ -29,8 +28,7 @@ gettext_noop("You cannot login without agreeing to the terms of this site.")
 
 @never_cache
 def check_tos(request: HttpRequest) -> HttpResponseBase:
-    """django-tos's terms prompt, whose own check of `next` lets `http:evil.example` through
-    after the user accepts."""
+    """django-tos checks `next` only for `//`, so `http:evil.example` passes its check."""
     response = tos_views.check_tos(request)
     next_url = request.POST.get(REDIRECT_FIELD_NAME, request.GET.get(REDIRECT_FIELD_NAME))
     if isinstance(response, HttpResponseRedirect) and not is_safe(request, next_url):
@@ -54,9 +52,6 @@ class SSOTemplateView(TemplateView):
 
 
 class AdminSSOView(SSOTemplateView):
-    """The Django admin's login page. A signed-in user who is not staff gets a 403, since
-    sending them back to the admin would bounce them here again."""
-
     def dispatch(self, request, *args, **kwargs) -> HttpResponseBase:
         if request.user.is_authenticated and not request.user.is_staff:
             raise PermissionDenied
@@ -64,8 +59,6 @@ class AdminSSOView(SSOTemplateView):
 
 
 def remember_language(response: HttpResponseBase, language: str) -> None:
-    """Copies a language saved in a profile into the cookie that `LocaleMiddleware` reads, so
-    the middleware never loads the profile."""
     response.set_cookie(
         settings.LANGUAGE_COOKIE_NAME,
         language,
@@ -79,9 +72,6 @@ def remember_language(response: HttpResponseBase, language: str) -> None:
 
 
 class OIDCCallbackView(OIDCAuthenticationCallbackView):
-    """The sign-in callback. It also restores the language saved in the profile, on a browser
-    that has no language cookie yet or a different one."""
-
     def login_success(self) -> HttpResponseBase:
         response = super().login_success()
         language = self.user.profile.language

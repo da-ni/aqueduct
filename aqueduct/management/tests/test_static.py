@@ -11,8 +11,6 @@ STATIC_TAG = re.compile(r"""\{%\s*static\s+["']([^"']+)["']""")
 
 class StaticReferencesTest(SimpleTestCase):
     def test_every_static_path_in_our_templates_exists(self):
-        """Production serves static files from the collectstatic manifest, where a missing
-        path is a 500. Tests skip collectstatic, so this check stands in for it."""
         base = Path(settings.BASE_DIR)
         dirs = [base / "templates"] + [
             d for d in get_app_template_dirs("templates") if d.is_relative_to(base)
