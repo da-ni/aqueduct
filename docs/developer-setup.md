@@ -131,14 +131,15 @@ vector stores attached to them. They stop without deleting anything when a user 
 `@seed.invalid` address belongs to such an org. `--reset` deletes and seeds in one transaction,
 so a failed run keeps the earlier data. The same `--seed` and end time give the same data.
 
-The volume defaults are in `DEFAULTS` at the top of
-`aqueduct/management/management/commands/seed_demo.py`, and the traffic shape is in the constants
-below it. Traffic follows the hourly curve of `--local-time-zone` (default `Europe/Vienna`),
-whatever `TIME_ZONE` is. The model mix is
-`aqueduct/management/management/commands/seed_demo_models.datalab.yaml`: each model's share of
-requests, median input and output tokens, cached input share, and median and 90th percentile
-response time. Pass another file in the same format with `--models-file`, and write its router
-config with `--models-file <file> --write-router-config <path>`.
+The volume defaults are in `DEFAULTS` in `aqueduct/management/management/commands/seed_demo.py`.
+The profile is `aqueduct/management/demo/datalab.yaml`. Its `models:` list is the model mix: each
+model's share of requests, median input and output tokens, cached input share, and median and 90th
+percentile response time. Its `kinds:` give the defaults of each kind of model, and its `traffic:`
+gives the load curve, failure rates, and key behavior. Traffic follows the hourly curve of
+`--local-time-zone` (default `Europe/Vienna`), whatever `TIME_ZONE` is. Pass another model mix with
+`--models-file`, a file with only a `models:` list, and write its router config with
+`--models-file <file> --write-router-config <path>`. The kinds and traffic of the profile still
+apply. The org builder, traffic generator, and bulk insert live in `aqueduct/management/demo/`.
 
 On SQLite, the command analyzes the request table after writing it, because SQLite plans
 queries from statistics that only `ANALYZE` collects. Without them it may read a small org's

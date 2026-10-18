@@ -1,0 +1,157 @@
+# The default profile of `manage.py seed_demo`: the datalab vLLM deployment in October 2026,
+# from 7 to 14 days of Grafana figures. `--models-file` replaces the `models:` list; the kinds
+# and traffic below always apply.
+#
+# A spread is a lognormal draw: `median`, `sigma` of its logarithm, and an optional `cap`.
+
+# kind:          chat, embedding, speech, transcription, or image
+# weight:        relative share of requests
+# reasoning:     whether part of the output is reasoning tokens
+# input_tokens:  median input tokens per request
+# output_tokens: median output tokens per request
+# cached_share:  share of input tokens read from the prefix cache
+# latency_ms:    median and 90th percentile end-to-end response time
+# Omitted figures fall back to the defaults of the model's kind under `kinds:`.
+models:
+  - name: deepseek-ai/DeepSeek-V4-Flash-Vision-Exp
+    kind: chat
+    weight: 49
+    reasoning: true
+    input_tokens: 81000
+    output_tokens: 433
+    cached_share: 0.93
+    latency_ms: [8400, 56000]
+  - name: zai-org/GLM-5.3
+    kind: chat
+    weight: 29
+    reasoning: true
+    input_tokens: 59000
+    output_tokens: 195
+    cached_share: 0.97
+    latency_ms: [5600, 46000]
+  - name: Qwen/Qwen3.8-27B-FP8
+    kind: chat
+    weight: 12
+    reasoning: true
+    input_tokens: 31000
+    output_tokens: 332
+    cached_share: 0.87
+    latency_ms: [2800, 19000]
+  - name: QuantTrio/Qwen3.6-35B-A3B-AWQ
+    kind: chat
+    weight: 10
+    reasoning: true
+    input_tokens: 12500
+    output_tokens: 324
+    cached_share: 0.89
+    latency_ms: [4600, 35000]
+  - name: openbmb/MiniCPM5-1B
+    kind: chat
+    weight: 0.0017
+    input_tokens: 75
+    output_tokens: 4
+    cached_share: 0
+    latency_ms: [210, 700]
+
+# The defaults of each kind of model.
+kinds:
+  chat:
+    input_tokens: {median: 50000, sigma: 0.6, cap: 262144}
+    output_tokens: {median: 330, sigma: 2.0, cap: 32768}
+    latency_ms: {median: 5000, sigma: 1.5, cap: 600000}
+    cached_share: 0.9
+  embedding:
+    input_tokens: {median: 350, sigma: 1.2, cap: 8191}
+    output_tokens: {median: 0, sigma: 0}
+    latency_ms: {median: 110, sigma: 0.6, cap: 600000}
+  transcription:
+    input_tokens: {median: 0, sigma: 0}
+    output_tokens: {median: 450, sigma: 0.9, cap: 20000}
+    latency_ms: {median: 2800, sigma: 0.7, cap: 600000}
+  speech:
+    input_tokens: {median: 140, sigma: 0.8, cap: 4096}
+    output_tokens: {median: 0, sigma: 0}
+    latency_ms: {median: 1600, sigma: 0.5, cap: 600000}
+  image:
+    input_tokens: {median: 60, sigma: 0.6, cap: 1000}
+    output_tokens: {median: 0, sigma: 0}
+    latency_ms: {median: 9000, sigma: 0.4, cap: 600000}
+
+traffic:
+  # Relative load of each local hour from midnight on a weekday, of each weekday from Monday,
+  # and the range of a random factor drawn once per local day.
+  local_hour_load: [
+    2303, 2222, 2143, 2144, 1976, 1797, 1673, 1545, 1704, 2120, 2898, 3160,
+    3601, 3534, 3177, 3282, 3372, 3460, 3219, 3003, 2521, 2673, 2466, 2201,
+  ]
+  weekday_load: [1, 1, 1, 1, 1, 0.8, 0.6]
+  day_noise: [0.75, 1.3]
+
+  # Share of requests sent by service account keys, and the most any one personal key sends.
+  service_share: 0.4
+  personal_key_cap: 0.025
+  # Personal keys: share that sends nothing, Pareto shape of the rest's weight, and share of
+  # requests that carry the owner as `user`.
+  idle_key_share: 0.15
+  personal_weight_alpha: 1.1
+  personal_user_id_share: 0.03
+  # Service account keys: weight is scale times a Pareto draw; each serves a range of end users,
+  # which a share of its requests name as `user`.
+  service_weight_scale: 10
+  service_weight_alpha: 1.3
+  service_end_users: [20, 400]
+  service_user_id_share: 0.7
+  # Share of requests rejected with 429, for a key and for a key heavier than `busy_weight`.
+  throttled_share: 0.01
+  busy_throttled_share: 0.04
+  busy_weight: 20
+
+  # Share of a key's requests to its own primary model rather than a model drawn from the mix,
+  # of chat requests through the Responses API, and of requests from another user agent.
+  primary_model_share: 0.6
+  responses_api_share: 0.1
+  other_agent_share: 0.1
+  processing_ms: {median: 6, sigma: 0.6, cap: 5000}
+  # Reasoning tokens are a share of the output drawn from this range.
+  reasoning_share: [0.2, 0.7]
+  # The prefix cache stores whole blocks and serves prompts of at least `cache_min_blocks`
+  # blocks; the cached share varies by `cache_noise` around the model's figure.
+  cache_block_tokens: 128
+  cache_min_blocks: 8
+  cache_noise: 0.08
+  max_cached_share: 0.99
+  # Requests in the last `unfinished_window_s` seconds are unfinished at this share.
+  unfinished_window_s: 90
+  unfinished_share: 0.6
+
+  # Shares of requests failing with each group of status codes, after throttling.
+  failures:
+    - {share: 0.006, codes: [400, 400, 401, 404, 413, 422]}
+    - {share: 0.0015, codes: [500, 502, 503, 504]}
+    - {share: 0.001, codes: [499]}
+  failed_ms: {median: 120, sigma: 1.0, cap: 600000}
+  throttled_ms: {median: 30, sigma: 1.0, cap: 10000}
+
+  # Requests that name no model, a share of which find nothing.
+  modelless_share: 0.05
+  modelless_not_found: 0.02
+  modelless_ms: {median: 40, sigma: 0.8, cap: 30000}
+  modelless_endpoints:
+    - {method: GET, path: /v1/models, weight: 70}
+    - {method: GET, path: /v1/files, weight: 8}
+    - {method: POST, path: /v1/files, weight: 8}
+    - {method: GET, path: /v1/batches, weight: 6}
+    - {method: GET, path: /v1/vector_stores, weight: 5}
+    - {method: GET, path: /models, weight: 3}
+
+  user_agents:
+    - OpenAI/Python 1.82.0
+    - OpenAI/Python 1.99.9
+    - AsyncOpenAI/Python 1.97.1
+    - langchain-openai/0.3.28
+    - OpenAI/JS 5.10.2
+    - python-requests/2.32.4
+    - curl/8.5.0
+    - LibreChat/0.7.9
+    - Continue/1.0.21 (vscode)
+    - litellm/1.74.3
