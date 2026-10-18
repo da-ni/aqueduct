@@ -9,9 +9,7 @@ from unittest.mock import patch
 from asgiref.sync import async_to_sync
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import connection
 from django.test import TransactionTestCase, override_settings
-from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from httpx import Request as HttpxRequest
@@ -1940,31 +1938,18 @@ class TokenLimitTest(ChatCompletionsBase):
             f"Output token limit (1/min) (Retry after {retry_after}s).",
         )
 
-    def test_check_limits_uses_no_request_table_sql(self):
-        """A rate-limited (429) request issues no SQL against ``management_request``.
-
-        ``check_limits`` now reads from the cache, not the ``Request`` table. A
-        blocked request returns 429 before ``log_request`` runs, so it must not
-        touch ``management_request`` at all (no aggregate SELECT, no INSERT).
-        """
+    def test_limits_count_from_the_rate_limit_buckets_not_the_request_log(self):
+        """The limits hold while the request log is pruned, and a blocked request is not
+        logged: it returns 429 before ``log_request`` runs."""
         self._setup_limits("org", "requests_per_minute", 1)
-        # First request consumes the minute bucket (and creates its Request row).
         first = self._send_chat_completion(self.MESSAGES, max_completion_tokens=5)
         self.assertEqual(first.status_code, 200)
+        Request.objects.all().delete()
 
-        # Capture SQL during the second (blocked) request.
-        with CaptureQueriesContext(connection) as ctx:
-            blocked = self._send_chat_completion(self.MESSAGES, max_completion_tokens=5)
+        blocked = self._send_chat_completion(self.MESSAGES, max_completion_tokens=5)
+
         self.assertEqual(blocked.status_code, 429)
-        request_table_queries = [
-            q["sql"] for q in ctx.captured_queries if "management_request" in q["sql"]
-        ]
-        self.assertEqual(
-            request_table_queries,
-            [],
-            "check_limits must not query the Request table; found: "
-            + " | ".join(request_table_queries),
-        )
+        self.assertFalse(Request.objects.exists())
 
 
 @override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH="router.yaml")
