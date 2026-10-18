@@ -1,14 +1,16 @@
+from functools import cached_property
+from typing import Any
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.exceptions import ImproperlyConfigured
-from django.http import HttpRequest, HttpResponse
-from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse, reverse_lazy
-from django.utils.translation import gettext_lazy as _
+from django.db.models import QuerySet
+from django.http import HttpRequest
+from django.shortcuts import get_object_or_404
+from django.urls import reverse_lazy
 from django.views import View
 
 from management.access import TeamAct, Viewer
-from management.models import Org, ServiceAccount, Team, UserProfile
+from management.models import ServiceAccount, Team, UserProfile
 from management.org_choice import viewer_of
 
 NEW_KEY_TAG = "token-regenerated-key"
@@ -31,77 +33,40 @@ class BaseAqueductView(LoginRequiredMixin, View):
         return viewer
 
 
-ONLY_ORG_ADMINS = _("Only org admins can do that.")
-ONLY_TEAM_ADMINS = _("Only team admins can do that.")
-
-
-class OrgAdminRequiredMixin:
-    def dispatch(self, request, *args, **kwargs) -> HttpResponse:
-        if not self.viewer.administers(self.viewer.org):
-            messages.error(request, ONLY_ORG_ADMINS)
-            return redirect(reverse_lazy("org"))
-        return super().dispatch(request, *args, **kwargs)
-
-
-class TeamAdminRequiredMixin:
-    org_admin_only = False
-    team_object: Team | None = None
-
-    def get_team_object(self) -> Team:
-        raise NotImplementedError(f"{self.__class__.__name__} must implement get_team_object()")
-
-    def dispatch(self, request, *args, **kwargs) -> HttpResponse:
-        team = self.team_object = self.get_team_object()
-        if self.org_admin_only and not self.viewer.may_team(TeamAct.ADMINISTER, team):
-            messages.error(request, ONLY_ORG_ADMINS)
-        elif not self.viewer.may_team(TeamAct.MANAGE, team):
-            messages.error(request, ONLY_TEAM_ADMINS)
-        else:
-            return super().dispatch(request, *args, **kwargs)
-        return redirect(reverse("team", kwargs={"id": team.id}))
-
-
 class BaseTeamView(BaseAqueductView):
+    """A view about the team in the URL; a team outside `viewer.teams(team_act)` is a 404."""
+
     pk_url_kwarg: str = "id"
-    _team: Team | None = None
+    team_act: TeamAct = TeamAct.OPEN
 
-    def get_team_object(self) -> Team:
-        if self._team is None:
-            self._team = get_object_or_404(
-                self.viewer.teams(TeamAct.OPEN).select_related("org"),
-                pk=self.kwargs.get(self.pk_url_kwarg),
-            )
-        return self._team
-
-    @property
+    @cached_property
     def team(self) -> Team:
-        return self.get_team_object()
+        return get_object_or_404(
+            self.viewer.teams(self.team_act).select_related("org"),
+            pk=self.kwargs[self.pk_url_kwarg],
+        )
 
-    @property
-    def team_org(self) -> Org:
-        return self.team.org
-
-    def get_object(self, queryset=None) -> Team | ServiceAccount:
+    def get_object(self, queryset: QuerySet[Any] | None = None) -> Team | ServiceAccount:
         return self.team
 
 
-class BaseServiceAccountView(BaseAqueductView, TeamAdminRequiredMixin, View):
-    model = ServiceAccount
-    pk_url_kwarg: str | None = None
-    service_account_object: ServiceAccount | None = None
+class BaseServiceAccountView(BaseAqueductView):
+    """A view about the service account in the URL; acting on it is managing its team."""
 
-    def get_service_account_object(self) -> ServiceAccount:
-        if self.service_account_object is None:
-            if not self.pk_url_kwarg:
-                raise ImproperlyConfigured(f"{self.__class__.__name__} must define 'pk_url_kwarg'.")
-            self.service_account_object = get_object_or_404(
-                ServiceAccount.objects.filter(team__in=self.viewer.teams(TeamAct.OPEN)),
-                pk=self.kwargs.get(self.pk_url_kwarg),
-            )
-        return self.service_account_object
+    pk_url_kwarg = "service_account_id"
 
-    def get_team_object(self) -> Team:
-        return self.get_service_account_object().team
+    @cached_property
+    def service_account(self) -> ServiceAccount:
+        return get_object_or_404(
+            ServiceAccount.objects.filter(
+                team__in=self.viewer.teams(TeamAct.MANAGE)
+            ).select_related("team__org"),
+            pk=self.kwargs[self.pk_url_kwarg],
+        )
 
-    def get_object(self, queryset=None) -> ServiceAccount:
-        return self.get_service_account_object()
+    @property
+    def team(self) -> Team:
+        return self.service_account.team
+
+    def get_object(self, queryset: QuerySet[Any] | None = None) -> ServiceAccount:
+        return self.service_account

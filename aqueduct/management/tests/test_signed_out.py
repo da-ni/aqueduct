@@ -15,7 +15,8 @@ FORM = {
     "email": "solo@example.com",
     "org_id": "all",
     "language": "de",
-    "user_profile_to_remove_id": "1",
+    "action": "remove",
+    "profile_id": "1",
 }
 
 

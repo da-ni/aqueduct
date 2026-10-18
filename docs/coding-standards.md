@@ -11,13 +11,13 @@ Read this page before you write or review code in `aqueduct/`, and check finishe
 
 A template that hides a button protects nothing. The view behind each URL decides who may read or change what, whatever the page shows.
 
-- Every management view inherits `BaseAqueductView`, which brings `LoginRequiredMixin`. Put permission checks in a mixin listed after it, as `ServiceAccountCreateView` does, or in `get_queryset()`. A permission mixin listed before `BaseAqueductView`, or a `dispatch()` override in the view class, runs before the login check. A signed-out request then gets a 500 instead of the login page.
-- Fetch every object named by an id in the URL through a queryset limited to what the user may act on. That is their own objects (`user=request.user`), their teams, or their org. An object outside that scope returns 404, the same as one that does not exist. `TokenEditView.get_queryset()` is the pattern, and `management/tests/test_token_edit.py` tests it.
-- Check roles with the `UserProfile` helpers `is_admin()`, `is_org_admin(org)`, and `is_team_admin(team)`. Pass the org or team of the object being changed, not the user's own. A check against the user's own org lets an org admin act on another org's teams by id.
+- Every management view inherits `BaseAqueductView` first, which brings `LoginRequiredMixin`, and runs no permission code in `dispatch()`. Code that runs before the login check gives a signed-out request a 500 instead of the login page.
+- `self.viewer` (`management/access.py`) answers every access question. Fetch every object named by an id in the URL through the viewer's queryset for the act the view performs: `viewer.keys(KeyAct.OWN)` in `TokenEditView.get_queryset()`, `team_act = TeamAct.MANAGE` on a `BaseTeamView`, `viewer.orgs()` for an org. An object outside that scope returns 404, the same as one that does not exist, and the response names no object. `management/tests/test_token_edit.py` tests the pattern.
+- A refused permission is always a 404, never a flash message and a redirect. Flash messages are for business refusals, such as a member who still owns service accounts and cannot leave the team.
 
 ## Show a control only when its view allows the action
 
-A link, button, or menu item appears exactly when the view it points to would allow the action for this user. Compute the flag in the view with the same helper the target view uses, and pass it in the template context, as `TeamDetailView` does with `is_team_admin`. Links into the Django admin depend on `user.is_staff`, because that is the flag the admin checks.
+A link, button, or menu item appears exactly when the view it points to would allow the action for this user. Compute the flag in the view from the viewer act the target view uses, and pass it in the template context, as `TeamDetailView` does with `is_team_admin = viewer.may_team(TeamAct.MANAGE, team)`. Links into the Django admin depend on `user.is_staff`, because that is the flag the admin checks.
 
 ## Answer bad input with form errors
 

@@ -133,6 +133,20 @@ class KeyScopeAgreementTest(Matrix):
                 for act in TeamAct:
                     self.assertNotIn(self.south_a, viewer.teams(act))
 
+    def test_each_rank_administers_its_orgs(self):
+        for user, expected in (
+            (self.admin, {self.north, self.south}),
+            (self.org_admin, {self.north}),
+            (self.stale_admin, {self.north}),
+            (self.member, set()),
+        ):
+            viewer = Viewer.of(user.profile)
+            with self.subTest(user=user.username):
+                self.assertEqual(set(viewer.orgs()), expected)
+                self.assertEqual(
+                    {o for o in (self.north, self.south) if viewer.administers(o)}, expected
+                )
+
     def test_each_rank_reaches_its_keys(self):
         everything = self.names(Token.objects.all())
         north = everything - {"southerner-laptop", "south-a-bot", "orphan-laptop"}
