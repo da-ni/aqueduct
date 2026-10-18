@@ -313,6 +313,8 @@ class TeamDetailView(BaseTeamView, DetailView):
                 messages.success(
                     request, gettext("%(email)s removed.") % {"email": leaving.user.email}
                 )
+                if not profile.openable_teams().filter(pk=team.pk).exists():
+                    redirect_url = reverse("org")
         else:
             messages.warning(request, gettext("Nothing to change."))
 

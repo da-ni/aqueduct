@@ -395,6 +395,23 @@ class TeamMembershipTest(TeamsPagesTestBase):
         client.post(self.url(), {"user_profile_to_remove_id": self.outsider.profile.id})
         self.assertNotIn("outsider", self.members())
 
+    def test_team_admin_who_leaves_lands_on_the_teams_page(self):
+        TeamMembership.objects.filter(user_profile=self.member.profile).update(is_admin=True)
+        response = self.as_user(self.member).post(
+            self.url(), {"user_profile_to_remove_id": self.member.profile.id}, follow=True
+        )
+        self.assertEqual(response.redirect_chain, [(reverse("org"), 302)])
+        self.assertContains(response, "member@example.com removed.")
+        self.assertNotIn("member", self.members())
+
+    def test_org_admin_who_leaves_stays_on_the_team(self):
+        self.join(self.org_admin, self.team)
+        response = self.as_user(self.org_admin).post(
+            self.url(), {"user_profile_to_remove_id": self.org_admin.profile.id}
+        )
+        self.assertRedirects(response, self.url(), fetch_redirect_response=False)
+        self.assertNotIn("org-admin", self.members())
+
     def test_adding_an_email_nobody_in_the_org_uses_explains_why(self):
         client = self.as_user(self.team_admin)
         before = self.members()
