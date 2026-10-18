@@ -15,11 +15,10 @@ from django.utils.http import urlencode
 from django.utils.translation import gettext
 from django.views.generic import TemplateView
 
-from gateway.config import get_router_config, model_info_with_context
 from management import usage_report as report
 from management import usage_rollup as rollup
 from management.key_activity import Activity
-from management.model_catalog import mode_for
+from management.model_catalog import model_kinds
 from management.models import Org, Request, Token
 from management.models.token import of_org
 from management.request_log import (
@@ -103,10 +102,6 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         )
         selected_org, selected_key, period = filters.org, filters.key, filters.period
         reqs = filters.requests
-        model_kinds = {
-            entry["model_name"]: mode_for(model_info_with_context(entry).get("mode")).label
-            for entry in get_router_config().get("model_list", [])
-        }
 
         retention_days = getattr(settings, "REQUEST_RETENTION_DAYS", 30)
         in_period = period.of(reqs)
@@ -161,7 +156,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 "heat_legend": report.HEAT_CLASSES[1:],
                 "heat_hours": report.HEAT_HOURS,
                 "models": report.model_rows(
-                    models, model_kinds, filters.log_url, approximate=org_wide
+                    models, model_kinds(), filters.log_url, approximate=org_wide
                 ),
                 "approximate_tip": report.APPROXIMATE_MEDIAN if org_wide else "",
                 "keys": keys,

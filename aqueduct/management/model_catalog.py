@@ -392,6 +392,13 @@ def usable_models(scopes: Sequence[Scope]) -> list[str]:
     return [name for name in router_models() if Availability(*split_scopes(name, scopes)).usable]
 
 
+def model_kinds() -> dict[str, str | Promise]:
+    return {
+        entry["model_name"]: mode_for(model_info_with_context(entry).get("mode")).label
+        for entry in get_router_config().get("model_list", [])
+    }
+
+
 def load_catalog(scopes: Sequence[Scope]) -> Catalog:
     entries = get_router_config().get("model_list") or ()
     cards = (parse_card(entry, scopes) for entry in entries)
