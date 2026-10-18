@@ -10,7 +10,7 @@ from django.conf import settings
 from django.core.cache import caches
 from django.core.signals import setting_changed
 from django.dispatch import receiver
-from django.test.runner import DiscoverRunner
+from django.test.runner import DiscoverRunner, ParallelTestSuite, RemoteTestResult, RemoteTestRunner
 from django.utils import translation
 
 from gateway import config
@@ -124,6 +124,18 @@ class _ResetSharedStateBeforeEachTest(unittest.TestResult):
         super().startTest(test)
 
 
+class _IsolatedRemoteTestResult(_ResetSharedStateBeforeEachTest, RemoteTestResult):
+    pass
+
+
+class _IsolatedRemoteTestRunner(RemoteTestRunner):
+    resultclass = _IsolatedRemoteTestResult
+
+
+class _IsolatedParallelTestSuite(ParallelTestSuite):
+    runner_class = _IsolatedRemoteTestRunner
+
+
 class MockServerTestRunner(DiscoverRunner):
     """
     Custom Django test runner that starts a single mock server instance
@@ -131,6 +143,8 @@ class MockServerTestRunner(DiscoverRunner):
 
     It also stops the test MCP server if it has been started by any tests that needed it.
     """
+
+    parallel_test_suite = _IsolatedParallelTestSuite
 
     def get_resultclass(self):
         result = super().get_resultclass() or unittest.TextTestResult
