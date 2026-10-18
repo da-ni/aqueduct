@@ -42,7 +42,6 @@ def delete_old_requests(self: object) -> None:
 
     started = time.monotonic()
     usage_rollup.prune(cutoff)
-    usage_rollup.refresh_key_windows()
     logger.info("Pruned the usage rollups in %.1f s", time.monotonic() - started)
 
 
