@@ -1,18 +1,7 @@
-{% extends "management/base.html" %}
-{% load i18n ui %}
+{% extends "management/form_page.html" %}
+{% load i18n %}
 {% block title %}{% blocktranslate with name=object.name %}Edit {{ name }}{% endblocktranslate %} · {{ block.super }}{% endblock %}
 
 {% block breadcrumbs %}<li><a href="{% url 'tokens' %}">{% translate "API keys" %}</a></li><li><a class="font-mono" href="{% url 'token_detail' object.id %}">{{ object.name }}</a></li><li>{% translate "Edit" %}</li>{% endblock %}
 {% block heading %}<span class="break-all">{% blocktranslate with name=object.name %}Edit <span class="font-mono">{{ name }}</span>{% endblocktranslate %}</span>{% endblock %}
-{% block body %}
-<form method="post" class="card max-w-2xl bg-base-200">
-    {% csrf_token %}
-    <div class="card-body gap-6 p-6">
-        {% include "management/_form_fields.html" %}
-        <div class="flex flex-wrap gap-3 border-t border-base-300 pt-5">
-            <button type="submit" class="btn btn-primary">{% translate "Save" %}</button>
-            <a class="btn btn-outline btn-primary" href="{{ cancel_url }}">{% translate "Cancel" %}</a>
-        </div>
-    </div>
-</form>
-{% endblock %}
+{% block submit %}{% translate "Save" %}{% endblock %}

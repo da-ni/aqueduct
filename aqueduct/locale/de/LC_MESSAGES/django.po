@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 14:54+0000\n"
+"POT-Creation-Date: 2026-10-18 14:55+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -975,9 +975,6 @@ msgstr "Team erstellen"
 msgid "New"
 msgstr "Neu"
 
-msgid "Save changes"
-msgstr "Änderungen speichern"
-
 msgid "Delete team"
 msgstr "Team löschen"
 
@@ -1028,6 +1025,9 @@ msgid "Upload with the <a class=\"link\" href=\"%(docs)s\">Files API</a>."
 msgstr ""
 "Laden Sie Dateien über die <a class=\"link\" href=\"%(docs)s\">Files API</a> "
 "hoch."
+
+msgid "Save changes"
+msgstr "Änderungen speichern"
 
 msgid "Menu"
 msgstr "Menü"

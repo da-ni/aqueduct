@@ -1,20 +1,9 @@
-{% extends "management/base.html" %}
+{% extends "management/form_page.html" %}
 {% load i18n %}
 {% block title %}{{ view_title }} · {{ block.super }}{% endblock %}
 
 {% block breadcrumbs %}<li><a href="{% url 'org' %}">{% translate "Teams" %}</a></li><li>{% translate "Create" %}</li>{% endblock %}
-{% block heading %}{{ view_title }}{% endblock %}
 {% block subheading %}{% if names_target_org %}<span class="muted -mt-1 text-sm">{% blocktranslate with name=target_org.name %}The team is created in {{ name }}.{% endblocktranslate %}</span>{% endif %}{% endblock %}
-{% block body %}
-<form method="post" class="card max-w-2xl bg-base-200">
-    {% csrf_token %}
-    <input type="hidden" name="org" value="{{ target_org.id }}">
-    <div class="card-body gap-6 p-6">
-        {% include "management/_form_fields.html" %}
-        <div class="flex flex-wrap gap-3 border-t border-base-300 pt-5">
-            <button type="submit" class="btn btn-primary">{% translate "Create team" %}</button>
-            <a class="btn btn-outline btn-primary" href="{% url 'org' %}">{% translate "Cancel" %}</a>
-        </div>
-    </div>
-</form>
-{% endblock %}
+{% block hidden_fields %}<input type="hidden" name="org" value="{{ target_org.id }}">{% endblock %}
+{% block submit %}{% translate "Create team" %}{% endblock %}
+{% block cancel_url %}{% url 'org' %}{% endblock %}

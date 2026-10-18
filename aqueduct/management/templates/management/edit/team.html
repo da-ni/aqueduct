@@ -1,21 +1,9 @@
-{% extends "management/base.html" %}
+{% extends "management/form_page.html" %}
 {% load i18n ui %}
 {% block title %}{% blocktranslate with name=team.name %}Edit {{ name }}{% endblocktranslate %} · {{ block.super }}{% endblock %}
 
 {% block breadcrumbs %}<li><a href="{% url 'org' %}">{% translate "Teams" %}</a></li><li><a href="{{ cancel_url }}">{{ team.name }}</a></li><li>{% if breadcrumb %}{{ breadcrumb }}{% else %}{% translate "Edit" %}{% endif %}</li>{% endblock %}
-{% block heading %}{{ view_title }}{% endblock %}
-{% block body %}
-<form method="post" class="card max-w-2xl bg-base-200">
-    {% csrf_token %}
-    <div class="card-body gap-6 p-6">
-        {% include "management/_form_fields.html" %}
-        <div class="flex flex-wrap gap-3 border-t border-base-300 pt-5">
-            <button type="submit" class="btn btn-primary">{% translate "Save changes" %}</button>
-            <a class="btn btn-outline btn-primary" href="{{ cancel_url }}">{% translate "Cancel" %}</a>
-        </div>
-    </div>
-</form>
-
+{% block after_form %}
 {% if can_delete %}
     <section class="card max-w-2xl border border-error/40 bg-base-200" aria-labelledby="danger-title">
         <div class="card-body flex-row flex-wrap items-center justify-between gap-4 p-6">
