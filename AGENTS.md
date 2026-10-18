@@ -15,11 +15,11 @@
 - Inserted data must satisfy the same constraints the views enforce: for example, `Request.model` values must appear in `model_list` of the router config referenced by `LITELLM_ROUTER_CONFIG_FILE_PATH` (check `.env`), and FK-based org/team/token scoping must match the viewer's permissions
 
 ## Build/Lint/Test Commands
-- **Run tests**: `cd aqueduct && uv run python manage.py test` or `cd aqueduct && uv run python manage.py test <app_name>.tests.<TestClass>` (run full suite before finishing major/cross-cutting work)
-- **Run single test**: `cd aqueduct && uv run python manage.py test <app_name>.tests.<TestClass>.test_method` (prefer targeted tests during active development)
+- **Run tests**: `cd aqueduct && uv run python manage.py test` or `cd aqueduct && uv run python manage.py test <app_name>.tests.<module>.<TestClass>` (run full suite before finishing major/cross-cutting work)
+- **Run single test**: `cd aqueduct && uv run python manage.py test <app_name>.tests.<module>.<TestClass>.test_method` (prefer targeted tests during active development)
 - **Lint**: `uv run pre-commit run --all-files`
 - **Type check**: `cd aqueduct && uv run mypy`
-- **Format**: No auto-formatting configured, follow existing style
+- **Format**: `ruff format` runs in pre-commit and CI; run `uv run pre-commit run --all-files` to apply it
 - **Migrations**: `cd aqueduct && uv run python manage.py makemigrations` then `cd aqueduct && uv run python manage.py migrate`
 
 ## Test Mock API (OpenAI)
