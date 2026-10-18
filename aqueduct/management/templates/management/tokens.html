@@ -78,7 +78,7 @@
                                         <div class="relative z-10 hidden justify-end gap-1 md:flex">
                                             {% include "management/_key_actions.html" with button="btn btn-ghost btn-sm btn-square" %}
                                         </div>
-                                        <details class="dropdown dropdown-end relative z-10 flex justify-end md:hidden">
+                                        <details class="dropdown dropdown-end relative z-10 open:z-20 flex justify-end md:hidden">
                                             <summary class="btn btn-ghost btn-sm btn-square" aria-label="{% blocktranslate with name=row.token.name %}Actions for {{ name }}{% endblocktranslate %}">⋯</summary>
                                             <div class="dropdown-content z-20 mt-1 flex w-40 flex-col rounded-box border border-base-300 bg-base-100 p-1 shadow">
                                                 {% include "management/_key_actions.html" with button="btn btn-ghost btn-sm justify-start" labelled=True %}
