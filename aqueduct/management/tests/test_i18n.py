@@ -14,7 +14,6 @@ from django.test import SimpleTestCase
 
 BASE_DIR = Path(settings.BASE_DIR)
 PO = Path("locale/de/LC_MESSAGES/django.po")
-MAKEMESSAGES = ("manage.py", "makemessages", "-l", "de", "--no-obsolete", "--no-location")
 MO = PO.with_suffix(".mo")
 GETTEXT = all(shutil.which(tool) for tool in ("xgettext", "msgmerge", "msgfmt"))
 NO_GETTEXT = "GNU gettext (xgettext, msgmerge, msgfmt) is not on PATH, so the catalog is unchecked"
