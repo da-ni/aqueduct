@@ -8,17 +8,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from management import usage_rollup as rollup
-from management.models import (
-    Org,
-    Request,
-    ServiceAccount,
-    Team,
-    TeamMembership,
-    Token,
-    UserGroup,
-    UserProfile,
-)
-from management.tests.test_api_keys_pages import PAGES, make_token
+from management.models import Org, Request, ServiceAccount, Team, TeamMembership, Token, UserGroup
+from management.tests.helpers import PAGES, make_token, make_user
 from management.usage_report import APPROXIMATE_MEDIAN
 
 User = get_user_model()
@@ -61,9 +52,7 @@ class UsagePageTestBase(TestCase):
         self.log(self.foreign_key, hour, 200, input_tokens=7000)
 
     def user(self, name: str, group: UserGroup = UserGroup.USER, org: Org | None = None):
-        user = User.objects.create_user(username=name, email=f"{name}@example.com")
-        UserProfile.objects.create(user=user, org=org or self.org).group = group
-        return user
+        return make_user(name, org or self.org, group)
 
     def log(
         self, token: Token, ago: timedelta, status: int, model: str = CHAT, **fields

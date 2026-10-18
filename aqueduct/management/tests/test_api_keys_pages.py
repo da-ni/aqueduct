@@ -1,13 +1,10 @@
-import re
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from unittest import mock
 
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import connection
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import SimpleTestCase, TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone, translation
@@ -24,24 +21,9 @@ from management.models import (
     UserProfile,
 )
 from management.models.token import HIERARCHY
+from management.tests.helpers import PAGES, make_token, make_user, secret_on
 
 User = get_user_model()
-
-PAGES = override_settings(
-    LITELLM_ROUTER_CONFIG_FILE_PATH=Path(settings.BASE_DIR).parent / "example_router_config.yaml"
-)
-
-
-def make_token(user, name: str, **kwargs) -> Token:
-    token = Token(name=name, user=user, **kwargs)
-    token._set_new_key()
-    token.save()
-    return token
-
-
-def secret_on(response) -> str | None:
-    match = re.search(r'data-copy="(sk-[^"]+)"', response.content.decode())
-    return match.group(1) if match else None
 
 
 @PAGES
@@ -65,9 +47,7 @@ class ApiKeysPagesTestBase(TestCase):
         make_token(self.other, "hidden-sa", service_account=hidden_sa)
 
     def user(self, name: str):
-        user = User.objects.create_user(username=name, email=f"{name}@example.com")
-        UserProfile.objects.create(user=user, org=self.org)
-        return user
+        return make_user(name, self.org)
 
     def request_log(self, token: Token, ago: timedelta, **fields) -> Request:
         fields.setdefault("model", "gpt-4.1-nano")

@@ -12,18 +12,9 @@ from django.utils.http import urlencode
 
 from management import usage_rollup as rollup
 from management.key_activity import served
-from management.models import (
-    Org,
-    Request,
-    ServiceAccount,
-    Team,
-    TeamMembership,
-    Token,
-    UserGroup,
-    UserProfile,
-)
+from management.models import Org, Request, ServiceAccount, Team, TeamMembership, Token, UserGroup
 from management.request_log import PAGE_SIZE, Outcome, Place
-from management.tests.test_api_keys_pages import PAGES, make_token
+from management.tests.helpers import PAGES, make_token, make_user
 from management.usage_report import STATUSES, Period, Span, org_requests
 
 User = get_user_model()
@@ -67,9 +58,7 @@ class RequestsPageTestBase(TestCase):
         self.log(self.foreign_key, "/foreign")
 
     def user(self, name: str, group: UserGroup = UserGroup.USER, org: Org | None = None):
-        user = User.objects.create_user(username=name, email=f"{name}@example.com")
-        UserProfile.objects.create(user=user, org=org or self.org).group = group
-        return user
+        return make_user(name, org or self.org, group)
 
     def log(self, token: Token, path: str, ago=timedelta(hours=1), **fields) -> Request:
         fields = {"model": MODEL, "status_code": 200, **fields}

@@ -9,7 +9,7 @@ from django.urls import reverse
 from management.admin import TeamAdminForm, UserProfileAdminForm
 from management.availability import Reach, configured_models
 from management.models import Org, Team, Token, UserGroup
-from management.tests.test_api_keys_pages import make_token
+from management.tests.helpers import make_token
 from management.tests.test_organization_page import TEST_MCP_CONFIG, mcp_config
 from management.tests.test_teams_pages import TeamsPagesTestBase
 

@@ -10,17 +10,8 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
-from management.models import (
-    Org,
-    Request,
-    ServiceAccount,
-    Team,
-    TeamMembership,
-    Token,
-    UserGroup,
-    UserProfile,
-)
-from management.tests.test_api_keys_pages import PAGES, make_token, secret_on
+from management.models import Org, Request, ServiceAccount, Team, TeamMembership, Token, UserGroup
+from management.tests.helpers import PAGES, make_token, make_user, secret_on
 
 User = get_user_model()
 
@@ -46,9 +37,7 @@ class TeamsPagesTestBase(TestCase):
         self.pipeline_key = make_token(self.team_admin, "pipeline", service_account=self.pipeline)
 
     def user(self, name: str, group: UserGroup = UserGroup.USER, org: Org | None = None):
-        user = User.objects.create_user(username=name, email=f"{name}@example.com")
-        UserProfile.objects.create(user=user, org=org or self.org).group = group
-        return user
+        return make_user(name, org or self.org, group)
 
     def join(self, user, team: Team, is_admin: bool = False) -> None:
         TeamMembership.objects.create(user_profile=user.profile, team=team, is_admin=is_admin)

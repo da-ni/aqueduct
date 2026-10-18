@@ -21,23 +21,16 @@ from management.models import (
     TeamMembership,
     Token,
     UserGroup,
-    UserProfile,
     VectorStore,
     VectorStoreFile,
 )
+from management.tests.helpers import make_token, make_user
 from mock_api.mock_configs import MockConfig
 
 User = get_user_model()
 
 PAGES = override_settings(MCP_CONFIG_FILE_PATH=Path(settings.BASE_DIR).parent / "test-mcp.json")
 NOW = int(time.time())
-
-
-def make_token(user, name: str, **kwargs) -> Token:
-    token = Token(name=name, user=user, **kwargs)
-    token._set_new_key()
-    token.save()
-    return token
 
 
 @PAGES
@@ -67,9 +60,7 @@ class ResourcePagesTestBase(TestCase):
         self.outsider_key = make_token(self.outsider, "outsider-laptop")
 
     def user(self, name: str, org: Org | None = None, group: UserGroup = UserGroup.USER):
-        user = User.objects.create_user(username=name, email=f"{name}@example.com")
-        UserProfile.objects.create(user=user, org=org or self.org).group = group
-        return user
+        return make_user(name, org or self.org, group)
 
     def file(self, token: Token, filename: str, **fields) -> FileObject:
         return FileObject.objects.create(

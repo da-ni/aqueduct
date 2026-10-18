@@ -20,10 +20,9 @@ from management.models import (
     Token,
     UsageRollupState,
     UserGroup,
-    UserProfile,
 )
 from management.request_log import Key
-from management.tests.test_api_keys_pages import PAGES, make_token
+from management.tests.helpers import PAGES, make_token, make_user
 
 User = get_user_model()
 CHAT = "gpt-4.1-nano"
@@ -45,11 +44,11 @@ class UsageFromRollupsTest(TestCase):
         self.org = Org.objects.create(name="lab-org")
         self.other_org = Org.objects.create(name="other-org")
         self.team = Team.objects.create(name="NLP Lab", org=self.org)
-        self.admin = self.user("admin", self.org, UserGroup.ADMIN)
-        self.org_admin = self.user("org-admin", self.org, UserGroup.ORG_ADMIN)
-        self.member = self.user("member", self.org)
+        self.admin = make_user("admin", self.org, UserGroup.ADMIN)
+        self.org_admin = make_user("org-admin", self.org, UserGroup.ORG_ADMIN)
+        self.member = make_user("member", self.org)
         TeamMembership.objects.create(user_profile=self.member.profile, team=self.team)
-        foreigner = self.user("foreigner", self.other_org)
+        foreigner = make_user("foreigner", self.other_org)
         pipeline = ServiceAccount.objects.create(name="pipeline", team=self.team)
         keys = [
             make_token(self.member, "laptop"),
@@ -72,11 +71,6 @@ class UsageFromRollupsTest(TestCase):
             )
             for _ in range(1200)
         )
-
-    def user(self, name: str, org: Org, group: UserGroup = UserGroup.USER):
-        user = User.objects.create_user(username=name, email=f"{name}@example.com")
-        UserProfile.objects.create(user=user, org=org).group = group
-        return user
 
     def get(self, user, name: str, **params):
         self.client.force_login(user)

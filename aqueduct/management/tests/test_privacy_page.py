@@ -6,8 +6,8 @@ from django.urls import include, path, reverse
 from tos.models import TermsOfService
 
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
-from management.models import Org, PrivacyNotice, UserGroup, UserProfile
-from management.tests.test_api_keys_pages import PAGES
+from management.models import Org, PrivacyNotice, UserGroup
+from management.tests.helpers import PAGES, make_user
 
 User = get_user_model()
 
@@ -26,9 +26,7 @@ class PrivacyPageTest(TestCase):
         self.outsider = self.user("outsider", org=self.other_org)
 
     def user(self, name: str, group: UserGroup = UserGroup.USER, org: Org | None = None):
-        user = User.objects.create_user(username=name, email=f"{name}@example.com")
-        UserProfile.objects.create(user=user, org=org or self.org).group = group
-        return user
+        return make_user(name, org or self.org, group)
 
     def page(self, user=None, **params):
         if user is not None:

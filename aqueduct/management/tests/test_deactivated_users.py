@@ -6,7 +6,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from management.models import Org, UserProfile
-from management.tests.test_api_keys_pages import PAGES
+from management.tests.helpers import PAGES
 
 User = get_user_model()
 
