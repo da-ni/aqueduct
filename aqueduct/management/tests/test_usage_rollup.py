@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from aqueduct.celery import delete_old_requests
 from management import usage_rollup as rollup
+from management.access import EveryOrg, KeyAct, OrgWide, Viewer, WholeOrg, requests_of
 from management.key_activity import Activity, served
 from management.models import (
     KeyUsageWindow,
@@ -23,11 +24,9 @@ from management.models import (
     UserGroup,
     UserProfile,
 )
-from management.ownership import of_orgs
-from management.request_log import visible_tokens
 from management.signals import mark_rollups_dirty
 from management.tests.helpers import make_token, make_user, median_error
-from management.usage_report import DAY, MEDIAN, TOKENS, TOTALS, Period, Span, org_requests, series
+from management.usage_report import DAY, MEDIAN, TOKENS, TOTALS, Period, Span, series
 
 User = get_user_model()
 CHAT = "gpt-4.1-nano"
@@ -122,28 +121,28 @@ class UsageRollupTest(TestCase):
             token=token, timestamp=self.now - ago, status_code=200, **fields
         )
 
-    def scoped(self, org: Org | None, model: str | None):
-        requests = org_requests(org)
+    def scoped(self, extent: OrgWide, model: str | None):
+        requests = served(requests_of(extent))
         return requests if model is None else requests.filter(model=model)
 
     def assert_matches_raw(self, period: Period | None = None, now=None):
         now = now or self.now
         periods = [period] if period else [Period.last(span, now) for span in Span]
-        for org in (self.org, self.other_org, None):
+        for extent in (WholeOrg(self.org), WholeOrg(self.other_org), EveryOrg()):
             for model in (None, CHAT):
                 for each in periods:
-                    with self.subTest(org=org, model=model, period=each.start):
-                        self.assert_figures(org, model, each, now)
+                    with self.subTest(extent=extent, model=model, period=each.start):
+                        self.assert_figures(extent, model, each, now)
 
-    def assert_figures(self, org, model, period: Period, now):
-        requests = self.scoped(org, model)
-        self.assertEqual(rollup.org_series(org, model, period), series(requests, period))
+    def assert_figures(self, extent, model, period: Period, now):
+        requests = self.scoped(extent, model)
+        self.assertEqual(rollup.org_series(extent, model, period), series(requests, period))
 
         raw_models = {
             row.pop("model"): row
             for row in period.of(requests).values("model").annotate(**TOTALS, median=MEDIAN)
         }
-        found = rollup.org_models(org, model, period)
+        found = rollup.org_models(extent, model, period)
         self.assertEqual(
             {name: usage.activity for name, usage in found.items()},
             {name: Activity(**{f: row[f] for f in TOTALS}) for name, row in raw_models.items()},
@@ -157,13 +156,14 @@ class UsageRollupTest(TestCase):
 
         start = now - timedelta(weeks=4)
         self.assertEqual(
-            rollup.org_heat(org, start, now, model=model), self.raw_heat(org, model, start, now)
+            rollup.org_heat(extent, start, now, model=model),
+            self.raw_heat(extent, model, start, now),
         )
 
-    def raw_heat(self, org, model, start, end) -> dict[tuple[int, int], int]:
+    def raw_heat(self, extent, model, start, end) -> dict[tuple[int, int], int]:
         return {
             (row["day"], row["at"]): row["tokens"]
-            for row in self.scoped(org, model)
+            for row in self.scoped(extent, model)
             .filter(timestamp__gte=start, timestamp__lt=end)
             .values(day=rollup.ExtractIsoWeekDay("timestamp"), at=rollup.ExtractHour("timestamp"))
             .annotate(tokens=rollup.Sum(TOKENS))
@@ -197,36 +197,23 @@ class UsageRollupTest(TestCase):
         self.assertLess(sealed.until, self.now - timedelta(hours=2))
         start = self.now - timedelta(weeks=4)
         self.assertTrue(OrgUsageHour.objects.filter(model=CHAT, hour__gte=start).exists())
-        for org in (self.org, None):
-            with self.subTest(org=org):
+        for extent in (WholeOrg(self.org), EveryOrg()):
+            with self.subTest(extent=extent):
                 self.assertEqual(
-                    rollup.org_heat(org, start, self.now, sealed, model=CHAT),
-                    self.raw_heat(org, CHAT, start, self.now),
+                    rollup.org_heat(extent, start, self.now, sealed, model=CHAT),
+                    self.raw_heat(extent, CHAT, start, self.now),
                 )
 
     def test_a_period_the_rollups_cover_entirely_gives_the_raw_figures(self):
         rollup.refresh(self.now)
         self.assert_matches_raw(Period.last(Span.WEEK, self.now - timedelta(days=2)))
 
-    def test_an_org_with_few_keys_names_them_and_one_with_many_uses_a_subquery(self):
-        tokens = Token.objects.filter(of_orgs({self.org.pk}))
-        expected = set(
-            served(Request.objects.filter(token__in=tokens)).values_list("id", flat=True)
-        )
-        named = org_requests(self.org)
-        self.assertNotIn("management_token", str(named.query))
-        self.assertEqual(set(named.values_list("id", flat=True)), expected)
-        with mock.patch("management.key_activity.LISTED_KEYS", 1):
-            many = org_requests(self.org)
-        self.assertIn("management_token", str(many.query))
-        self.assertEqual(set(many.values_list("id", flat=True)), expected)
-
     def test_sealed_hours_are_read_from_the_rollups(self):
         rollup.refresh(self.now)
         period = Period.last(Span.WEEK, self.now)
-        before = rollup.org_series(self.org, None, period).total
+        before = rollup.org_series(WholeOrg(self.org), None, period).total
         Request.objects.filter(timestamp__lt=self.now - timedelta(hours=2)).update(output_tokens=0)
-        self.assertEqual(rollup.org_series(self.org, None, period).total, before)
+        self.assertEqual(rollup.org_series(WholeOrg(self.org), None, period).total, before)
 
     def test_refreshing_twice_keeps_the_same_rows(self):
         rollup.refresh(self.now)
@@ -327,14 +314,12 @@ class UsageRollupTest(TestCase):
         org_admin = make_user("org-admin", self.org)
         org_admin.profile.group = UserGroup.ORG_ADMIN
         org_admin.profile.save()
-        self.assertNotIn(key, visible_tokens(org_admin.profile, self.org, Team.objects.none()))
-        self.assertFalse(org_requests(self.org).filter(token=key).exists())
-        self.assertTrue(org_requests(self.other_org).filter(token=key).exists())
+        self.assertNotIn(key, Viewer.of(org_admin.profile).keys(KeyAct.SEE))
+        self.assertFalse(requests_of(WholeOrg(self.org)).filter(token=key).exists())
+        self.assertTrue(requests_of(WholeOrg(self.other_org)).filter(token=key).exists())
         week = Period.last(Span.WEEK, self.now)
         rollup.refresh_key_windows(self.now)
-        totals = rollup.key_window_totals(
-            Token.objects.filter(of_orgs({self.other_org.pk})), None, week
-        )
+        totals = rollup.key_window_totals(WholeOrg(self.other_org), None, week)
         self.assertEqual(totals[key.pk].input, 777)
         self.assert_matches_raw()
 
@@ -368,12 +353,10 @@ class UsageRollupTest(TestCase):
         self.assertTrue(KeyUsageWindow.objects.exists())
         for span in Span:
             period = Period.last(span, self.now)
-            for tokens in (None, Token.objects.filter(user=self.member)):
+            for extent in (EveryOrg(), WholeOrg(self.org)):
                 for model in (None, CHAT):
-                    with self.subTest(span=span, tokens=tokens, model=model):
-                        requests = self.scoped(None, model)
-                        if tokens is not None:
-                            requests = requests.filter(token__in=tokens)
+                    with self.subTest(span=span, extent=extent, model=model):
+                        requests = self.scoped(extent, model)
                         raw = {
                             row.pop("token_id"): Activity(**row)
                             for row in period.of(requests)
@@ -381,14 +364,14 @@ class UsageRollupTest(TestCase):
                             .annotate(**TOTALS)
                             .order_by()
                         }
-                        self.assertEqual(rollup.key_window_totals(tokens, model, period), raw)
+                        self.assertEqual(rollup.key_window_totals(extent, model, period), raw)
 
     def test_key_windows_are_read_where_they_start_with_the_period(self):
         rollup.refresh_key_windows(self.now)
         period = Period.last(Span.WEEK, self.now)
-        before = rollup.key_window_totals(None, None, period)
+        before = rollup.key_window_totals(EveryOrg(), None, period)
         Request.objects.filter(timestamp__lt=self.now - timedelta(hours=2)).update(output_tokens=0)
-        self.assertEqual(rollup.key_window_totals(None, None, period), before)
+        self.assertEqual(rollup.key_window_totals(EveryOrg(), None, period), before)
 
     def test_a_refresh_between_the_reads_counts_nothing_twice(self):
         just_sealed = rollup.floor_hour(self.now - rollup.SETTLE) + timedelta(seconds=1)
@@ -405,11 +388,11 @@ class UsageRollupTest(TestCase):
             return found
 
         with mock.patch.object(QuerySet, "first", first_then_refresh):
-            totals = rollup.key_window_totals(None, None, period)
+            totals = rollup.key_window_totals(EveryOrg(), None, period)
         self.assertTrue(raced)
         raw = {
             row.pop("token_id"): Activity(**row)
-            for row in period.of(org_requests(None))
+            for row in period.of(served(Request.objects.all()))
             .values("token_id")
             .annotate(**TOTALS)
             .order_by()
@@ -443,6 +426,8 @@ class UsageRollupTest(TestCase):
         self.assertNotIn(org_id, rollup.org_tokens(None, period))
         raw = {
             row.pop("token_id"): Activity(**row)
-            for row in period.of(org_requests(None)).values("token_id").annotate(**TOTALS)
+            for row in period.of(served(Request.objects.all()))
+            .values("token_id")
+            .annotate(**TOTALS)
         }
-        self.assertEqual(rollup.key_window_totals(None, None, period), raw)
+        self.assertEqual(rollup.key_window_totals(EveryOrg(), None, period), raw)

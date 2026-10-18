@@ -16,33 +16,17 @@ from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 
 from gateway.config import model_names
-from management.access import EveryOrg, KeyAct, TeamAct, Viewer, WholeOrg
+from management.access import EveryOrg, KeyAct, OrgWide, TeamAct, Viewer, requests_of
 from management.ids import MAX_ID, parse_id
-from management.key_activity import FAILED, grouped, of_keys, served
+from management.key_activity import FAILED, grouped, served
 from management.model_catalog import scopes_for, usable_models
-from management.models import Org, Request, Team, Token, UserProfile
-from management.ownership import RELATED, of_orgs, of_teams, owner, personal
+from management.models import Request, Token
+from management.ownership import RELATED, owner
 from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
 from management.usage_rollup import org_series
 
 PAGE_SIZE = 50
 _MAX_PAGE = MAX_ID // PAGE_SIZE
-
-
-def visible_tokens(profile: UserProfile, org: Org | None, teams: QuerySet[Team]) -> QuerySet[Token]:
-    if org is None:
-        return Token.objects.all()
-    if profile.is_org_admin(org):
-        return Token.objects.filter(of_orgs({org.pk}))
-    return Token.objects.filter(personal(profile.user_id) | of_teams(teams))
-
-
-def visible_requests(
-    profile: UserProfile, org: Org | None, teams: QuerySet[Team]
-) -> QuerySet[Request]:
-    if org is None:
-        return served(Request.objects.all())
-    return served(of_keys(Request.objects.all(), visible_tokens(profile, org, teams)))
 
 
 _OVERVIEW_STATUS = {
@@ -135,23 +119,40 @@ def describe_key(token: Token, viewer: Viewer, *, with_org: bool = False) -> Key
 
 @dataclass(frozen=True)
 class Filters:
-    can_pick_org: bool
-    org: Org | None
-    can_pick_scope: bool
+    viewer: Viewer
     mine: bool
     keys: tuple[Key, ...]
     only_key: Key | None
     key: Key | None
     key_q: str
     matches: tuple[Key, ...]
-    viewer: Viewer
     page_params: tuple[tuple[str, str], ...]
     models: tuple[str, ...]
     model: str | None
     span: Span
     period: Period
     requests: QuerySet[Request]
-    visibility: tuple[object, ...]
+
+    @property
+    def can_pick_org(self) -> bool:
+        return self.viewer.can_switch_org
+
+    @property
+    def can_pick_scope(self) -> bool:
+        return self.viewer.sees_others
+
+    @property
+    def org_wide(self) -> OrgWide | None:
+        return None if self.mine or self.key is not None else self.viewer.org_wide
+
+    @property
+    def visibility(self) -> tuple[object, ...]:
+        return (
+            self.viewer.shown.cache_key,
+            ("mine", self.viewer.user_id, *(k.token.id for k in self.keys)) if self.mine else (),
+            self.key.token.id if self.key else None,
+            self.model,
+        )
 
     @property
     def spans(self) -> tuple[Span, ...]:
@@ -161,7 +162,7 @@ class Filters:
     def query(self) -> dict[str, str]:
         found = {}
         if self.can_pick_org:
-            found["org"] = str(self.org.id) if self.org else "all"
+            found["org"] = self.viewer.chosen.param
         if self.mine:
             found["scope"] = "mine"
         if self.key:
@@ -193,18 +194,15 @@ def key_search(text: str, *, by_owner: bool) -> Q:
 def read_filters(
     viewer: Viewer, params: Mapping[str, str], *, default_span: Span, now: datetime
 ) -> Filters:
-    profile, teams = viewer.profile, viewer.teams(TeamAct.SEE)
-    org = viewer.chosen.org if isinstance(viewer.chosen, WholeOrg) else None
     sees_others = viewer.sees_others
-    requests = visible_requests(profile, org, teams)
+    requests = served(requests_of(viewer.shown))
     if sees_others:
         names = set(model_names())
     else:
         used = requests.order_by().values_list("model", flat=True).distinct()
-        names = {*usable_models(scopes_for(profile, viewer.teams(TeamAct.MINE))), *used}
+        names = {*usable_models(scopes_for(viewer.profile, viewer.teams(TeamAct.MINE))), *used}
     models = tuple(sorted(names, key=lambda name: (name.casefold(), name)))
-    team_ids = set(teams.values_list("id", flat=True))
-    tokens = visible_tokens(profile, org, teams).select_related(*RELATED).order_by("name", "id")
+    tokens = viewer.keys(KeyAct.SEE).select_related(*RELATED).order_by("name", "id")
 
     def describe(token: Token) -> Key:
         return describe_key(token, viewer, with_org=isinstance(viewer.chosen, EveryOrg))
@@ -236,29 +234,14 @@ def read_filters(
     span = Span.parse(params.get("span", "")) or default_span
     period = Period.last(span, now)
 
-    if org is None:
-        seen: tuple[object, ...] = ("all orgs",)
-    elif sees_others:
-        seen = ("org", org.pk)
-    else:
-        seen = ("keys of", org.pk, profile.user_id, *sorted(team_ids))
-    narrowed = (
-        ("mine", profile.user_id, *(k.token.id for k in keys)) if mine else (),
-        key.token.id if key else None,
-        model,
-    )
-
     return Filters(
-        can_pick_org=viewer.can_switch_org,
-        org=org,
-        can_pick_scope=sees_others,
+        viewer=viewer,
         mine=mine,
         keys=keys,
         only_key=only_key,
         key=key,
         key_q=key_q,
         matches=matches,
-        viewer=viewer,
         page_params=tuple(
             (name, value) for name, value in params.items() if name not in _NOT_PAGE_PARAMS
         ),
@@ -267,7 +250,6 @@ def read_filters(
         span=span,
         period=period,
         requests=requests,
-        visibility=(seen, *narrowed),
     )
 
 
@@ -375,7 +357,7 @@ BOUNDED_SPAN = timedelta(days=7)
 
 def bounded_scan(filters: Filters) -> bool:
     return (
-        not counts_whole_org(filters)
+        filters.org_wide is None
         or filters.model is not None
         or filters.period.end - filters.period.start <= BOUNDED_SPAN
     )
@@ -498,10 +480,6 @@ class RequestLog:
         return None if start is None else start + len(self.rows) - 1
 
 
-def counts_whole_org(filters: Filters) -> bool:
-    return filters.can_pick_scope and not filters.mine and filters.key is None
-
-
 SEARCH_MAX = 256
 
 
@@ -522,10 +500,8 @@ def _tab_counts(
 ) -> dict[Outcome | None, int]:
 
     def count() -> dict[Outcome | None, int]:
-        if counts_whole_org(filters) and not search:
-            found = org_series(
-                filters.org, filters.model, filters.period, requests=filters.requests
-            )
+        if (extent := filters.org_wide) is not None and not search:
+            found = org_series(extent, filters.model, filters.period, requests=filters.requests)
             by_codes = zip((codes for _, codes, *_ in STATUSES), found.status_counts, strict=True)
             return {None: found.total.requests, Outcome.ERRORS: found.total.failed} | {
                 Outcome(codes): n for codes, n in by_codes
@@ -677,6 +653,6 @@ def request_log(filters: Filters, params: Mapping[str, str]) -> RequestLog:
         sort=sort,
         headers=_headers(sort, free),
         pager=pager,
-        shows_key=counts_whole_org(filters) or (filters.key is None and len(filters.keys) > 1),
+        shows_key=filters.org_wide is not None or (filters.key is None and len(filters.keys) > 1),
         shows_overhead=filters.can_pick_scope,
     )

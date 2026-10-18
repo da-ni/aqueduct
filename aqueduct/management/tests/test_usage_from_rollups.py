@@ -9,6 +9,8 @@ from django.utils import timezone
 
 from management import usage_report as report
 from management import usage_rollup as rollup
+from management.access import EveryOrg, WholeOrg, requests_of
+from management.key_activity import served
 from management.models import (
     KeyUsageWindow,
     Org,
@@ -102,7 +104,7 @@ class UsageFromRollupsTest(TestCase):
                 )
                 self.assertEqual(page["statuses"], report.statuses(timeline, filters.log_url))
 
-                if filters.org is None:
+                if isinstance(filters.viewer.chosen, EveryOrg):
                     self.assertEqual(
                         page["orgs_usage"], report.org_shares(report.org_tokens(in_period))
                     )
@@ -145,9 +147,10 @@ class UsageFromRollupsTest(TestCase):
             with self.subTest(user=user.username, **params):
                 page = self.get(user, "usage", **params)
                 weeks = page["heat_days"] // 7
+                heat = EveryOrg() if page["heat_org"] is None else WholeOrg(page["heat_org"])
                 raw = {
                     (row["day"], row["at"]): row["tokens"]
-                    for row in report.org_requests(page["heat_org"])
+                    for row in served(requests_of(heat))
                     .filter(timestamp__gte=timezone.now() - timedelta(weeks=weeks))
                     .values(
                         day=rollup.ExtractIsoWeekDay("timestamp"),

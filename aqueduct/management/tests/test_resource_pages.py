@@ -523,8 +523,8 @@ class VectorStoreSyncTest(ResourcePagesTestBase):
         for name in ("vector_store_card_refresh", "vector_store_detail_refresh"):
             with self.subTest(view=name):
                 url = reverse(name, args=[self.outsider_store.id])
-                response = self.as_user(self.org_admin).post(url, follow=True)
-                self.assertContains(response, "Vector store not found.")
+                response = self.as_user(self.org_admin).post(url)
+                self.assertEqual(response.status_code, 404)
                 self.outsider_store.refresh_from_db()
                 self.assertIsNone(self.outsider_store.last_active_at, "synced")
 
@@ -541,7 +541,7 @@ class VectorStoreSyncTest(ResourcePagesTestBase):
         for name in ("vector_store_card_refresh", "vector_store_detail_refresh"):
             with self.subTest(view=name):
                 url = reverse(name, args=[self.team_store.id])
-                self.assertContains(client.post(url, follow=True), "Vector store not found.")
+                self.assertEqual(client.post(url).status_code, 404)
                 self.team_store.refresh_from_db()
                 self.assertIsNone(self.team_store.last_active_at, "synced")
 

@@ -17,17 +17,16 @@ from django.views.generic import TemplateView
 
 from management import usage_report as report
 from management import usage_rollup as rollup
+from management.access import EveryOrg, KeyAct, OrgWide, WholeOrg, requests_of
 from management.ids import parse_id
-from management.key_activity import Activity
+from management.key_activity import Activity, served
 from management.model_catalog import model_kinds
-from management.models import Org, Request, Token
-from management.ownership import of_orgs
+from management.models import Request, Token
 from management.request_log import (
     PAGE_SIZE,
     Filters,
     Header,
     Key,
-    counts_whole_org,
     describe_key,
     key_search,
     read_filters,
@@ -35,23 +34,22 @@ from management.request_log import (
 from management.views.base import BaseAqueductView
 
 
-def _org_wide(filters: Filters) -> bool:
-    return counts_whole_org(filters) and filters.span is not report.Span.HOUR
+def _org_wide(filters: Filters) -> OrgWide | None:
+    return filters.org_wide if filters.span is not report.Span.HOUR else None
 
 
 def _key_windows(filters: Filters) -> dict[int, Activity] | None:
-    if not _org_wide(filters) or filters.span not in rollup.KEY_WINDOWS.values():
+    extent = _org_wide(filters)
+    if extent is None or filters.span not in rollup.KEY_WINDOWS.values():
         return None
-    org = filters.org
-    tokens = None if org is None else Token.objects.filter(of_orgs({org.pk}))
-    return rollup.key_window_totals(tokens, filters.model, filters.period)
+    return rollup.key_window_totals(extent, filters.model, filters.period)
 
 
 HEAT_CACHE_SECONDS = 60 * 60
 
 
 def _heat(
-    org: Org | None,
+    extent: OrgWide,
     model: str | None,
     requests: QuerySet[Request],
     now: datetime,
@@ -60,27 +58,20 @@ def _heat(
 ) -> dict[tuple[int, int], int]:
     start = now - timedelta(weeks=weeks)
     if sealed.current(now):
-        return rollup.org_heat(org, start, now, sealed, requests, model)
-    key = f"usage-heat:{org.pk if org else 'all'}:{weeks}:{model or ''}"
+        return rollup.org_heat(extent, start, now, sealed, requests, model)
+    key = f"usage-heat:{extent.param}:{weeks}:{model or ''}"
     tokens = cache.get(key)
     if tokens is None:
-        tokens = rollup.org_heat(org, start, now, sealed, requests, model)
+        tokens = rollup.org_heat(extent, start, now, sealed, requests, model)
         cache.set(key, tokens, HEAT_CACHE_SECONDS)
     return tokens
 
 
-def _org_tokens(filters: Filters) -> QuerySet[Token]:
-    return (
-        Token.objects.all()
-        if filters.org is None
-        else Token.objects.filter(of_orgs({filters.org.pk}))
-    )
-
-
 def _describe(filters: Filters) -> Callable[[Token], Key]:
+    every_org = isinstance(filters.viewer.chosen, EveryOrg)
 
     def describe(token: Token) -> Key:
-        key = describe_key(token, filters.viewer, with_org=filters.org is None)
+        key = describe_key(token, filters.viewer, with_org=every_org)
         if not filters.can_pick_scope:
             return replace(key, note="")
         return replace(key, note=gettext("You")) if key.own else key
@@ -96,17 +87,18 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         params = self.request.GET
         now = timezone.now()
         filters = read_filters(self.viewer, params, default_span=report.DEFAULT_SPAN, now=now)
-        selected_org, selected_key, period = filters.org, filters.key, filters.period
+        chosen, selected_key, period = self.viewer.chosen, filters.key, filters.period
+        selected_org = chosen.org if isinstance(chosen, WholeOrg) else None
         reqs = filters.requests
 
         retention_days = getattr(settings, "REQUEST_RETENTION_DAYS", 30)
         in_period = period.of(reqs)
         org_wide = _org_wide(filters)
         sealed = rollup.Sealed.read()
-        org_requests = report.org_requests(selected_org)
-        if org_wide:
-            timeline = rollup.org_series(selected_org, filters.model, period, sealed, org_requests)
-            models = rollup.org_models(selected_org, filters.model, period, sealed, org_requests)
+        org_requests = served(requests_of(chosen))
+        if org_wide is not None:
+            timeline = rollup.org_series(org_wide, filters.model, period, sealed, org_requests)
+            models = rollup.org_models(org_wide, filters.model, period, sealed, org_requests)
         else:
             timeline, models = report.series(reqs, period), report.model_usage(in_period)
         total = timeline.total
@@ -124,7 +116,9 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
             ranked = (
                 report.top_keys(in_period, report.TOP_KEYS + 1)
                 if windows is None
-                else report.ranked_totals(windows, report.KeyOrder.TOKENS, _org_tokens(filters))
+                else report.ranked_totals(
+                    windows, report.KeyOrder.TOKENS, filters.viewer.keys(KeyAct.SEE)
+                )
             )
             more_keys = len(ranked) > report.TOP_KEYS
             keys = report.key_shares(ranked[: report.TOP_KEYS], total.tokens, _describe(filters))
@@ -143,16 +137,15 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 "heat_org": selected_org,
                 "heat_model": heat_model,
                 "heat": report.heat(
-                    _heat(selected_org, heat_model, org_requests, now, heat_weeks, sealed),
-                    heat_weeks,
+                    _heat(chosen, heat_model, org_requests, now, heat_weeks, sealed), heat_weeks
                 ),
                 "heat_days": heat_weeks * 7,
                 "heat_legend": report.HEAT_CLASSES[1:],
                 "heat_hours": report.HEAT_HOURS,
                 "models": report.model_rows(
-                    models, model_kinds(), filters.log_url, approximate=org_wide
+                    models, model_kinds(), filters.log_url, approximate=org_wide is not None
                 ),
-                "approximate_tip": report.APPROXIMATE_MEDIAN if org_wide else "",
+                "approximate_tip": report.APPROXIMATE_MEDIAN if org_wide is not None else "",
                 "keys": keys,
                 "more_keys": more_keys,
                 "all_keys_url": f"{reverse('usage_keys')}?{urlencode(filters.query)}",
@@ -160,7 +153,7 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
                 if selected_org is not None
                 else report.org_shares(
                     rollup.org_tokens(filters.model, period, sealed)
-                    if org_wide
+                    if org_wide is not None
                     else report.org_tokens(in_period)
                 ),
                 "retention_warning": period.start < now - timedelta(days=retention_days),
@@ -193,7 +186,7 @@ class KeyUsageView(BaseAqueductView, TemplateView):
         rows: list[report.KeyRow] | report.CountedKeys
         if (windows := _key_windows(filters)) is not None:
             everyone = report.KeyTotals.of(windows)
-            tokens = _org_tokens(filters)
+            tokens = filters.viewer.keys(KeyAct.SEE)
             if q:
                 ids = set(tokens.filter(search).values_list("id", flat=True))
                 windows = {token_id: a for token_id, a in windows.items() if token_id in ids}

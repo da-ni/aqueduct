@@ -1,5 +1,6 @@
 from django.urls import reverse
 
+from management.access import WholeOrg
 from management.models import Team, UserGroup
 from management.org_choice import SESSION_KEY
 from management.tests.helpers import RoleWorld
@@ -18,7 +19,8 @@ class OrgSwitchTestBase(RoleWorld):
 
 class OrgSwitchTest(OrgSwitchTestBase):
     def viewed(self, url_name: str, **params):
-        return self.client.get(reverse(url_name), params).context["filters"].org
+        chosen = self.client.get(reverse(url_name), params).context["filters"].viewer.chosen
+        return chosen.org if isinstance(chosen, WholeOrg) else None
 
     def test_admin_switches_once_for_every_page(self):
         self.as_user(self.far_admin)

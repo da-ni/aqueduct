@@ -8,9 +8,10 @@ from django.utils.translation import gettext
 from django.views.generic import DeleteView, TemplateView
 
 from gateway.config import get_files_api_client
+from management.access import KeyAct
 from management.deletion import deletion
 from management.models import FileObject
-from management.resources import file_list, list_url, own, scope
+from management.resources import file_list, list_url
 from management.views.base import BaseAqueductView
 
 
@@ -20,8 +21,7 @@ class UserFilesView(BaseAqueductView, TemplateView):
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         context["listing"] = file_list(
-            self.request.user,
-            scope(self.viewer),
+            self.viewer,
             timezone.now(),
             page=self.request.GET.get("page"),
             file_id=self.request.GET.get("file"),
@@ -37,7 +37,7 @@ class FileDeleteView(BaseAqueductView, DeleteView):
         return list_url("files", self.request.GET.get("page"))
 
     def get_queryset(self) -> QuerySet[FileObject]:
-        return FileObject.objects.filter(own(self.request.user))
+        return FileObject.objects.filter(token__in=self.viewer.keys(KeyAct.OWN))
 
     def form_valid(self, form) -> HttpResponse:
         file = self.object
