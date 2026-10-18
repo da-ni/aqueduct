@@ -459,7 +459,9 @@ class ExpiryTest(SimpleTestCase):
         with translation.override("de"):
             soon = Expiry.of(now + timedelta(days=3, hours=1), now)
             self.assertEqual((soon.label, soon.sentence), ("In 3 Tagen", "Läuft in 3 Tagen ab"))
-            later = Expiry.of(datetime(2026, 12, 17, 12, tzinfo=UTC), now)
+            later = Expiry.of(
+                datetime(2026, 12, 17, 12, tzinfo=UTC), datetime(2026, 10, 1, tzinfo=UTC)
+            )
             self.assertEqual(later.label, "17. Dez. 2026")
 
 
