@@ -4,8 +4,8 @@ from django.conf import settings
 from django.utils import timezone
 from django.views.generic import TemplateView
 
+from management.periods import Span
 from management.request_log import read_filters, request_log
-from management.usage_report import Span
 from management.views.base import BaseAqueductView
 
 

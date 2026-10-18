@@ -17,12 +17,14 @@ from django.utils.translation import gettext_lazy as _
 
 from gateway.config import model_names
 from management.access import EveryOrg, KeyAct, OrgWide, TeamAct, Viewer, requests_of
+from management.activity import served
+from management.formatting import NO_ORG, duration, grouped
 from management.ids import MAX_ID, parse_id
-from management.key_activity import FAILED, grouped, served
 from management.model_catalog import scopes_for, usable_models
 from management.models import Request, Token
+from management.outcomes import FAILED, STATUSES
 from management.ownership import RELATED, owner
-from management.usage_report import NO_ORG, STATUSES, Period, Span, duration
+from management.periods import Period, Span
 from management.usage_rollup import org_series
 
 PAGE_SIZE = 50

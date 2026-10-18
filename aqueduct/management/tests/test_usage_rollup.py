@@ -10,7 +10,7 @@ from django.utils import timezone
 from aqueduct.celery import delete_old_requests
 from management import usage_rollup as rollup
 from management.access import EveryOrg, KeyAct, OrgWide, Viewer, WholeOrg, requests_of
-from management.key_activity import Activity, served
+from management.activity import MEDIAN, TOKENS, TOTALS, Activity, series, served
 from management.models import (
     KeyUsageWindow,
     Org,
@@ -24,9 +24,9 @@ from management.models import (
     UserGroup,
     UserProfile,
 )
+from management.periods import DAY, Period, Span
 from management.signals import mark_rollups_dirty
 from management.tests.helpers import make_token, make_user, median_error
-from management.usage_report import DAY, MEDIAN, TOKENS, TOTALS, Period, Span, series
 
 User = get_user_model()
 CHAT = "gpt-4.1-nano"

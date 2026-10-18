@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from gateway.config import model_names
 from management.access import EveryOrg, OrgWide, WholeOrg, requests_of
-from management.key_activity import FAILED, Activity, served
+from management.activity import TOKENS, TOTALS, Activity, ModelUsage, Series, served
 from management.models import (
     KeyUsageWindow,
     Org,
@@ -28,18 +28,9 @@ from management.models import (
     UsageRollupState,
 )
 from management.models.usage_rollup import HOURLY
+from management.outcomes import FAILED, STATUS_COUNTS, STATUSES
 from management.ownership import key_org
-from management.usage_report import (
-    HOUR,
-    STATUS_COUNTS,
-    STATUSES,
-    TOKENS,
-    TOTALS,
-    ModelUsage,
-    Period,
-    Series,
-    Span,
-)
+from management.periods import HOUR, Period, Span
 
 SETTLE = timedelta(minutes=15)
 REWRITE = timedelta(hours=24)

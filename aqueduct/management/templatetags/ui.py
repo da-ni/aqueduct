@@ -15,8 +15,9 @@ from django.utils.safestring import SafeString
 from django.utils.translation import gettext, ngettext_lazy
 
 from management.deletion import deletion
+from management.formatting import MISSING, grouped
 from management.icons import Icon
-from management.key_activity import MISSING, Expiry, grouped
+from management.keys import Expiry
 from management.models import FileObject, ServiceAccount, Team, Token
 from management.privacy import render_markdown
 from management.views.base import NEW_KEY_TAG
