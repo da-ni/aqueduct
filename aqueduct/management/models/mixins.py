@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import BooleanField, JSONField
+from django.utils.translation import gettext
 
 # Physical maxima used to validate the hourly/daily limit multipliers: an hour has
 # 60 minutes and a day has 1440 minutes (24 hours). A larger-window limit above
@@ -177,11 +178,13 @@ class LimitMixin(models.Model):
         if self.hourly_limit_multiplier is not None and not (
             1 <= self.hourly_limit_multiplier <= MINUTES_PER_HOUR
         ):
-            errors["hourly_limit_multiplier"] = "Must be between 1 and 60 (an hour has 60 minutes)."
+            errors["hourly_limit_multiplier"] = gettext(
+                "Must be between 1 and 60 (an hour has 60 minutes)."
+            )
         if self.daily_limit_multiplier is not None and not (
             1 <= self.daily_limit_multiplier <= MINUTES_PER_DAY
         ):
-            errors["daily_limit_multiplier"] = (
+            errors["daily_limit_multiplier"] = gettext(
                 "Must be between 1 and 1440 (a day has 1440 minutes)."
             )
         if (
@@ -189,7 +192,7 @@ class LimitMixin(models.Model):
             and self.daily_limit_multiplier is not None
             and self.daily_limit_multiplier > HOURS_PER_DAY * self.hourly_limit_multiplier
         ):
-            errors["daily_limit_multiplier"] = (
+            errors["daily_limit_multiplier"] = gettext(
                 "Cannot exceed 24 x hourly_limit_multiplier (a day has 24 hours)."
             )
         if errors:

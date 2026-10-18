@@ -1,5 +1,5 @@
 {% extends "management/base.html" %}
-{% load l10n ui %}
+{% load i18n l10n ui %}
 {% block title %}{{ team.name }} · {{ block.super }}{% endblock %}
 
 {% block page_background %}{% endblock %}
@@ -7,7 +7,7 @@
 {% block content %}
 <div class="flex flex-col gap-6">
     <div class="breadcrumbs p-0 text-sm">
-        <ul><li><a href="{% url 'org' %}">Teams</a></li><li>{{ team.name }}</li></ul>
+        <ul><li><a href="{% url 'org' %}">{% translate "Teams" %}</a></li><li>{{ team.name }}</li></ul>
     </div>
 
     <header class="flex min-h-12 flex-wrap items-center justify-between gap-4">
@@ -15,20 +15,21 @@
             <h1 class="text-3xl font-semibold">{{ team.name }}</h1>
             {% if team.description %}<p class="text-sm">{{ team.description }}</p>{% endif %}
             <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-                <span>{{ page.member_count }} member{{ page.member_count|pluralize }}</span>
+                <span>{% blocktranslate count n=page.member_count %}{{ n }} member{% plural %}{{ n }} members{% endblocktranslate %}</span>
                 {% with count=page.service_accounts|length %}
-                    <span>{% if is_team_admin %}{{ count }} of {{ max_service_accounts }} service accounts{% else %}{{ count }} service account{{ count|pluralize }}{% endif %}</span>
+                    <span>{% if is_team_admin %}{% blocktranslate with used=count count max=max_service_accounts %}{{ used }} of {{ max }} service account{% plural %}{{ used }} of {{ max }} service accounts{% endblocktranslate %}{% else %}{% blocktranslate count n=count %}{{ n }} service account{% plural %}{{ n }} service accounts{% endblocktranslate %}{% endif %}</span>
                 {% endwith %}
             </div>
         </div>
         {% if is_team_admin %}
             <div class="flex flex-wrap gap-2">
-                <a class="btn btn-outline btn-primary" href="{% url 'team_edit' team.id %}">{% icon "admin" small=True %}Edit</a>
+                <a class="btn btn-outline btn-primary" href="{% url 'team_edit' team.id %}">{% icon "admin" small=True %}{% translate "Edit" %}</a>
                 {% if can_add_service_account %}
-                    <a class="btn btn-primary" href="{% url 'service_account_create' team.id %}">{% icon "plus" small=True %}Add service account</a>
+                    <a class="btn btn-primary" href="{% url 'service_account_create' team.id %}">{% icon "plus" small=True %}{% translate "Add service account" %}</a>
                 {% else %}
-                    <div class="tooltip tooltip-left" data-tip="This team has {{ max_service_accounts }} service accounts, the maximum. Delete one to add another.">
-                        <button type="button" class="btn btn-primary" disabled>{% icon "plus" small=True %}Add service account</button>
+                    {% blocktranslate count max=max_service_accounts asvar full_tip %}This team has {{ max }} service account, the maximum. Delete it to add another.{% plural %}This team has {{ max }} service accounts, the maximum. Delete one to add another.{% endblocktranslate %}
+                    <div class="tooltip tooltip-left" data-tip="{{ full_tip }}">
+                        <button type="button" class="btn btn-primary" disabled>{% icon "plus" small=True %}{% translate "Add service account" %}</button>
                     </div>
                 {% endif %}
             </div>
@@ -36,7 +37,7 @@
     </header>
 
     <section class="flex flex-col gap-3" aria-labelledby="totals-title">
-        <h2 id="totals-title" class="text-xl font-semibold">Service accounts, last 7 days</h2>
+        <h2 id="totals-title" class="text-xl font-semibold">{% translate "Service accounts, last 7 days" %}</h2>
         <div class="grid grid-cols-3 gap-2 sm:gap-4">
             {% for stat in page.stats %}
                 <div class="card min-w-0 bg-base-200">
@@ -52,25 +53,25 @@
 
     <section class="card bg-base-200" aria-labelledby="service-accounts-title">
         <div class="card-body gap-2 p-5">
-            <h2 id="service-accounts-title" class="text-xl font-semibold">Service accounts</h2>
+            <h2 id="service-accounts-title" class="text-xl font-semibold">{% translate "Service accounts" %}</h2>
             <table class="table key-table lg:table-fixed max-lg:block">
                 <thead class="max-lg:hidden">
                     <tr>
-                        <th>Service account</th>
-                        <th class="w-44">Tokens, 7 days</th>
-                        <th class="w-32">Last used</th>
-                        <th class="w-28">Expires</th>
-                        {% if is_team_admin %}<th class="w-40"><span class="sr-only">Actions</span></th>{% endif %}
+                        <th>{% translate "Service account" %}</th>
+                        <th class="w-44">{% translate "Tokens, 7 days" %}</th>
+                        <th class="w-32">{% translate "Last used" %}</th>
+                        <th class="w-28">{% translate "Expires" %}</th>
+                        {% if is_team_admin %}<th class="w-40"><span class="sr-only">{% translate "Actions" %}</span></th>{% endif %}
                     </tr>
                 </thead>
                 <tbody class="max-lg:block">
                     {% for row in page.service_accounts %}
-                        {% with sa=row.service_account %}
+                        {% with sa=row.service_account %}{% translate "No owner" as no_owner %}{% translate "No key" as no_key %}{% translate "Never" as never %}
                         <tr class="max-lg:flex max-lg:flex-wrap max-lg:items-center">
                             <td class="min-w-0 max-lg:w-full">
                                 {% if row.token %}<a class="link-plain row-link break-words font-mono" href="{% url 'token_detail' row.token.id %}">{{ sa.name }}</a>{% else %}<span class="break-words font-mono">{{ sa.name }}</span>{% endif %}
-                                <div class="muted truncate text-xs"><span class="relative z-10" title="{{ row.token.user.email }}">{{ row.token.user.email|default:"No owner" }}</span> · <span class="font-mono">{{ row.token.key_preview|default:"No key" }}</span></div>
-                                <div class="muted text-xs lg:hidden">{{ row.activity.tokens_short }} tokens · {% if row.activity.last_used %}used {{ row.activity.last_used|when:"relative" }}{% else %}never used{% endif %}{% if row.expiry.at %} · {% if "st-err" in row.expiry.tone %}{{ row.expiry|expiry }}{% else %}expires {{ row.expiry|expiry }}{% endif %}{% endif %}</div>
+                                <div class="muted truncate text-xs"><span class="relative z-10" title="{{ row.token.user.email }}">{{ row.token.user.email|default:no_owner }}</span> · <span class="font-mono">{{ row.token.key_preview|default:no_key }}</span></div>
+                                <div class="muted text-xs lg:hidden">{% blocktranslate with tokens=row.activity.tokens_short count n=row.activity.tokens %}{{ tokens }} token{% plural %}{{ tokens }} tokens{% endblocktranslate %} · {% if row.activity.last_used %}{% blocktranslate with time=row.activity.last_used|when:"relative" %}used {{ time }}{% endblocktranslate %}{% else %}{% translate "never used" %}{% endif %}{% if row.expiry.at %} · {{ row.expiry|expiry:"sentence" }}{% endif %}</div>
                             </td>
                             <td class="max-lg:hidden">
                                 <div class="flex items-center gap-3">
@@ -85,28 +86,33 @@
                                     <span class="w-14 text-right font-mono">{{ row.activity.tokens_short }}</span>
                                 </div>
                             </td>
-                            <td class="muted max-lg:hidden">{{ row.activity.last_used|when:"relative"|default:"Never" }}</td>
+                            <td class="muted max-lg:hidden">{{ row.activity.last_used|when:"relative"|default:never }}</td>
                             <td class="max-lg:hidden">{% if row.expiry %}{{ row.expiry|expiry }}{% endif %}</td>
                             {% if is_team_admin %}
                                 <td class="max-lg:pt-0">
+                                    {% blocktranslate with name=sa.name asvar rotate_question %}Rotate the key of {{ name }}?{% endblocktranslate %}
+                                    {% blocktranslate with name=sa.name asvar rotate_label %}Rotate {{ name }}{% endblocktranslate %}
+                                    {% blocktranslate with name=sa.name asvar edit_label %}Edit {{ name }}{% endblocktranslate %}
+                                    {% blocktranslate with name=sa.name asvar transfer_label %}Transfer {{ name }}{% endblocktranslate %}
+                                    {% blocktranslate with name=sa.name asvar delete_label %}Delete {{ name }}{% endblocktranslate %}
                                     <div class="relative z-10 flex gap-1 lg:justify-end">
                                         {% if row.token %}
                                             <form action="{% url 'token_regenerate' row.token.id %}" method="post">
                                                 {% csrf_token %}
-                                                <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Rotate {{ sa.name }}" title="Rotate"
-                                                        {% confirm "Rotate the key of "|add:sa.name|add:"?" "The current key stops working immediately." "Rotate" %}>{% icon "rotate" small=True %}</button>
+                                                <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="{{ rotate_label }}" title="{% translate "Rotate" %}"
+                                                        {% confirm rotate_question _("The current key stops working immediately.") _("Rotate") %}>{% icon "rotate" small=True %}</button>
                                             </form>
                                         {% endif %}
-                                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_edit' sa.id %}" aria-label="Edit {{ sa.name }}" title="Edit">{% icon "admin" small=True %}</a>
-                                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_transfer' sa.id %}" aria-label="Transfer {{ sa.name }}" title="Transfer ownership">{% icon "transfer" small=True %}</a>
-                                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_delete' sa.id %}" {% confirm_delete sa %} aria-label="Delete {{ sa.name }}" title="Delete">{% icon "delete" small=True %}</a>
+                                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_edit' sa.id %}" aria-label="{{ edit_label }}" title="{% translate "Edit" %}">{% icon "admin" small=True %}</a>
+                                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_transfer' sa.id %}" aria-label="{{ transfer_label }}" title="{% translate "Transfer ownership" %}">{% icon "transfer" small=True %}</a>
+                                        <a class="btn btn-ghost btn-sm btn-square" href="{% url 'service_account_delete' sa.id %}" {% confirm_delete sa %} aria-label="{{ delete_label }}" title="{% translate "Delete" %}">{% icon "delete" small=True %}</a>
                                     </div>
                                 </td>
                             {% endif %}
                         </tr>
                         {% endwith %}
                     {% empty %}
-                        <tr class="max-lg:block"><td colspan="{% if is_team_admin %}5{% else %}4{% endif %}" class="muted max-lg:block">This team has no service accounts.</td></tr>
+                        <tr class="max-lg:block"><td colspan="{% if is_team_admin %}5{% else %}4{% endif %}" class="muted max-lg:block">{% translate "This team has no service accounts." %}</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -117,25 +123,25 @@
         <div class="card-body gap-2 p-5">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div class="flex flex-wrap items-center gap-3">
-                    <h2 id="members-title" class="text-xl font-semibold">Members</h2>
+                    <h2 id="members-title" class="text-xl font-semibold">{% translate "Members" %}</h2>
                     <form method="get" role="search">
                         <label class="input input-sm w-56">
                             {% icon "search" small=True %}
-                            <input type="search" name="q" value="{{ member_query }}" placeholder="Search members" aria-label="Search members by email">
+                            <input type="search" name="q" value="{{ member_query }}" placeholder="{% translate "Search members" %}" aria-label="{% translate "Search members by email" %}">
                         </label>
                     </form>
                 </div>
                 {% if is_team_admin %}
                     <details class="group flex w-full flex-col items-end sm:w-auto"{% if add_form.errors %} open{% endif %}>
-                        <summary class="btn btn-sm btn-primary group-open:[--btn-bg:transparent] group-open:[--btn-fg:var(--color-primary)] group-open:[--btn-border:var(--color-primary)] group-open:[--btn-shadow:none]">{% icon "plus" small=True extra_class="group-open:hidden" %}<span class="group-open:hidden">Add member</span><span class="hidden group-open:inline">Cancel</span></summary>
+                        <summary class="btn btn-sm btn-primary group-open:[--btn-bg:transparent] group-open:[--btn-fg:var(--color-primary)] group-open:[--btn-border:var(--color-primary)] group-open:[--btn-shadow:none]">{% icon "plus" small=True extra_class="group-open:hidden" %}<span class="group-open:hidden">{% translate "Add member" %}</span><span class="hidden group-open:inline">{% translate "Cancel" %}</span></summary>
                         <form method="post" class="mt-2 flex flex-col gap-1">
                             {% csrf_token %}
                             <div class="flex items-center gap-2">
                                 <input type="email" name="email" value="{{ add_form.email.value|default:'' }}" required
                                        class="input input-sm w-full sm:w-72{% if add_form.email.errors %} input-error{% endif %}"
-                                       placeholder="name@example.org" aria-label="Email of the new member"
+                                       placeholder="{% translate "name@example.org" %}" aria-label="{% translate "Email of the new member" %}"
                                        {% if add_form.email.errors %}aria-invalid="true" aria-describedby="add-member-error"{% endif %}>
-                                <button type="submit" class="btn btn-sm btn-primary">Add</button>
+                                <button type="submit" class="btn btn-sm btn-primary">{% translate "Add" %}</button>
                             </div>
                             {% if add_form.email.errors %}<span id="add-member-error" class="text-sm text-error">{{ add_form.email.errors|striptags }}</span>{% endif %}
                         </form>
@@ -145,15 +151,15 @@
             <table class="table key-table md:table-fixed max-md:block">
                 <thead class="max-md:hidden">
                     <tr>
-                        <th>Member</th>
-                        <th class="w-56">Role</th>
-                        {% if is_team_admin %}<th class="w-64"><span class="sr-only">Remove</span></th>{% endif %}
+                        <th>{% translate "Member" %}</th>
+                        <th class="w-56">{% translate "Role" %}</th>
+                        {% if is_team_admin %}<th class="w-64"><span class="sr-only">{% translate "Remove" %}</span></th>{% endif %}
                     </tr>
                 </thead>
                 <tbody class="max-md:block">
                     {% for member in page.members %}
                         <tr class="max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-x-3">
-                            <td class="truncate max-md:w-full max-md:pb-0" title="{{ member.profile.user.email }}"><span class="font-medium">{{ member.profile.user.email }}</span>{% if member.is_viewer %} <span class="muted">(you)</span>{% endif %}</td>
+                            <td class="truncate max-md:w-full max-md:pb-0" title="{{ member.profile.user.email }}"><span class="font-medium">{{ member.profile.user.email }}</span>{% if member.is_viewer %} <span class="muted">{% translate "(you)" %}</span>{% endif %}</td>
                             <td class="max-md:py-1">
                                 <div class="flex flex-wrap items-center gap-3">
                                     <span>{{ member.role.label }}</span>
@@ -162,9 +168,9 @@
                                             {% csrf_token %}
                                             <input type="hidden" name="profile_id" value="{{ member.profile.id }}">
                                             {% if member.is_team_admin %}
-                                                <button type="submit" name="action" value="remove" class="btn btn-ghost btn-xs whitespace-nowrap" aria-label="Remove admin rights of {{ member.profile.user.email }}">Remove admin</button>
+                                                <button type="submit" name="action" value="remove" class="btn btn-ghost btn-xs whitespace-nowrap" aria-label="{% blocktranslate with email=member.profile.user.email %}Remove admin rights of {{ email }}{% endblocktranslate %}">{% translate "Remove admin" %}</button>
                                             {% else %}
-                                                <button type="submit" name="action" value="add" class="btn btn-ghost btn-xs whitespace-nowrap" aria-label="Make {{ member.profile.user.email }} a team admin">Make admin</button>
+                                                <button type="submit" name="action" value="add" class="btn btn-ghost btn-xs whitespace-nowrap" aria-label="{% blocktranslate with email=member.profile.user.email %}Make {{ email }} a team admin{% endblocktranslate %}">{% translate "Make admin" %}</button>
                                             {% endif %}
                                         </form>
                                     {% endif %}
@@ -173,20 +179,21 @@
                             {% if is_team_admin %}
                                 <td class="max-md:py-1 md:text-right">
                                     {% for sa in member.owned %}
-                                        <div class="muted text-sm">Owns <span class="font-mono">{{ sa.name }}</span> · <a class="link" href="{% url 'service_account_transfer' sa.id %}">Transfer</a></div>
+                                        <div class="muted text-sm">{% blocktranslate with name=sa.name %}Owns <span class="font-mono">{{ name }}</span>{% endblocktranslate %} · <a class="link" href="{% url 'service_account_transfer' sa.id %}">{% translate "Transfer" %}</a></div>
                                     {% empty %}
+                                        {% blocktranslate with email=member.profile.user.email asvar remove_question %}Remove {{ email }}?{% endblocktranslate %}
                                         <form method="post">
                                             {% csrf_token %}
                                             <input type="hidden" name="user_profile_to_remove_id" value="{{ member.profile.id }}">
-                                            <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="Remove {{ member.profile.user.email }} from the team" title="Remove from the team"
-                                                    {% confirm "Remove "|add:member.profile.user.email|add:"?" "They lose access to the team and its service accounts." "Remove" %}>{% icon "delete" small=True %}</button>
+                                            <button type="submit" class="btn btn-ghost btn-sm btn-square" aria-label="{% blocktranslate with email=member.profile.user.email %}Remove {{ email }} from the team{% endblocktranslate %}" title="{% translate "Remove from the team" %}"
+                                                    {% confirm remove_question _("They lose access to the team and its service accounts.") _("Remove") %}>{% icon "delete" small=True %}</button>
                                         </form>
                                     {% endfor %}
                                 </td>
                             {% endif %}
                         </tr>
                     {% empty %}
-                        <tr class="max-md:block"><td colspan="{% if is_team_admin %}3{% else %}2{% endif %}" class="muted max-md:block">{% if member_query %}No member matches.{% else %}This team has no members.{% endif %}</td></tr>
+                        <tr class="max-md:block"><td colspan="{% if is_team_admin %}3{% else %}2{% endif %}" class="muted max-md:block">{% if member_query %}{% translate "No member matches." %}{% else %}{% translate "This team has no members." %}{% endif %}</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -198,28 +205,28 @@
         <section class="card bg-base-200" aria-labelledby="limits-title">
             <div class="card-body gap-3 p-5">
                 <div class="flex items-center justify-between gap-3">
-                    <h2 id="limits-title" class="text-xl font-semibold">Limits</h2>
-                    {% if is_org_admin %}<a class="link-plain text-sm" href="{% url 'team_edit' team.id %}" aria-label="Edit limits">Edit</a>{% endif %}
+                    <h2 id="limits-title" class="text-xl font-semibold">{% translate "Limits" %}</h2>
+                    {% if is_org_admin %}<a class="link-plain text-sm" href="{% url 'team_edit' team.id %}" aria-label="{% translate "Edit limits" %}">{% translate "Edit" %}</a>{% endif %}
                 </div>
-                {% include "management/_limits.html" with limits=page.limits note="Applies to each service account key." %}
+                {% include "management/_limits.html" with limits=page.limits note=_("Applies to each service account key.") %}
                 {% if is_org_admin %}
                     <div class="flex items-center justify-between gap-3 border-t border-base-300 pt-4">
-                        <h3 class="font-semibold">Unavailable to service accounts</h3>
-                        <a class="link-plain text-sm" href="{% url 'team_availability' team.id %}" aria-label="Edit availability">Edit</a>
+                        <h3 class="font-semibold">{% translate "Unavailable to service accounts" %}</h3>
+                        <a class="link-plain text-sm" href="{% url 'team_availability' team.id %}" aria-label="{% translate "Edit availability" %}">{% translate "Edit" %}</a>
                     </div>
                     {% if page.excluded_models or page.excluded_mcp_servers %}
                         <dl class="grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center">
                             {% if page.excluded_models %}
-                                <dt class="muted">Models</dt>
+                                <dt class="muted">{% translate "Models" %}</dt>
                                 <dd class="flex flex-wrap gap-1.5">{% for model in page.excluded_models %}<span class="badge badge-sm bg-base-100 font-mono">{{ model }}</span>{% endfor %}</dd>
                             {% endif %}
                             {% if page.excluded_mcp_servers %}
-                                <dt class="muted">MCP servers</dt>
+                                <dt class="muted">{% translate "MCP servers" %}</dt>
                                 <dd class="flex flex-wrap gap-1.5">{% for server in page.excluded_mcp_servers %}<span class="badge badge-sm bg-base-100 font-mono">{{ server }}</span>{% endfor %}</dd>
                             {% endif %}
                         </dl>
                     {% else %}
-                        <p class="muted text-sm">None</p>
+                        <p class="muted text-sm">{% translate "None" %}</p>
                     {% endif %}
                 {% endif %}
             </div>

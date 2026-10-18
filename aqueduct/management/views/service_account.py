@@ -8,6 +8,7 @@ from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.utils.decorators import method_decorator
+from django.utils.translation import gettext
 from django.views import View
 from django.views.generic import CreateView, DeleteView, UpdateView
 
@@ -54,7 +55,7 @@ class ServiceAccountCreateView(BaseTeamView, TeamAdminRequiredMixin, CreateView)
         context = super().get_context_data(**kwargs)
         # self.team available from BaseTeamView
         context["team"] = self.team
-        context["view_title"] = "Add a service account"
+        context["view_title"] = gettext("Add a service account")
         context["cancel_url"] = reverse("team", kwargs={"id": self.team.id})
         return context
 
@@ -84,7 +85,10 @@ class ServiceAccountCreateView(BaseTeamView, TeamAdminRequiredMixin, CreateView)
 
         except Exception as e:
             # Log error e
-            messages.error(self.request, f"Could not create the service account's key: {e}")
+            messages.error(
+                self.request,
+                gettext("Could not create the service account's key: %(error)s") % {"error": e},
+            )
             # Consider if the SA should be rolled back if token creation fails
             # Since it's atomic, the SA save won't commit if token creation fails here.
 
@@ -123,7 +127,9 @@ class ServiceAccountDeleteView(BaseServiceAccountView, DeleteView):
     def form_valid(self, form) -> HttpResponse:
         name = self.object.name
         response = super().form_valid(form)
-        messages.success(self.request, f"Service account {name} deleted.")
+        messages.success(
+            self.request, gettext("Service account %(name)s deleted.") % {"name": name}
+        )
         return response
 
 
@@ -175,7 +181,9 @@ class ServiceAccountUpdateView(BaseServiceAccountView, UpdateView):
             token.save(update_fields=["expires_at"])
         except Token.DoesNotExist:
             pass  # Optionally handle this case
-        messages.success(self.request, f"Service account {self.object.name} saved.")
+        messages.success(
+            self.request, gettext("Service account %(name)s saved.") % {"name": self.object.name}
+        )
         return response
 
     def get_success_url(self) -> str:
@@ -185,7 +193,7 @@ class ServiceAccountUpdateView(BaseServiceAccountView, UpdateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["view_title"] = "Edit service account"
+        context["view_title"] = gettext("Edit service account")
         context["cancel_url"] = self.get_success_url()  # Add cancel URL
         # context['service_account'] is set automatically by UpdateView
         context["team"] = self.team_object  # Pass team for context if needed in template
@@ -208,7 +216,10 @@ class ServiceAccountTransferOwnershipView(BaseServiceAccountView, View):
         return MemberEmailForm(
             data,
             candidates=team.member_profiles.all(),
-            not_found=f"{{email}} is not a member of {team.name}.",
+            not_found=lambda email: (
+                gettext("%(email)s is not a member of %(team)s.")
+                % {"email": email, "team": team.name}
+            ),
         )
 
     def render_form(self, form: MemberEmailForm, token: Token | None) -> HttpResponse:
@@ -226,7 +237,7 @@ class ServiceAccountTransferOwnershipView(BaseServiceAccountView, View):
             "has_other_members": others.exists(),
             "owner_choices": choices,
             "cancel_url": self.get_success_url(),
-            "view_title": "Transfer ownership",
+            "view_title": gettext("Transfer ownership"),
         }
         return TemplateResponse(request=self.request, template=self.template_name, context=context)
 
@@ -239,14 +250,24 @@ class ServiceAccountTransferOwnershipView(BaseServiceAccountView, View):
         sa = self.get_object()
         token = Token.objects.select_for_update().filter(service_account=sa).first()
         if token is None:
-            messages.error(request, f"Service account {sa.name} has no key to transfer.")
+            messages.error(
+                request,
+                gettext("Service account %(name)s has no key to transfer.") % {"name": sa.name},
+            )
             return redirect(self.get_success_url())
         form = self.owner_form(request.POST)
         if form.is_valid() and form.profile.user_id == token.user_id:
-            form.add_error("email", f"{form.profile.user.email} already owns this key.")
+            form.add_error(
+                "email",
+                gettext("%(email)s already owns this key.") % {"email": form.profile.user.email},
+            )
         if not form.is_valid():
             return self.render_form(form, token)
         token.user = form.profile.user
         token.save(update_fields=["user"])
-        messages.success(request, f"{form.profile.user.email} now owns the key of {sa.name}.")
+        messages.success(
+            request,
+            gettext("%(email)s now owns the key of %(name)s.")
+            % {"email": form.profile.user.email, "name": sa.name},
+        )
         return redirect(self.get_success_url())

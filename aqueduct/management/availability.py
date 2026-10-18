@@ -12,6 +12,8 @@ from typing import Any
 from django import forms
 from django.utils.html import format_html
 from django.utils.safestring import SafeString
+from django.utils.translation import gettext
+from django.utils.translation import gettext_lazy as _
 
 from gateway.config import get_mcp_config, get_router_config
 
@@ -51,12 +53,12 @@ CHECKLISTS: dict[str, tuple[str, Callable[[], list[str]]]] = {
 }
 """Each checklist field, the list it stores to, and the names the config has."""
 INHERIT_LABELS = {
-    "merge_exclusion_lists": "Also apply the organization's unavailable models",
-    "merge_mcp_server_exclusion_lists": "Also apply the organization's unavailable MCP servers",
+    "merge_exclusion_lists": _("Also apply the organization's unavailable models"),
+    "merge_mcp_server_exclusion_lists": _("Also apply the organization's unavailable MCP servers"),
 }
 INHERIT_HELP = {
-    "merge_exclusion_lists": "Clear this to use only the boxes above.",
-    "merge_mcp_server_exclusion_lists": "Clear this to use only the boxes above.",
+    "merge_exclusion_lists": _("Clear this to use only the boxes above."),
+    "merge_mcp_server_exclusion_lists": _("Clear this to use only the boxes above."),
 }
 """Labels of the merge flags of a team or profile, whose parent is the organization."""
 ORDER = (
@@ -86,14 +88,14 @@ class AvailabilityForm(forms.ModelForm):
     available_models = forms.MultipleChoiceField(
         required=False,
         widget=Checklist,
-        label="Available models",
-        help_text="Clear a box to make the model unavailable.",
+        label=_("Available models"),
+        help_text=_("Clear a box to make the model unavailable."),
     )
     available_mcp_servers = forms.MultipleChoiceField(
         required=False,
         widget=Checklist,
-        label="Available MCP servers",
-        help_text="Clear a box to make the MCP server unavailable.",
+        label=_("Available MCP servers"),
+        help_text=_("Clear a box to make the MCP server unavailable."),
     )
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -109,12 +111,12 @@ class AvailabilityForm(forms.ModelForm):
             known = configured()
             missing = [n for n in excluded if n not in known]
             self.fields[name].choices = [(n, n) for n in known] + [  # type: ignore[attr-defined]
-                (n, f"{n} (not in the current config)") for n in missing
+                (n, gettext("%(name)s (not in the current config)") % {"name": n}) for n in missing
             ]
             self.initial[name] = [n for n in known if n not in excluded]
 
     def save(self, commit: bool = True) -> Any:
-        for name, (stored, _) in CHECKLISTS.items():
+        for name, (stored, _configured) in CHECKLISTS.items():
             if name not in self.cleaned_data or f"{self.add_prefix(name)}-shown" not in self.data:
                 continue
             checked = set(self.cleaned_data[name])

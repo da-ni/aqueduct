@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 
 from django.conf import settings
+from django.utils.formats import number_format
+from django.utils.translation import gettext, ngettext
 
 from management.models import LimitSet, Org, ServiceAccount, Team, Token
 
@@ -24,8 +26,13 @@ class OrgPage:
 
 def _cap(value: int | None, default: int) -> str:
     """A multiplier as the minutes at the full per-minute rate that the window allows."""
-    minutes = f"{value if value is not None else default:,} min of full rate"
-    return f"{minutes} (default)" if value is None else minutes
+    if value is None:
+        return ngettext(
+            "%(count)s min of full rate (default)", "%(count)s min of full rate (default)", default
+        ) % {"count": number_format(default, force_grouping=True)}
+    return ngettext("%(count)s min of full rate", "%(count)s min of full rate", value) % {
+        "count": number_format(value, force_grouping=True)
+    }
 
 
 def org_page(org: Org) -> OrgPage:
@@ -52,11 +59,11 @@ def org_page(org: Org) -> OrgPage:
         limits=LimitSet.from_objects(org, None),
         multipliers=(
             (
-                "Hourly cap",
+                gettext("Hourly cap"),
                 _cap(org.hourly_limit_multiplier, settings.AQUEDUCT_HOURLY_LIMIT_MULTIPLIER),
             ),
             (
-                "Daily cap",
+                gettext("Daily cap"),
                 _cap(org.daily_limit_multiplier, settings.AQUEDUCT_DAILY_LIMIT_MULTIPLIER),
             ),
         ),

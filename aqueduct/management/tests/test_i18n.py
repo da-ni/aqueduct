@@ -44,21 +44,11 @@ UNTRANSLATED_TEMPLATES = frozenset(
         "admin/management/snippet/test_console.html",
         "management/_model_detail.html",
         "management/batches.html",
-        "management/create/service_account.html",
-        "management/create/team.html",
-        "management/edit/org.html",
-        "management/edit/service_account.html",
-        "management/edit/team.html",
         "management/files.html",
         "management/mcp_servers.html",
         "management/model_list.html",
-        "management/org.html",
-        "management/organization.html",
-        "management/team.html",
-        "management/transfer_service_account.html",
         "management/vector_store_detail.html",
         "management/vector_stores.html",
-        "management/widgets/checkboxes.html",
     }
 )
 

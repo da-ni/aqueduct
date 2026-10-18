@@ -7,6 +7,7 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
+from django.utils.translation import gettext
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, UpdateView
 
@@ -53,12 +54,14 @@ class TeamCreateView(BaseAqueductView, OrgAdminRequiredMixin, CreateView):
     def form_valid(self, form) -> HttpResponse:
         form.instance.org = self.target_org
         response = super().form_valid(form)
-        messages.success(self.request, f"Team {form.instance.name} created.")
+        messages.success(
+            self.request, gettext("Team %(name)s created.") % {"name": form.instance.name}
+        )
         return response
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["view_title"] = "Create a team"
+        context["view_title"] = gettext("Create a team")
         context["target_org"] = self.target_org
         context["names_target_org"] = self.is_admin()
         return context
@@ -89,7 +92,7 @@ class TeamUpdateView(BaseTeamView, TeamAdminRequiredMixin, UpdateView):
     def form_valid(self, form) -> HttpResponse:
         """Adds a success message upon successful update."""
         response = super().form_valid(form)
-        messages.success(self.request, f"Team {self.object.name} saved.")
+        messages.success(self.request, gettext("Team %(name)s saved.") % {"name": self.object.name})
         return response
 
     def get_success_url(self) -> str:
@@ -99,7 +102,7 @@ class TeamUpdateView(BaseTeamView, TeamAdminRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
-        context["view_title"] = "Edit team"
+        context["view_title"] = gettext("Edit team")
         context["cancel_url"] = self.get_success_url()  # Add cancel URL
         context["can_delete"] = self.manages_team()
         return context
@@ -122,7 +125,9 @@ class TeamAvailabilityEditView(BaseTeamView, UpdateView):
 
     def form_valid(self, form) -> HttpResponse:
         response = super().form_valid(form)
-        messages.success(self.request, f"Availability of {self.object.name} saved.")
+        messages.success(
+            self.request, gettext("Availability of %(name)s saved.") % {"name": self.object.name}
+        )
         return response
 
     def get_success_url(self) -> str:
@@ -130,8 +135,8 @@ class TeamAvailabilityEditView(BaseTeamView, UpdateView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         return super().get_context_data(
-            view_title="Availability",
-            breadcrumb="Availability",
+            view_title=gettext("Availability"),
+            breadcrumb=gettext("Availability"),
             cancel_url=self.get_success_url(),
             **kwargs,
         )
@@ -148,7 +153,7 @@ class TeamDeleteView(BaseTeamView, TeamAdminRequiredMixin, DeleteView):
     def form_valid(self, form) -> HttpResponse:
         team_name = self.team.name
         response = super().form_valid(form)
-        messages.success(self.request, f"Team {team_name} deleted.")
+        messages.success(self.request, gettext("Team %(name)s deleted.") % {"name": team_name})
         return response
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
@@ -175,7 +180,7 @@ class TeamAdminManagementView(BaseTeamView, TeamAdminRequiredMixin, View):
         )  # Use team_org for consistency
 
         if profile == self.profile:
-            messages.warning(request, "Org admins already have team admin rights.")
+            messages.warning(request, gettext("Org admins already have team admin rights."))
             return redirect(reverse("team", kwargs={"id": team.id}))
 
         # Ensure the target profile is actually a member of the team before changing admin status
@@ -184,25 +189,39 @@ class TeamAdminManagementView(BaseTeamView, TeamAdminRequiredMixin, View):
         try:
             membership = team.teammembership_set.get(user_profile=profile)
         except team.teammembership_set.model.DoesNotExist:
-            messages.error(request, f"{profile.user.email} is not in this team.")
+            messages.error(
+                request, gettext("%(email)s is not in this team.") % {"email": profile.user.email}
+            )
             return redirect(reverse("team", kwargs={"id": team.id}))
 
         if action == "add":
             if membership.is_admin:
-                messages.info(request, f"{profile.user.email} is already a team admin.")
+                messages.info(
+                    request,
+                    gettext("%(email)s is already a team admin.") % {"email": profile.user.email},
+                )
             else:
                 membership.is_admin = True
                 membership.save(update_fields=["is_admin"])
-                messages.success(request, f"{profile.user.email} is now a team admin.")
+                messages.success(
+                    request,
+                    gettext("%(email)s is now a team admin.") % {"email": profile.user.email},
+                )
         elif action == "remove":
             if membership.is_admin:
                 membership.is_admin = False
                 membership.save(update_fields=["is_admin"])
-                messages.success(request, f"{profile.user.email} is no longer a team admin.")
+                messages.success(
+                    request,
+                    gettext("%(email)s is no longer a team admin.") % {"email": profile.user.email},
+                )
             else:
-                messages.info(request, f"{profile.user.email} is not a team admin.")
+                messages.info(
+                    request,
+                    gettext("%(email)s is not a team admin.") % {"email": profile.user.email},
+                )
         else:
-            messages.error(request, "Invalid action.")
+            messages.error(request, gettext("Invalid action."))
         return redirect(reverse("team", kwargs={"id": team.id}))
 
 
@@ -221,7 +240,10 @@ class TeamDetailView(BaseTeamView, DetailView):
         return MemberEmailForm(
             data,
             candidates=self.team_org.user_profiles.all(),
-            not_found=f"No one in {self.team_org.name} uses {{email}}.",
+            not_found=lambda email: (
+                gettext("No one in %(org)s uses %(email)s.")
+                % {"org": self.team_org.name, "email": email}
+            ),
         )
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
@@ -276,25 +298,35 @@ class TeamDetailView(BaseTeamView, DetailView):
         if "email" in request.POST:
             form = self.add_member_form(request.POST)
             if form.is_valid() and team.member_profiles.filter(id=form.profile.id).exists():
-                form.add_error("email", f"{form.profile.user.email} is already in this team.")
+                form.add_error(
+                    "email",
+                    gettext("%(email)s is already in this team.")
+                    % {"email": form.profile.user.email},
+                )
             if not form.is_valid():
                 self.object = team
                 return self.render_to_response(self.get_context_data(add_form=form))
             team.member_profiles.add(form.profile)
-            messages.success(request, f"{form.profile.user.email} added.")
+            messages.success(
+                request, gettext("%(email)s added.") % {"email": form.profile.user.email}
+            )
 
         elif user_profile_id_to_remove:
             leaving = team.member_profiles.filter(id=parse_id(user_profile_id_to_remove)).first()
             if leaving is None:
-                messages.error(request, "Member not found.")
+                messages.error(request, gettext("Member not found."))
             elif ServiceAccount.objects.filter(team=team, token__user__profile=leaving).exists():
                 messages.error(
-                    request, f"Transfer or delete {leaving.user.email}'s service accounts first."
+                    request,
+                    gettext("Transfer or delete %(email)s's service accounts first.")
+                    % {"email": leaving.user.email},
                 )
             else:
                 team.member_profiles.remove(leaving)
-                messages.success(request, f"{leaving.user.email} removed.")
+                messages.success(
+                    request, gettext("%(email)s removed.") % {"email": leaving.user.email}
+                )
         else:
-            messages.warning(request, "Nothing to change.")
+            messages.warning(request, gettext("Nothing to change."))
 
         return redirect(redirect_url)

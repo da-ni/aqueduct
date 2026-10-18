@@ -2,6 +2,7 @@ import re
 from datetime import timedelta
 from typing import ClassVar
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.test import TestCase
@@ -410,6 +411,12 @@ class TeamMembershipTest(TeamsPagesTestBase):
                 self.assertContains(response, f"No one in lab-org uses {email}.")
                 self.assertContains(response, f'value="{email}"')
                 self.assertEqual(self.members(), before)
+
+    def test_a_german_viewer_reads_why_in_german(self):
+        client = self.as_user(self.team_admin)
+        client.cookies[settings.LANGUAGE_COOKIE_NAME] = "de"
+        response = client.post(self.url(), {"email": "nobody@example.com"})
+        self.assertContains(response, "In lab-org nutzt kein Konto die Adresse nobody@example.com.")
 
     def test_adding_a_member_again_explains_why(self):
         response = self.as_user(self.team_admin).post(self.url(), {"email": "member@example.com"})

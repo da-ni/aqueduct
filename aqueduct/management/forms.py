@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import ClassVar
 
 from django import forms
@@ -5,6 +6,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models import QuerySet
 from django.utils import timezone
+from django.utils.formats import number_format
 from django.utils.translation import gettext, ngettext
 from django.utils.translation import gettext_lazy as _
 
@@ -30,7 +32,7 @@ class ServiceAccountForm(forms.ModelForm):
         widget=forms.DateTimeInput(
             attrs={"type": "datetime-local", "class": EXPIRY_INPUT}, format="%Y-%m-%dT%H:%M"
         ),
-        label="Expires (UTC, optional)",
+        label=_("Expires (UTC, optional)"),
     )
 
     class Meta:
@@ -38,11 +40,11 @@ class ServiceAccountForm(forms.ModelForm):
         fields: ClassVar[list] = ["name", "description"]
         widgets: ClassVar[dict] = {
             "name": forms.TextInput(
-                attrs={"placeholder": "For example rag-pipeline", "class": NAME_INPUT}
+                attrs={"placeholder": _("For example rag-pipeline"), "class": NAME_INPUT}
             ),
             "description": forms.Textarea(attrs={"rows": 3, "class": DESCRIPTION_INPUT}),
         }
-        labels: ClassVar[dict] = {"name": "Name", "description": "Description (optional)"}
+        labels: ClassVar[dict] = {"name": _("Name"), "description": _("Description (optional)")}
 
     def __init__(self, *args, **kwargs):
         # Pop the team object passed from the view
@@ -68,8 +70,11 @@ class ServiceAccountForm(forms.ModelForm):
                 if query.exists():
                     self.add_error(
                         "name",
-                        f"A service account with the name '{name}' already exists "
-                        f"in team '{self.team.name}'.",
+                        gettext(
+                            "A service account with the name '%(name)s' already exists in team "
+                            "'%(team)s'."
+                        )
+                        % {"name": name, "team": self.team.name},
                     )
 
             # Check team limit
@@ -88,13 +93,19 @@ class ServiceAccountForm(forms.ModelForm):
             if instance_pk is None and current_count >= limit:
                 # Attach the error to the form, not a specific field, as it's a general limit issue
                 raise ValidationError(
-                    f"Team '{self.team.name}' has reached the maximum limit of "
-                    f"{limit} service accounts.",
+                    ngettext(
+                        "Team '%(team)s' has reached the maximum limit of %(count)s service "
+                        "account.",
+                        "Team '%(team)s' has reached the maximum limit of %(count)s service "
+                        "accounts.",
+                        limit,
+                    )
+                    % {"team": self.team.name, "count": limit},
                     code="limit_reached",
                 )
         expires_at = cleaned_data.get("token_expires_at")
         if expires_at and expires_at <= timezone.now():
-            self.add_error("token_expires_at", "Expiration date must be in the future.")
+            self.add_error("token_expires_at", gettext("Expiration date must be in the future."))
         return cleaned_data
 
 
@@ -104,11 +115,11 @@ class TeamCreateForm(forms.ModelForm):
         fields: ClassVar[list] = ["name", "description"]
         widgets: ClassVar[dict] = {
             "name": forms.TextInput(
-                attrs={"placeholder": "For example NLP Lab", "class": NAME_INPUT}
+                attrs={"placeholder": _("For example NLP Lab"), "class": NAME_INPUT}
             ),
             "description": forms.Textarea(attrs={"rows": 3, "class": DESCRIPTION_INPUT}),
         }
-        labels: ClassVar[dict] = {"name": "Name", "description": "Description (optional)"}
+        labels: ClassVar[dict] = {"name": _("Name"), "description": _("Description (optional)")}
 
     def __init__(self, *args, **kwargs):
         # Pop the organization kwarg before initializing the parent ModelForm
@@ -137,15 +148,17 @@ class TeamCreateForm(forms.ModelForm):
             if query.exists():
                 # Use __iexact for case-insensitive comparison if desired,
                 # or just name=name for case-sensitive.
-                self.add_error("name", "A team with this name already exists in your organization.")
+                self.add_error(
+                    "name", gettext("A team with this name already exists in your organization.")
+                )
 
         return cleaned_data
 
 
 TEAM_LIMITS = {
-    "requests_per_minute": "Requests per minute, per key",
-    "input_tokens_per_minute": "Input tokens per minute, per key",
-    "output_tokens_per_minute": "Output tokens per minute, per key",
+    "requests_per_minute": _("Requests per minute, per key"),
+    "input_tokens_per_minute": _("Input tokens per minute, per key"),
+    "output_tokens_per_minute": _("Output tokens per minute, per key"),
 }
 
 
@@ -169,9 +182,10 @@ class TeamLimitsForm(TeamCreateForm):
         for field in TEAM_LIMITS:
             fallback = getattr(self.org, field)
             self.fields[field].help_text = (
-                "Leave it empty for no limit."
+                gettext("Leave it empty for no limit.")
                 if fallback is None
-                else f"Leave it empty for the organization's limit, {fallback:,}."
+                else gettext("Leave it empty for the organization's limit, %(limit)s.")
+                % {"limit": number_format(fallback, force_grouping=True)}
             )
 
 
@@ -236,18 +250,18 @@ class OrgLimitsForm(forms.ModelForm):
             field: forms.NumberInput(attrs={"class": NUMBER_INPUT, "min": 0}) for field in fields
         }
         labels: ClassVar[dict] = {
-            "requests_per_minute": "Requests per minute",
-            "input_tokens_per_minute": "Input tokens per minute",
-            "output_tokens_per_minute": "Output tokens per minute",
-            "hourly_limit_multiplier": "Hourly cap",
-            "daily_limit_multiplier": "Daily cap",
+            "requests_per_minute": _("Requests per minute"),
+            "input_tokens_per_minute": _("Input tokens per minute"),
+            "output_tokens_per_minute": _("Output tokens per minute"),
+            "hourly_limit_multiplier": _("Hourly cap"),
+            "daily_limit_multiplier": _("Daily cap"),
         }
         help_texts: ClassVar[dict] = {
-            "requests_per_minute": "Leave it empty for no limit.",
-            "input_tokens_per_minute": "Leave it empty for no limit.",
-            "output_tokens_per_minute": "Leave it empty for no limit.",
-            "hourly_limit_multiplier": "1–60. 60 = no extra hourly cap.",  # noqa: RUF001
-            "daily_limit_multiplier": "1–1,440. 1,440 = no extra daily cap.",  # noqa: RUF001
+            "requests_per_minute": _("Leave it empty for no limit."),
+            "input_tokens_per_minute": _("Leave it empty for no limit."),
+            "output_tokens_per_minute": _("Leave it empty for no limit."),
+            "hourly_limit_multiplier": _("1–60. 60 = no extra hourly cap."),  # noqa: RUF001
+            "daily_limit_multiplier": _("1–1,440. 1,440 = no extra daily cap."),  # noqa: RUF001
         }
 
 
@@ -284,14 +298,15 @@ class OrgAvailabilityForm(ChecklistForm):
         fields: ClassVar[list] = ["merge_exclusion_lists", "merge_mcp_server_exclusion_lists"]
         widgets: ClassVar[dict] = MERGE_WIDGETS
         labels: ClassVar[dict] = {
-            "merge_exclusion_lists": "Apply the server's default unavailable models",
-            "merge_mcp_server_exclusion_lists": "Apply the server's default unavailable MCP "
-            "servers",
+            "merge_exclusion_lists": _("Apply the server's default unavailable models"),
+            "merge_mcp_server_exclusion_lists": _(
+                "Apply the server's default unavailable MCP servers"
+            ),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["available_models"].help_text = (
+        self.fields["available_models"].help_text = gettext(
             "Clear a box to make the model unavailable to keys in this organization. "
             "A model added to the configuration later starts out available."
         )
@@ -304,10 +319,13 @@ class OrgAvailabilityForm(ChecklistForm):
                 continue
             # Without server defaults the box changes nothing, and leaving it out keeps it.
             if names:
-                self.fields[name].help_text = (
-                    f"The server configuration makes {', '.join(names)} unavailable everywhere. "
-                    "Clear this to make them available in this organization."
-                )
+                self.fields[name].help_text = ngettext(
+                    "The server configuration makes %(names)s unavailable everywhere. "
+                    "Clear this to make it available in this organization.",
+                    "The server configuration makes %(names)s unavailable everywhere. "
+                    "Clear this to make them available in this organization.",
+                    len(names),
+                ) % {"names": ", ".join(names)}
             else:
                 del self.fields[name]
 
@@ -324,7 +342,7 @@ class TeamAvailabilityForm(ChecklistForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["available_models"].help_text = (
+        self.fields["available_models"].help_text = gettext(
             "Clear a box to make the model unavailable to the team's service account keys. "
             "Members' personal keys are not affected."
         )
@@ -332,11 +350,13 @@ class TeamAvailabilityForm(ChecklistForm):
 
 class MemberEmailForm(forms.Form):
     """Names one of `candidates` by email, ignoring case. After validation `profile` is that
-    person. `not_found` is the error for an email none of them uses, with `{email}` in it."""
+    person. `not_found` gives the error for an email none of them uses."""
 
-    email = forms.EmailField(label="Email")
+    email = forms.EmailField(label=_("Email"))
 
-    def __init__(self, *args, candidates: QuerySet[UserProfile], not_found: str, **kwargs):
+    def __init__(
+        self, *args, candidates: QuerySet[UserProfile], not_found: Callable[[str], str], **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.candidates = candidates
         self.not_found = not_found
@@ -346,8 +366,10 @@ class MemberEmailForm(forms.Form):
         email = self.cleaned_data["email"]
         matches = list(self.candidates.filter(user__email__iexact=email).select_related("user")[:2])
         if not matches:
-            raise ValidationError(self.not_found.format(email=email))
+            raise ValidationError(self.not_found(email))
         if len(matches) > 1:
-            raise ValidationError(f"More than one account uses {email}.")
+            raise ValidationError(
+                gettext("More than one account uses %(email)s.") % {"email": email}
+            )
         self.profile = matches[0]
         return email
