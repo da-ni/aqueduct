@@ -158,7 +158,11 @@ class MockServerTestRunner(DiscoverRunner):
         """Set up the test environment, starting the mock API server."""
         super().setup_test_environment(**kwargs)
         self.test_settings = override_settings(
-            LITELLM_ROUTER_CONFIG_FILE_PATH=EXAMPLE_ROUTER_CONFIG
+            LITELLM_ROUTER_CONFIG_FILE_PATH=EXAMPLE_ROUTER_CONFIG,
+            STORAGES={
+                **settings.STORAGES,
+                "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+            },
         )
         self.test_settings.enable()
 
