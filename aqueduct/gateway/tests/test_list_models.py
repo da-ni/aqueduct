@@ -1,9 +1,15 @@
+from datetime import timedelta
 from importlib import import_module
 from unittest.mock import patch
+
+from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 from gateway.config import get_router_config
 from gateway.tests.utils.base import GatewayIntegrationTestCase
 from management.models import Org, Request, ServiceAccount, Team, Token
+
+User = get_user_model()
 
 
 class ListModelsIntegrationTest(GatewayIntegrationTestCase):
@@ -97,6 +103,22 @@ class ListModelsIntegrationTest(GatewayIntegrationTestCase):
 
         user.is_active = False
         user.save()
+        self.assertEqual(self._send_model_list_request().status_code, 401)
+
+    def test_a_session_does_not_revive_the_key_of_a_deactivated_user(self):
+        user = Token.find_by_key(self.AQUEDUCT_ACCESS_TOKEN).user
+        user.is_active = False
+        user.save()
+
+        self.client.force_login(User.objects.create_user(username="other@example.com"))
+        self.assertEqual(self._send_model_list_request().status_code, 401)
+
+    def test_a_session_does_not_revive_an_expired_key(self):
+        Token.objects.filter(key_hash=Token._hash_key(self.AQUEDUCT_ACCESS_TOKEN)).update(
+            expires_at=timezone.now() - timedelta(minutes=1)
+        )
+
+        self.client.force_login(User.objects.create_user(username="other@example.com"))
         self.assertEqual(self._send_model_list_request().status_code, 401)
 
     def test_service_account_key_outlives_its_creator_s_deactivation(self):

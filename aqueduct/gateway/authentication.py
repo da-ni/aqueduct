@@ -37,6 +37,42 @@ def token_from_request(request: HttpRequest) -> str | None:
         return token_key
 
 
+def usable_token(token_key: str) -> Token | None:
+    token_instance = Token.find_by_key(token_key)
+
+    if not token_instance:
+        logger.warning(
+            "Authentication failed: Invalid token provided (starts with %s). "
+            "Token.find_by_key returned None.",
+            Token._generate_preview(token_key),
+        )
+        return None
+
+    if token_instance.is_expired:
+        logger.warning(
+            "Authentication failed: Token %s (%s) has expired.",
+            token_instance.name,
+            token_instance.key_preview,
+        )
+        return None
+
+    if not token_instance.service_account_id and not token_instance.user.is_active:
+        logger.warning(
+            "Authentication failed: Token %s (%s) belongs to a deactivated user.",
+            token_instance.name,
+            token_instance.key_preview,
+        )
+        return None
+
+    logger.info(
+        "Authentication successful via token: %s (%s) for user %s",
+        token_instance.name,
+        token_instance.key_preview,
+        token_instance.user.email,
+    )
+    return token_instance
+
+
 class TokenAuthenticationBackend(BaseBackend):
     """
     Authenticates against a Bearer token provided in the Authorization header,
@@ -62,54 +98,8 @@ class TokenAuthenticationBackend(BaseBackend):
         if not token_key:
             return None
 
-        # Find the token using the provided key
-        token_instance = Token.find_by_key(token_key)
-
-        if not token_instance:
-            logger.warning(
-                "Authentication failed: Invalid token provided (starts with %s). "
-                "Token.find_by_key returned None.",
-                Token._generate_preview(token_key),
-            )
-            return None
-
-        # Optional: Check for token expiry
-        if token_instance.is_expired:
-            logger.warning(
-                "Authentication failed: Token %s (%s) has expired.",
-                token_instance.name,
-                token_instance.key_preview,
-            )
-            return None
-
-        # Token is valid, return the associated user
-        # Ensure the related user exists (should always be true due to ForeignKey constraints)
-        if not token_instance.user:
-            logger.error(
-                "Critical: Valid token %s found but has no associated user.", token_instance.id
-            )
-            return None
-
-        if not token_instance.service_account_id and not token_instance.user.is_active:
-            logger.warning(
-                "Authentication failed: Token %s (%s) belongs to a deactivated user.",
-                token_instance.name,
-                token_instance.key_preview,
-            )
-            return None
-
-        logger.info(
-            "Authentication successful via token: %s (%s) for user %s",
-            token_instance.name,
-            token_instance.key_preview,
-            token_instance.user.email,
-        )
-        # Attach the token to the user object for potential use in views/middleware downstream
-        # Note: Modifying request.user directly isn't standard, attaching to request is better
-        # For now, we just return the user as required by authenticate()
-        # If the token object itself is needed later, consider attaching it to request
-        # E.g. in middleware: request.auth_token = token_instance
-        return token_instance.user
+        token_instance = usable_token(token_key)
+        return token_instance.user if token_instance else None
 
     def get_user(self, user_id: int) -> "AuthUser | None":
         return User.objects.filter(pk=user_id, is_active=True).first()
