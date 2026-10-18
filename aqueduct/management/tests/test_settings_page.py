@@ -56,6 +56,12 @@ class SettingsPageTest(TestCase):
         for gone in ("Sign-in</dt>", "Appearance", "e-mail"):
             self.assertNotContains(response, gone)
 
+    def test_admin_viewing_another_org_sees_their_own(self):
+        self.client.force_login(self.user("root", UserGroup.ADMIN))
+        response = self.client.get(reverse("settings"), {"org": self.other_org.id})
+        self.assertContains(response, "<dd>Informatics</dd>", html=True)
+        self.assertNotContains(response, "<dd>Elsewhere</dd>", html=True)
+
     def test_lists_only_the_viewers_teams_with_role_and_link(self):
         response = self.page(self.member)
         nlp, teaching = (
