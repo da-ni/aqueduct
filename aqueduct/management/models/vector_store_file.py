@@ -79,9 +79,6 @@ class VectorStoreFile(models.Model):
         """
         Delete the vector store file from the upstream API.
 
-        Note: Callers should use select_related("vector_store") when fetching
-        VectorStoreFile instances to avoid extra queries.
-
         Args:
             client: Optional AsyncOpenAI client instance to reuse.
             raise_on_error: If True, raises on failure; if False, logs and returns False.
@@ -118,9 +115,6 @@ class VectorStoreFile(models.Model):
     ) -> Optional["openai.types.vector_stores.VectorStoreFile"]:
         """
         Fetch current state from upstream and update local DB fields.
-
-        Note: Callers should use select_related("vector_store") when fetching
-        VectorStoreFile instances to avoid extra queries.
 
         Args:
             client: Optional AsyncOpenAI client instance to reuse.

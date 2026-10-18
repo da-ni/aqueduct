@@ -6,14 +6,16 @@ from django.core.handlers.asgi import ASGIRequest
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods, require_POST
+from openai import AsyncOpenAI
 from openai.types.batch_create_params import BatchCreateParams
 from pydantic import TypeAdapter
 
-from gateway.config import get_files_api_client
 from gateway.decorators import (
     catch_router_exceptions,
+    in_reach,
     log_request,
     parse_body,
+    require_files_api_client,
     token_authenticated,
     tos_accepted,
 )
@@ -32,15 +34,17 @@ from .files import sync_batch_file_if_needed
 @parse_body(TypeAdapter(BatchCreateParams))
 @log_request
 @catch_router_exceptions
+@require_files_api_client("Files API")
 async def batches(
     request: ASGIRequest,
     token: Token,
+    client: AsyncOpenAI,
     pydantic_model: BatchCreateParams | None = None,
     *args: Any,
     **kwargs: Any,
 ) -> RawJsonResponse:
     """
-    GET /batches - list user's batches from local DB
+    GET /batches - list the batches the key reaches from local DB
     POST /batches - create a new batch on upstream
     """
     if request.method == "GET":
@@ -72,12 +76,6 @@ async def batches(
     if active_count >= limit:
         return error_response(f"Batch limit reached ({limit})", status=403)
 
-    try:
-        client = get_files_api_client()
-    except ValueError:
-        return error_response("Files API not configured", status=503)
-
-    # Get the input file's remote ID
     try:
         file_obj = await FileObject.objects.aget(token.reach(), id=pydantic_model["input_file_id"])
     except FileObject.DoesNotExist:
@@ -126,45 +124,32 @@ async def batches(
 @tos_accepted
 @log_request
 @catch_router_exceptions
+@require_files_api_client("Files API")
+@in_reach(Batch, "batch_id", label="Batch")
 async def batch(
-    request: ASGIRequest, token: Token, batch_id: str, *args: Any, **kwargs: Any
+    request: ASGIRequest, token: Token, batch: Batch, client: AsyncOpenAI, *args: Any, **kwargs: Any
 ) -> RawJsonResponse:
     """
-    GET /batches/{batch_id} - retrieve a batch from upstream
-
-    Returns 404 if batch not found or not owned by user - NEVER falls back to upstream.
+    GET /batches/{batch_id} - retrieve a batch the key reaches from upstream
 
     When output_file_id or error_file_id exist in the upstream
     response but don't have local FileObject records, create them lazily.
     """
-    try:
-        batch_obj = await Batch.objects.select_related("input_file").aget(
-            token.reach(), id=batch_id
-        )
-    except Batch.DoesNotExist:
-        return error_response("Batch not found.", param="batch_id", status=404)
-
-    try:
-        client = get_files_api_client()
-    except ValueError:
-        return error_response("Files API not configured", status=503)
-
-    remote_batch = await batch_obj.areload_from_upstream(client)
+    remote_batch = await batch.areload_from_upstream(client)
 
     if remote_batch is None:
         return error_response("Batch not found.", param="batch_id", status=404)
 
     # Create local FileObject records for output/error files if missing
-    # (inherit ownership from input_file token)
     output_file_obj = await sync_batch_file_if_needed(
-        remote_batch.output_file_id, token, client, batch_obj, "output_file"
+        remote_batch.output_file_id, token, client, batch, "output_file"
     )
     error_file_obj = await sync_batch_file_if_needed(
-        remote_batch.error_file_id, token, client, batch_obj, "error_file"
+        remote_batch.error_file_id, token, client, batch, "error_file"
     )
 
     # Ensure file IDs in the response data match our local records
-    remote_batch.input_file_id = batch_obj.input_file_id
+    remote_batch.input_file_id = batch.input_file_id
     if output_file_obj:
         remote_batch.output_file_id = output_file_obj.id
     if error_file_obj:
@@ -179,30 +164,15 @@ async def batch(
 @tos_accepted
 @log_request
 @catch_router_exceptions
+@require_files_api_client("Files API")
+@in_reach(Batch, "batch_id", label="Batch")
 async def batch_cancel(
-    request: ASGIRequest, token: Token, batch_id: str, *args: Any, **kwargs: Any
+    request: ASGIRequest, batch: Batch, client: AsyncOpenAI, *args: Any, **kwargs: Any
 ) -> RawJsonResponse:
-    """
-    POST /batches/{batch_id}/cancel - cancel a batch on upstream
-
-    Requires local Batch record with matching ownership.
-    Returns 404 if batch not found or not owned by user - NEVER falls back to upstream.
-    """
-    try:
-        batch_obj = await Batch.objects.select_related("input_file").aget(
-            token.reach(), id=batch_id
-        )
-    except Batch.DoesNotExist:
-        return error_response("Batch not found.", param="batch_id", status=404)
-
-    try:
-        client = get_files_api_client()
-    except ValueError:
-        return error_response("Files API not configured", status=503)
-
-    remote_batch = await batch_obj.acancel_upstream(client)
+    """POST /batches/{batch_id}/cancel - cancel a batch the key reaches on upstream"""
+    remote_batch = await batch.acancel_upstream(client)
 
     # Ensure file ID in the response data matches our local records
-    remote_batch.input_file_id = batch_obj.input_file_id
+    remote_batch.input_file_id = batch.input_file_id
 
     return RawJsonResponse(remote_batch, status=200)
