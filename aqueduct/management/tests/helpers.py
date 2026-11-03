@@ -4,9 +4,12 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import yaml
+from django.contrib.auth import get_user_model
 from django.test import override_settings
 
-from management.models import Snippet, SnippetType, Token
+from management.models import Org, Snippet, SnippetType, Token, UserGroup, UserProfile
+
+User = get_user_model()
 
 
 @contextmanager
@@ -16,6 +19,12 @@ def router_config(entries: list[dict]) -> Iterator[None]:
         path.write_text(yaml.safe_dump({"model_list": entries}))
         with override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=str(path)):
             yield
+
+
+def make_user(name: str, org: Org, group: UserGroup = UserGroup.USER):
+    user = User.objects.create_user(username=name, email=f"{name}@example.com")
+    UserProfile.objects.create(user=user, org=org).group = group
+    return user
 
 
 def make_token(user, name: str, **kwargs) -> Token:
