@@ -2,7 +2,8 @@
 
 The mock SSO at /dev-login/ only knows one account per group, and team roles need
 more accounts than that. This route exists only on verification instances. Like the
-real sign-in callback, it restores the language saved in the profile.
+real sign-in callback, it restores the language saved in the profile, on trees that
+save one.
 """
 
 from aqueduct_dev_urls import urlpatterns as dev_urlpatterns
@@ -13,7 +14,10 @@ from django.shortcuts import redirect, resolve_url
 from django.urls import path
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from management.views.auth import remember_language
+try:
+    from management.views.auth import remember_language
+except ImportError:
+    remember_language = None
 
 
 def verify_login(request: HttpRequest) -> HttpResponse:
@@ -25,7 +29,7 @@ def verify_login(request: HttpRequest) -> HttpResponse:
     if not url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
         target = resolve_url(settings.LOGIN_REDIRECT_URL)
     response = redirect(target)
-    if user.profile.language:
+    if remember_language and user.profile.language:
         remember_language(response, user.profile.language)
     return response
 
