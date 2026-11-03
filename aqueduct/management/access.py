@@ -13,11 +13,12 @@ proves they agree.
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import ClassVar
 
 from django.db.models import Q, QuerySet
 from django.http import HttpRequest
 
-from management.models import Org, Team, TeamMembership, Token, UserGroup, UserProfile
+from management.models import Org, Request, Team, TeamMembership, Token, UserGroup, UserProfile
 from management.ownership import is_personal_of, of_orgs, of_teams, org_id, personal, team_of
 
 
@@ -52,6 +53,8 @@ class TeamAct(StrEnum):
 
 @dataclass(frozen=True)
 class EveryOrg:
+    cache_key: ClassVar[tuple[object, ...]] = ("all orgs",)
+
     def keys(self) -> Q:
         return Q()
 
@@ -74,6 +77,10 @@ class EveryOrg:
 @dataclass(frozen=True)
 class WholeOrg:
     org: Org
+
+    @property
+    def cache_key(self) -> tuple[object, ...]:
+        return ("org", self.org.pk)
 
     def keys(self) -> Q:
         return of_orgs({self.org.pk})
@@ -98,6 +105,10 @@ class WholeOrg:
 class Memberships:
     user_id: int
     team_ids: frozenset[int]
+
+    @property
+    def cache_key(self) -> tuple[object, ...]:
+        return ("keys of", self.user_id, *sorted(self.team_ids))
 
     def keys(self) -> Q:
         return personal(self.user_id) | of_teams(self.team_ids)
@@ -189,6 +200,15 @@ class Viewer:
         return self.chosen if self.rank is UserGroup.ADMIN else self._reach
 
     @property
+    def org_wide(self) -> OrgWide | None:
+        shown = self.shown
+        return None if isinstance(shown, Memberships) else shown
+
+    @property
+    def sees_others(self) -> bool:
+        return self.org_wide is not None
+
+    @property
     def _managing(self) -> Extent:
         match self.rank:
             case UserGroup.ADMIN | UserGroup.ORG_ADMIN:
@@ -270,6 +290,24 @@ class Viewer:
 
     def administers(self, org: Org) -> bool:
         return self._administering.has_org(org)
+
+
+_LISTED_KEYS = 500
+
+
+def _listed(tokens: QuerySet[Token]) -> QuerySet[Request]:
+    """Postgres estimates rows for a literal id list but not for a subquery, so up to
+    `_LISTED_KEYS` ids keep the plan on the (token, timestamp) index."""
+    ids = list(tokens.order_by().values_list("id", flat=True)[: _LISTED_KEYS + 1])
+    if len(ids) > _LISTED_KEYS:
+        return Request.objects.filter(token__in=tokens)
+    return Request.objects.filter(token_id__in=ids)
+
+
+def requests_of(extent: Extent) -> QuerySet[Request]:
+    if isinstance(extent, EveryOrg):
+        return Request.objects.all()
+    return _listed(Token.objects.filter(extent.keys()))
 
 
 _MEMO = "_aqueduct_viewer"

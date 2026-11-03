@@ -519,6 +519,10 @@ class ModelsPageTest(TestCase):
         self.assertLess(inline, following)
         self.assertIn(" max-xl:hidden", content)
 
+    def test_detail_links_to_the_requests_of_the_selected_model(self):
+        response = self.page(model="whisper-1")
+        self.assertContains(response, f'href="{reverse("requests")}?model=whisper-1"', count=2)
+
     def test_a_deep_linked_model_outside_the_list_shows_in_the_panel(self):
         content = self.page(type="images", model="whisper-1").content.decode()
         self.assertNotIn('id="model-detail"', content)
