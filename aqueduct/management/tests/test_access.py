@@ -151,6 +151,20 @@ class KeyScopeAgreementTest(Matrix):
                 self.assertEqual(self.names(Viewer.of(user.profile).keys(act)), expected)
 
 
+class OrgSwitchTest(Matrix):
+    def test_a_switched_platform_admin_keeps_their_teams_but_a_leftover_row_grants_nothing(self):
+        UserProfile.objects.filter(user=self.admin).update(org=self.south)
+        admin = Viewer.of(UserProfile.objects.select_related("org", "user").get(user=self.admin))
+        self.assertEqual(admin.member_of, {self.north_a.pk})
+        self.assertEqual(self.names(admin.keys(KeyAct.MINE)), {"admin-laptop", "north-a-bot"})
+
+        stale = Viewer.of(
+            UserProfile.objects.select_related("org", "user").get(user=self.stale_member)
+        )
+        self.assertNotIn("south-a-bot", self.names(stale.keys(KeyAct.MINE)))
+        self.assertEqual(stale.member_of, {self.north_a.pk})
+
+
 class RankTest(TestCase):
     def setUp(self):
         self.profile = make_user("ana", Org.objects.create(name="north")).profile

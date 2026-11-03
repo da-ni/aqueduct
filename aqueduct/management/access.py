@@ -3,7 +3,8 @@
 A viewer sees their personal keys, the service-account keys of the teams of their own org
 they belong to, and every key of their org if they are an org admin. A platform admin opens
 every key and lists the org they chose, or every org. A membership in a team of another org
-is an invalid state an org move leaves behind, and grants nothing.
+is an invalid state an org move leaves behind, and grants nothing. A platform admin's org
+switch is no move, so their teams count in every org.
 
 Every question has a SQL form and a Python form next to each other; `tests/test_access.py`
 proves they agree.
@@ -127,8 +128,9 @@ Extent = OrgWide | Memberships
 class Viewer:
     """A signed-in user's access, resolved once per request.
 
-    `member_of` holds only teams of the own org, `admin_of` is a subset of it, and `chosen`
-    is the own org unless the viewer is a platform admin.
+    `member_of` holds only teams of the own org, except for a platform admin, whose teams
+    count in every org. `admin_of` is a subset of it, and `chosen` is the own org unless the
+    viewer is a platform admin.
     """
 
     profile: UserProfile
@@ -141,13 +143,15 @@ class Viewer:
     def of(cls, profile: UserProfile, choose: Callable[[Org], OrgWide] | None = None) -> "Viewer":
         """`choose` gives a platform admin's org choice from their own org; it is asked only
         for a platform admin, since it may read and write the session."""
-        # An org move deletes the old org's memberships, but a member added in a transaction
-        # that races the move still lands in the old org.
-        rows = TeamMembership.objects.filter(
-            user_profile=profile, team__org_id=profile.org_id
-        ).values_list("team_id", "is_admin")
-        memberships = dict(rows)
         rank = profile.rank
+        rows = TeamMembership.objects.filter(user_profile=profile)
+        if rank is not UserGroup.ADMIN:
+            # An org move deletes the old org's memberships, but a member added in a transaction
+            # that races the move still lands in the old org.
+            rows = rows.filter(team__org_id=profile.org_id)
+        # An org switch moves a platform admin's profile.org, so the own teams stay wherever
+        # they are; A13 replaces this with the session-based org choice.
+        memberships = dict(rows.values_list("team_id", "is_admin"))
         return cls(
             profile=profile,
             rank=rank,
