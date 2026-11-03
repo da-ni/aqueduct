@@ -17,7 +17,7 @@ from management.models import ServiceAccount, Team, UserProfile
 from management.views.base import BaseAqueductView, BaseTeamView, OrgAdminRequiredMixin
 
 
-class TeamCreateView(OrgAdminRequiredMixin, BaseAqueductView, CreateView):
+class TeamCreateView(BaseAqueductView, OrgAdminRequiredMixin, CreateView):
     """
     Handles creation of new Teams. Requires Org Admin privileges.
     """
@@ -64,6 +64,8 @@ class TeamUpdateView(BaseTeamView, UpdateView):
     context_object_name = "team"  # Match DetailView/template usage
 
     def dispatch(self, request, *args, **kwargs) -> HttpResponse:
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
         # Fetch team first using BaseTeamView's mechanism
         # self.team will be set if successful, or Http404 raised
         try:
@@ -107,7 +109,7 @@ class TeamUpdateView(BaseTeamView, UpdateView):
         return context
 
 
-class TeamDeleteView(OrgAdminRequiredMixin, BaseTeamView, DeleteView):
+class TeamDeleteView(BaseTeamView, OrgAdminRequiredMixin, DeleteView):
     """
     Handles deletion of a Team. Requires Org Admin privileges.
     Ensures the team belongs to the admin's organization implicitly via BaseTeamView fetching
@@ -139,7 +141,7 @@ class TeamDeleteView(OrgAdminRequiredMixin, BaseTeamView, DeleteView):
         return context
 
 
-class TeamAdminManagementView(OrgAdminRequiredMixin, BaseTeamView, View):
+class TeamAdminManagementView(BaseTeamView, OrgAdminRequiredMixin, View):
     """
     Allows org-admins to add or remove team admin status for team members.
     Only org-admins can use this view. POST to add or remove.
@@ -213,6 +215,8 @@ class TeamDetailView(BaseTeamView, DetailView):
     pk_url_kwarg = "id"
 
     def dispatch(self, request, *args, **kwargs) -> HttpResponse:
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
         # Fetch team first using BaseTeamView's mechanism
         # self.team will be set if successful, or Http404 raised
         try:

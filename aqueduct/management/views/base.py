@@ -94,8 +94,7 @@ class BaseAqueductView(LoginRequiredMixin, View):
 class OrgAdminRequiredMixin:
     """
     Mixin requiring the user to be an administrator of their own organization.
-    Must be used *after* LoginRequiredMixin and typically with BaseAqueductView
-    or a view providing an `is_org_admin` method.
+    Must be listed *after* BaseAqueductView so the login check runs first.
     """
 
     def dispatch(self, request, *args, **kwargs) -> HttpResponse:
@@ -241,7 +240,7 @@ class BaseTeamView(BaseAqueductView):
         return self.team
 
 
-class BaseServiceAccountView(TeamAdminRequiredMixin, BaseAqueductView):
+class BaseServiceAccountView(BaseAqueductView, TeamAdminRequiredMixin, View):
     """
     Base view for operations on a specific ServiceAccount instance.
 
