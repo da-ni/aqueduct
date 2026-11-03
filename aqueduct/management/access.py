@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from django.db.models import Q, QuerySet
+from django.http import HttpRequest
 
 from management.models import Org, Team, TeamMembership, Token, UserGroup, UserProfile
 from management.ownership import is_personal_of, of_orgs, of_teams, org_id, personal, team_of
@@ -145,12 +146,11 @@ class Viewer:
         for a platform admin, since it may read and write the session."""
         rank = profile.rank
         rows = TeamMembership.objects.filter(user_profile=profile)
+        # An org switch rewrites a platform admin's profile.org, so only they keep teams of every
+        # org; A13 replaces this with the session-based org choice. For everyone else, a member
+        # added in a transaction that races an org move still lands in the old org.
         if rank is not UserGroup.ADMIN:
-            # An org move deletes the old org's memberships, but a member added in a transaction
-            # that races the move still lands in the old org.
             rows = rows.filter(team__org_id=profile.org_id)
-        # An org switch moves a platform admin's profile.org, so the own teams stay wherever
-        # they are; A13 replaces this with the session-based org choice.
         memberships = dict(rows.values_list("team_id", "is_admin"))
         return cls(
             profile=profile,
@@ -270,3 +270,20 @@ class Viewer:
 
     def administers(self, org: Org) -> bool:
         return self._administering.has_org(org)
+
+
+_MEMO = "_aqueduct_viewer"
+
+
+def viewer_of(request: HttpRequest) -> Viewer | None:
+    if not hasattr(request, _MEMO):
+        profile = (
+            UserProfile.objects.select_related("org", "user")
+            .filter(user_id=request.user.pk)
+            .first()
+            if request.user.is_authenticated
+            else None
+        )
+        setattr(request, _MEMO, profile and Viewer.of(profile))
+    memo: Viewer | None = getattr(request, _MEMO)
+    return memo

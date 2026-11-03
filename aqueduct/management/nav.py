@@ -10,26 +10,10 @@ from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from silk.config import SilkyConfig
 
-from management.access import Viewer as AccessViewer
+from management.access import viewer_of
 from management.icons import Icon
-from management.models import UserProfile
 
 Access = Callable[[HttpRequest], bool]
-_MEMO = "_aqueduct_viewer"
-
-
-def viewer_of(request: HttpRequest) -> AccessViewer | None:
-    if not hasattr(request, _MEMO):
-        profile = (
-            UserProfile.objects.select_related("org", "user")
-            .filter(user_id=request.user.pk)
-            .first()
-            if request.user.is_authenticated
-            else None
-        )
-        setattr(request, _MEMO, profile and AccessViewer.of(profile))
-    memo: AccessViewer | None = getattr(request, _MEMO)
-    return memo
 
 
 def everyone(request: HttpRequest) -> bool:
