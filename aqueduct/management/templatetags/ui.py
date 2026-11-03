@@ -15,10 +15,10 @@ from django.utils.safestring import SafeString
 from django.utils.translation import gettext, ngettext_lazy
 
 from management.deletion import deletion
-from management.formatting import grouped
+from management.formatting import MISSING, grouped
 from management.icons import Icon
 from management.keys import Expiry
-from management.models import ServiceAccount, Team, Token
+from management.models import FileObject, ServiceAccount, Team, Token
 from management.views.base import NEW_KEY_TAG
 
 register = template.Library()
@@ -121,6 +121,11 @@ def widget(field: BoundField) -> SafeString:
 register.filter("grouped", grouped)
 
 
+@register.filter
+def dash(value: object) -> object:
+    return MISSING if value is None or value == "" else value
+
+
 WHEN_FORMATS = {"date": "j M Y", "datetime": "j M Y H:i", "recent": "j M H:i"}
 
 
@@ -201,7 +206,7 @@ def confirm(title: str, detail: str = "", action: str = "", dismiss: str = "") -
 
 
 @register.simple_tag
-def confirm_delete(obj: Token | ServiceAccount | Team) -> SafeString:
+def confirm_delete(obj: Token | ServiceAccount | Team | FileObject) -> SafeString:
     question = deletion(obj)
     return confirm(question.title, question.detail, question.action)
 

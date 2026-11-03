@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from django.utils.translation import gettext, ngettext
 
-from management.models import ServiceAccount, Team, Token
+from management.models import FileObject, ServiceAccount, Team, Token
 
 
 @dataclass(frozen=True)
@@ -12,7 +12,7 @@ class Confirmation:
     action: str
 
 
-def deletion(obj: Token | ServiceAccount | Team) -> Confirmation:
+def deletion(obj: Token | ServiceAccount | Team | FileObject) -> Confirmation:
     match obj:
         case Token():
             name = obj.name
@@ -40,6 +40,11 @@ def deletion(obj: Token | ServiceAccount | Team) -> Confirmation:
                 ) % {"count": count}
             else:
                 detail = gettext("Members keep their personal keys.")
+        case FileObject():
+            name = obj.filename
+            detail = gettext(
+                "Batches that use it as input are deleted with it, and vector stores drop it."
+            )
         case _:
             raise TypeError(f"no deletion text for {type(obj).__name__}")
     return Confirmation(gettext("Delete %(name)s?") % {"name": name}, detail, gettext("Delete"))

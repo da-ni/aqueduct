@@ -202,6 +202,6 @@ class SwitchLandingTest(OrgSwitchTestBase):
         self.as_user(self.far_admin)
         self.switch("all")
         listing = self.client.get(reverse("vector_stores"))
-        self.assertIn("NLP Lab", [s["team"].name for s in listing.context["team_sections"]])
+        self.assertIn("vs_lab", [row.store.id for row in listing.context["listing"].rows])
         detail = self.client.get(reverse("vector_store_detail", args=["vs_lab"]))
-        self.assertIsNotNone(detail.context.get("vector_store"))
+        self.assertIsNotNone(detail.context["detail"])
