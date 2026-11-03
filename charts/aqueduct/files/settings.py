@@ -18,6 +18,7 @@ from typing import Any
 
 from celery.schedules import crontab
 from django.core.exceptions import ImproperlyConfigured
+from django.utils.translation import gettext_noop
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -141,11 +142,17 @@ ADMIN_SUPERUSER_EMAILS = [
 ]
 
 EXTRA_NAV_LINKS = {
-    "Bug Report": "https://github.com/TU-Wien-dataLAB/aqueduct/issues/new?template=bug_report.md",
-    "Documentation": "https://tu-wien-datalab.github.io/aqueduct/",
+    gettext_noop("Report a bug"): (
+        "https://github.com/TU-Wien-dataLAB/aqueduct/issues/new?template=bug_report.md"
+    ),
+    gettext_noop("Documentation"): "https://tu-wien-datalab.github.io/aqueduct/",
     # 'API Status': '/status/',  # Example internal path
     # 'About Us': 'about_page',  # Example named URL (assuming you have url(..., name='about_page'))
 }
+MATRIX_SUPPORT_URL = os.getenv("MATRIX_SUPPORT_URL", "")
+GITHUB_REPOSITORY_URL = os.getenv(
+    "GITHUB_REPOSITORY_URL", "https://github.com/TU-Wien-dataLAB/aqueduct"
+)
 
 RELAY_REQUEST_TIMEOUT = 60
 
@@ -273,6 +280,7 @@ if SILKY_ENABLED:
     # only superusers should have access to the /silk/ UI
     SILKY_AUTHENTICATION = True
     SILKY_AUTHORISATION = True
+    SILKY_PERMISSIONS = lambda user: user.is_active and user.is_superuser
     # use meta profiling to measure performance overhead
     SILKY_META = True
     # do not log request body (regardless of size)
@@ -298,7 +306,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 # Aqueduct processors
-                "management.context_processors.settings",
+                "management.context_processors.shell",
             ]
         },
     }

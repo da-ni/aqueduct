@@ -1,0 +1,6 @@
+{% load ui %}
+<li>
+    <a href="{{ link.href }}"{% if link.active %} class="menu-active" aria-current="page"{% endif %}>
+        {% icon link.icon %}{{ link.label }}{% if link.external %}{% icon "external" small=True extra_class="ml-auto" %}{% endif %}
+    </a>
+</li>
