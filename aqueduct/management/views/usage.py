@@ -292,22 +292,21 @@ class UsageDashboardView(BaseAqueductView, TemplateView):
         return start, end, self._validate_custom_range(start, end, now)
 
     def _get_selected_token(self, selected_org: Org | None) -> Token | None:
-        """Optional token selection based on the query param and user permissions"""
+        """Optional token selection, limited to the tokens the usage table links to"""
         token_param = self.request.GET.get("token")
-        selected_token = None
-        if token_param and token_param.isdigit():
-            try:
-                tok = Token.objects.get(pk=int(token_param))
-                # Ensure the token belongs to the selected_org if scoped
-                if selected_org is not None:
-                    tok_org_id = tok.user.profile.org_id if tok.user else None
-                    sa_org_id = tok.service_account.team.org_id if tok.service_account else None
-                    if selected_org.id not in (tok_org_id, sa_org_id):
-                        raise Token.DoesNotExist
-                selected_token = tok
-            except Token.DoesNotExist:
-                selected_token = None
-        return selected_token
+        if not (token_param and token_param.isdigit()):
+            return None
+        tokens = Token.objects.all()
+        if selected_org is not None:
+            tokens = tokens.filter(
+                Q(user__profile__org=selected_org) | Q(service_account__team__org=selected_org)
+            )
+            if not self.profile.is_org_admin(selected_org):
+                tokens = tokens.filter(
+                    Q(user=self.profile.user)
+                    | Q(service_account__team__in=self.get_teams_for_user())
+                )
+        return tokens.filter(pk=int(token_param)).first()
 
     def _get_timeseries(
         self,
