@@ -17,7 +17,7 @@ from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from litellm.types.utils import LlmProviders
 
-from gateway.config import model_entries, model_info_with_context
+from gateway.config import model_entries, model_info_with_context, model_names
 from management.formatting import compact, grouped
 from management.models import Team, UserProfile
 from management.models.exclusions import Exclusion, excluded
@@ -383,6 +383,10 @@ def scopes_for(profile: UserProfile, teams: QuerySet[Team]) -> tuple[Scope, ...]
     personal = Scope(None, excluded(profile, Exclusion.MODELS))
     found = teams.select_related("org").order_by("name")
     return (personal, *(Scope(team.name, excluded(team, Exclusion.MODELS)) for team in found))
+
+
+def usable_models(scopes: Sequence[Scope]) -> list[str]:
+    return [name for name in model_names() if Availability(*split_scopes(name, scopes)).usable]
 
 
 def load_catalog(scopes: Sequence[Scope]) -> Catalog:

@@ -4,9 +4,12 @@
     <h2 id="model-detail-name-{{ place }}" class="break-all font-mono text-xl font-semibold">{{ selected.name }}</h2>
     {% if selected.description %}<p class="text-sm">{{ selected.description }}</p>{% endif %}
     {% if selected.available_with %}<p class="muted text-sm">{% blocktranslate with keys=selected.available_with %}Available with {{ keys }}.{% endblocktranslate %}</p>{% endif %}
-    {% if selected.model_card_url %}
-        <a class="link-plain inline-flex items-center gap-1 self-start text-sm" href="{{ selected.model_card_url }}" target="_blank" rel="noopener noreferrer">{% translate "Model card" %}{% icon "external" small=True %}</a>
-    {% endif %}
+    <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        {% if selected.model_card_url %}
+            <a class="link-plain inline-flex items-center gap-1" href="{{ selected.model_card_url }}" target="_blank" rel="noopener noreferrer">{% translate "Model card" %}{% icon "external" small=True %}</a>
+        {% endif %}
+        <a class="link-plain" href="{% url_with 'requests' model=selected.name %}">{% translate "Requests" %}</a>
+    </div>
 </div>
 
 {% if selected.deprecation_date %}

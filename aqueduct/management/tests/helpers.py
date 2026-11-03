@@ -1,14 +1,20 @@
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import timedelta
 from pathlib import Path
 
 import yaml
 from django.contrib.auth import get_user_model
-from django.test import override_settings
+from django.test import TestCase, override_settings
+from django.urls import reverse
+from django.utils import timezone
 
+from gateway.tests.utils.base import ROUTER_CONFIG_PATH
 from management.models import (
     Org,
+    Request,
+    ServiceAccount,
     Snippet,
     SnippetType,
     Team,
@@ -19,6 +25,9 @@ from management.models import (
 )
 
 User = get_user_model()
+CHAT = "gpt-4.1-nano"
+EMBEDDING = "text-embedding-ada-002"
+PATHS = ("/own", "/others", "/team-sa", "/side-sa", "/sent-as-owner", "/foreign")
 
 
 @contextmanager
@@ -45,6 +54,76 @@ def make_token(user, name: str, **kwargs) -> Token:
 
 def join(user, team: Team, is_admin: bool = False) -> None:
     TeamMembership.objects.create(user_profile=user.profile, team=team, is_admin=is_admin)
+
+
+@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG_PATH)
+class RoleWorld(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = Org.objects.create(name="lab-org")
+        cls.other_org = Org.objects.create(name="other-org")
+        cls.team = Team.objects.create(name="NLP Lab", org=cls.org, description="Language tech")
+        cls.side_team = Team.objects.create(name="Robotics", org=cls.org)
+        cls.foreign_team = Team.objects.create(name="Foreign", org=cls.other_org)
+
+        cls.admin = make_user("admin", cls.org, UserGroup.ADMIN)
+        cls.org_admin = make_user("org-admin", cls.org, UserGroup.ORG_ADMIN)
+        cls.team_admin = make_user("team-admin", cls.org)
+        cls.member = make_user("member", cls.org)
+        cls.solo = make_user("solo", cls.org)
+        cls.other_org_admin = make_user("other-org-admin", cls.other_org, UserGroup.ORG_ADMIN)
+        cls.foreigner = make_user("foreigner", cls.other_org)
+        join(cls.team_admin, cls.team, is_admin=True)
+        join(cls.member, cls.team)
+
+        cls.solo_key = make_token(cls.solo, "solo-laptop")
+        cls.member_key = make_token(cls.member, "member-laptop")
+        cls.pipeline = ServiceAccount.objects.create(name="pipeline", team=cls.team)
+        cls.pipeline_key = make_token(cls.team_admin, "pipeline", service_account=cls.pipeline)
+        cls.foreign_key = make_token(cls.foreigner, "foreign-laptop")
+
+    @classmethod
+    def user(cls, name: str, group: UserGroup = UserGroup.USER, org: Org | None = None):
+        return make_user(name, org or cls.org, group)
+
+
+class RequestsPageTestBase(RoleWorld):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.other = cls.user("other")
+        cls.sa_creator = cls.user("sa-creator")
+        cls.others_key = make_token(cls.other, "other-laptop")
+        team_sa = ServiceAccount.objects.create(name="team-sa", team=cls.team)
+        cls.team_key = make_token(cls.sa_creator, "team-sa", service_account=team_sa)
+        side_sa = ServiceAccount.objects.create(name="side-sa", team=cls.side_team)
+        cls.side_key = make_token(cls.sa_creator, "side-sa", service_account=side_sa)
+
+    def setUp(self):
+        super().setUp()
+        self.log(self.solo_key, "/own")
+        self.log(self.others_key, "/others")
+        self.log(self.team_key, "/team-sa")
+        self.log(self.side_key, "/side-sa")
+        self.log(self.others_key, "/sent-as-owner", user_id="solo@example.com")
+        self.log(self.foreign_key, "/foreign")
+
+    def log(self, token: Token, path: str, ago=timedelta(hours=1), **fields) -> Request:
+        fields = {"model": CHAT, "status_code": 200, **fields}
+        return Request.objects.create(
+            token=token, path=path, timestamp=timezone.now() - ago, **fields
+        )
+
+    def get(self, user, **params):
+        self.client.force_login(user)
+        return self.client.get(reverse("requests"), params)
+
+    def paths_on(self, response) -> set[str]:
+        return {path for path in PATHS if f">{path}</div>" in response.content.decode()}
+
+
+def listed(response) -> list[str]:
+    return [row.request.path for row in response.context["log"].rows]
 
 
 def seed_active_config(code: str, name: str = "test-config") -> Snippet:

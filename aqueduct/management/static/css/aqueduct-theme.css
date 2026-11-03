@@ -100,7 +100,7 @@ body { overflow-x: clip; }
 .aq-ic { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 .aq-ic.sm { width: 16px; height: 16px; }
 
-.st-ok { color: var(--color-success); } .st-warn { color: var(--aq-warn); } .st-err { color: var(--color-error); }
+.st-ok { color: var(--color-success); } .st-warn { color: var(--aq-warn); } .st-err { color: var(--color-error); } .st-off { color: var(--aq-muted); }
 
 .aq-band { background: var(--aq-band); color: var(--paper); }
 .aq-band .muted { color: var(--aq-band-muted); }
@@ -117,7 +117,7 @@ html[data-theme="light"] .only-dark, html[data-theme="dark"] .only-light { displ
 .menu :where(li) > a.menu-active { font-weight: 600; }
 .menu :where(li) > a { min-height: 2.75rem; align-items: center; font-weight: 500; }
 
-.table > tbody > tr:has(.row-link):hover,
+.table > tbody > tr:is(:has(.row-link), [data-row-toggle]):hover,
 .table > tbody > tr:has(:focus-visible),
 .table > tbody > tr:has([aria-current="true"]) { background: var(--aq-hover); }
 tr:has(.row-link) { position: relative; }
