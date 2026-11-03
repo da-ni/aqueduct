@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
 from django.views import View
 
-from management.access import TeamAct, Viewer, WholeOrg
+from management.access import EveryOrg, TeamAct, Viewer, WholeOrg
 from management.models import Org, ServiceAccount, Team, UserProfile
 from management.org_choice import viewer_of
 
@@ -76,6 +76,8 @@ class BaseAqueductView(LoginRequiredMixin, View):
         - Org admins see all teams in their org.
         - Regular users see only teams they are members of.
         """
+        if isinstance(self.viewer.chosen, EveryOrg):
+            return Team.objects.all()
         # profile and org are guaranteed by the properties above for logged-in users.
         if self.is_org_admin():
             # Org admin sees all teams in their organization.

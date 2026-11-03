@@ -101,6 +101,7 @@ CACHES_BUILT_FROM_SETTING = {
         config.get_openai_client,
         config.get_all_model_request_limit_multipliers,
     ),
+    "MCP_CONFIG_FILE_PATH": (config.get_mcp_config,),
     "AQUEDUCT_FILES_API_URL": (config.get_files_api_client,),
     "AQUEDUCT_FILES_API_KEY": (config.get_files_api_client,),
 }

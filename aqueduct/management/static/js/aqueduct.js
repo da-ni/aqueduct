@@ -34,6 +34,11 @@
     if (copyButton) copy(copyButton);
     const dismissButton = event.target.closest('[data-dismiss]');
     if (dismissButton) dismissButton.parentElement.remove();
+    const checkAll = event.target.closest('[data-check-all]');
+    if (checkAll) {
+      const boxes = checkAll.closest('[data-checklist]').querySelectorAll('input[type=checkbox]');
+      boxes.forEach((box) => { box.checked = checkAll.dataset.checkAll === 'true'; });
+    }
     toggleRow(event);
   });
   document.addEventListener('auxclick', (event) => {

@@ -1,7 +1,9 @@
+import time
+
 from django.urls import reverse
 
 from management.access import WholeOrg
-from management.models import Team, UserGroup
+from management.models import Team, UserGroup, VectorStore
 from management.org_choice import SESSION_KEY
 from management.tests.helpers import RoleWorld
 
@@ -31,8 +33,44 @@ class OrgSwitchTest(OrgSwitchTestBase):
         teams = self.client.get(reverse("org"))
         self.assertContains(teams, "NLP Lab")
         self.assertNotContains(teams, "Foreign")
+        self.assertNotContains(teams, "Organization</th>")
+        organization = self.client.get(reverse("organization"))
+        self.assertContains(
+            organization, '<h1 class="text-3xl font-semibold">lab-org</h1>', html=True
+        )
         self.far_admin.profile.refresh_from_db()
         self.assertEqual(self.far_admin.profile.org, self.other_org)
+
+    def test_all_organizations_lists_every_team_with_its_org(self):
+        self.as_user(self.far_admin)
+        self.switch("all")
+        for url_name in ORG_SCOPED:
+            with self.subTest(page=url_name):
+                self.assertIsNone(self.viewed(url_name))
+        teams = self.client.get(reverse("org"))
+        self.assertContains(teams, "<th>Organization</th>", html=True)
+        for team in ("Foreign", "NLP Lab", "Robotics"):
+            row = teams.content.decode().split(f">{team}</a>", 1)[1].split("</tr>", 1)[0]
+            with self.subTest(team=team):
+                org = "other-org" if team == "Foreign" else "lab-org"
+                self.assertIn(f'<td class="truncate max-lg:hidden">{org}</td>', row)
+        self.assertContains(
+            teams, '<span class="muted -mt-1 text-sm">All organizations</span>', html=True
+        )
+
+    def test_all_organizations_lists_every_org_to_pick_one(self):
+        self.as_user(self.far_admin)
+        self.switch("all")
+        organization = self.client.get(reverse("organization"))
+        self.assertContains(
+            organization, '<h1 class="text-3xl font-semibold">Organizations</h1>', html=True
+        )
+        self.assertNotContains(organization, reverse("organization_limits", args=[self.org.id]))
+        for org in (self.org, self.other_org):
+            self.assertContains(organization, f'href="{reverse("organization")}?org={org.id}"')
+        picked = self.client.get(reverse("organization"), {"org": self.org.id})
+        self.assertContains(picked, '<h1 class="text-3xl font-semibold">lab-org</h1>', html=True)
+        self.assertEqual(self.client.session[SESSION_KEY], str(self.org.id))
 
     def test_org_parameter_applies_and_stays_for_later_pages(self):
         self.as_user(self.far_admin)
@@ -125,9 +163,45 @@ class TeamCreateOrgTest(OrgSwitchTestBase):
         )
         self.assertEqual(Team.objects.get(name="Vision").org, self.org)
 
+    def test_a_create_without_an_org_field_lands_in_the_viewed_org(self):
+        self.as_user(self.org_admin)
+        response = self.client.post(reverse("team_create"), {"name": "Vision"})
+        self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
+        self.assertEqual(Team.objects.get(name="Vision").org, self.org)
+
     def test_org_admin_cannot_create_in_another_org(self):
         self.as_user(self.org_admin)
         for org_id in (self.other_org.id, "", "999999"):
             with self.subTest(org=org_id):
                 self.assertEqual(self.create(org_id).status_code, 404)
         self.assertFalse(Team.objects.filter(name="Vision").exists())
+
+
+class SwitchLandingTest(OrgSwitchTestBase):
+    def test_a_switch_never_returns_to_a_page_about_the_old_orgs_objects(self):
+        self.as_user(self.far_admin)
+        self.switch(self.org.id)
+        for back in (
+            reverse("organization_limits", args=[self.org.id]),
+            reverse("team", args=[self.team.id]),
+        ):
+            with self.subTest(back=back):
+                response = self.switch(self.other_org.id, back)
+                self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
+        response = self.switch(self.org.id, reverse("usage") + "?span=1d&key=1")
+        self.assertRedirects(response, reverse("usage") + "?span=1d", fetch_redirect_response=False)
+
+    def test_every_organization_shows_every_orgs_vector_stores(self):
+        VectorStore.objects.create(
+            id="vs_lab",
+            token=self.pipeline_key,
+            name="lab-store",
+            status="completed",
+            created_at=int(time.time()),
+        )
+        self.as_user(self.far_admin)
+        self.switch("all")
+        listing = self.client.get(reverse("vector_stores"))
+        self.assertIn("NLP Lab", [s["team"].name for s in listing.context["team_sections"]])
+        detail = self.client.get(reverse("vector_store_detail", args=["vs_lab"]))
+        self.assertIsNotNone(detail.context.get("vector_store"))

@@ -45,6 +45,12 @@ INHERIT_HELP = {
     "merge_exclusion_lists": _("Clear this to use only the boxes above."),
     "merge_mcp_server_exclusion_lists": _("Clear this to use only the boxes above."),
 }
+ORDER = (
+    "available_models",
+    "merge_exclusion_lists",
+    "available_mcp_servers",
+    "merge_mcp_server_exclusion_lists",
+)
 
 
 SHOWN = forms.MultipleHiddenInput()
@@ -73,6 +79,9 @@ class AvailabilityForm(forms.ModelForm):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        for name in ORDER:
+            if name in self.fields:
+                self.fields[name] = self.fields.pop(name)
         for name, (stored, configured) in CHECKLISTS.items():
             if name not in self.fields:
                 continue
