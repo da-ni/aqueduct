@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Collection
 from typing import Any
 
 from django.conf import settings
@@ -18,6 +19,12 @@ class UserGroup(models.TextChoices):
     ADMIN = "admin", "Admin"
     ORG_ADMIN = "org-admin", "Org Admin"
     USER = "user", "User"
+
+    @classmethod
+    def of(cls, names: Collection[str]) -> "UserGroup | None":
+        return next(
+            (group for group in (cls.ADMIN, cls.ORG_ADMIN, cls.USER) if group in names), None
+        )
 
 
 class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, models.Model):
@@ -112,6 +119,10 @@ class UserProfile(LimitMixin, ModelExclusionMixin, MCPServerExclusionMixin, mode
             raise ObjectDoesNotExist(
                 f"The group '{group}' does not exist in the database."
             ) from None
+
+    @property
+    def rank(self) -> UserGroup:
+        return UserGroup.of(set(self.user.groups.values_list("name", flat=True))) or UserGroup.USER
 
     def is_admin(self) -> bool:
         """Checks if the user has the global 'admin' group."""
