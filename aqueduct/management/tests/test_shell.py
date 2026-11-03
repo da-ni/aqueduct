@@ -115,7 +115,7 @@ class ShellTest(TestCase):
         self.assertNotIn("Admin", [s.title for s in self.shell_on(reverse("tokens")).sections])
         self.sign_in("admin")
         admin = next(s for s in self.shell_on(reverse("tokens")).sections if s.title == "Admin")
-        self.assertEqual([link.label for link in admin.links], ["Admin panel"])
+        self.assertEqual([link.label for link in admin.links], ["Organization", "Admin panel"])
 
     @override_settings(AUTHENTICATION_BACKENDS=["django.contrib.auth.backends.ModelBackend"])
     def test_staff_without_superuser_get_the_admin_panel(self):

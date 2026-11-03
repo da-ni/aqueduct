@@ -1,13 +1,29 @@
+from datetime import timedelta
 from itertools import product
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.test import TestCase
+from django.db import connection
+from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
+from django.utils import timezone
 
-from management.access import EveryOrg, KeyAct, OrgWide, TeamAct, Viewer, WholeOrg
-from management.models import Org, ServiceAccount, Team, Token, UserGroup, UserProfile
+from gateway.tests.utils.base import ROUTER_CONFIG_PATH
+from management.access import EveryOrg, KeyAct, OrgWide, TeamAct, Viewer, WholeOrg, requests_of
+from management.models import (
+    Org,
+    Request,
+    ServiceAccount,
+    Team,
+    TeamMembership,
+    Token,
+    UserGroup,
+    UserProfile,
+)
 from management.ownership import RELATED, org_id
-from management.tests.helpers import join, make_token, make_user
+from management.tests.helpers import CHAT, join, make_token, make_user
 
 User = get_user_model()
 
@@ -153,8 +169,9 @@ class KeyScopeAgreementTest(Matrix):
 
 class OrgSwitchTest(Matrix):
     def test_a_switched_platform_admin_keeps_their_teams_but_a_leftover_row_grants_nothing(self):
-        UserProfile.objects.filter(user=self.admin).update(org=self.south)
-        admin = Viewer.of(UserProfile.objects.select_related("org", "user").get(user=self.admin))
+        profile = UserProfile.objects.select_related("org", "user").get(user=self.admin)
+        admin = Viewer.of(profile, lambda _own: WholeOrg(self.south))
+        self.assertEqual(admin.shown, WholeOrg(self.south))
         self.assertEqual(admin.member_of, {self.north_a.pk})
         self.assertEqual(self.names(admin.keys(KeyAct.MINE)), {"admin-laptop", "north-a-bot"})
 
@@ -163,6 +180,99 @@ class OrgSwitchTest(Matrix):
         )
         self.assertNotIn("south-a-bot", self.names(stale.keys(KeyAct.MINE)))
         self.assertEqual(stale.member_of, {self.north_a.pk})
+
+
+@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG_PATH)
+class CrossOrgRuleTest(Matrix):
+    def setUp(self):
+        super().setUp()
+        sent = timezone.now() - timedelta(hours=1)
+        Request.objects.bulk_create(
+            Request(token=token, path=f"/{token.name}", model=CHAT, timestamp=sent, status_code=200)
+            for token in Token.objects.all()
+        )
+
+    def listed(self, page: str, **params) -> set[str]:
+        response = self.client.get(reverse(page), params)
+        self.assertEqual(response.status_code, 200)
+        if page == "requests":
+            return {row.request.token.name for row in response.context["log"].rows}
+        if page == "usage_keys":
+            return {key.name for key in response.context["keys"]}
+        return {row.token.name for row in response.context["keys"].rows}
+
+    def test_a_stale_membership_opens_nothing_and_lists_nothing(self):
+        bot = self.south_bot
+        for user in (self.stale_admin, self.stale_member):
+            self.client.force_login(user)
+            with self.subTest(user=user.username):
+                for page in ("requests", "usage_keys", "tokens"):
+                    self.assertNotIn(bot.name, self.listed(page))
+                for url in (
+                    reverse("token_detail", args=[bot.id]),
+                    reverse("team", args=[self.south_a.id]),
+                    f"{reverse('requests')}?key={bot.id}",
+                    f"{reverse('usage')}?key={bot.id}",
+                ):
+                    self.assertEqual(self.client.get(url).status_code, 404, url)
+                before = Token.objects.values().get(id=bot.id)
+                response = self.client.post(reverse("token_regenerate", args=[bot.id]))
+                self.assertEqual(response.status_code, 404)
+                self.assertEqual(Token.objects.values().get(id=bot.id), before)
+
+    def test_the_key_page_and_the_log_agree_for_every_viewer(self):
+        for user in (
+            self.org_admin,
+            self.stale_admin,
+            self.member,
+            self.stale_member,
+            self.moved,
+            self.southerner,
+        ):
+            self.client.force_login(user)
+            listed = self.listed("requests")
+            with self.subTest(user=user.username):
+                for token in Token.objects.all():
+                    status = self.client.get(reverse("token_detail", args=[token.id])).status_code
+                    self.assertEqual(status, 200 if token.name in listed else 404, token.name)
+
+
+class RequestScopeTest(Matrix):
+    def test_both_branches_of_the_id_list_lever_return_the_same_requests(self):
+        sent = timezone.now() - timedelta(hours=1)
+        Request.objects.bulk_create(
+            Request(token=token, path=f"/{token.name}", model=CHAT, timestamp=sent)
+            for token in Token.objects.all()
+        )
+        for viewer in self.viewers():
+            expected = set(
+                Request.objects.filter(token__in=viewer.keys(KeyAct.SEE)).values_list(
+                    "id", flat=True
+                )
+            )
+            with self.subTest(viewer=viewer.profile.user.username, shown=viewer.shown):
+                named = requests_of(viewer.shown)
+                self.assertEqual(set(named.values_list("id", flat=True)), expected)
+                with mock.patch("management.access._LISTED_KEYS", 0):
+                    many = requests_of(viewer.shown)
+                self.assertEqual(set(many.values_list("id", flat=True)), expected)
+                if not isinstance(viewer.shown, EveryOrg):
+                    self.assertNotIn("management_token", str(named.query))
+                    self.assertIn("management_token", str(many.query))
+
+
+@override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG_PATH)
+class OneResolutionPerRequestTest(Matrix):
+    def test_a_platform_admins_page_resolves_the_viewer_once(self):
+        self.client.force_login(self.admin)
+        with CaptureQueriesContext(connection) as captured:
+            response = self.client.get(reverse("usage"), {"org": self.south.id})
+        self.assertEqual(response.status_code, 200)
+        memberships = TeamMembership._meta.db_table
+        chosen = f'"{Org._meta.db_table}"."id" = {self.south.id}'
+        sql = [query["sql"] for query in captured]
+        self.assertEqual(sum(1 for q in sql if f'FROM "{memberships}"' in q and "is_admin" in q), 1)
+        self.assertEqual(sum(1 for q in sql if chosen in q and "LIMIT 1" in q), 1)
 
 
 class RankTest(TestCase):

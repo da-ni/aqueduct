@@ -34,6 +34,11 @@
     if (copyButton) copy(copyButton);
     const dismissButton = event.target.closest('[data-dismiss]');
     if (dismissButton) dismissButton.parentElement.remove();
+    const checkAll = event.target.closest('[data-check-all]');
+    if (checkAll) {
+      const boxes = checkAll.closest('[data-checklist]').querySelectorAll('input[type=checkbox]');
+      boxes.forEach((box) => { box.checked = checkAll.dataset.checkAll === 'true'; });
+    }
     toggleRow(event);
   });
   document.addEventListener('auxclick', (event) => {
@@ -103,6 +108,7 @@
     }, 5000);
   }
   document.addEventListener('change', (event) => {
+    if (event.target.matches('[data-autosubmit]')) event.target.form.submit();
     // _metric_chart.html restores the pick while it parses, so the chart does not flash.
     if (event.target.name === 'metric') {
       try { sessionStorage.setItem('metric', event.target.value); } catch { }

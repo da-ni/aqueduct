@@ -2,6 +2,7 @@ import re
 from datetime import timedelta
 from unittest import mock
 
+from django.contrib.auth import get_user_model
 from django.contrib.sessions.backends.base import SessionBase
 from django.test import RequestFactory, SimpleTestCase, override_settings
 from django.urls import reverse
@@ -9,7 +10,9 @@ from django.utils import timezone
 from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
 
 from management.models import Request
-from management.tests.helpers import CHAT, EMBEDDING, UsagePageTestBase, make_token
+from management.tests.helpers import CHAT, EMBEDDING, KEY_NAMES, UsagePageTestBase, make_token
+
+User = get_user_model()
 
 
 class UsageKeySelectionTests(UsagePageTestBase):
@@ -54,6 +57,7 @@ class UsageAccessTest(UsagePageTestBase):
         self.assertEqual(self.kpi(response, "Requests"), "1")
         self.assertNotContains(response, '<span class="sr-only">Key: </span>')
         self.assertNotContains(response, "Top keys")
+        self.assertNotContains(response, "All organizations")
 
     def test_user_with_several_keys_picks_from_all_keys_only(self):
         make_token(self.solo, "solo-desktop")
@@ -74,6 +78,21 @@ class UsageAccessTest(UsagePageTestBase):
         response = self.page(self.admin)
         self.assert_keys(response, "solo-laptop", "member-laptop", "pipeline")
         self.assertEqual(self.kpi(response, "Requests"), "3")
+
+    def test_admin_sees_every_org_split_by_org(self):
+        response = self.page(self.admin, org="all")
+        self.assert_keys(response, *KEY_NAMES)
+        self.assertContains(response, "By organization")
+        self.assertContains(response, "other-org")
+        self.assertEqual(self.kpi(response, "Requests"), "4")
+        self.assertNotContains(self.page(self.admin, org=self.other_org.id), "By organization")
+
+    def test_all_orgs_names_no_org_for_a_key_whose_owner_has_no_profile(self):
+        root = User.objects.create_superuser("root", "root@example.com", "pw")
+        self.log(make_token(root, "root-laptop"), timedelta(hours=1), 200, input_tokens=10)
+        response = self.page(self.admin, org="all")
+        self.assertContains(response, "root@example.com · No organization")
+        self.assertNotContains(response, "· None")
 
     def test_key_filter_lets_an_org_admin_name_any_key_of_their_org(self):
         response = self.page(self.org_admin, key=self.member_key.id)
@@ -132,6 +151,9 @@ class UsageFiguresTest(UsagePageTestBase):
                 response = self.page(user, **params)
                 self.assertContains(response, "Activity across lab-org")
                 self.assertContains(response, cell.format("1.9K"))
+        response = self.page(self.admin, org="all")
+        self.assertContains(response, "Activity across all organizations")
+        self.assertContains(response, cell.format("3.6K"))
 
     @override_settings(REQUEST_RETENTION_DAYS=7)
     def test_the_heatmap_covers_as_many_whole_weeks_as_requests_are_kept(self):

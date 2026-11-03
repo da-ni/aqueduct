@@ -27,7 +27,8 @@ from management.deletion import deletion
 from management.forms import TokenCreateForm
 from management.keys import Expiry, KeyKind, key_list, key_report
 from management.models import LimitSet, Token
-from management.ownership import RELATED, team_of
+from management.org_choice import EVERY_ORG
+from management.ownership import RELATED, org_id, team_of
 from management.request_filters import Key
 from management.request_rows import Row
 from management.views.base import BaseAqueductView, show_new_key
@@ -130,12 +131,13 @@ class TokenDetailView(BaseAqueductView, DetailView):
         now = timezone.now()
         report = key_report(token, now)
         limits = token.get_limit()
+        log_query: dict[str, object] = {"key": token.id, "span": "1m"}
+        if not viewer.may_key(KeyAct.SEE, token):
+            log_query["org"] = org_id(token) or EVERY_ORG
         context.update(
             report=report,
             latest=tuple(Row(request, Key(token, None, ""), False) for request in report.latest),
-            log_query=QueryDict(urlencode({"key": token.id, "span": "1m"}))
-            if viewer.may_key(KeyAct.SEE, token)
-            else None,
+            log_query=QueryDict(urlencode(log_query)),
             charts=tuple((shown, report.chart(shown)) for shown in ("tokens", "requests")),
             expiry=Expiry.of(token.expires_at, now),
             limits=limits,

@@ -75,7 +75,7 @@
     <div class="card-body gap-3 p-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <h2 class="card-title">{% translate "Latest requests" %}</h2>
-            {% if log_query %}<a class="link-plain text-sm" href="{% url 'requests' %}{% querystring log_query %}">{% translate "All requests" %}</a>{% endif %}
+            <a class="link-plain text-sm" href="{% url 'requests' %}{% querystring log_query %}">{% translate "All requests" %}</a>
         </div>
         <div class="overflow-x-auto">
             <table class="table table-sm">
@@ -90,7 +90,7 @@
                     {% for row in latest %}
                         {% with request=row.request %}
                             <tr class="font-mono text-[13px]">
-                                <td>{% if log_query %}<a class="muted row-link" href="{% url 'requests' %}{% querystring log_query request=request.id %}#request-{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Open request {{ id }} in the log{% endblocktranslate %}">{{ request.timestamp|when }}</a>{% else %}<span class="muted">{{ request.timestamp|when }}</span>{% endif %}</td>
+                                <td><a class="muted row-link" href="{% url 'requests' %}{% querystring log_query request=request.id %}#request-{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Open request {{ id }} in the log{% endblocktranslate %}">{{ request.timestamp|when }}</a></td>
                                 <td>{{ request.model|default:_("n/a") }}</td>
                                 <td class="muted">{{ request.path }}</td>
                                 <td>

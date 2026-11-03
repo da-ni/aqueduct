@@ -3,9 +3,10 @@ from typing import Any
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 
-from management.access import TeamAct, viewer_of
+from management.access import TeamAct
 from management.model_catalog import Category, load_catalog, scopes_for
 from management.nav import gateway_url
+from management.org_choice import viewer_of
 
 
 class ModelListView(LoginRequiredMixin, TemplateView):

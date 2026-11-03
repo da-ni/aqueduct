@@ -16,11 +16,12 @@ from django.utils.translation import gettext
 from django.views.generic import TemplateView
 
 from management import usage_report as report
-from management.access import KeyAct, OrgWide, Viewer, WholeOrg, viewer_of
+from management.access import EveryOrg, KeyAct, OrgWide, Viewer, WholeOrg
 from management.charts import HEAT_CLASSES, HEAT_HOURS, OVERVIEW_STATS, columns, heat, slots, stats
 from management.ids import parse_id
 from management.model_catalog import model_kinds
 from management.models import Token, UserProfile
+from management.org_choice import viewer_of
 from management.periods import DEFAULT_SPAN, HOUR, Period
 from management.request_filters import Filters, Key, describe_key, key_search, read_filters
 from management.request_paging import PAGE_SIZE, Header
@@ -49,8 +50,10 @@ def _heat(
 
 
 def _describe(filters: Filters) -> Callable[[Token], Key]:
+    every_org = isinstance(filters.viewer.chosen, EveryOrg)
+
     def describe(token: Token) -> Key:
-        key = describe_key(token, filters.viewer)
+        key = describe_key(token, filters.viewer, with_org=every_org)
         if not filters.can_pick_scope:
             return replace(key, note="")
         return replace(key, note=gettext("You")) if key.own else key
@@ -69,6 +72,7 @@ class UsageDashboardView(LoginRequiredMixin, TemplateView):
         filters = read_filters(viewer, params, default_span=DEFAULT_SPAN, now=now)
         selected_key, period = filters.key, filters.period
         chosen = viewer.chosen
+        selected_org = chosen.org if isinstance(chosen, WholeOrg) else None
 
         retention_days = settings.REQUEST_RETENTION_DAYS
         source = UsageSource.of(filters)
@@ -101,7 +105,7 @@ class UsageDashboardView(LoginRequiredMixin, TemplateView):
                     for shown in ("tokens", "requests")
                 ),
                 "statuses": report.statuses(timeline, filters.log_url),
-                "heat_org": chosen.org if isinstance(chosen, WholeOrg) else None,
+                "heat_org": selected_org,
                 "heat_model": heat_model,
                 "heat": heat(_heat(chosen, heat_model, now, heat_weeks), heat_weeks),
                 "heat_days": heat_weeks * 7,
@@ -111,6 +115,9 @@ class UsageDashboardView(LoginRequiredMixin, TemplateView):
                 "keys": keys,
                 "more_keys": more_keys,
                 "all_keys_url": f"{reverse('usage_keys')}?{urlencode(filters.query)}",
+                "orgs_usage": ()
+                if selected_org is not None
+                else report.org_shares(source.org_tokens()),
                 "retention_warning": period.start < now - timedelta(days=retention_days),
                 "retention_days": int(retention_days),
             }

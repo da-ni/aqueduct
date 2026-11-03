@@ -9,13 +9,21 @@ from django.utils import timezone
 from django.utils.translation import gettext, ngettext
 from django.utils.translation import gettext_lazy as _
 
+from .availability import (
+    INHERIT_HELP,
+    INHERIT_LABELS,
+    AvailabilityForm,
+    Checklist,
+    configured_mcp_servers,
+)
 from .formatting import grouped
-from .models import ServiceAccount, Team, Token, UserProfile
+from .models import Org, ServiceAccount, Team, Token, UserProfile
 
 NAME_INPUT = "input w-full max-w-md"
 DESCRIPTION_INPUT = "textarea w-full max-w-2xl"
 EXPIRY_INPUT = "input w-full max-w-xs"
 NUMBER_INPUT = "input w-full max-w-xs"
+CHECKBOX = "checkbox checkbox-sm"
 
 
 class ServiceAccountForm(forms.ModelForm):
@@ -223,6 +231,110 @@ class TokenCreateForm(forms.ModelForm):
             self.add_error("expires_at", gettext("Expiration date must be in the future."))
 
         return cleaned_data
+
+
+class OrgLimitsForm(forms.ModelForm):
+    class Meta:
+        model = Org
+        fields: ClassVar[list] = [
+            "requests_per_minute",
+            "input_tokens_per_minute",
+            "output_tokens_per_minute",
+            "hourly_limit_multiplier",
+            "daily_limit_multiplier",
+        ]
+        widgets: ClassVar[dict] = {
+            field: forms.NumberInput(attrs={"class": NUMBER_INPUT, "min": 0}) for field in fields
+        }
+        labels: ClassVar[dict] = {
+            "requests_per_minute": _("Requests per minute"),
+            "input_tokens_per_minute": _("Input tokens per minute"),
+            "output_tokens_per_minute": _("Output tokens per minute"),
+            "hourly_limit_multiplier": _("Hourly cap"),
+            "daily_limit_multiplier": _("Daily cap"),
+        }
+        help_texts: ClassVar[dict] = {
+            "requests_per_minute": _("Leave it empty for no limit."),
+            "input_tokens_per_minute": _("Leave it empty for no limit."),
+            "output_tokens_per_minute": _("Leave it empty for no limit."),
+            "hourly_limit_multiplier": _("1–60. 60 = no extra hourly cap."),  # noqa: RUF001
+            "daily_limit_multiplier": _("1–1,440. 1,440 = no extra daily cap."),  # noqa: RUF001
+        }
+
+
+class CheckboxList(Checklist):
+    template_name = "management/widgets/checkboxes.html"
+
+
+MERGE_WIDGETS = {
+    "merge_exclusion_lists": forms.CheckboxInput(attrs={"class": CHECKBOX}),
+    "merge_mcp_server_exclusion_lists": forms.CheckboxInput(attrs={"class": CHECKBOX}),
+}
+
+
+class ChecklistForm(AvailabilityForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ("available_models", "available_mcp_servers"):
+            self.fields[name].widget = CheckboxList(
+                attrs={"class": CHECKBOX}, choices=self.fields[name].choices
+            )
+        if not configured_mcp_servers():
+            del self.fields["available_mcp_servers"]
+            self.fields.pop("merge_mcp_server_exclusion_lists", None)
+
+
+class OrgAvailabilityForm(ChecklistForm):
+    class Meta:
+        model = Org
+        fields: ClassVar[list] = ["merge_exclusion_lists", "merge_mcp_server_exclusion_lists"]
+        widgets: ClassVar[dict] = MERGE_WIDGETS
+        labels: ClassVar[dict] = {
+            "merge_exclusion_lists": _("Apply the server's default unavailable models"),
+            "merge_mcp_server_exclusion_lists": _(
+                "Apply the server's default unavailable MCP servers"
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["available_models"].help_text = gettext(
+            "Clear a box to make the model unavailable to keys in this organization. "
+            "A model added to the configuration later starts out available."
+        )
+        defaults = {
+            "merge_exclusion_lists": settings.AQUEDUCT_DEFAULT_MODEL_EXCLUSION_LIST,
+            "merge_mcp_server_exclusion_lists": settings.AQUEDUCT_DEFAULT_MCP_SERVER_EXCLUSION_LIST,
+        }
+        for name, names in defaults.items():
+            if name not in self.fields:
+                continue
+            if names:
+                self.fields[name].help_text = ngettext(
+                    "The server configuration makes %(names)s unavailable everywhere. "
+                    "Clear this to make it available in this organization.",
+                    "The server configuration makes %(names)s unavailable everywhere. "
+                    "Clear this to make them available in this organization.",
+                    len(names),
+                ) % {"names": ", ".join(names)}
+            else:
+                del self.fields[name]
+
+
+class TeamAvailabilityForm(ChecklistForm):
+    class Meta:
+        model = Team
+        fields: ClassVar[list] = ["merge_exclusion_lists", "merge_mcp_server_exclusion_lists"]
+        widgets: ClassVar[dict] = MERGE_WIDGETS
+        labels: ClassVar[dict] = INHERIT_LABELS
+        help_texts: ClassVar[dict] = INHERIT_HELP
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["available_models"].help_text = gettext(
+            "Clear a box to make the model unavailable to the team's service account keys. "
+            "Members' personal keys are not affected."
+        )
 
 
 class MemberEmailForm(forms.Form):

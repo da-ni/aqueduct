@@ -5,9 +5,11 @@ from enum import StrEnum
 
 from django.contrib.auth import get_user_model
 from django.core.paginator import Page, Paginator
+from django.db.models import Count, OuterRef, QuerySet, Subquery
+from django.db.models.functions import Coalesce
 from django.utils.translation import gettext, gettext_noop
 
-from management.activity import Activity
+from management.activity import Activity, activity_by
 from management.charts import TEAM_STATS, TOKEN_SERIES, Stat, Tip, stats, token_widths
 from management.formatting import as_tokens, grouped
 from management.keys import Expiry, key_activity
@@ -21,6 +23,8 @@ from management.models import (
     UserGroup,
     UserProfile,
 )
+from management.models.exclusions import Exclusion, excluded
+from management.periods import week
 from management.week_window import window
 
 PAGE_SIZE = 50
@@ -58,6 +62,63 @@ class MemberRow:
 
 
 @dataclass(frozen=True)
+class TeamRow:
+    team: Team
+    is_team_admin: bool
+    members: int
+    service_accounts: int
+    limit: int | None
+    activity: Activity
+    bar_width: int
+
+
+def _count_per_team(rows: QuerySet) -> Coalesce:
+    return Coalesce(
+        Subquery(
+            rows.filter(team=OuterRef("pk")).values("team").annotate(n=Count("pk")).values("n")
+        ),
+        0,
+    )
+
+
+@dataclass(frozen=True)
+class TeamList:
+    rows: tuple[TeamRow, ...]
+    pages: Page
+
+
+def team_rows(
+    teams: QuerySet[Team], admin_of: frozenset[int], query: str, page: str | int, now: datetime
+) -> TeamList:
+    pages = Paginator(
+        Team.objects.filter(id__in=teams.values("id"), name__icontains=query)
+        .select_related("org")
+        .annotate(
+            member_count=_count_per_team(TeamMembership.objects.all()),
+            service_account_count=_count_per_team(ServiceAccount.objects.all()),
+        )
+        .order_by("name", "id"),
+        PAGE_SIZE,
+    ).get_page(page)
+    found = list(pages)
+    activity = activity_by("token__service_account__team_id", (t.id for t in found), week(now))
+    widths = token_widths(activity)
+    rows = tuple(
+        TeamRow(
+            team=team,
+            is_team_admin=team.id in admin_of,
+            members=team.member_count,
+            service_accounts=team.service_account_count,
+            limit=LimitSet.from_objects(team, team.org).requests_per_minute,
+            activity=activity.get(team.id, Activity()),
+            bar_width=widths.get(team.id, 0),
+        )
+        for team in found
+    )
+    return TeamList(rows=rows, pages=pages)
+
+
+@dataclass(frozen=True)
 class ServiceAccountRow:
     service_account: ServiceAccount
     token: Token | None
@@ -82,6 +143,8 @@ class TeamPage:
     member_pages: Page
     member_count: int
     limits: LimitSet
+    excluded_models: tuple[str, ...]
+    excluded_mcp_servers: tuple[str, ...]
 
 
 def team_page(
@@ -153,4 +216,6 @@ def team_page(
         member_pages=member_pages,
         member_count=all_memberships.count() if member_query else member_pages.paginator.count,
         limits=LimitSet.from_objects(team, team.org),
+        excluded_models=tuple(sorted(excluded(team, Exclusion.MODELS))),
+        excluded_mcp_servers=tuple(sorted(excluded(team, Exclusion.MCP_SERVERS))),
     )

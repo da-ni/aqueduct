@@ -4,5 +4,6 @@
 
 {% block breadcrumbs %}<li><a href="{% url 'org' %}">{% translate "Teams" %}</a></li><li>{% translate "Create" %}</li>{% endblock %}
 {% block subheading %}{% if names_target_org %}<span class="muted -mt-1 text-sm">{% blocktranslate with name=target_org.name %}The team is created in {{ name }}.{% endblocktranslate %}</span>{% endif %}{% endblock %}
+{% block hidden_fields %}<input type="hidden" name="org" value="{{ target_org.id }}">{% endblock %}
 {% block submit %}{% translate "Create team" %}{% endblock %}
 {% block cancel_url %}{% url 'org' %}{% endblock %}

@@ -10,12 +10,13 @@ from django.utils.http import urlencode
 from django.utils.translation import gettext
 
 from gateway.config import model_names
-from management.access import KeyAct, OrgWide, TeamAct, Viewer, requests_of
+from management.access import EveryOrg, KeyAct, OrgWide, TeamAct, Viewer, requests_of
 from management.activity import served
+from management.formatting import NO_ORG
 from management.ids import parse_id
 from management.model_catalog import scopes_for, usable_models
 from management.models import Request, Token
-from management.ownership import RELATED
+from management.ownership import RELATED, owner
 from management.periods import Period, Span
 
 
@@ -31,7 +32,7 @@ class Key:
         return self.token.name
 
 
-def describe_key(token: Token, viewer: Viewer) -> Key:
+def describe_key(token: Token, viewer: Viewer, *, with_org: bool = False) -> Key:
     href = reverse("token_detail", args=[token.id]) if viewer.may_key(KeyAct.OPEN, token) else None
     account, own = token.service_account, False
     if account is not None:
@@ -40,6 +41,9 @@ def describe_key(token: Token, viewer: Viewer) -> Key:
         note, own = gettext("Personal"), True
     else:
         note = token.user.email
+    if with_org:
+        found = owner(token)
+        note += f" · {found.org.name if found is not None else NO_ORG}"
     return Key(token, href, note, own)
 
 
@@ -58,6 +62,10 @@ class Filters:
     span: Span
     period: Period
     requests: QuerySet[Request]
+
+    @property
+    def can_pick_org(self) -> bool:
+        return self.viewer.can_switch_org
 
     @property
     def can_pick_scope(self) -> bool:
@@ -83,6 +91,8 @@ class Filters:
     @property
     def query(self) -> dict[str, str]:
         found = {}
+        if self.can_pick_org:
+            found["org"] = self.viewer.chosen.param
         if self.mine:
             found["scope"] = "mine"
         if self.key:
@@ -104,7 +114,7 @@ KEY_MATCHES = 20
 
 
 _NOT_PAGE_PARAMS = frozenset(
-    {"scope", "key", "model", "span", "key_q", "before", "after", "request", "page"}
+    {"org", "scope", "key", "model", "span", "key_q", "before", "after", "request", "page"}
 )
 
 
@@ -127,7 +137,7 @@ def read_filters(
     tokens = viewer.keys(KeyAct.SEE).select_related(*RELATED).order_by("name", "id")
 
     def describe(token: Token) -> Key:
-        return describe_key(token, viewer)
+        return describe_key(token, viewer, with_org=isinstance(viewer.chosen, EveryOrg))
 
     keys = tuple(describe(token) for token in tokens & viewer.keys(KeyAct.MINE))
     first_two = list(tokens[:2])

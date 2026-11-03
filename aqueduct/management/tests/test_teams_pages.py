@@ -10,9 +10,101 @@ from django.urls import reverse
 from django.utils import timezone
 
 from management.models import Request, ServiceAccount, Team, TeamMembership, Token, UserGroup
-from management.tests.helpers import RoleWorld, join, secret_on
+from management.tests.helpers import RoleWorld, join, make_token, secret_on
 
 User = get_user_model()
+
+
+class TeamListTest(RoleWorld):
+    def test_member_sees_only_their_teams_and_team_admins_see_a_badge(self):
+        badge = '<span class="badge badge-sm whitespace-nowrap bg-base-100">Team admin</span>'
+        response = self.as_user(self.member).get(reverse("org"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'href="{reverse("team", args=[self.team.id])}"')
+        self.assertContains(response, "Your role")
+        self.assertNotContains(response, badge, html=True)
+        self.assertNotContains(response, "Robotics")
+        self.assertNotContains(response, reverse("team_create"))
+        self.assertContains(self.as_user(self.team_admin).get(reverse("org")), badge, html=True)
+
+    def test_user_outside_every_team_is_told_whom_to_ask(self):
+        response = self.as_user(self.solo).get(reverse("org"))
+        self.assertContains(response, "You're not in a team. Ask your org admin to add you.")
+        self.assertNotContains(response, "NLP Lab")
+        self.assertNotContains(response, 'name="q"')
+        self.assertNotContains(response, "<table")
+
+    def test_org_admin_sees_every_team_of_their_org_and_may_create_one(self):
+        response = self.as_user(self.org_admin).get(reverse("org"))
+        self.assertContains(response, "NLP Lab")
+        self.assertContains(response, "Robotics")
+        self.assertNotContains(response, "Foreign")
+        self.assertContains(response, f'href="{reverse("team_create")}"')
+        self.assertNotContains(response, "Your role")
+
+    def test_search_filters_by_team_name(self):
+        response = self.as_user(self.org_admin).get(reverse("org"), {"q": "robo"})
+        self.assertContains(response, "Robotics")
+        self.assertNotContains(response, "NLP Lab")
+        response = self.as_user(self.org_admin).get(reverse("org"), {"q": "nothing-like-it"})
+        self.assertContains(response, "No team matches.")
+
+    def test_row_shows_counts_limit_and_service_account_tokens_of_seven_days(self):
+        self.team.requests_per_minute = 1200
+        self.team.save()
+        now = timezone.now()
+        Request.objects.create(
+            token=self.pipeline_key,
+            model="gpt-4.1-nano",
+            timestamp=now,
+            input_tokens=2000,
+            output_tokens=500,
+        )
+        Request.objects.create(
+            token=self.pipeline_key,
+            model="gpt-4.1-nano",
+            timestamp=now - timedelta(days=9),
+            input_tokens=9_000_000,
+        )
+        ServiceAccount.objects.create(name="crawler", team=self.team)
+        personal = make_token(self.member, "laptop")
+        Request.objects.create(
+            token=personal, model="gpt-4.1-nano", timestamp=now, input_tokens=7_000_000
+        )
+        response = self.as_user(self.member).get(reverse("org"))
+        row = response.content.decode().split("Language tech", 1)[1].split("</tr>", 1)[0]
+        members_and_service_accounts = re.findall(
+            r'<td class="text-right font-mono max-lg:hidden">(\d+)</td>', row
+        )
+        self.assertEqual(members_and_service_accounts, ["2", "2"])
+        self.assertIn("1,200", row)
+        self.assertIn(">2.5K<", row)
+        self.assertIn("2 members · 2 service accounts · 2.5K tokens", row)
+        self.assertContains(response, "Requests/min")
+        self.assertContains(response, "Service account tokens, 7 days")
+
+    def test_teams_come_fifty_a_page_and_keep_the_search(self):
+        for n in range(55):
+            Team.objects.create(name=f"Squad {n:02}", org=self.org)
+        client = self.as_user(self.org_admin)
+        first = client.get(reverse("org"), {"q": "squad"}).content.decode()
+        self.assertIn("Squad 49", first)
+        self.assertNotIn("Squad 50", first)
+        self.assertIn("1\u201350 of 55", first)
+        self.assertIn('href="?q=squad&amp;page=2"', first)
+        second = client.get(reverse("org"), {"q": "squad", "page": 2}).content.decode()
+        self.assertIn("Squad 54", second)
+        self.assertNotIn("Squad 49", second)
+
+    def test_list_leaves_the_org_limits_to_the_organization_page(self):
+        self.org.requests_per_minute = 600
+        self.org.save()
+        self.org_admin.is_staff = True
+        self.org_admin.save()
+        response = self.as_user(self.org_admin).get(reverse("org"))
+        self.assertNotContains(response, "Default limits")
+        self.assertNotContains(response, reverse("organization_limits", args=[self.org.id]))
+        self.assertNotContains(response, reverse("admin:management_org_change", args=[self.org.id]))
 
 
 class TeamDetailTest(RoleWorld):
@@ -143,6 +235,18 @@ class TeamDetailTest(RoleWorld):
             'aria-label="Tokens, 7 days: 4K tokens (Cached 1,500, New input 1,500, Output 1,000)"',
         )
         self.assertNotContains(response, '<span class="sw c"></span>Cached</span>')
+
+    def test_unavailable_models_show_only_to_org_admins_and_only_when_some_are(self):
+        response = self.as_user(self.org_admin).get(self.url())
+        self.assertContains(response, "Unavailable to service accounts")
+        self.assertNotContains(response, '<dt class="muted">Models</dt>', html=True)
+        self.team.excluded_models = ["gpt-image-1"]
+        self.team.save()
+        self.assertNotContains(self.as_user(self.member).get(self.url()), "gpt-image-1")
+        response = self.as_user(self.org_admin).get(self.url())
+        self.assertContains(response, "gpt-image-1")
+        self.assertContains(response, '<dt class="muted">Models</dt>', html=True)
+        self.assertNotContains(response, '<dt class="muted">MCP servers</dt>', html=True)
 
     def test_limits_without_any_limit_show_only_to_org_admins(self):
         for user, shown in [(self.member, False), (self.team_admin, False), (self.org_admin, True)]:
@@ -331,7 +435,9 @@ class TeamFormsTest(RoleWorld):
         page = client.get(reverse("team_create"))
         self.assertContains(page, "Create a team")
         self.assertNotContains(page, "The team is created in")
-        response = client.post(reverse("team_create"), {"name": "Vision", "description": ""})
+        response = client.post(
+            reverse("team_create"), {"name": "Vision", "description": "", "org": self.org.id}
+        )
         self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
         self.assertTrue(Team.objects.filter(name="Vision", org=self.org).exists())
 
@@ -343,7 +449,9 @@ class TeamFormsTest(RoleWorld):
         self.assertFalse(Team.objects.filter(name="Vision").exists())
 
     def test_duplicate_team_name_rerenders_the_form(self):
-        response = self.as_user(self.org_admin).post(reverse("team_create"), {"name": "nlp lab"})
+        response = self.as_user(self.org_admin).post(
+            reverse("team_create"), {"name": "nlp lab", "org": self.org.id}
+        )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "A team with this name already exists in your organization.")
 

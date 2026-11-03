@@ -420,8 +420,10 @@ class ModelsPageTest(TestCase):
 
     def test_a_switched_platform_admin_still_counts_their_teams_keys(self):
         self.make_unavailable(UserProfile.objects.get(user_id=1), "whisper-1")
-        UserProfile.objects.filter(user_id=1).update(org=Org.objects.create(name="elsewhere"))
-        response = self.page(user_pk=1, model="whisper-1")
+        elsewhere = Org.objects.create(name="elsewhere")
+        self.client.force_login(User.objects.get(pk=1))
+        self.client.post(reverse("org_switch"), {"org_id": elsewhere.pk})
+        response = self.client.get(reverse("models"), {"model": "whisper-1"})
         self.assertEqual(selected(response), "whisper-1")
         self.assertContains(response, "Available with Whale service accounts.")
 

@@ -199,6 +199,26 @@
                 {% if can_administer %}<a class="link-plain text-sm" href="{% url 'team_edit' team.id %}" aria-label="{% translate "Edit limits" %}">{% translate "Edit" %}</a>{% endif %}
             </div>
             {% include "management/_limits.html" with limits=page.limits note=_("Applies to each service account key.") %}
+            {% if can_administer %}
+                <div class="flex items-center justify-between gap-3 border-t border-base-300 pt-4">
+                    <h3 class="font-semibold">{% translate "Unavailable to service accounts" %}</h3>
+                    <a class="link-plain text-sm" href="{% url 'team_availability' team.id %}" aria-label="{% translate "Edit availability" %}">{% translate "Edit" %}</a>
+                </div>
+                {% if page.excluded_models or page.excluded_mcp_servers %}
+                    <dl class="grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center">
+                        {% if page.excluded_models %}
+                            <dt class="muted">{% translate "Models" %}</dt>
+                            <dd class="flex flex-wrap gap-1.5">{% for model in page.excluded_models %}<span class="badge badge-sm bg-base-100 font-mono">{{ model }}</span>{% endfor %}</dd>
+                        {% endif %}
+                        {% if page.excluded_mcp_servers %}
+                            <dt class="muted">{% translate "MCP servers" %}</dt>
+                            <dd class="flex flex-wrap gap-1.5">{% for server in page.excluded_mcp_servers %}<span class="badge badge-sm bg-base-100 font-mono">{{ server }}</span>{% endfor %}</dd>
+                        {% endif %}
+                    </dl>
+                {% else %}
+                    <p class="muted text-sm">{% translate "None" %}</p>
+                {% endif %}
+            {% endif %}
         </div>
     </section>
 {% endif %}

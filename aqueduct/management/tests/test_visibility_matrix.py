@@ -23,6 +23,8 @@ NOT_FOUND = 404
 ROWS = (
     ("solo", {}, {"/solo-laptop"}),
     ("solo", {"scope": "mine"}, {"/solo-laptop"}),
+    ("solo", {"org": "all"}, {"/solo-laptop"}),
+    ("solo", {"org": "other_org"}, {"/solo-laptop"}),
     ("solo", {"key": "solo-laptop"}, {"/solo-laptop"}),
     ("solo", {"key": "member-laptop"}, NOT_FOUND),
     ("solo", {"key": "pipeline"}, NOT_FOUND),
@@ -39,12 +41,19 @@ ROWS = (
     ("org_admin", {"scope": "mine"}, {"/org-admin-laptop"}),
     ("org_admin", {"key": "member-laptop"}, MEMBER),
     ("org_admin", {"key": "side-sa", "model": CHAT}, {"/side-sa"}),
+    ("org_admin", {"org": "all"}, LAB),
     ("org_admin", {"key": "foreign-laptop"}, NOT_FOUND),
     ("admin", {}, LAB),
     ("admin", {"scope": "mine"}, set()),
     ("admin", {"key": "foreign-sa"}, NOT_FOUND),
+    ("admin", {"org": "all"}, LAB | FOREIGN),
+    ("admin", {"org": "all", "key": "foreign-sa"}, {"/foreign-sa"}),
+    ("admin", {"org": "other_org"}, FOREIGN),
+    ("admin", {"org": "other_org", "key": "solo-laptop"}, NOT_FOUND),
     ("other_org_admin", {}, FOREIGN),
     ("other_org_admin", {"key": "foreign-sa"}, {"/foreign-sa"}),
+    ("other_org_admin", {"org": "all"}, FOREIGN),
+    ("other_org_admin", {"org": "org"}, FOREIGN),
     ("other_org_admin", {"key": "solo-laptop"}, NOT_FOUND),
     ("other_org_admin", {"key": "pipeline"}, NOT_FOUND),
 )
@@ -61,6 +70,7 @@ OPENS = (
     ("admin", LAB_KEYS | FOREIGN_KEYS),
     ("other_org_admin", FOREIGN_KEYS),
 )
+VIEWED_ORGS = {"org_admin": ("all",), "admin": ("other_org", "all")}
 
 
 class VisibilityMatrixTest(RoleWorld):
@@ -93,6 +103,8 @@ class VisibilityMatrixTest(RoleWorld):
         resolved: dict[str, object] = dict(params)
         if token := Token.objects.filter(name=params.get("key", "")).first():
             resolved["key"] = token.id
+        if params.get("org") in ("org", "other_org"):
+            resolved["org"] = getattr(self, params["org"]).id
         return resolved
 
     def get(self, role: str, name: str, params: dict[str, object]):
@@ -116,6 +128,7 @@ class VisibilityMatrixTest(RoleWorld):
                 rows = log.context["log"].rows
                 self.assertEqual({row.request.path for row in rows}, expected)
                 self.assertEqual(log.context["log"].tabs[0].count, len(expected))
+                self.assertEqual(log.context["filters"].can_pick_org, role == "admin")
 
     def test_all_keys_lists_the_keys_behind_those_requests(self):
         for role, params, expected in ROWS:
@@ -144,11 +157,14 @@ class VisibilityMatrixTest(RoleWorld):
 
     def test_the_key_page_opens_exactly_the_keys_each_role_may_open(self):
         for role, opens in OPENS:
-            self.client.force_login(getattr(self, role))
-            for token in Token.objects.all():
-                with self.subTest(role=role, key=token.name):
-                    response = self.client.get(reverse("token_detail", args=[token.id]))
-                    self.assertEqual(response.status_code, 200 if token.name in opens else 404)
+            for viewed_org in (None, *VIEWED_ORGS.get(role, ())):
+                self.client.force_login(getattr(self, role))
+                if viewed_org is not None:
+                    self.client.get(reverse("tokens"), self.query({"org": viewed_org}))
+                for token in Token.objects.all():
+                    with self.subTest(role=role, viewed_org=viewed_org, key=token.name):
+                        response = self.client.get(reverse("token_detail", args=[token.id]))
+                        self.assertEqual(response.status_code, 200 if token.name in opens else 404)
 
     def test_edit_and_delete_pages_open_for_the_owner_only(self):
         owned = {

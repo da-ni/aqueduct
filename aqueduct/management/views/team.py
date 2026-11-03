@@ -14,11 +14,11 @@ from django.utils import timezone
 from django.utils.translation import gettext
 from django.views.generic import CreateView, DeleteView, DetailView, UpdateView
 
-from management.access import TeamAct, Viewer
+from management.access import TeamAct, Viewer, WholeOrg
 from management.deletion import deletion
-from management.forms import MemberEmailForm, TeamCreateForm, TeamLimitsForm
+from management.forms import MemberEmailForm, TeamAvailabilityForm, TeamCreateForm, TeamLimitsForm
 from management.ids import parse_id
-from management.models import Org, ServiceAccount, Team, UserGroup, UserProfile
+from management.models import Org, ServiceAccount, Team, UserProfile
 from management.team_overview import team_page
 from management.views.base import BaseAqueductView, BaseTeamView
 
@@ -31,7 +31,11 @@ class TeamCreateView(BaseAqueductView, CreateView):
 
     @cached_property
     def target_org(self) -> Org:
-        return get_object_or_404(self.viewer.orgs(), pk=self.viewer.org.pk)
+        chosen = self.viewer.chosen
+        pk = (chosen.org if isinstance(chosen, WholeOrg) else self.viewer.org).pk
+        if "org" in self.request.POST:
+            pk = parse_id(self.request.POST["org"])
+        return get_object_or_404(self.viewer.orgs(), pk=pk)
 
     def get_form_kwargs(self) -> dict:
         kwargs = super().get_form_kwargs()
@@ -50,7 +54,7 @@ class TeamCreateView(BaseAqueductView, CreateView):
         context = super().get_context_data(**kwargs)
         context["view_title"] = gettext("Create a team")
         context["target_org"] = self.target_org
-        context["names_target_org"] = self.viewer.rank is UserGroup.ADMIN
+        context["names_target_org"] = self.viewer.can_switch_org
         return context
 
 
@@ -85,6 +89,32 @@ class TeamUpdateView(BaseTeamView, UpdateView):
         context["cancel_url"] = self.get_success_url()
         context["can_delete"] = self.manages_team()
         return context
+
+
+class TeamAvailabilityEditView(BaseTeamView, UpdateView):
+    model = Team
+    form_class = TeamAvailabilityForm
+    template_name = "management/edit/team.html"
+    context_object_name = "team"
+    team_act = TeamAct.ADMINISTER
+
+    def form_valid(self, form) -> HttpResponse:
+        response = super().form_valid(form)
+        messages.success(
+            self.request, gettext("Availability of %(name)s saved.") % {"name": self.object.name}
+        )
+        return response
+
+    def get_success_url(self) -> str:
+        return reverse("team", kwargs={"id": self.object.id})
+
+    def get_context_data(self, **kwargs) -> dict[str, object]:
+        return super().get_context_data(
+            view_title=gettext("Availability"),
+            breadcrumb=gettext("Availability"),
+            cancel_url=self.get_success_url(),
+            **kwargs,
+        )
 
 
 class TeamDeleteView(BaseTeamView, DeleteView):

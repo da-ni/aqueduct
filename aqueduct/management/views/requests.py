@@ -5,8 +5,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
 from django.views.generic import TemplateView
 
-from management.access import viewer_of
 from management.models import UserProfile
+from management.org_choice import viewer_of
 from management.periods import Span
 from management.request_filters import read_filters
 from management.request_log import request_log
