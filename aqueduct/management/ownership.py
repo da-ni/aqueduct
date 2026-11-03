@@ -1,0 +1,57 @@
+from collections.abc import Collection, Iterator
+from typing import TYPE_CHECKING, Any, Final
+
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import models
+from django.db.models import Q
+from django.db.models.functions import Coalesce
+
+if TYPE_CHECKING:
+    from management.models import Team, Token, UserProfile
+
+TEAM: Final = "service_account__team"
+OWNERS: Final = (TEAM, "user__profile")
+RELATED: Final = tuple(f"{path}__org" for path in OWNERS)
+
+
+def key_org() -> Coalesce:
+    return Coalesce(*RELATED)
+
+
+def of_orgs(org_ids: Collection[int]) -> Q:
+    found = Q()
+    absent: dict[str, bool] = {}
+    for path in OWNERS:
+        found |= Q(**absent, **{f"{path}__org__in": org_ids})
+        absent[f"{path.split('__')[0]}__isnull"] = True
+    return found
+
+
+def _hop(obj: models.Model, name: str) -> Any:
+    try:
+        return getattr(obj, name)
+    except ObjectDoesNotExist:
+        return None
+
+
+def _owners(token: "Token") -> "Iterator[Team | UserProfile]":
+    for path in OWNERS:
+        found: Any = token
+        for name in path.split("__"):
+            found = _hop(found, name)
+            if found is None:
+                break
+        if found is not None:
+            yield found
+
+
+def org_id(token: "Token") -> int | None:
+    return next((found.org_id for found in _owners(token) if found.org_id is not None), None)
+
+
+def personal(user_id: int | None, prefix: str = "") -> Q:
+    return Q(**{f"{prefix}user_id": user_id, f"{prefix}service_account__isnull": True})
+
+
+def of_teams(team_ids: Collection[int], prefix: str = "") -> Q:
+    return Q(**{f"{prefix}{TEAM}__in": team_ids})
