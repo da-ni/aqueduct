@@ -379,10 +379,12 @@ def parse_card(entry: Mapping[str, Any], scopes: Sequence[Scope] = ()) -> ModelC
     )
 
 
-def scopes_for(profile: UserProfile, teams: QuerySet[Team]) -> tuple[Scope, ...]:
-    personal = Scope(None, excluded(profile, Exclusion.MODELS))
+def scopes_for(
+    profile: UserProfile, teams: QuerySet[Team], kind: Exclusion = Exclusion.MODELS
+) -> tuple[Scope, ...]:
+    personal = Scope(None, excluded(profile, kind))
     found = teams.select_related("org").order_by("name")
-    return (personal, *(Scope(team.name, excluded(team, Exclusion.MODELS)) for team in found))
+    return (personal, *(Scope(team.name, excluded(team, kind)) for team in found))
 
 
 def usable_models(scopes: Sequence[Scope]) -> list[str]:
