@@ -102,6 +102,12 @@
       else alert.remove();
     }, 5000);
   }
+  document.addEventListener('change', (event) => {
+    // _metric_chart.html restores the pick while it parses, so the chart does not flash.
+    if (event.target.name === 'metric') {
+      try { sessionStorage.setItem('metric', event.target.value); } catch { }
+    }
+  });
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-autodismiss]').forEach(autodismiss);
   });

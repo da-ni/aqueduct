@@ -18,6 +18,7 @@ Including another URLconf
 from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import RedirectView
 
 from management import views
 
@@ -28,6 +29,7 @@ urlpatterns = [
     path("oidc/", include("mozilla_django_oidc.urls")),
     path("aqueduct/management/", include("management.urls")),
     path("aqueduct/admin/", admin.site.urls),
+    path("", RedirectView.as_view(pattern_name="usage")),
     # contains catch all path so has to come last
     path("", include("gateway.urls")),
 ]

@@ -1,7 +1,6 @@
 from django.conf import settings
 from django.http import HttpResponseBase
 from django.shortcuts import redirect
-from django.urls import NoReverseMatch, reverse
 from django.views.generic import TemplateView
 
 
@@ -13,11 +12,7 @@ class SSOTemplateView(TemplateView):
             next_url = request.GET.get("next")
             if next_url:
                 return redirect(next_url)
-            try:
-                org_url = reverse("org")
-                return redirect(org_url)
-            except NoReverseMatch:
-                return redirect(settings.LOGIN_REDIRECT_URL)
+            return redirect(settings.LOGIN_REDIRECT_URL)
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs) -> dict[str, object]:

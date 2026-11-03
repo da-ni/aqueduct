@@ -1,7 +1,7 @@
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.utils.formats import get_format, number_format
-from django.utils.translation import gettext, pgettext, pgettext_lazy
+from django.utils.translation import gettext, ngettext, pgettext, pgettext_lazy
 
 MISSING = "—"
 SECOND_MS = 1000
@@ -44,6 +44,31 @@ def as_percent(number: float) -> str:
 
 def percent(part: int, whole: int) -> str:
     return as_percent(100 * part / whole) if whole else MISSING
+
+
+def as_tokens(count: float) -> str:
+    n = round(count)
+    return ngettext("%(count)s token", "%(count)s tokens", n) % {"count": compact(n)}
+
+
+def as_input(count: float) -> str:
+    n = round(count)
+    return ngettext("%(count)s input token", "%(count)s input tokens", n) % {"count": compact(n)}
+
+
+def as_output(count: float) -> str:
+    n = round(count)
+    return ngettext("%(count)s output token", "%(count)s output tokens", n) % {"count": compact(n)}
+
+
+def as_cached(count: float) -> str:
+    n = round(count)
+    return ngettext("%(count)s cached token", "%(count)s cached tokens", n) % {"count": compact(n)}
+
+
+def as_requests(count: float) -> str:
+    n = round(count)
+    return ngettext("%(count)s request", "%(count)s requests", n) % {"count": grouped(n)}
 
 
 def duration(ms: int | None) -> str:

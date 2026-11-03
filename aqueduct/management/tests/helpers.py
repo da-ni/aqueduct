@@ -1,3 +1,4 @@
+import re
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -28,6 +29,7 @@ User = get_user_model()
 CHAT = "gpt-4.1-nano"
 EMBEDDING = "text-embedding-ada-002"
 PATHS = ("/own", "/others", "/team-sa", "/side-sa", "/sent-as-owner", "/foreign")
+KEY_NAMES = ("solo-laptop", "member-laptop", "pipeline", "foreign-laptop")
 
 
 @contextmanager
@@ -85,6 +87,60 @@ class RoleWorld(TestCase):
     @classmethod
     def user(cls, name: str, group: UserGroup = UserGroup.USER, org: Org | None = None):
         return make_user(name, org or cls.org, group)
+
+
+class UsagePageTestBase(RoleWorld):
+    def setUp(self):
+        super().setUp()
+        hour = timedelta(hours=1)
+        self.log(
+            self.solo_key, hour, 200, input_tokens=1000, cached_input_tokens=250, output_tokens=500
+        )
+        self.log(self.member_key, hour, 429, input_tokens=2000)
+        self.log(self.pipeline_key, hour, 500, input_tokens=3000, output_tokens=1000)
+        self.log(self.foreign_key, hour, 200, input_tokens=7000)
+
+    def log(
+        self, token: Token, ago: timedelta, status: int, model: str = CHAT, **fields
+    ) -> Request:
+        return Request.objects.create(
+            token=token,
+            timestamp=timezone.now() - ago,
+            status_code=status,
+            model=model,
+            response_time_ms=100,
+            **fields,
+        )
+
+    def page(self, user, **params):
+        self.client.force_login(user)
+        return self.client.get(reverse("usage"), params)
+
+    def kpi(self, response, label: str) -> str:
+        match = re.search(
+            rf'{label}</span>\s*<span class="text-2xl font-semibold">([^<]*)</span>',
+            response.content.decode(),
+        )
+        self.assertIsNotNone(match, f"no {label} figure on the page")
+        return match.group(1)
+
+    def status_count(self, response, label: str) -> str:
+        match = re.search(
+            rf'<span class="font-medium">{label}</span>.*?'
+            r'<span class="ml-auto font-mono">([^<]*)</span>',
+            response.content.decode(),
+            re.S,
+        )
+        self.assertIsNotNone(match, f"no {label} row on the page")
+        return match.group(1)
+
+    def assert_keys(self, response, *visible: str) -> None:
+        self.assertEqual(response.status_code, 200)
+        for name in KEY_NAMES:
+            if name in visible:
+                self.assertContains(response, name)
+            else:
+                self.assertNotContains(response, name)
 
 
 class RequestsPageTestBase(RoleWorld):

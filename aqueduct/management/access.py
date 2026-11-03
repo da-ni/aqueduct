@@ -53,6 +53,7 @@ class TeamAct(StrEnum):
 
 @dataclass(frozen=True)
 class EveryOrg:
+    param: ClassVar[str] = "all"
     cache_key: ClassVar[tuple[object, ...]] = ("all orgs",)
 
     def keys(self) -> Q:
@@ -77,6 +78,10 @@ class EveryOrg:
 @dataclass(frozen=True)
 class WholeOrg:
     org: Org
+
+    @property
+    def param(self) -> str:
+        return str(self.org.pk)
 
     @property
     def cache_key(self) -> tuple[object, ...]:

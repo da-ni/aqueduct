@@ -17,6 +17,7 @@ LAB = {
 }
 FOREIGN = {"/foreign-laptop", "/foreign-sa"}
 MEMBER = {"/member-laptop", "/member-embed", "/sent-as-solo"}
+KEY_OF = {"/member-embed": "member-laptop", "/sent-as-solo": "member-laptop"}
 NOT_FOUND = 404
 
 ROWS = (
@@ -81,17 +82,36 @@ class VisibilityMatrixTest(RoleWorld):
             resolved["key"] = token.id
         return resolved
 
-    def test_the_log_shows_exactly_the_requests_each_role_may_see(self):
+    def get(self, role: str, name: str, params: dict[str, object]):
+        self.client.force_login(getattr(self, role))
+        return self.client.get(reverse(name), params)
+
+    def test_overview_and_requests_show_the_same_requests(self):
         for role, params, expected in ROWS:
+            query = self.query(params)
             with self.subTest(role=role, **params):
-                self.client.force_login(getattr(self, role))
-                log = self.client.get(reverse("requests"), self.query(params))
+                overview = self.get(role, "usage", query)
+                log = self.get(role, "requests", query)
                 if expected == NOT_FOUND:
-                    self.assertEqual(log.status_code, 404)
+                    self.assertEqual((overview.status_code, log.status_code), (404, 404))
                     continue
+                filters = overview.context["filters"]
+                shown = filters.period.of(filters.requests)
+                self.assertEqual(set(shown.values_list("path", flat=True)), expected)
+                kpis = {kpi.label: kpi.value for kpi in overview.context["kpis"]}
+                self.assertEqual(kpis["Requests"], str(len(expected)))
                 rows = log.context["log"].rows
                 self.assertEqual({row.request.path for row in rows}, expected)
                 self.assertEqual(log.context["log"].tabs[0].count, len(expected))
+
+    def test_all_keys_lists_the_keys_behind_those_requests(self):
+        for role, params, expected in ROWS:
+            if expected == NOT_FOUND or "key" in params:
+                continue
+            with self.subTest(role=role, **params):
+                listed = self.get(role, "usage_keys", self.query(params)).context["keys"]
+                keys = {KEY_OF.get(path, path.removeprefix("/")) for path in expected}
+                self.assertEqual({key.name for key in listed}, keys)
 
     def test_org_admin_in_another_orgs_team_does_not_see_its_log(self):
         join(self.org_admin, self.foreign_team)
@@ -102,3 +122,4 @@ class VisibilityMatrixTest(RoleWorld):
         self.assertEqual(
             self.client.get(reverse("requests"), {"key": foreign_sa.id}).status_code, 404
         )
+        self.assertEqual(self.client.get(reverse("usage"), {"key": foreign_sa.id}).status_code, 404)

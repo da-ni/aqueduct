@@ -1,0 +1,18 @@
+{% load i18n ui %}
+{% if pages.paginator.num_pages > 1 %}
+    <div class="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-1">
+        <span class="muted font-mono text-xs">{% blocktranslate with first=pages.start_index|grouped last=pages.end_index|grouped total=pages.paginator.count|grouped %}{{ first }}–{{ last }} of {{ total }}{% endblocktranslate %}</span>
+        <nav class="join" aria-label="{% translate 'Pages' %}">
+            {% if pages.has_previous %}
+                <a class="btn btn-sm join-item" href="{% querystring page=pages.previous_page_number %}">{% translate "Previous" %}</a>
+            {% else %}
+                <button type="button" class="btn btn-sm join-item" disabled>{% translate "Previous" %}</button>
+            {% endif %}
+            {% if pages.has_next %}
+                <a class="btn btn-sm join-item" href="{% querystring page=pages.next_page_number %}">{% translate "Next" %}</a>
+            {% else %}
+                <button type="button" class="btn btn-sm join-item" disabled>{% translate "Next" %}</button>
+            {% endif %}
+        </nav>
+    </div>
+{% endif %}
