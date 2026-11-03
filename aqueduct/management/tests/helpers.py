@@ -182,6 +182,11 @@ def listed(response) -> list[str]:
     return [row.request.path for row in response.context["log"].rows]
 
 
+def secret_on(response) -> str | None:
+    match = re.search(r'data-copy="(sk-[^"]+)"', response.content.decode())
+    return match.group(1) if match else None
+
+
 def seed_active_config(code: str, name: str = "test-config") -> Snippet:
     Snippet.objects.filter(type=SnippetType.CONFIG, active=True).update(active=False)
     snippet, _ = Snippet.objects.update_or_create(

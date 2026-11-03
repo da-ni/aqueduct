@@ -21,6 +21,7 @@ from .team import (
 from .tokens import (
     TokenCreateView,
     TokenDeleteView,
+    TokenDetailView,
     TokenEditView,
     TokenRegenerateView,
     UserTokensView,

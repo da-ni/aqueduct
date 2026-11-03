@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -7,9 +7,10 @@ from django.db.models import Aggregate, BigIntegerField, Count, F, IntegerField,
 from django.db.models.functions import Cast
 
 from gateway.config import model_names
-from management.formatting import percent
+from management.formatting import compact, percent
 from management.models import Request
 from management.outcomes import FAILED, Outcome
+from management.periods import Period
 
 # Postgres adds two integer columns as 32-bit, so one huge row would overflow the sum.
 TOKENS = Cast("input_tokens", BigIntegerField()) + F("output_tokens")
@@ -29,10 +30,15 @@ class Activity:
     input: int = 0
     cached: int = 0
     output: int = 0
+    last_used: datetime | None = None
 
     @property
     def tokens(self) -> int:
         return self.input + self.output
+
+    @property
+    def tokens_short(self) -> str:
+        return compact(self.tokens)
 
     @property
     def cache_hits(self) -> str:
@@ -53,6 +59,16 @@ def summed(activities: Sequence[Activity]) -> Activity:
 
 def served(requests: QuerySet[Request]) -> QuerySet[Request]:
     return requests.filter(model__in=model_names())
+
+
+def activity_by(field: str, ids: Iterable[int], period: Period) -> dict[int, Activity]:
+    rows = (
+        served(period.of(Request.objects.filter(**{f"{field}__in": list(ids)})))
+        .values(field)
+        .annotate(**TOTALS)
+        .order_by()
+    )
+    return {row.pop(field): Activity(**row) for row in rows}
 
 
 class Median(Aggregate):

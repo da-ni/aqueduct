@@ -158,6 +158,7 @@ a.link-plain:hover { text-decoration: underline; }
 .sw.i, .vbar .i { background: var(--viz-in); }
 .sw.f, .vbar .f { background: var(--color-error); }
 .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+.onebar { height: 10px; border-radius: 0 4px 4px 0; background: var(--viz-in); min-width: 3px; }
 .spark { display: flex; gap: 3px; height: 28px; }
 .spark > span { position: relative; display: flex; align-items: flex-end; flex: 1; max-width: 10px; }
 .spark i { display: block; width: 100%; min-height: 2px; border-radius: 2px 2px 0 0; background: var(--viz-in); opacity: .55; }

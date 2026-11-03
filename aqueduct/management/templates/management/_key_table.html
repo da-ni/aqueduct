@@ -15,7 +15,7 @@
             {% for key in keys %}
                 <tr>
                     <td>
-                        <div class="truncate font-mono" title="{{ key.name }}">{{ key.name }}</div>
+                        {% if key.href %}<a class="link-plain row-link block truncate font-mono" href="{{ key.href }}" title="{{ key.name }}">{{ key.name }}</a>{% else %}<div class="truncate font-mono" title="{{ key.name }}">{{ key.name }}</div>{% endif %}
                         {% if key.detail %}<div class="muted truncate text-xs" title="{{ key.detail }}">{{ key.detail }}</div>{% endif %}
                     </td>
                     <td class="hidden md:table-cell">{% include "management/_token_bar.html" with activity=key.activity width=key.width %}</td>
