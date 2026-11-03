@@ -3,10 +3,15 @@ import logging
 import os
 import signal
 import subprocess
+import unittest
 
 from django.conf import settings
-from django.test.runner import DiscoverRunner
+from django.core.cache import caches
+from django.core.signals import setting_changed
+from django.dispatch import receiver
+from django.test.runner import DiscoverRunner, ParallelTestSuite, RemoteTestResult, RemoteTestRunner
 
+from gateway import config
 from mock_api.mock_server import MockAPIServer
 
 logger = logging.getLogger("aqueduct")
@@ -87,6 +92,45 @@ def set_shared_mcp_server(process: subprocess.Popen, port: int) -> None:
     MockServerState.set_mcp_server(process, port)
 
 
+CACHES_BUILT_FROM_SETTING = {
+    "LITELLM_ROUTER_CONFIG_FILE_PATH": (
+        config.get_router_config,
+        config.get_router,
+        config.get_openai_client,
+        config.get_all_model_request_limit_multipliers,
+    ),
+    "AQUEDUCT_FILES_API_URL": (config.get_files_api_client,),
+    "AQUEDUCT_FILES_API_KEY": (config.get_files_api_client,),
+}
+
+
+@receiver(setting_changed)
+def clear_caches_built_from_the_setting(*, setting: str, **kwargs) -> None:
+    for cached in CACHES_BUILT_FROM_SETTING.get(setting, ()):
+        cached.cache_clear()
+
+
+class _ClearCachesBeforeEachTest(unittest.TestResult):
+    def startTest(self, test):  # noqa: N802
+        # A CACHES override resets the handler, but LocMemCache data outlives it, so clear every
+        # configured alias rather than only the initialised ones.
+        for alias in settings.CACHES:
+            caches[alias].clear()
+        super().startTest(test)
+
+
+class _ClearingRemoteTestResult(_ClearCachesBeforeEachTest, RemoteTestResult):
+    pass
+
+
+class _ClearingRemoteTestRunner(RemoteTestRunner):
+    resultclass = _ClearingRemoteTestResult
+
+
+class _ClearingParallelTestSuite(ParallelTestSuite):
+    runner_class = _ClearingRemoteTestRunner
+
+
 class MockServerTestRunner(DiscoverRunner):
     """
     Custom Django test runner that starts a single mock server instance
@@ -94,6 +138,12 @@ class MockServerTestRunner(DiscoverRunner):
 
     It also stops the test MCP server if it has been started by any tests that needed it.
     """
+
+    parallel_test_suite = _ClearingParallelTestSuite
+
+    def get_resultclass(self):
+        result = super().get_resultclass() or unittest.TextTestResult
+        return type("ClearingTestResult", (_ClearCachesBeforeEachTest, result), {})
 
     def setup_test_environment(self, **kwargs):
         """Set up the test environment, starting the mock API server."""
