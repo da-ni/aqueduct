@@ -49,6 +49,19 @@ ROWS = (
     ("other_org_admin", {"key": "pipeline"}, NOT_FOUND),
 )
 
+ALL_KEYS_REDIRECT_TO = {"solo": "solo-laptop", "team_admin": "pipeline"}
+
+LAB_KEYS = {"solo-laptop", "member-laptop", "pipeline", "side-sa", "org-admin-laptop"}
+FOREIGN_KEYS = {"foreign-laptop", "foreign-sa"}
+OPENS = (
+    ("solo", {"solo-laptop"}),
+    ("member", {"member-laptop", "pipeline"}),
+    ("team_admin", {"pipeline"}),
+    ("org_admin", LAB_KEYS),
+    ("admin", LAB_KEYS | FOREIGN_KEYS),
+    ("other_org_admin", FOREIGN_KEYS),
+)
+
 
 class VisibilityMatrixTest(RoleWorld):
     @classmethod
@@ -109,9 +122,71 @@ class VisibilityMatrixTest(RoleWorld):
             if expected == NOT_FOUND or "key" in params:
                 continue
             with self.subTest(role=role, **params):
-                listed = self.get(role, "usage_keys", self.query(params)).context["keys"]
+                response = self.get(role, "usage_keys", self.query(params))
+                if role in ALL_KEYS_REDIRECT_TO:
+                    token = Token.objects.get(name=ALL_KEYS_REDIRECT_TO[role])
+                    self.assertRedirects(
+                        response,
+                        reverse("token_detail", args=[token.id]),
+                        fetch_redirect_response=False,
+                    )
+                    continue
                 keys = {KEY_OF.get(path, path.removeprefix("/")) for path in expected}
+                listed = response.context["keys"]
                 self.assertEqual({key.name for key in listed}, keys)
+                self.assertEqual(
+                    {key.href for key in listed},
+                    {
+                        reverse("token_detail", args=[Token.objects.get(name=name).id])
+                        for name in keys
+                    },
+                )
+
+    def test_the_key_page_opens_exactly_the_keys_each_role_may_open(self):
+        for role, opens in OPENS:
+            self.client.force_login(getattr(self, role))
+            for token in Token.objects.all():
+                with self.subTest(role=role, key=token.name):
+                    response = self.client.get(reverse("token_detail", args=[token.id]))
+                    self.assertEqual(response.status_code, 200 if token.name in opens else 404)
+
+    def test_edit_and_delete_pages_open_for_the_owner_only(self):
+        owned = {
+            "solo": {"solo-laptop"},
+            "member": {"member-laptop"},
+            "org_admin": {"org-admin-laptop"},
+        }
+        for role, _opens in OPENS:
+            self.client.force_login(getattr(self, role))
+            for token in Token.objects.all():
+                for page in ("token_edit", "token_delete"):
+                    with self.subTest(role=role, key=token.name, page=page):
+                        response = self.client.get(reverse(page, args=[token.id]))
+                        expected = 200 if token.name in owned.get(role, set()) else 404
+                        self.assertEqual(response.status_code, expected)
+
+    def test_rotating_works_on_own_keys_and_managed_service_accounts_only(self):
+        managed = {
+            "solo": {"solo-laptop"},
+            "member": {"member-laptop"},
+            "team_admin": {"pipeline"},
+            "org_admin": {"org-admin-laptop", "pipeline", "side-sa"},
+            "admin": {"pipeline", "side-sa", "foreign-sa"},
+            "other_org_admin": {"foreign-sa"},
+        }
+        for role, _opens in OPENS:
+            self.client.force_login(getattr(self, role))
+            for token in Token.objects.all():
+                with self.subTest(role=role, key=token.name):
+                    before = token.key_hash
+                    response = self.client.post(reverse("token_regenerate", args=[token.id]))
+                    token.refresh_from_db()
+                    if token.name in managed[role]:
+                        self.assertEqual(response.status_code, 302)
+                        self.assertNotEqual(token.key_hash, before)
+                    else:
+                        self.assertEqual(response.status_code, 404)
+                        self.assertEqual(token.key_hash, before)
 
     def test_org_admin_in_another_orgs_team_does_not_see_its_log(self):
         join(self.org_admin, self.foreign_team)
@@ -123,3 +198,6 @@ class VisibilityMatrixTest(RoleWorld):
             self.client.get(reverse("requests"), {"key": foreign_sa.id}).status_code, 404
         )
         self.assertEqual(self.client.get(reverse("usage"), {"key": foreign_sa.id}).status_code, 404)
+        self.assertEqual(
+            self.client.get(reverse("token_detail", args=[foreign_sa.id])).status_code, 404
+        )

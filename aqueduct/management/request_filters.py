@@ -22,6 +22,7 @@ from management.periods import Period, Span
 @dataclass(frozen=True)
 class Key:
     token: Token
+    href: str | None
     note: str
     own: bool = False
 
@@ -31,6 +32,7 @@ class Key:
 
 
 def describe_key(token: Token, viewer: Viewer) -> Key:
+    href = reverse("token_detail", args=[token.id]) if viewer.may_key(KeyAct.OPEN, token) else None
     account, own = token.service_account, False
     if account is not None:
         note = gettext("Service account · %(team)s") % {"team": account.team.name}
@@ -38,7 +40,7 @@ def describe_key(token: Token, viewer: Viewer) -> Key:
         note, own = gettext("Personal"), True
     else:
         note = token.user.email
-    return Key(token, note, own)
+    return Key(token, href, note, own)
 
 
 @dataclass(frozen=True)

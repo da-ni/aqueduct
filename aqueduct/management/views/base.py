@@ -4,13 +4,22 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db.models import QuerySet
 from django.http import (
     Http404,  # Removed HttpResponseForbidden as redirect is used
+    HttpRequest,
     HttpResponse,
 )
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.views import View
 
+from management.access import Viewer, viewer_of
 from management.models import Org, ServiceAccount, Team, UserProfile
+
+NEW_KEY_TAG = "token-regenerated-key"
+
+
+def show_new_key(request: HttpRequest, secret: str) -> None:
+    """Show `secret` once, in the new-key panel at the top of the next page."""
+    messages.info(request, secret, extra_tags=NEW_KEY_TAG)
 
 
 class BaseAqueductView(LoginRequiredMixin, View):
@@ -39,6 +48,13 @@ class BaseAqueductView(LoginRequiredMixin, View):
         if self._profile is None:
             self._profile = self.request.user.profile
         return self._profile
+
+    @property
+    def viewer(self) -> Viewer:
+        viewer = viewer_of(self.request)
+        if viewer is None:
+            raise UserProfile.DoesNotExist
+        return viewer
 
     @property
     def org(self) -> Org:

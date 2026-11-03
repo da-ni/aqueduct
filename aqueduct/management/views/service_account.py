@@ -10,6 +10,7 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import CreateView, DeleteView, UpdateView
 
+from management.deletion import deletion
 from management.forms import ServiceAccountForm
 from management.models import ServiceAccount, Token, UserProfile  # Added UserProfile
 
@@ -119,9 +120,7 @@ class ServiceAccountDeleteView(BaseServiceAccountView, DeleteView):
     def get_context_data(self, **kwargs) -> dict[str, object]:
         """Provide context for the confirmation template."""
         context = super().get_context_data(**kwargs)
-        # self.object is set by DeleteView using BaseServiceAccountView's get_object
-        context["object_type_name"] = "Service Account"
-        context["object_name"] = str(self.object)
+        context["confirmation"] = deletion(self.object)
         context["cancel_url"] = self.get_success_url()
         return context
 

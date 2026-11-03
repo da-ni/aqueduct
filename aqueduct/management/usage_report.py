@@ -93,6 +93,7 @@ def model_rows(
 class KeyShare(Figures):
     name: str
     detail: str
+    href: str | None
     activity: Activity
     share: str
     width: int
@@ -169,7 +170,8 @@ def key_shares(
     keys = [describe(tokens[token_id]) for token_id, _ in rows]
     figures = _figures([activity for _, activity in rows], total, busiest)
     return tuple(
-        KeyShare(key.name, key.note, *figure) for key, figure in zip(keys, figures, strict=True)
+        KeyShare(key.name, key.note, key.href, *figure)
+        for key, figure in zip(keys, figures, strict=True)
     )
 
 
@@ -181,6 +183,6 @@ def user_id_shares(requests: QuerySet[Request], total: int) -> tuple[KeyShare, .
     )
     figures = _figures([_activity(row) for row in rows], total)
     return tuple(
-        KeyShare(row["user_id"] or gettext("Not sent"), "", *figure)
+        KeyShare(row["user_id"] or gettext("Not sent"), "", None, *figure)
         for row, figure in zip(rows, figures, strict=True)
     )

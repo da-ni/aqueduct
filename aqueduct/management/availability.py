@@ -1,4 +1,5 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from django import forms
@@ -16,6 +17,20 @@ def configured_mcp_servers() -> list[str]:
         return list(get_mcp_config())
     except RuntimeError:
         return []
+
+
+@dataclass(frozen=True)
+class Reach:
+    configured: int
+    usable: int
+
+    @property
+    def every(self) -> bool:
+        return self.usable == self.configured
+
+    @classmethod
+    def of(cls, configured: Sequence[str], excluded: Collection[str]) -> "Reach":
+        return cls(len(configured), len(set(configured) - set(excluded)))
 
 
 CHECKLISTS: dict[str, tuple[str, Callable[[], Sequence[str]]]] = {

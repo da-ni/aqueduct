@@ -2,6 +2,7 @@ import math
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
+from typing import TypeVar
 
 from django.utils import timezone
 from django.utils.dates import WEEKDAYS_ABBR
@@ -12,6 +13,7 @@ from django.utils.translation import gettext_lazy as _
 from management.activity import Activity, summed
 from management.formatting import (
     as_cached,
+    as_failed,
     as_input,
     as_output,
     as_percent,
@@ -35,6 +37,7 @@ HEAT_CLASSES = (
 HEAT_HOURS = tuple(f"{hour:02d}" if hour % 3 == 0 else "" for hour in range(24))
 TOKEN_SERIES = {"c": _("Cached"), "n": _("New input"), "o": _("Output")}
 REQUEST_SERIES = {"i": _("OK"), "f": _("Failed")}
+K = TypeVar("K")
 
 
 def scaled(values: Iterable[float], top: float | None = None) -> tuple[int, ...]:
@@ -86,6 +89,13 @@ class Column:
     @property
     def height(self) -> int:
         return sum(height for _, height in self.segments)
+
+
+@dataclass(frozen=True)
+class Share:
+    name: str
+    value: str
+    width: int
 
 
 def chart(
@@ -166,6 +176,7 @@ def _failed_percent(a: Activity) -> float:
 
 
 REQUESTS = Metric(_("Requests"), lambda a: grouped(a.requests), lambda a: a.requests, as_requests)
+FAILED = Metric(_("Failed"), lambda a: a.failed_share, lambda a: a.failed, as_failed)
 OVERVIEW_STATS = (
     Metric(_("Input"), lambda a: compact(a.input), lambda a: a.input, as_input),
     Metric(_("Output"), lambda a: compact(a.output), lambda a: a.output, as_output),
@@ -173,6 +184,17 @@ OVERVIEW_STATS = (
     REQUESTS,
     Metric(_("Failed"), lambda a: a.failed_share, _failed_percent, as_percent),
 )
+WINDOW_STATS = (
+    Metric(_("Input tokens"), lambda a: compact(a.input), lambda a: a.input, as_tokens),
+    Metric(_("Output tokens"), lambda a: compact(a.output), lambda a: a.output, as_tokens),
+    Metric(_("Cache hits"), lambda a: a.cache_hits, lambda a: a.cached, as_cached),
+    REQUESTS,
+    FAILED,
+)
+
+
+def token_widths(activity: Mapping[K, Activity]) -> dict[K, int]:
+    return dict(zip(activity, scaled(a.tokens for a in activity.values()), strict=True))
 
 
 @dataclass(frozen=True)

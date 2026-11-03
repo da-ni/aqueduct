@@ -1,5 +1,7 @@
 from datetime import timedelta
 
+from django.urls import reverse
+
 from management.models import Request, TeamMembership
 from management.outcomes import Outcome
 from management.tests.helpers import CHAT, EMBEDDING, RequestsPageTestBase, join, listed, make_token
@@ -22,6 +24,16 @@ class RequestsScopeTest(RequestsPageTestBase):
         self.assertContains(response, ">/month-old</div>")
         self.assertNotContains(response, ">/overdue</div>")
         self.assertContains(response, 'aria-current="page">30 days</a>')
+
+    def test_a_key_pages_link_to_an_older_request_opens_it(self):
+        older = self.log(
+            self.solo_key, "/last-week", ago=timedelta(days=5), user_agent="old-agent/1"
+        )
+        self.client.force_login(self.solo)
+        page = self.client.get(reverse("token_detail", args=[self.solo_key.id])).content.decode()
+        link = f"{reverse('requests')}?key={self.solo_key.id}&amp;span=1m&amp;request={older.id}"
+        self.assertIn(link, page)
+        self.assertContains(self.client.get(link.replace("&amp;", "&")), "old-agent/1")
 
     def test_empty_log_says_whether_filters_hide_requests(self):
         self.assertContains(

@@ -122,3 +122,7 @@ class Period:
 
     def of(self, requests: QuerySet[Request]) -> QuerySet[Request]:
         return requests.filter(timestamp__gte=self.start, timestamp__lt=self.end)
+
+
+def week(now: datetime) -> Period:
+    return Period.last(Span.WEEK, now)

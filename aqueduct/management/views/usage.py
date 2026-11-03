@@ -7,7 +7,8 @@ from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
 from django.core.paginator import Paginator
-from django.http import HttpRequest
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import urlencode
@@ -120,22 +121,25 @@ class UsageDashboardView(LoginRequiredMixin, TemplateView):
 class KeyUsageView(LoginRequiredMixin, TemplateView):
     template_name = "management/usage_keys.html"
 
-    def get_context_data(self, **kwargs: Any) -> dict[str, object]:
-        context = super().get_context_data(**kwargs)
-        viewer = _viewer(self.request)
-        params = self.request.GET
+    def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        params = {name: value for name, value in request.GET.items() if name != "key"}
         filters = read_filters(
-            viewer,
-            {name: value for name, value in params.items() if name != "key"},
-            default_span=DEFAULT_SPAN,
-            now=timezone.now(),
+            _viewer(request), params, default_span=DEFAULT_SPAN, now=timezone.now()
         )
+        only_key = filters.only_key
+        if not filters.can_pick_scope and only_key is not None and only_key.href is not None:
+            return redirect(only_key.href)
+        return self.render_to_response(self.get_context_data(filters=filters, **kwargs))
+
+    def get_context_data(self, *, filters: Filters, **kwargs: Any) -> dict[str, object]:
+        context = super().get_context_data(**kwargs)
+        params = self.request.GET
         q = params.get("q", "").replace("\x00", "").strip()
         search = key_search(q, by_owner=filters.can_pick_scope)
         order = report.KeyOrder.parse(params.get("sort", "")) or report.KeyOrder.TOKENS
         totals = UsageSource.of(filters).key_totals()
         everyone = report.KeyTotals.of(totals)
-        tokens = viewer.keys(KeyAct.SEE)
+        tokens = filters.viewer.keys(KeyAct.SEE)
         if q:
             ids = set(tokens.filter(search).values_list("id", flat=True))
             totals = {token_id: a for token_id, a in totals.items() if token_id in ids}

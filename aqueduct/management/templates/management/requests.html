@@ -55,14 +55,14 @@
                                        aria-label="{% if row.is_open %}{% blocktranslate with id=request.id %}Hide details of request {{ id }}{% endblocktranslate %}{% else %}{% blocktranslate with id=request.id %}Show details of request {{ id }}{% endblocktranslate %}{% endif %}">{% if row.is_open %}{% icon "chevron" small=True extra_class="rotate-90" %}{% else %}{% icon "chevron" small=True %}{% endif %}</a>
                                 </td>
                                 <td class="min-w-0 flex-1 md:hidden">
-                                    <div class="flex items-center gap-1.5 whitespace-nowrap"><span class="muted">{{ request.timestamp|when }}</span> · {% include "management/_request_status.html" %} · {{ row.response_time }}</div>
+                                    <div class="flex items-center gap-1.5 whitespace-nowrap"><span class="muted">{{ request.timestamp|when:"recent" }}</span> · {% include "management/_request_status.html" %} · {{ row.response_time }}</div>
                                     <div class="flex gap-1.5 whitespace-nowrap"><span class="truncate" title="{{ request.model }}">{{ request.model|default:_("n/a") }}</span><span class="shrink-0">· {{ request.input_tokens|grouped }} → {{ request.output_tokens|grouped }}</span></div>
                                     {% if log.shows_key %}<div class="muted truncate font-sans text-xs">{{ row.key.name }}</div>{% endif %}
                                 </td>
-                                <td class="muted whitespace-nowrap max-md:hidden">{{ request.timestamp|when }}</td>
+                                <td class="muted whitespace-nowrap max-md:hidden">{{ request.timestamp|when:"recent" }}</td>
                                 {% if log.shows_key %}
                                     <td class="truncate max-md:hidden">
-                                        <span title="{{ row.key.name }}">{{ row.key.name }}</span>
+                                        {% if row.key.href %}<a class="link-plain" href="{{ row.key.href }}" title="{{ row.key.name }}">{{ row.key.name }}</a>{% else %}<span title="{{ row.key.name }}">{{ row.key.name }}</span>{% endif %}
                                         <div class="muted truncate font-sans text-xs" title="{{ row.key.note }}">{{ row.key.note }}</div>
                                     </td>
                                 {% endif %}

@@ -1,6 +1,7 @@
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
-from django.utils.formats import get_format, number_format
+from django.utils.formats import date_format, get_format, number_format
 from django.utils.translation import gettext, ngettext, pgettext, pgettext_lazy
 
 MISSING = "—"
@@ -71,7 +72,16 @@ def as_requests(count: float) -> str:
     return ngettext("%(count)s request", "%(count)s requests", n) % {"count": grouped(n)}
 
 
+def as_failed(count: float) -> str:
+    n = round(count)
+    return ngettext("%(count)s failed", "%(count)s failed", n) % {"count": grouped(n)}
+
+
 def duration(ms: int | None) -> str:
     if ms is None:
         return gettext("n/a")
     return f"{grouped(ms)} ms" if ms < SECOND_MS else f"{decimal(Decimal(ms) / SECOND_MS, 1)} s"
+
+
+def day_label(day: date) -> str:
+    return date_format(day, "j M")

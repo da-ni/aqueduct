@@ -8,6 +8,7 @@ from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, UpdateView
 
+from management.deletion import deletion
 from management.forms import TeamCreateForm
 from management.models import ServiceAccount, Team, UserProfile
 
@@ -133,10 +134,8 @@ class TeamDeleteView(OrgAdminRequiredMixin, BaseTeamView, DeleteView):
     def get_context_data(self, **kwargs) -> dict[str, object]:
         """Provide context for the confirmation template."""
         context = super().get_context_data(**kwargs)
-        context["object_type_name"] = self.model._meta.verbose_name
-        context["object_name"] = str(self.team)  # Use self.team
+        context["confirmation"] = deletion(self.team)
         context["cancel_url"] = self.get_success_url()
-        # context['object'] is implicitly set to self.team by DeleteView calling get_object()
         return context
 
 
