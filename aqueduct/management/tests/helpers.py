@@ -7,7 +7,16 @@ import yaml
 from django.contrib.auth import get_user_model
 from django.test import override_settings
 
-from management.models import Org, Snippet, SnippetType, Token, UserGroup, UserProfile
+from management.models import (
+    Org,
+    Snippet,
+    SnippetType,
+    Team,
+    TeamMembership,
+    Token,
+    UserGroup,
+    UserProfile,
+)
 
 User = get_user_model()
 
@@ -32,6 +41,10 @@ def make_token(user, name: str, **kwargs) -> Token:
     token._set_new_key()
     token.save()
     return token
+
+
+def join(user, team: Team, is_admin: bool = False) -> None:
+    TeamMembership.objects.create(user_profile=user.profile, team=team, is_admin=is_admin)
 
 
 def seed_active_config(code: str, name: str = "test-config") -> Snippet:
