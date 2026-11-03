@@ -14,8 +14,8 @@ OWNERS: Final = (TEAM, "user__profile")
 RELATED: Final = tuple(f"{path}__org" for path in OWNERS)
 
 
-def key_org() -> Coalesce:
-    return Coalesce(*RELATED)
+def key_org(prefix: str = "") -> Coalesce:
+    return Coalesce(*(f"{prefix}{path}" for path in RELATED))
 
 
 def of_orgs(org_ids: Collection[int]) -> Q:
@@ -43,6 +43,10 @@ def _owners(token: "Token") -> "Iterator[Team | UserProfile]":
                 break
         if found is not None:
             yield found
+
+
+def owner(token: "Token") -> "Team | UserProfile | None":
+    return next(_owners(token), None)
 
 
 def org_id(token: "Token") -> int | None:

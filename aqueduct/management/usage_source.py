@@ -9,6 +9,7 @@ from management.access import Extent, requests_of
 from management.activity import TOKENS, TOTALS, Activity, ModelUsage, Series, model_usage, served
 from management.models import Request
 from management.outcomes import OUTCOME_COUNTS, Outcome
+from management.ownership import key_org
 from management.periods import Period
 from management.request_filters import Filters
 
@@ -45,6 +46,15 @@ class UsageSource:
 
     def models(self) -> dict[str, ModelUsage]:
         return model_usage(self.period.of(self.requests))
+
+    def org_tokens(self) -> dict[int | None, int]:
+        rows = (
+            self.period.of(self.requests)
+            .order_by()
+            .values(org_id=key_org("token__"))
+            .annotate(tokens=Sum(TOKENS))
+        )
+        return {row["org_id"]: row["tokens"] for row in rows}
 
     def heat(self) -> dict[tuple[int, int], int]:
         rows = (

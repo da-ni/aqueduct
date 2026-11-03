@@ -331,7 +331,9 @@ class TeamFormsTest(RoleWorld):
         page = client.get(reverse("team_create"))
         self.assertContains(page, "Create a team")
         self.assertNotContains(page, "The team is created in")
-        response = client.post(reverse("team_create"), {"name": "Vision", "description": ""})
+        response = client.post(
+            reverse("team_create"), {"name": "Vision", "description": "", "org": self.org.id}
+        )
         self.assertRedirects(response, reverse("org"), fetch_redirect_response=False)
         self.assertTrue(Team.objects.filter(name="Vision", org=self.org).exists())
 
@@ -343,7 +345,9 @@ class TeamFormsTest(RoleWorld):
         self.assertFalse(Team.objects.filter(name="Vision").exists())
 
     def test_duplicate_team_name_rerenders_the_form(self):
-        response = self.as_user(self.org_admin).post(reverse("team_create"), {"name": "nlp lab"})
+        response = self.as_user(self.org_admin).post(
+            reverse("team_create"), {"name": "nlp lab", "org": self.org.id}
+        )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "A team with this name already exists in your organization.")
 

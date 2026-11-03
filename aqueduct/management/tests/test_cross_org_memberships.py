@@ -105,10 +105,11 @@ class OrgSwitchTest(TestCase):
         join(admin, team, is_admin=True)
         self.client.force_login(admin)
 
-        self.client.post(reverse("org_switch"), {"org_id": south.pk})
+        for org in (south, "all", north):
+            self.client.post(reverse("org_switch"), {"org_id": getattr(org, "pk", org)})
 
-        self.assertEqual(UserProfile.objects.get(user=admin).org, south)
-        self.assertEqual(set(admin.profile.teams.all()), {team})
+            self.assertEqual(UserProfile.objects.get(user=admin).org, north)
+            self.assertEqual(set(admin.profile.teams.all()), {team})
 
 
 @override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=ROUTER_CONFIG)

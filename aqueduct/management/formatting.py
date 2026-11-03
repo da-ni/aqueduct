@@ -3,8 +3,10 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from django.utils.formats import date_format, get_format, number_format
 from django.utils.translation import gettext, ngettext, pgettext, pgettext_lazy
+from django.utils.translation import gettext_lazy as _
 
 MISSING = "—"
+NO_ORG = _("No organization")
 SECOND_MS = 1000
 _STEP = 1000
 _SCALES = (

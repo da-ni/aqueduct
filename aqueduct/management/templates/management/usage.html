@@ -116,6 +116,23 @@
 </section>
 {% endif %}
 
+{% if orgs_usage %}
+    <section class="card bg-base-200">
+        <div class="card-body gap-3 p-5">
+            <h2 class="card-title">{% translate "By organization" %}</h2>
+            <div class="-mx-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto">
+                {% for org in orgs_usage %}
+                    <div class="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)_4rem] de:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_5.5rem] items-center gap-4 rounded-lg px-2 py-1 text-sm">
+                        <span class="truncate" title="{{ org.name }}">{{ org.name }}</span>
+                        <div><div class="onebar" style="width: {{ org.width|unlocalize }}%"></div></div>
+                        <span class="text-right font-mono">{{ org.value }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+{% endif %}
+
 <section id="org-activity" aria-labelledby="org-activity-heading" class="flex scroll-mt-24 flex-col gap-4 border-t border-base-300 pt-6">
     <div>
         <h2 id="org-activity-heading" class="text-xl font-semibold">{% if heat_org %}{% blocktranslate with name=heat_org.name %}Activity across {{ name }}{% endblocktranslate %}{% else %}{% translate "Activity across all organizations" %}{% endif %}</h2>

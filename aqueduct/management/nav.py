@@ -10,8 +10,10 @@ from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from silk.config import SilkyConfig
 
-from management.access import viewer_of
+from management.access import WholeOrg
 from management.icons import Icon
+from management.models import Org
+from management.org_choice import viewer_of
 
 Access = Callable[[HttpRequest], bool]
 
@@ -141,6 +143,12 @@ class Viewer:
 
 
 @dataclass(frozen=True)
+class OrgSwitch:
+    orgs: tuple[Org, ...]
+    chosen: Org | None
+
+
+@dataclass(frozen=True)
 class Shell:
     sections: tuple[Section, ...]
     bottom: tuple[Link, ...]
@@ -148,6 +156,7 @@ class Shell:
     contact_links: tuple[Link, ...]
     viewer: Viewer | None
     gateway_url: str
+    org_switch: OrgSwitch | None
 
     @property
     def current(self) -> Link | None:
@@ -195,7 +204,16 @@ def build_shell(request: HttpRequest) -> Shell:
         ),
         viewer=_viewer(request),
         gateway_url=gateway_url(request),
+        org_switch=_org_switch(request),
     )
+
+
+def _org_switch(request: HttpRequest) -> OrgSwitch | None:
+    viewer = viewer_of(request)
+    if viewer is None or not viewer.can_switch_org:
+        return None
+    chosen = viewer.chosen.org if isinstance(viewer.chosen, WholeOrg) else None
+    return OrgSwitch(tuple(viewer.orgs().order_by("name")), chosen)
 
 
 def _viewer(request: HttpRequest) -> Viewer | None:

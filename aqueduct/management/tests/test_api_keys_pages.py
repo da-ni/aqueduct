@@ -1,3 +1,5 @@
+import html
+import re
 from datetime import UTC, datetime, timedelta
 from unittest import mock
 
@@ -429,14 +431,49 @@ class OrgAdminKeyAccessTest(ApiKeysPagesTestBase):
         for action in ("token_regenerate", "token_edit", "token_delete"):
             self.assertNotContains(response, reverse(action, args=[self.solo_key.id]))
 
-    def test_admin_opens_another_orgs_key_without_a_link_the_log_would_refuse(self):
+    def test_admin_opens_another_orgs_key_with_a_log_link_into_its_org(self):
+        self.request_log(self.foreign_key, timedelta(hours=1))
         self.client.force_login(self.admin)
         response = self.client.get(reverse("token_detail", args=[self.foreign_key.id]))
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, f"key={self.foreign_key.id}")
+        query = f"key={self.foreign_key.id}&amp;span=1m&amp;org={self.other_org.id}"
+        link = f"{reverse('requests')}?{query}"
+        self.assertContains(response, f'href="{link}"')
         self.assertEqual(
             self.client.get(reverse("requests"), {"key": self.foreign_key.id}).status_code, 404
         )
+        self.assertEqual(self.client.get(html.unescape(link)).status_code, 200)
+
+    def test_admin_follows_a_key_into_the_log_whatever_org_the_switch_shows(self):
+        self.request_log(self.pipeline_key, timedelta(hours=1))
+        self.client.force_login(self.admin)
+        self.client.get(reverse("tokens"), {"org": self.other_org.id})
+        log = re.escape(reverse("requests"))
+        for key in (self.solo_key, self.pipeline_key):
+            page = self.client.get(reverse("token_detail", args=[key.id])).content.decode()
+            links = re.findall(rf'href="({log}\?[^"#]*)', page)
+            self.assertEqual(len(links), 2)
+            for link in links:
+                with self.subTest(key=key.name, link=link):
+                    response = self.client.get(html.unescape(link))
+                    shown = Request.objects.get(token=key)
+                    self.assertContains(response, f'id="request-{shown.id}"')
+
+    def test_admin_on_all_organizations_stays_there_after_a_key_log_link(self):
+        self.client.force_login(self.admin)
+        self.client.get(reverse("tokens"), {"org": "all"})
+        page = self.client.get(reverse("token_detail", args=[self.solo_key.id])).content.decode()
+        self.assertNotIn("org=", "".join(re.findall(r'href="[^"]*/requests/\?[^"]*"', page)))
+
+    def test_admin_rotating_another_orgs_service_account_lands_on_its_key(self):
+        detail = reverse("token_detail", args=[self.pipeline_key.id])
+        self.client.force_login(self.admin)
+        self.client.get(reverse("tokens"), {"org": self.other_org.id})
+        response = self.client.post(
+            reverse("token_regenerate", args=[self.pipeline_key.id]), {"next": detail}, follow=True
+        )
+        self.assertEqual(response.redirect_chain, [(detail, 302)])
+        self.assertEqual(Token.find_by_key(secret_on(response)), self.pipeline_key)
 
     def test_org_admin_cannot_change_a_members_key(self):
         self.client.force_login(self.org_admin)

@@ -8,9 +8,9 @@ from django.db.models.functions import Lower
 from django.utils.translation import gettext
 
 from management.activity import TOKENS, TOTALS, Activity, ModelUsage, Series
-from management.charts import scaled
-from management.formatting import MISSING, compact, duration, percent
-from management.models import Request, Token
+from management.charts import Share, scaled
+from management.formatting import MISSING, NO_ORG, compact, duration, percent
+from management.models import Org, Request, Token
 from management.outcomes import Outcome
 from management.ownership import RELATED
 
@@ -185,4 +185,20 @@ def user_id_shares(requests: QuerySet[Request], total: int) -> tuple[KeyShare, .
     return tuple(
         KeyShare(row["user_id"] or gettext("Not sent"), "", None, *figure)
         for row, figure in zip(rows, figures, strict=True)
+    )
+
+
+def org_shares(tokens: Mapping[int | None, int]) -> tuple[Share, ...]:
+    orgs = Org.objects.in_bulk([org_id for org_id in tokens if org_id is not None])
+    no_org = str(NO_ORG)
+    rows = sorted(
+        (
+            (orgs[org_id].name if org_id in orgs else no_org, count)
+            for org_id, count in tokens.items()
+        ),
+        key=lambda row: (-row[1], row[0] == no_org, row[0]),
+    )
+    return tuple(
+        Share(name, compact(count), width)
+        for (name, count), width in zip(rows, scaled(count for _, count in rows), strict=True)
     )
