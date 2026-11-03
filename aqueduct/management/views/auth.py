@@ -1,8 +1,11 @@
 from django.conf import settings
-from django.http import HttpRequest, HttpResponseBase
+from django.contrib.auth import REDIRECT_FIELD_NAME
+from django.http import HttpRequest, HttpResponseBase, HttpResponseRedirect
 from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.cache import never_cache
 from django.views.generic import TemplateView
+from tos import views as tos_views
 
 
 def is_safe(request: HttpRequest, url: str | None) -> bool:
@@ -14,6 +17,16 @@ def is_safe(request: HttpRequest, url: str | None) -> bool:
 def safe_next(request: HttpRequest) -> str | None:
     next_url = request.GET.get("next")
     return next_url if is_safe(request, next_url) else None
+
+
+@never_cache
+def check_tos(request: HttpRequest) -> HttpResponseBase:
+    """django-tos checks `next` only for `//`, so `http:evil.example` passes its check."""
+    response = tos_views.check_tos(request)
+    next_url = request.POST.get(REDIRECT_FIELD_NAME, request.GET.get(REDIRECT_FIELD_NAME))
+    if isinstance(response, HttpResponseRedirect) and not is_safe(request, next_url):
+        return redirect(settings.LOGIN_REDIRECT_URL)
+    return response
 
 
 class SSOTemplateView(TemplateView):
