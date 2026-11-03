@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.generic import TemplateView, View
 
-from management.models import Org
+from management.models import Org, UserProfile
 from management.views.base import BaseAqueductView
 
 
@@ -44,7 +44,7 @@ class OrgSwitchView(BaseAqueductView, View):
             return redirect(reverse("org"))
 
         org = get_object_or_404(Org, pk=org_id)
-        self.profile.org = org
-        self.profile.save(update_fields=["org"])
+        # Switching is a view of another org, not an org move, so it keeps the admin's memberships.
+        UserProfile.objects.filter(pk=self.profile.pk).update(org=org)
         messages.success(request, f"Switched to organization: {org.name}")
         return redirect(reverse("org"))

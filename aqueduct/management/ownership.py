@@ -53,5 +53,13 @@ def personal(user_id: int | None, prefix: str = "") -> Q:
     return Q(**{f"{prefix}user_id": user_id, f"{prefix}service_account__isnull": True})
 
 
-def of_teams(team_ids: Collection[int], prefix: str = "") -> Q:
+def is_personal_of(token: "Token", user_id: int | None) -> bool:
+    return token.service_account_id is None and token.user_id == user_id
+
+
+def of_teams(team_ids: "Collection[int] | models.QuerySet[Team]", prefix: str = "") -> Q:
     return Q(**{f"{prefix}{TEAM}__in": team_ids})
+
+
+def team_of(token: "Token") -> "Team | None":
+    return token.service_account.team if token.service_account is not None else None
