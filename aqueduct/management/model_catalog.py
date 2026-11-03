@@ -389,6 +389,13 @@ def usable_models(scopes: Sequence[Scope]) -> list[str]:
     return [name for name in model_names() if Availability(*split_scopes(name, scopes)).usable]
 
 
+def model_kinds() -> dict[str, str | Promise]:
+    return {
+        name: mode_for(model_info_with_context(entry).get("mode")).label
+        for name, entry in model_entries().items()
+    }
+
+
 def load_catalog(scopes: Sequence[Scope]) -> Catalog:
     cards = (parse_card(entry, scopes) for entry in model_entries().values())
     return Catalog(tuple(card for card in cards if card.usable))

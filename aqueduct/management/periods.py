@@ -6,6 +6,7 @@ from typing import Any
 
 from django.db.models import QuerySet
 from django.utils import timezone
+from django.utils.formats import date_format
 from django.utils.functional import Promise
 from django.utils.translation import gettext_lazy as _
 
@@ -16,17 +17,48 @@ from management.models import Request
 class Step:
     kind: str
     size: timedelta
+    label_format: str
     zeroed: tuple[str, ...]
+    short_format: str
+    tokens_title: str | Promise
+    requests_title: str | Promise
 
     def floor(self, moment: datetime) -> datetime:
         local = timezone.localtime(moment)
         zeroed: dict[str, Any] = dict.fromkeys(self.zeroed, 0)
         return local.replace(microsecond=0, **zeroed)
 
+    def format(self, moment: datetime, short: bool = False) -> str:
+        return date_format(moment, self.short_format if short else self.label_format)
 
-MINUTE = Step("minute", timedelta(minutes=1), ("second",))
-HOUR = Step("hour", timedelta(hours=1), ("second", "minute"))
-DAY = Step("day", timedelta(days=1), ("second", "minute", "hour"))
+
+MINUTE = Step(
+    "minute",
+    timedelta(minutes=1),
+    "H:i",
+    ("second",),
+    "H:i",
+    _("Tokens per minute"),
+    _("Requests per minute"),
+)
+HOUR = Step(
+    "hour",
+    timedelta(hours=1),
+    "H:00",
+    ("second", "minute"),
+    "H",
+    _("Tokens per hour"),
+    _("Requests per hour"),
+)
+DAY = Step(
+    "day",
+    timedelta(days=1),
+    "j M",
+    ("second", "minute", "hour"),
+    "j",
+    _("Tokens per day"),
+    _("Requests per day"),
+)
 
 
 class Span(StrEnum):
@@ -59,6 +91,7 @@ class SpanSpec:
     count: int
 
 
+DEFAULT_SPAN = Span.DAY
 SPANS: Mapping[Span, SpanSpec] = {
     Span.HOUR: SpanSpec(_("1 hour"), _("No requests in the last hour."), MINUTE, 60),
     Span.DAY: SpanSpec(_("24 hours"), _("No requests in the last 24 hours."), HOUR, 24),

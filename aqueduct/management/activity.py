@@ -1,13 +1,18 @@
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
-from django.db.models import Count, QuerySet, Sum
+from django.db.models import Aggregate, BigIntegerField, Count, F, IntegerField, QuerySet, Sum
+from django.db.models.functions import Cast
 
 from gateway.config import model_names
+from management.formatting import percent
 from management.models import Request
 from management.outcomes import FAILED, Outcome
 
+# Postgres adds two integer columns as 32-bit, so one huge row would overflow the sum.
+TOKENS = Cast("input_tokens", BigIntegerField()) + F("output_tokens")
 TOTALS = {
     "requests": Count("id"),
     "failed": Count("id", filter=FAILED),
@@ -25,6 +30,22 @@ class Activity:
     cached: int = 0
     output: int = 0
 
+    @property
+    def tokens(self) -> int:
+        return self.input + self.output
+
+    @property
+    def cache_hits(self) -> str:
+        return percent(self.cached, self.input)
+
+    @property
+    def failed_share(self) -> str:
+        return percent(self.failed, self.requests)
+
+    @property
+    def segments(self) -> tuple[tuple[str, int], ...]:
+        return (("c", self.cached), ("n", self.input - self.cached), ("o", self.output))
+
 
 def summed(activities: Sequence[Activity]) -> Activity:
     return Activity(**{field: sum(getattr(a, field) for a in activities) for field in TOTALS})
@@ -32,6 +53,36 @@ def summed(activities: Sequence[Activity]) -> Activity:
 
 def served(requests: QuerySet[Request]) -> QuerySet[Request]:
     return requests.filter(model__in=model_names())
+
+
+class Median(Aggregate):
+    function = "PERCENTILE_DISC"
+    template = "%(function)s(0.5) WITHIN GROUP (ORDER BY %(expressions)s)"
+    output_field = IntegerField()
+
+    def as_sqlite(self, compiler: Any, connection: Any, **extra_context: Any) -> tuple[str, Any]:
+        return super().as_sql(
+            compiler,
+            connection,
+            function="GROUP_CONCAT",
+            template="%(function)s(%(expressions)s)",
+            **extra_context,
+        )
+
+    def get_db_converters(self, connection: Any) -> list[Callable[..., Any]]:
+        if connection.vendor == "sqlite":
+            return [_lower_median]
+        return super().get_db_converters(connection)
+
+
+def _lower_median(value: str | None, *_: object) -> int | None:
+    if not value:
+        return None
+    ordered = sorted(int(v) for v in value.split(","))
+    return ordered[(len(ordered) - 1) // 2]
+
+
+MEDIAN = Median("response_time_ms")
 
 
 @dataclass(frozen=True)
@@ -42,3 +93,17 @@ class Series:
     @property
     def total(self) -> Activity:
         return summed([a for _, a in self.points])
+
+
+@dataclass(frozen=True)
+class ModelUsage:
+    activity: Activity
+    median_ms: int | None
+
+
+def model_usage(requests: QuerySet[Request]) -> dict[str, ModelUsage]:
+    found = {}
+    for row in requests.values("model").annotate(**TOTALS, median=MEDIAN).order_by():
+        model, median = row.pop("model"), row.pop("median")
+        found[model] = ModelUsage(Activity(**row), median)
+    return found
