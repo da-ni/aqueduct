@@ -191,6 +191,11 @@ WINDOW_STATS = (
     REQUESTS,
     FAILED,
 )
+TEAM_STATS = (
+    Metric(_("Tokens"), lambda a: compact(a.tokens), lambda a: a.tokens, as_tokens),
+    REQUESTS,
+    FAILED,
+)
 
 
 def token_widths(activity: Mapping[K, Activity]) -> dict[K, int]:

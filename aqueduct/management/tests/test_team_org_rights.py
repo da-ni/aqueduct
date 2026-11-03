@@ -34,8 +34,8 @@ class TeamOrgRightsTests(TestCase):
     def test_org_admin_cannot_make_team_admin_in_another_org(self):
         self.client.force_login(self.org_admin)
         self.client.post(
-            reverse("team_admins_manage", kwargs={"id": self.other_team.id}),
-            {"profile_id": self.bob_profile.id, "action": "add"},
+            reverse("team_members", kwargs={"id": self.other_team.id}),
+            {"profile_id": self.bob_profile.id, "action": "grant_admin"},
         )
         self.membership.refresh_from_db()
         self.assertFalse(self.membership.is_admin)

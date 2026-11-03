@@ -1,38 +1,42 @@
+from collections.abc import Callable
 from typing import ClassVar
 
 from django import forms
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.db.models import QuerySet
 from django.utils import timezone
 from django.utils.translation import gettext, ngettext
 from django.utils.translation import gettext_lazy as _
 
-from .models import ServiceAccount, Team, Token
+from .formatting import grouped
+from .models import ServiceAccount, Team, Token, UserProfile
 
 NAME_INPUT = "input w-full max-w-md"
+DESCRIPTION_INPUT = "textarea w-full max-w-2xl"
 EXPIRY_INPUT = "input w-full max-w-xs"
+NUMBER_INPUT = "input w-full max-w-xs"
 
 
 class ServiceAccountForm(forms.ModelForm):
     token_expires_at = forms.DateTimeField(
         required=False,
         widget=forms.DateTimeInput(
-            attrs={"type": "datetime-local", "class": "input"}, format="%Y-%m-%dT%H:%M"
+            attrs={"type": "datetime-local", "class": EXPIRY_INPUT}, format="%Y-%m-%dT%H:%M"
         ),
-        label="API Key Expiration Date (optional)",
-        help_text="Set an expiration date for the service account API key (optional).",
+        label=_("Expires (UTC, optional)"),
     )
 
     class Meta:
         model = ServiceAccount
         fields: ClassVar[list] = ["name", "description"]
         widgets: ClassVar[dict] = {
-            "name": forms.TextInput(attrs={"placeholder": "Enter service account name"}),
-            "description": forms.Textarea(
-                attrs={"rows": 3, "placeholder": "Optional description..."}
+            "name": forms.TextInput(
+                attrs={"placeholder": _("For example rag-pipeline"), "class": NAME_INPUT}
             ),
+            "description": forms.Textarea(attrs={"rows": 3, "class": DESCRIPTION_INPUT}),
         }
-        labels: ClassVar[dict] = {"name": "Service Account Name", "description": "Description"}
+        labels: ClassVar[dict] = {"name": _("Name"), "description": _("Description (optional)")}
 
     def __init__(self, *args, **kwargs):
         # Pop the team object passed from the view
@@ -58,8 +62,11 @@ class ServiceAccountForm(forms.ModelForm):
                 if query.exists():
                     self.add_error(
                         "name",
-                        f"A service account with the name '{name}' already exists "
-                        f"in team '{self.team.name}'.",
+                        gettext(
+                            "A service account with the name '%(name)s' already exists in team "
+                            "'%(team)s'."
+                        )
+                        % {"name": name, "team": self.team.name},
                     )
 
             # Check team limit
@@ -78,13 +85,19 @@ class ServiceAccountForm(forms.ModelForm):
             if instance_pk is None and current_count >= limit:
                 # Attach the error to the form, not a specific field, as it's a general limit issue
                 raise ValidationError(
-                    f"Team '{self.team.name}' has reached the maximum limit of "
-                    f"{limit} service accounts.",
+                    ngettext(
+                        "Team '%(team)s' has reached the maximum limit of %(count)s service "
+                        "account.",
+                        "Team '%(team)s' has reached the maximum limit of %(count)s service "
+                        "accounts.",
+                        limit,
+                    )
+                    % {"team": self.team.name, "count": limit},
                     code="limit_reached",
                 )
         expires_at = cleaned_data.get("token_expires_at")
         if expires_at and expires_at <= timezone.now():
-            self.add_error("expires_at", "Expiration date must be in the future.")
+            self.add_error("token_expires_at", gettext("Expiration date must be in the future."))
         return cleaned_data
 
 
@@ -93,12 +106,12 @@ class TeamCreateForm(forms.ModelForm):
         model = Team
         fields: ClassVar[list] = ["name", "description"]
         widgets: ClassVar[dict] = {
-            "name": forms.TextInput(attrs={"placeholder": "Enter team name"}),
-            "description": forms.Textarea(
-                attrs={"rows": 3, "placeholder": "Optional description..."}
+            "name": forms.TextInput(
+                attrs={"placeholder": _("For example NLP Lab"), "class": NAME_INPUT}
             ),
+            "description": forms.Textarea(attrs={"rows": 3, "class": DESCRIPTION_INPUT}),
         }
-        labels: ClassVar[dict] = {"name": "Team Name", "description": "Description"}
+        labels: ClassVar[dict] = {"name": _("Name"), "description": _("Description (optional)")}
 
     def __init__(self, *args, **kwargs):
         # Pop the organization kwarg before initializing the parent ModelForm
@@ -127,9 +140,42 @@ class TeamCreateForm(forms.ModelForm):
             if query.exists():
                 # Use __iexact for case-insensitive comparison if desired,
                 # or just name=name for case-sensitive.
-                self.add_error("name", "A team with this name already exists in your organization.")
+                self.add_error(
+                    "name", gettext("A team with this name already exists in your organization.")
+                )
 
         return cleaned_data
+
+
+TEAM_LIMITS = {
+    "requests_per_minute": _("Requests per minute, per key"),
+    "input_tokens_per_minute": _("Input tokens per minute, per key"),
+    "output_tokens_per_minute": _("Output tokens per minute, per key"),
+}
+
+
+class TeamLimitsForm(TeamCreateForm):
+    class Meta(TeamCreateForm.Meta):
+        fields: ClassVar[list] = [*TeamCreateForm.Meta.fields, *TEAM_LIMITS]
+        widgets: ClassVar[dict] = {
+            **TeamCreateForm.Meta.widgets,
+            **{
+                field: forms.NumberInput(attrs={"class": NUMBER_INPUT, "min": 0})
+                for field in TEAM_LIMITS
+            },
+        }
+        labels: ClassVar[dict] = {**TeamCreateForm.Meta.labels, **TEAM_LIMITS}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in TEAM_LIMITS:
+            fallback = getattr(self.org, field)
+            self.fields[field].help_text = (
+                gettext("Leave it empty for no limit.")
+                if fallback is None
+                else gettext("Leave it empty for the organization's limit, %(limit)s.")
+                % {"limit": grouped(fallback)}
+            )
 
 
 class TokenCreateForm(forms.ModelForm):
@@ -177,3 +223,27 @@ class TokenCreateForm(forms.ModelForm):
             self.add_error("expires_at", gettext("Expiration date must be in the future."))
 
         return cleaned_data
+
+
+class MemberEmailForm(forms.Form):
+    email = forms.EmailField(label=_("Email"))
+
+    def __init__(
+        self, *args, candidates: QuerySet[UserProfile], not_found: Callable[[str], str], **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self.candidates = candidates
+        self.not_found = not_found
+        self.profile: UserProfile | None = None
+
+    def clean_email(self) -> str:
+        email = self.cleaned_data["email"]
+        matches = list(self.candidates.filter(user__email__iexact=email).select_related("user")[:2])
+        if not matches:
+            raise ValidationError(self.not_found(email))
+        if len(matches) > 1:
+            raise ValidationError(
+                gettext("More than one account uses %(email)s.") % {"email": email}
+            )
+        self.profile = matches[0]
+        return email

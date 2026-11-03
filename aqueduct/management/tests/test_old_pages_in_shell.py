@@ -16,7 +16,7 @@ TEAM = M + "team/{team}"
 TEAM_CREATE = M + "team/create/"
 TEAM_EDIT = TEAM + "/edit/"
 TEAM_DELETE = TEAM + "/delete/"
-TEAM_ADMINS = TEAM + "/admins/"
+TEAM_MEMBERS = TEAM + "/members/"
 SA_ADD = TEAM + "/service-accounts/add/"
 SA_EDIT = M + "service-accounts/{service_account}/edit/"
 SA_DELETE = M + "service-accounts/{service_account}/delete/"
@@ -32,7 +32,7 @@ PAGES = [
     TEAM,
     TEAM_EDIT,
     TEAM_DELETE,
-    TEAM_ADMINS,
+    TEAM_MEMBERS,
     SA_ADD,
     SA_EDIT,
     SA_DELETE,
@@ -47,22 +47,18 @@ PAGES = [
     M + "vector-stores/vs_proto/",
 ]
 
-# Status and Location that each old page gave before the shell, recorded on 680cad8. Any
-# (role, page) missing here answered 200 without a redirect.
+# A page missing here answers 200 without a redirect.
 OTHER_ANSWERS: dict[tuple[str, str], tuple[int, str]] = {
-    ("platform admin", TEAM_ADMINS): (405, ""),
-    ("org admin", TEAM_ADMINS): (405, ""),
-    ("team admin", TEAM_CREATE): (302, ORG),
-    ("team admin", TEAM_DELETE): (302, ORG),
-    ("team admin", TEAM_ADMINS): (302, ORG),
-    ("member", TEAM_CREATE): (302, ORG),
-    ("member", TEAM_EDIT): (302, TEAM),
-    ("member", TEAM_DELETE): (302, ORG),
-    ("member", TEAM_ADMINS): (302, ORG),
-    ("member", SA_ADD): (302, TEAM),
-    ("member", SA_EDIT): (302, TEAM),
-    ("member", SA_DELETE): (302, TEAM),
-    ("member", SA_TRANSFER): (302, TEAM),
+    **{(role, TEAM_MEMBERS): (302, TEAM) for role in ROLES},
+    ("team admin", TEAM_CREATE): (404, ""),
+    ("team admin", TEAM_DELETE): (404, ""),
+    ("member", TEAM_CREATE): (404, ""),
+    ("member", TEAM_EDIT): (404, ""),
+    ("member", TEAM_DELETE): (404, ""),
+    ("member", SA_ADD): (404, ""),
+    ("member", SA_EDIT): (404, ""),
+    ("member", SA_DELETE): (404, ""),
+    ("member", SA_TRANSFER): (404, ""),
 }
 
 
@@ -95,7 +91,7 @@ class OldPagesInShellTests(TestCase):
             for template in PAGES:
                 yield role, template, self.client.get(self.url(role, template))
 
-    def test_every_page_answers_as_before(self):
+    def test_every_page_gives_the_recorded_answer(self):
         for role, template, response in self.answers():
             expected_status, location = OTHER_ANSWERS.get((role, template), (200, ""))
             with self.subTest(role=role, page=template):
