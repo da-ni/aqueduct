@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.auth import REDIRECT_FIELD_NAME
+from django.core.exceptions import DisallowedRedirect, PermissionDenied
 from django.http import HttpRequest, HttpResponseBase, HttpResponseRedirect
 from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -22,7 +23,10 @@ def safe_next(request: HttpRequest) -> str | None:
 @never_cache
 def check_tos(request: HttpRequest) -> HttpResponseBase:
     """django-tos checks `next` only for `//`, so `http:evil.example` passes its check."""
-    response = tos_views.check_tos(request)
+    try:
+        response = tos_views.check_tos(request)
+    except DisallowedRedirect:
+        return redirect(settings.LOGIN_REDIRECT_URL)
     next_url = request.POST.get(REDIRECT_FIELD_NAME, request.GET.get(REDIRECT_FIELD_NAME))
     if isinstance(response, HttpResponseRedirect) and not is_safe(request, next_url):
         return redirect(settings.LOGIN_REDIRECT_URL)
@@ -34,10 +38,20 @@ class SSOTemplateView(TemplateView):
 
     def dispatch(self, request, *args, **kwargs) -> HttpResponseBase:
         if request.user.is_authenticated:
-            return redirect(safe_next(request) or settings.LOGIN_REDIRECT_URL)
+            if next_url := safe_next(request):
+                return HttpResponseRedirect(next_url)
+            return redirect(settings.LOGIN_REDIRECT_URL)
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         context = super().get_context_data(**kwargs)
         context["OIDC_PROVIDER"] = getattr(settings, "OIDC_PROVIDER", "SSO")
+        context["next"] = safe_next(self.request)
         return context
+
+
+class AdminSSOView(SSOTemplateView):
+    def dispatch(self, request, *args, **kwargs) -> HttpResponseBase:
+        if request.user.is_authenticated and not request.user.is_staff:
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
