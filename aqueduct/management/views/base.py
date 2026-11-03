@@ -63,6 +63,11 @@ class BaseAqueductView(LoginRequiredMixin, View):
         """
         return self.profile.org
 
+    @property
+    def permission_org(self) -> Org:
+        """The org whose admins OrgAdminRequiredMixin lets through."""
+        return self.org
+
     def is_admin(self) -> bool:
         """Checks if the current user is a global admin."""
         return self.profile.is_admin()
@@ -93,16 +98,12 @@ class BaseAqueductView(LoginRequiredMixin, View):
 
 class OrgAdminRequiredMixin:
     """
-    Mixin requiring the user to be an administrator of their own organization.
+    Mixin requiring the user to be an administrator of `permission_org`.
     Must be listed *after* BaseAqueductView so the login check runs first.
     """
 
     def dispatch(self, request, *args, **kwargs) -> HttpResponse:
-        # We rely on the inheriting view (like BaseAqueductView) providing is_org_admin.
-        # This check ensures the method exists before calling it, making the mixin
-        # slightly more robust if used outside the intended pattern, although
-        # it's primarily designed to work with BaseAqueductView context.
-        if not hasattr(self, "is_org_admin") or not self.is_org_admin():
+        if not self.profile.is_org_admin(self.permission_org):
             messages.error(
                 request,
                 "You do not have permission to perform this action (Organization Admin required).",
@@ -222,6 +223,11 @@ class BaseTeamView(BaseAqueductView):
         # Assumes get_team_object() was successful and team is loaded.
         # The select_related in get_team_object helps avoid an extra query here.
         return self.team.org
+
+    @property
+    def permission_org(self) -> Org:
+        """An org admin may act on a team only in the team's own org."""
+        return self.team_org
 
     # --- Convenience for TeamAdminRequiredMixin ---
     # If a view inherits from BaseTeamView AND TeamAdminRequiredMixin,
