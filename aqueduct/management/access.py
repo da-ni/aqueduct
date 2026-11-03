@@ -11,7 +11,7 @@ proves they agree.
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import ClassVar
 
@@ -295,6 +295,11 @@ class Viewer:
 
     def administers(self, org: Org) -> bool:
         return self._administering.has_org(org)
+
+    def leaving(self, team: Team) -> "Viewer":
+        return replace(
+            self, member_of=self.member_of - {team.pk}, admin_of=self.admin_of - {team.pk}
+        )
 
 
 _LISTED_KEYS = 500

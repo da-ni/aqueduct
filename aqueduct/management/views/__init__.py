@@ -11,13 +11,7 @@ from .service_account import (
     ServiceAccountTransferOwnershipView,
     ServiceAccountUpdateView,
 )
-from .team import (
-    TeamAdminManagementView,
-    TeamCreateView,
-    TeamDeleteView,
-    TeamDetailView,
-    TeamUpdateView,
-)
+from .team import TeamCreateView, TeamDeleteView, TeamDetailView, TeamMembersView, TeamUpdateView
 from .tokens import (
     TokenCreateView,
     TokenDeleteView,
