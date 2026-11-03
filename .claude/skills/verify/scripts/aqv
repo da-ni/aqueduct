@@ -121,7 +121,7 @@ def django_env(state: dict) -> dict:
 def django(state: dict, *args: str, check: bool = True) -> subprocess.CompletedProcess:
     repo = Path(state["repo"])
     done = subprocess.run(
-        ["uv", "run", "python", *args],
+        ["uv", "run", "--frozen", "python", *args],
         cwd=repo / "aqueduct",
         env=django_env(state),
         capture_output=True,
@@ -134,10 +134,11 @@ def django(state: dict, *args: str, check: bool = True) -> subprocess.CompletedP
 
 
 def http_get(url: str, opener=None) -> tuple[int, str]:
+    """The status and path the request lands on after redirects."""
     opener = opener or urllib.request.build_opener()
     try:
         with opener.open(url, timeout=10) as response:
-            return response.status, response.read().decode("utf-8", "replace")
+            return response.status, urllib.parse.urlsplit(response.url).path
     except urllib.error.HTTPError as error:
         return error.code, ""
     except (urllib.error.URLError, OSError):
@@ -204,6 +205,7 @@ def cmd_launch(args) -> None:
             [
                 "uv",
                 "run",
+                "--frozen",
                 "uvicorn",
                 "mock_api.endpoints:app",
                 "--host",
@@ -227,6 +229,7 @@ def cmd_launch(args) -> None:
             [
                 "uv",
                 "run",
+                "--frozen",
                 "python",
                 "manage.py",
                 "runserver",
@@ -248,6 +251,9 @@ def cmd_launch(args) -> None:
             f"--remote-debugging-port={state['cdp_port']}",
             f"--user-data-dir={run / 'chromium'}",
             "--no-first-run",
+            # Without it, Chromium asks the desktop keyring for its cookie key, and a
+            # locked keyring on quartz stalls every request in the default profile.
+            "--password-store=basic",
             "about:blank",
         ],
         stdout=subprocess.DEVNULL,
@@ -272,9 +278,12 @@ def cmd_launch(args) -> None:
     else:
         fail(f"server not ready after 90s, see {run / 'server.log'}")
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(CookieJar()))
-    status, body = http_get(state["base"] + "/verify-login/?username=user", opener)
-    if status != 200 or "Activity across" not in body:
-        fail(f"signed-in Overview not usable (status {status}), see {run / 'server.log'}")
+    status, landed = http_get(state["base"] + "/verify-login/?username=user", opener)
+    if status != 200 or landed == "/login/":
+        fail(
+            f"signed-in landing page not usable (status {status}, at {landed!r}), "
+            f"see {run / 'server.log'}"
+        )
     deadline = time.time() + 30
     while http_get(f"http://127.0.0.1:{state['cdp_port']}/json/version")[0] != 200:
         if not alive(browser.pid) or time.time() > deadline:
@@ -541,7 +550,14 @@ def cmd_shell(args) -> None:
 
 def cmd_snapshot(args) -> None:
     checkout = Path(args.checkout or git(SCRIPTS, "rev-parse", "--show-toplevel")).resolve()
-    command = ["uv", "run", "python", str(SCRIPTS / "snapshot.py"), str(Path(args.out).resolve())]
+    command = [
+        "uv",
+        "run",
+        "--frozen",
+        "python",
+        str(SCRIPTS / "snapshot.py"),
+        str(Path(args.out).resolve()),
+    ]
     done = subprocess.run([*command, str(checkout)], cwd=checkout / "aqueduct", check=False)
     sys.exit(done.returncode)
 
