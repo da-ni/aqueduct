@@ -6,7 +6,7 @@ from pathlib import Path
 import yaml
 from django.test import override_settings
 
-from management.models import Snippet, SnippetType
+from management.models import Snippet, SnippetType, Token
 
 
 @contextmanager
@@ -16,6 +16,13 @@ def router_config(entries: list[dict]) -> Iterator[None]:
         path.write_text(yaml.safe_dump({"model_list": entries}))
         with override_settings(LITELLM_ROUTER_CONFIG_FILE_PATH=str(path)):
             yield
+
+
+def make_token(user, name: str, **kwargs) -> Token:
+    token = Token(name=name, user=user, **kwargs)
+    token._set_new_key()
+    token.save()
+    return token
 
 
 def seed_active_config(code: str, name: str = "test-config") -> Snippet:
