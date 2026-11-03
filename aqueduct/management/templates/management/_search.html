@@ -1,0 +1,7 @@
+{% load ui %}<form method="get" role="search">
+    {% hidden_params name reset %}
+    <label class="input input-sm {{ width }}">
+        {% icon "search" small=True %}
+        <input type="search" name="{{ name }}" value="{{ value }}" placeholder="{{ placeholder }}" aria-label="{{ placeholder }}">
+    </label>
+</form>

@@ -1,7 +1,9 @@
 import shlex
+from collections.abc import Iterable
 
 from django import template
 from django.contrib.messages.storage.base import Message
+from django.template.defaulttags import querystring
 from django.utils.html import format_html, format_html_join
 from django.utils.safestring import SafeString
 
@@ -45,6 +47,32 @@ def copy_button(
         title or label,
         icon(Icon.COPY, small=True),
     )
+
+
+@register.simple_tag(takes_context=True)
+def hidden_params(context: template.Context, *dropped: str) -> SafeString:
+    """Hidden inputs that carry the page's query to a GET form, minus `dropped`."""
+    skip = _names(dropped)
+    return format_html_join(
+        "",
+        '<input type="hidden" name="{}" value="{}">',
+        (
+            (name, value)
+            for name, values in context.request.GET.lists()
+            for value in values
+            if name not in skip
+        ),
+    )
+
+
+@register.simple_tag(takes_context=True)
+def query_with(context: template.Context, name: str, value: object, dropped: str = "") -> str:
+    """`{% querystring %}` with a parameter name that comes from a variable."""
+    return querystring(context, **{name: value}, **dict.fromkeys(_names((dropped,))))
+
+
+def _names(groups: Iterable[str]) -> set[str]:
+    return {name for group in groups for name in group.split()}
 
 
 @register.filter
