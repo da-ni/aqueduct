@@ -198,7 +198,7 @@ class ShellTest(TestCase):
     def test_help_links_live_in_the_footer_and_the_gateway_url_only_signed_in(self):
         self.sign_in("user")
         page = self.client.get(reverse("tokens"))
-        self.assertEqual(page.context["shell"].bottom, ())
+        self.assertEqual([link.label for link in page.context["shell"].bottom], ["Settings"])
         for url in settings.EXTRA_NAV_LINKS.values():
             self.assertContains(page, f'href="{url}"', count=1)
         self.assertContains(page, "http://testserver/v1")
