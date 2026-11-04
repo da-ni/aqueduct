@@ -25,10 +25,10 @@
             </form>
             {% if team %}
                 <a class="btn btn-outline btn-primary" href="{% url 'service_account_edit' token.service_account.id %}">{% icon "admin" small=True %}{% translate "Edit" %}</a>
-                <a class="btn btn-ghost st-err" href="{% url 'service_account_delete' token.service_account.id %}" {% confirm_delete token.service_account %}>{% icon "delete" small=True %}{% translate "Delete" %}</a>
+                <a class="btn btn-outline btn-error" href="{% url 'service_account_delete' token.service_account.id %}" {% confirm_delete token.service_account %}>{% icon "delete" small=True %}{% translate "Delete" %}</a>
             {% else %}
                 <a class="btn btn-outline btn-primary" href="{% url 'token_edit' token.id %}">{% icon "admin" small=True %}{% translate "Edit" %}</a>
-                <a class="btn btn-ghost st-err" href="{% url 'token_delete' token.id %}" {% confirm_delete token %}>{% icon "delete" small=True %}{% translate "Delete" %}</a>
+                <a class="btn btn-outline btn-error" href="{% url 'token_delete' token.id %}" {% confirm_delete token %}>{% icon "delete" small=True %}{% translate "Delete" %}</a>
             {% endif %}
         </div>
     {% endif %}
@@ -47,7 +47,7 @@
     {% include "management/_metric_chart.html" with tokens_title=_("Tokens per day") requests_title=_("Requests per day") chart_class="grid h-64 grid-cols-7 gap-3" %}
 
     <div class="card bg-base-200">
-        <div class="card-body gap-4 p-5">
+        <div class="card-body gap-4">
             <h2 class="card-title">{% translate "Models" %}</h2>
             <div class="-mx-2 flex flex-col gap-1">
                 {% for model in report.models %}
@@ -72,16 +72,19 @@
 </section>
 
 <section class="card bg-base-200">
-    <div class="card-body gap-3 p-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="card-body table-card gap-2">
+        <div class="card-head flex flex-wrap items-center justify-between gap-3">
             <h2 class="card-title">{% translate "Latest requests" %}</h2>
             <a class="link-plain text-sm" href="{% url 'requests' %}{% querystring log_query %}">{% translate "All requests" %}</a>
         </div>
         <div class="overflow-x-auto">
-            <table class="table table-sm">
+            <table class="table table-sm table-fixed min-w-[760px]">
+                <colgroup>
+                    <col class="w-40"><col><col class="w-20"><col class="w-20"><col class="w-28 de:w-32"><col class="w-20"><col class="w-24">
+                </colgroup>
                 <thead>
                     <tr>
-                        <th>{% translate "Time" %}</th><th>{% translate "Model" %}</th><th>{% translate "Path" %}</th><th>{% translate "Status" %}</th>
+                        <th>{% translate "Time" %}</th><th>{% translate "Model" %}</th><th>{% translate "Status" %}</th>
                         <th class="text-right">{% translate "Input" %}</th><th class="text-right">{% translate "From cache" %}</th>
                         <th class="text-right">{% translate "Output" %}</th><th class="text-right">{% translate "Response" %}</th>
                     </tr>
@@ -90,9 +93,11 @@
                     {% for row in latest %}
                         {% with request=row.request %}
                             <tr class="font-mono text-[13px]">
-                                <td><a class="muted row-link" href="{% url 'requests' %}{% querystring log_query request=request.id %}#request-{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Open request {{ id }} in the log{% endblocktranslate %}">{{ request.timestamp|when }}</a></td>
-                                <td>{{ request.model|default:_("n/a") }}</td>
-                                <td class="muted">{{ request.path }}</td>
+                                <td class="whitespace-nowrap"><a class="muted row-link" href="{% url 'requests' %}{% querystring log_query request=request.id %}#request-{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Open request {{ id }} in the log{% endblocktranslate %}">{{ request.timestamp|when:"recent" }}</a></td>
+                                <td class="truncate">
+                                    <span title="{{ request.model|default:_("n/a") }}">{{ request.model|default:_("n/a") }}</span>
+                                    <div class="muted truncate text-xs" title="{{ request.path }}">{{ request.path }}</div>
+                                </td>
                                 <td>
                                     {% include "management/_request_status.html" %}
                                 </td>
@@ -103,7 +108,7 @@
                             </tr>
                         {% endwith %}
                     {% empty %}
-                        <tr><td colspan="8" class="muted">{% translate "No requests in the last 30 days." %}</td></tr>
+                        <tr><td colspan="7" class="muted">{% translate "No requests in the last 30 days." %}</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -112,7 +117,7 @@
 </section>
 
 <section class="card bg-base-200" aria-labelledby="limits-title">
-    <div class="card-body gap-3 p-5">
+    <div class="card-body gap-3">
         <div class="flex flex-wrap items-baseline gap-x-4 gap-y-2">
             <h2 id="limits-title" class="card-title">{% translate "Limits" %}</h2>
             {% include "management/_limits.html" %}

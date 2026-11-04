@@ -1,6 +1,6 @@
 {% load i18n ui %}{% translate "Tokens" as tokens_label %}{% translate "Requests" as requests_label %}
-<div class="overflow-x-auto">
-    <table class="table data-table usage-table">
+<div class="aq-scroll-x">
+    <table class="table usage-table">
         {% include "management/_usage_cols.html" %}
         <thead>
             <tr>
@@ -25,6 +25,8 @@
                     <td class="text-right font-mono">{{ key.activity.requests|grouped }}</td>
                     <td class="muted text-right font-mono">{{ key.share }}</td>
                 </tr>
+            {% empty %}
+                <tr><td colspan="7" class="muted">{{ empty }}</td></tr>
             {% endfor %}
         </tbody>
     </table>

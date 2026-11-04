@@ -3,6 +3,8 @@
 
 {% block heading %}{% translate "Vector stores" %}{% endblock %}
 
+{% block colgroup %}<col><col class="w-[22%]"><col class="w-32"><col class="w-24"><col class="w-28"><col class="w-36 de:w-44"><col class="w-16">{% endblock %}
+
 {% block columns %}
     <th>{% translate "Vector store" %}</th>
     <th>{% translate "Belongs to" %}</th>
@@ -17,14 +19,14 @@
     {% for row in listing.rows %}
         <tr>
             <td>
-                <a class="link-plain row-link" href="{% url 'vector_store_detail' id=row.store.id %}">{{ row.store.name }}</a>
-                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.store.id }}{% blocktranslate with name=row.store.name asvar copy_label %}Copy ID of {{ name }}{% endblocktranslate %}{% copy_button row.store.id copy_label _("Copy vector store ID") extra_class="relative z-10" %}</div>
+                <a class="link-plain row-link block truncate" href="{% url 'vector_store_detail' id=row.store.id %}" title="{{ row.store.name }}">{{ row.store.name }}</a>
+                <div class="muted flex items-center gap-1 font-mono text-xs"><span class="truncate" title="{{ row.store.id }}">{{ row.store.id }}</span>{% blocktranslate with name=row.store.name asvar copy_label %}Copy ID of {{ name }}{% endblocktranslate %}{% copy_button row.store.id copy_label _("Copy vector store ID") extra_class="relative z-10 shrink-0" %}</div>
             </td>
-            <td>{{ row.owner }}</td>
+            <td class="truncate" title="{{ row.owner }}">{{ row.owner }}</td>
             <td>{% include "management/_status.html" with status=row.status %}</td>
             <td class="text-right font-mono">{{ row.files|grouped }}</td>
             <td class="text-right font-mono">{{ row.size|filesizeformat }}</td>
-            <td>{{ row.expiry|expiry }}</td>
+            <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.expiry|expiry }}</td>
             <td>
                 {% if row.syncable %}
                     <form class="relative z-10 flex justify-end" action="{% url 'vector_store_card_refresh' id=row.store.id %}" method="post">

@@ -4,17 +4,17 @@
 {% block heading %}{% translate "Models" %}{% endblock %}
 {% block body %}
 <div class="flex flex-wrap items-center gap-3">
+    {% include "management/_search.html" with name="q" value=query placeholder=_("Search models and aliases") reset="model" %}
     {% if catalog.categories|length > 1 %}
         {% include "management/_segmented.html" with label=_("Model type") param="type" tabs=catalog.categories current=category all_label=_("All") reset="model" %}
     {% endif %}
-    {% include "management/_search.html" with name="q" value=query placeholder=_("Search models and aliases") width="w-64" reset="model" %}
 </div>
 
 {% if selected %}
     <section class="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <div class="card min-w-0 bg-base-200 xl:col-span-3">
-            <div class="card-body overflow-x-auto p-3">
-                <table class="table table-fixed data-table">
+            <div class="card-body table-card overflow-x-auto">
+                <table class="table table-fixed">
                     <thead>
                         <tr>
                             <th>{% translate "Model" %}</th>
@@ -27,7 +27,7 @@
                             <tr>
                                 <td>
                                     <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                                        <a class="min-w-0 font-mono font-semibold [overflow-wrap:anywhere] row-link"
+                                        <a class="min-w-0 max-w-full truncate font-mono font-semibold row-link" title="{{ card.name }}"
                                            href="{% querystring model=card.name %}#model-detail"{% if card == selected %} aria-current="true"{% endif %}>{{ card.name }}</a>
                                         {% if card.quantization %}<span class="badge badge-outline badge-sm max-w-full font-mono" title="{{ card.quantization }}"><span class="truncate">{{ card.quantization }}</span></span>{% endif %}
                                         {% if card.deprecation_date %}<span class="badge badge-outline badge-deprecated badge-sm flex-none font-mono uppercase">{% translate "Deprecated" %}</span>{% endif %}
@@ -56,7 +56,7 @@
         </div>
 
         <aside class="card min-w-0 self-start bg-base-200 xl:sticky xl:top-4 xl:col-span-2{% if selected in cards %} max-xl:hidden{% endif %}" aria-labelledby="model-detail-name-panel">
-            <div class="card-body gap-5 p-5">
+            <div class="card-body gap-5">
                 {% include "management/_model_detail.html" with place="panel" %}
             </div>
         </aside>

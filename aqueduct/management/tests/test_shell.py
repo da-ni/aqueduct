@@ -17,6 +17,7 @@ from tos.models import TermsOfService
 
 from aqueduct.urls import urlpatterns as aqueduct_urlpatterns
 from gateway.tests.utils.base import ROUTER_CONFIG_PATH
+from management.models import Team, TeamMembership
 from management.nav import HELP, NAV, NAV_BOTTOM, Shell, build_shell
 
 User = get_user_model()
@@ -160,6 +161,14 @@ class ShellTest(TestCase):
         self.sign_in("org-admin")
         viewer = self.shell_on(reverse("tokens")).viewer
         self.assertEqual((viewer.email, viewer.role), ("someone@example.com", "Org Admin"))
+
+    def test_role_line_names_a_team_admin_as_such(self):
+        self.sign_in("user")
+        self.assertEqual(self.shell_on(reverse("tokens")).viewer.role, "User")
+        profile = User.objects.get(pk=FIXTURE_USER_PK_BY_ROLE["user"]).profile
+        team = Team.objects.create(name="Role line", org=profile.org)
+        TeamMembership.objects.create(user_profile=profile, team=team, is_admin=True)
+        self.assertEqual(self.shell_on(reverse("tokens")).viewer.role, "Team admin")
 
     def test_user_without_profile_still_gets_the_frame(self):
         self.client.force_login(User.objects.create_user("no-profile", "np@example.com"))

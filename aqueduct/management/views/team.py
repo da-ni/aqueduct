@@ -15,7 +15,7 @@ from django.utils.translation import gettext
 from django.views.generic import CreateView, DeleteView, DetailView, UpdateView
 
 from management.access import TeamAct, Viewer, WholeOrg
-from management.deletion import deletion
+from management.deletion import Crumb, deletion
 from management.forms import MemberEmailForm, TeamAvailabilityForm, TeamCreateForm, TeamLimitsForm
 from management.ids import parse_id
 from management.models import Org, ServiceAccount, Team, UserProfile
@@ -133,6 +133,10 @@ class TeamDeleteView(BaseTeamView, DeleteView):
         return super().get_context_data(
             confirmation=deletion(self.team),
             cancel_url=reverse("team", kwargs={"id": self.team.id}),
+            trail=[
+                Crumb(gettext("Teams"), reverse("org")),
+                Crumb(self.team.name, reverse("team", kwargs={"id": self.team.id})),
+            ],
             **kwargs,
         )
 
