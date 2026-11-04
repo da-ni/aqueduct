@@ -1041,9 +1041,6 @@ msgstr "Neu"
 msgid "Delete team"
 msgstr "Team löschen"
 
-msgid "This can't be undone."
-msgstr "Das lässt sich nicht rückgängig machen."
-
 #, python-format
 msgid "Edit <span class=\"font-mono\">%(name)s</span>"
 msgstr "<span class=\"font-mono\">%(name)s</span> bearbeiten"

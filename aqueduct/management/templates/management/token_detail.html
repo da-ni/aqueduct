@@ -25,10 +25,10 @@
             </form>
             {% if team %}
                 <a class="btn btn-outline btn-primary" href="{% url 'service_account_edit' token.service_account.id %}">{% icon "admin" small=True %}{% translate "Edit" %}</a>
-                <a class="btn btn-ghost st-err" href="{% url 'service_account_delete' token.service_account.id %}" {% confirm_delete token.service_account %}>{% icon "delete" small=True %}{% translate "Delete" %}</a>
+                <a class="btn btn-outline btn-error" href="{% url 'service_account_delete' token.service_account.id %}" {% confirm_delete token.service_account %}>{% icon "delete" small=True %}{% translate "Delete" %}</a>
             {% else %}
                 <a class="btn btn-outline btn-primary" href="{% url 'token_edit' token.id %}">{% icon "admin" small=True %}{% translate "Edit" %}</a>
-                <a class="btn btn-ghost st-err" href="{% url 'token_delete' token.id %}" {% confirm_delete token %}>{% icon "delete" small=True %}{% translate "Delete" %}</a>
+                <a class="btn btn-outline btn-error" href="{% url 'token_delete' token.id %}" {% confirm_delete token %}>{% icon "delete" small=True %}{% translate "Delete" %}</a>
             {% endif %}
         </div>
     {% endif %}
