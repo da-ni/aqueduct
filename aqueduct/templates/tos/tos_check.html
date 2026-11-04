@@ -4,21 +4,20 @@
 {% block title %}{% translate "Terms of service" %} · {{ block.super }}{% endblock %}
 {% block sidebar %}{% endblock %}
 {% block topbar %}{% include "management/_public_header.html" %}{% endblock %}
-{% block page_background %} bg-base-200{% endblock %}
 
 {% block content %}
-<section class="card mx-auto max-w-4xl bg-base-100" aria-labelledby="tos-title">
-    <div class="card-body gap-4 p-6">
-        <header class="flex flex-col gap-1">
-            <h1 id="tos-title" class="text-2xl font-semibold">{% translate "Accept the terms to continue" %}</h1>
+<section class="card mx-auto max-w-3xl bg-base-200" aria-labelledby="tos-title">
+    <div class="card-body gap-6">
+        <header class="flex flex-col gap-2">
+            <h1 id="tos-title" class="text-3xl font-semibold">{% translate "Accept the terms to continue" %}</h1>
             <p class="muted text-sm">{% blocktranslate with date=tos.created|when:"date" %}Version of {{ date }}{% endblocktranslate %}</p>
         </header>
         <div class="prose max-h-96 max-w-none overflow-y-auto">{{ tos.content|safe }}</div>
-        <form method="post" action="{% url 'tos_check_tos' %}" class="flex flex-wrap justify-end gap-2 border-t border-base-300 pt-4">
+        <form method="post" action="{% url 'tos_check_tos' %}" class="flex flex-wrap gap-3 border-t border-base-300 pt-5">
             {% csrf_token %}
             {% if next %}<input type="hidden" name="{{ redirect_field_name }}" value="{{ next }}">{% endif %}
-            <button type="submit" class="btn btn-outline btn-primary" formaction="{% url 'oidc_logout' %}">{% translate "Decline and sign out" %}</button>
             <button type="submit" name="accept" value="accept" class="btn btn-primary">{% translate "Accept" %}</button>
+            <button type="submit" class="btn btn-ghost" formaction="{% url 'oidc_logout' %}">{% translate "Decline and sign out" %}</button>
         </form>
     </div>
 </section>

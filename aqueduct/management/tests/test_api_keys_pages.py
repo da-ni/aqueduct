@@ -113,7 +113,11 @@ class KeyListTest(ApiKeysPagesTestBase):
 
     def test_unused_key_and_key_without_expiry_read_as_such(self):
         response = self.get(self.solo, "tokens")
-        self.assertContains(response, '<td class="muted hidden md:table-cell">—</td>', html=True)
+        self.assertContains(
+            response,
+            '<td class="muted hidden whitespace-nowrap font-mono text-[13px] md:table-cell">—</td>',
+            html=True,
+        )
         self.assertContains(response, '<span class="muted">No expiry</span>', html=True)
 
     def test_last_used_names_the_exact_utc_time(self):
@@ -139,10 +143,10 @@ class KeyListTest(ApiKeysPagesTestBase):
         for label in ("All", "Personal", "Service accounts"):
             self.assertContains(response, f">{label}</a>")
 
-    def test_without_keys_the_list_offers_to_create_one(self):
+    def test_without_keys_the_header_offers_to_create_one(self):
         response = self.get(self.user("newcomer"), "tokens")
         self.assertContains(response, "No keys yet.")
-        self.assertContains(response, f'href="{reverse("token_create")}"', count=2)
+        self.assertContains(response, f'href="{reverse("token_create")}"', count=1)
         self.assertContains(response, ">0/3</span>")
 
     def test_create_button_is_disabled_at_the_limit(self):
@@ -261,7 +265,7 @@ class KeyDetailTest(ApiKeysPagesTestBase):
         self.assertContains(
             response, f'<time datetime="{used.isoformat()}" title="{used:%Y-%m-%d %H:%M:%S} UTC">'
         )
-        self.assertContains(response, f">{used:%-d %b %Y %H:%M}</time></a>")
+        self.assertContains(response, f">{used:%-d %b %H:%M}</time></a>")
         expires = self.solo_key.expires_at
         self.assertContains(
             response,

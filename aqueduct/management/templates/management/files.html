@@ -3,6 +3,8 @@
 
 {% block heading %}{% translate "Files" %}{% endblock %}
 
+{% block colgroup %}<col><col class="w-44"><col class="w-28"><col class="w-36 de:w-44"><col class="w-32"><col class="w-28">{% endblock %}
+
 {% block columns %}
     <th>{% translate "File" %}</th>
     <th>{% translate "Purpose" %}</th>
@@ -16,13 +18,13 @@
     {% for row in listing.rows %}
         <tr id="{{ row.file.id }}" class="file-row">
             <td>
-                <span class="font-semibold">{{ row.file.filename }}</span>
-                <div class="muted flex items-center gap-1 font-mono text-xs">{{ row.file.id }}{% blocktranslate with name=row.file.filename asvar copy_label %}Copy ID of {{ name }}{% endblocktranslate %}{% copy_button row.file.id copy_label _("Copy file ID") %}{% if not row.mine %} · {{ row.owner }}{% endif %}</div>
+                <span class="block truncate font-semibold" title="{{ row.file.filename }}">{{ row.file.filename }}</span>
+                <div class="muted flex items-center gap-1 font-mono text-xs"><span class="truncate" title="{{ row.file.id }}">{{ row.file.id }}</span>{% blocktranslate with name=row.file.filename asvar copy_label %}Copy ID of {{ name }}{% endblocktranslate %}{% copy_button row.file.id copy_label _("Copy file ID") extra_class="shrink-0" %}{% if not row.mine %}<span class="truncate" title="{{ row.owner }}"> · {{ row.owner }}</span>{% endif %}</div>
             </td>
             <td><span class="badge badge-sm whitespace-nowrap bg-base-100 font-mono">{{ row.purpose }}</span></td>
             <td class="text-right font-mono">{{ row.file.bytes|filesizeformat }}</td>
             <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.created|when|dash }}</td>
-            <td>{{ row.expiry|expiry }}</td>
+            <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.expiry|expiry }}</td>
             <td>
                 <div class="flex justify-end gap-1">
                     {% if row.file.preview %}

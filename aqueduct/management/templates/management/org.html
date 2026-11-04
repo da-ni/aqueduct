@@ -2,7 +2,7 @@
 {% load i18n l10n ui %}
 
 {% block heading %}{% translate "Teams" %}{% endblock %}
-{% block subheading %}<span class="muted -mt-1 text-sm">{% if all_orgs %}{% translate "All organizations" %}{% else %}{{ org_object.name }}{% endif %}</span>{% endblock %}
+{% block subheading %}<span class="muted text-sm">{% if all_orgs %}{% translate "All organizations" %}{% else %}{{ org_object.name }}{% endif %}</span>{% endblock %}
 {% block actions %}
     {% if is_org_admin %}
         <a class="btn btn-primary" href="{% url 'team_create' %}">{% icon "plus" small=True %}{% translate "Create team" %}</a>
@@ -11,16 +11,18 @@
 {% block body %}
 {% if in_no_team %}
     <section class="card bg-base-200">
-        <div class="card-body p-5">
+        <div class="card-body">
             <p>{% translate "You're not in a team. Ask your org admin to add you." %}</p>
         </div>
     </section>
 {% else %}
-    {% include "management/_search.html" with name="q" value=query placeholder=_("Search teams") width="w-full sm:w-64" %}
+    <div class="flex flex-wrap items-center gap-3">
+        {% include "management/_search.html" with name="q" value=query placeholder=_("Search teams") %}
+    </div>
 
     <section class="card bg-base-200">
-        <div class="card-body p-3">
-            <table class="table data-table lg:table-fixed max-lg:block">
+        <div class="card-body table-card">
+            <table class="table lg:table-fixed max-lg:block">
                 <colgroup>
                     <col>{% if all_orgs %}<col class="w-40">{% elif not is_org_admin %}<col class="w-28">{% endif %}<col class="w-24"><col class="w-36"><col class="w-32"><col class="w-48"><col class="w-14">
                 </colgroup>
@@ -31,7 +33,7 @@
                         <th class="text-right">{% translate "Members" %}</th>
                         <th class="text-right">{% translate "Service accounts" %}</th>
                         <th class="text-right">{% translate "Requests/min" %}</th>
-                        <th class="whitespace-normal" colspan="2"><span class="tooltip">{% translate "Service account tokens, 7 days" %}<span class="tooltip-content font-sans text-sm font-normal normal-case tracking-normal"><span class="sr-only">. </span>{% translate "Members' personal keys don't count." %}</span></span></th>
+                        <th colspan="2"><span class="tooltip">{% translate "Tokens, 7 days" %}<span class="tooltip-content font-sans text-sm font-normal normal-case tracking-normal"><span class="sr-only">. </span>{% translate "Service account tokens only. Members' personal keys don't count." %}</span></span></th>
                     </tr>
                 </thead>
                 <tbody class="max-lg:block">

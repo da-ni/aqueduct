@@ -254,7 +254,7 @@ class BatchesPageTest(ResourcePagesTestBase):
         first = local(soon).strftime("%H:%M" if today else "%-d %b %H:%M")
         self.assertContains(response, f"Finish by {first}")
         self.assertContains(response, f">{local(later):%-d %b %H:%M}</time>")
-        self.assertContains(response, "Finish by", count=2)
+        self.assertContains(response, ">Finish by", count=2)
         self.assertNotContains(response, "Today")
         self.assertContains(response, "Output pending")
 
@@ -338,15 +338,15 @@ class VectorStoresPageTest(ResourcePagesTestBase):
         response = self.as_user(self.member).get(reverse("vector_stores"))
         self.assertContains(response, "thesis-corpus")
         self.assertContains(response, "group-papers")
-        self.assertContains(response, "<td>NLP Lab</td>", html=False)
-        self.assertContains(response, "<td>You</td>", html=False)
+        self.assertContains(response, ">NLP Lab</td>", html=False)
+        self.assertContains(response, ">You</td>", html=False)
         self.assertNotContains(response, "outsider-notes")
         self.assertContains(response, "Vector stores: you 1/10 · NLP Lab 1/50")
 
     def test_quotas_cover_only_the_viewers_keys_and_their_own_teams(self):
         response = self.as_user(self.org_admin).get(reverse("vector_stores"))
         self.assertContains(response, "group-papers")
-        self.assertContains(response, "<td>solo@example.com</td>", html=False)
+        self.assertContains(response, ">solo@example.com</td>", html=False)
         self.assertContains(response, "Vector stores: you 0/10<")
 
     def test_detail_pages_the_store_files(self):

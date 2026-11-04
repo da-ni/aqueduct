@@ -4,9 +4,9 @@
         {% csrf_token %}
         <h2 id="confirm-title" class="break-words text-xl font-semibold"></h2>
         <p id="confirm-detail"></p>
-        <div class="modal-action mt-2">
+        <div class="mt-2 flex flex-wrap gap-3">
             <button type="submit" class="btn btn-error" data-confirm-submit>{% translate "Delete" %}</button>
-            <button type="submit" class="btn btn-outline btn-primary" formmethod="dialog" formnovalidate autofocus data-confirm-dismiss>{% translate "Cancel" %}</button>
+            <button type="submit" class="btn btn-ghost" formmethod="dialog" formnovalidate autofocus data-confirm-dismiss>{% translate "Cancel" %}</button>
         </div>
     </form>
     <form method="dialog" class="modal-backdrop"><button tabindex="-1" aria-hidden="true">{% translate "Cancel" %}</button></form>

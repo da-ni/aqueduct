@@ -13,7 +13,7 @@ from django.views import View
 from django.views.generic import CreateView, DeleteView, UpdateView
 
 from management.access import TeamAct
-from management.deletion import deletion
+from management.deletion import Crumb, deletion
 from management.forms import MemberEmailForm, ServiceAccountForm
 from management.models import ServiceAccount, Token
 from management.views.base import BaseServiceAccountView, BaseTeamView, show_new_key
@@ -76,7 +76,14 @@ class ServiceAccountDeleteView(BaseServiceAccountView, DeleteView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         return super().get_context_data(
-            confirmation=deletion(self.object), cancel_url=self.get_success_url(), **kwargs
+            confirmation=deletion(self.object),
+            cancel_url=self.get_success_url(),
+            trail=[
+                Crumb(gettext("Teams"), reverse("org")),
+                Crumb(self.team.name, self.get_success_url()),
+                Crumb(self.object.name, mono=True),
+            ],
+            **kwargs,
         )
 
     def form_valid(self, form) -> HttpResponse:

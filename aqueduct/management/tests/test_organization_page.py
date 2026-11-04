@@ -65,7 +65,9 @@ class OrganizationPageTest(OrganizationTestBase):
         self.org.save()
         response = self.as_user(self.org_admin).get(self.url)
         self.assertEqual(response.status_code, HTTPStatus.OK)
-        self.assertContains(response, '<h1 class="text-3xl font-semibold">lab-org</h1>', html=True)
+        self.assertContains(
+            response, '<h1 class="break-words text-3xl font-semibold">lab-org</h1>', html=True
+        )
         self.assertNotContains(response, "people")
         self.assertContains(response, "2 teams")
         self.assertContains(response, "1 service account")

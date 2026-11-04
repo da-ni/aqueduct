@@ -3,13 +3,15 @@ from django.contrib import messages
 from django.db.models import QuerySet
 from django.http import HttpResponse
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import urlencode
 from django.utils.translation import gettext
 from django.views.generic import DeleteView, TemplateView
 
 from gateway.config import get_files_api_client
 from management.access import KeyAct
-from management.deletion import deletion
+from management.deletion import Crumb, deletion
 from management.models import FileObject
 from management.resources import file_list, list_url
 from management.views.base import BaseAqueductView
@@ -58,5 +60,14 @@ class FileDeleteView(BaseAqueductView, DeleteView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         return super().get_context_data(
-            confirmation=deletion(self.object), cancel_url=self.get_success_url(), **kwargs
+            confirmation=deletion(self.object),
+            cancel_url=self.get_success_url(),
+            trail=[
+                Crumb(gettext("Files"), self.get_success_url()),
+                Crumb(
+                    self.object.filename,
+                    f"{reverse('files')}?{urlencode({'file': self.object.id})}#{self.object.id}",
+                ),
+            ],
+            **kwargs,
         )

@@ -23,7 +23,7 @@ from gateway.config import model_names
 from gateway.rate_limiting import get_per_token_usage
 from management.access import KeyAct
 from management.availability import Reach, configured_mcp_servers
-from management.deletion import deletion
+from management.deletion import Crumb, deletion
 from management.forms import TokenCreateForm
 from management.keys import Expiry, KeyKind, key_list, key_report
 from management.models import LimitSet, Token
@@ -238,9 +238,14 @@ class TokenDeleteView(BaseAqueductView, DeleteView):
         return response
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
+        detail_url = reverse("token_detail", kwargs={"id": self.object.id})
         return super().get_context_data(
             confirmation=deletion(self.object),
-            cancel_url=reverse("token_detail", kwargs={"id": self.object.id}),
+            cancel_url=detail_url,
+            trail=[
+                Crumb(gettext("API keys"), reverse("tokens")),
+                Crumb(self.object.name, detail_url, mono=True),
+            ],
             **kwargs,
         )
 

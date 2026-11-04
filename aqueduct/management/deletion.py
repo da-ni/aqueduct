@@ -6,6 +6,13 @@ from management.models import FileObject, ServiceAccount, Team, Token
 
 
 @dataclass(frozen=True)
+class Crumb:
+    label: str
+    url: str = ""
+    mono: bool = False
+
+
+@dataclass(frozen=True)
 class Confirmation:
     title: str
     detail: str

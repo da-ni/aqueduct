@@ -34,7 +34,7 @@ class OrgSwitchTest(OrgSwitchTestBase):
         self.assertNotContains(teams, "Organization</th>")
         organization = self.client.get(reverse("organization"))
         self.assertContains(
-            organization, '<h1 class="text-3xl font-semibold">lab-org</h1>', html=True
+            organization, '<h1 class="break-words text-3xl font-semibold">lab-org</h1>', html=True
         )
         self.far_admin.profile.refresh_from_db()
         self.assertEqual(self.far_admin.profile.org, self.other_org)
@@ -53,7 +53,7 @@ class OrgSwitchTest(OrgSwitchTestBase):
                 org = "other-org" if team == "Foreign" else "lab-org"
                 self.assertIn(f'<td class="truncate max-lg:hidden">{org}</td>', row)
         self.assertContains(
-            teams, '<span class="muted -mt-1 text-sm">All organizations</span>', html=True
+            teams, '<span class="muted text-sm">All organizations</span>', html=True
         )
 
     def test_all_organizations_lists_every_org_to_pick_one(self):
@@ -61,13 +61,17 @@ class OrgSwitchTest(OrgSwitchTestBase):
         self.switch("all")
         organization = self.client.get(reverse("organization"))
         self.assertContains(
-            organization, '<h1 class="text-3xl font-semibold">Organizations</h1>', html=True
+            organization,
+            '<h1 class="break-words text-3xl font-semibold">Organizations</h1>',
+            html=True,
         )
         self.assertNotContains(organization, reverse("organization_limits", args=[self.org.id]))
         for org in (self.org, self.other_org):
             self.assertContains(organization, f'href="{reverse("organization")}?org={org.id}"')
         picked = self.client.get(reverse("organization"), {"org": self.org.id})
-        self.assertContains(picked, '<h1 class="text-3xl font-semibold">lab-org</h1>', html=True)
+        self.assertContains(
+            picked, '<h1 class="break-words text-3xl font-semibold">lab-org</h1>', html=True
+        )
         self.assertEqual(self.client.session[SESSION_KEY], str(self.org.id))
 
     def test_org_parameter_applies_and_stays_for_later_pages(self):

@@ -1,14 +1,14 @@
 {% extends "management/base.html" %}
 {% load i18n l10n ui %}
 
-{% block header %}
-    <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 class="text-3xl font-semibold">{% translate "Overview" %}</h1>
-        {% if filters.key %}
-            <span class="muted">{% blocktranslate with name=filters.key.name %}for the key <span class="font-mono">{{ name }}</span>{% endblocktranslate %}</span>
-            <a class="link-plain text-sm" href="{% querystring key=None key_q=None %}">{% translate "Show all keys" %}</a>
-        {% endif %}
-    </div>
+{% block heading %}{% translate "Overview" %}{% endblock %}
+{% block subheading %}
+    {% if filters.key %}
+        <div class="muted flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+            <span>{% blocktranslate with name=filters.key.name %}for the key <span class="font-mono">{{ name }}</span>{% endblocktranslate %}</span>
+            <a class="link-plain" href="{% querystring key=None key_q=None %}">{% translate "Show all keys" %}</a>
+        </div>
+    {% endif %}
 {% endblock %}
 {% block body %}
 <div class="flex flex-wrap items-center gap-3">
@@ -30,7 +30,7 @@
     {% include "management/_metric_chart.html" with tokens_title=period.step.tokens_title requests_title=period.step.requests_title chart_class="flex h-72 gap-px sm:gap-1" empty=no_requests %}
 
     <div class="card bg-base-200">
-        <div class="card-body gap-4 p-5">
+        <div class="card-body gap-4">
             <div class="flex items-center justify-between gap-3">
                 <h2 class="card-title">{% translate "Requests" %}</h2>
                 <a class="link-plain text-sm" href="{{ filters.log_url }}">{% translate "Open the log" %}</a>
@@ -55,70 +55,65 @@
 </section>
 
 <section class="card bg-base-200">
-    <div class="card-body gap-3 p-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="card-body table-card gap-2">
+        <div class="card-head flex flex-wrap items-center justify-between gap-3">
             <h2 class="card-title">{% translate "By model" %}</h2>
             <div class="hidden items-center gap-4 text-sm md:flex">
                 {% include "management/_token_legend.html" %}
             </div>
         </div>
-        {% if models %}
-            <div class="overflow-x-auto">
-                <table class="table data-table usage-table by-model">
-                    {% include "management/_usage_cols.html" with median=True %}
-                    <thead>
+        <div class="aq-scroll-x">
+            <table class="table usage-table by-model">
+                {% include "management/_usage_cols.html" with median=True %}
+                <thead>
+                    <tr>
+                        <th>{% translate "Model" %}</th><th class="hidden md:table-cell">{% translate "Tokens" %}</th>
+                        <th class="text-right">{% translate "Input" %}</th><th class="text-right">{% translate "Cached" %}</th><th class="text-right">{% translate "Output" %}</th>
+                        <th class="text-right">{% translate "Requests" %}</th>
+                        <th class="text-right">{% if approximate_tip %}<span class="tooltip tooltip-left" data-tip="{{ approximate_tip }}" tabindex="0">{% translate "Median time" %}<span class="sr-only">, {{ approximate_tip }}</span></span>{% else %}{% translate "Median time" %}{% endif %}</th><th class="text-right">{% translate "Share" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in models %}
                         <tr>
-                            <th>{% translate "Model" %}</th><th class="hidden md:table-cell">{% translate "Tokens" %}</th>
-                            <th class="text-right">{% translate "Input" %}</th><th class="text-right">{% translate "Cached" %}</th><th class="text-right">{% translate "Output" %}</th>
-                            <th class="text-right">{% translate "Requests" %}</th>
-                            <th class="whitespace-normal text-right">{% if approximate_tip %}<span class="tooltip tooltip-left" data-tip="{{ approximate_tip }}" tabindex="0">{% translate "Median time" %}<span class="sr-only">, {{ approximate_tip }}</span></span>{% else %}{% translate "Median time" %}{% endif %}</th><th class="text-right">{% translate "Share" %}</th>
+                            <td>
+                                <a class="link-plain row-link block truncate font-mono" href="{{ row.log_url }}" title="{{ row.name }}" aria-label="{% blocktranslate with name=row.name %}{{ name }}, open its requests in the request log{% endblocktranslate %}">{{ row.name }}</a>
+                                <div class="muted truncate text-xs" title="{{ row.kind }}">{{ row.kind }}</div>
+                            </td>
+                            <td class="hidden md:table-cell">{% include "management/_token_bar.html" with activity=row.activity width=row.width %}</td>
+                            <td class="text-right font-mono">{{ row.input }}</td>
+                            <td class="text-right font-mono">{{ row.cached }}</td>
+                            <td class="text-right font-mono">{{ row.output }}</td>
+                            <td class="text-right font-mono">{{ row.activity.requests|grouped }}</td>
+                            <td class="whitespace-nowrap text-right font-mono">{% if row.approximate %}<span aria-hidden="true">≈ </span><span class="sr-only">{% translate "approximately" %} </span>{% endif %}{{ row.median }}</td>
+                            <td class="muted text-right font-mono">{{ row.share }}</td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in models %}
-                            <tr>
-                                <td>
-                                    <a class="link-plain row-link break-all font-mono" href="{{ row.log_url }}" aria-label="{% blocktranslate with name=row.name %}{{ name }}, open its requests in the request log{% endblocktranslate %}">{{ row.name }}</a>
-                                    <div class="muted text-xs">{{ row.kind }}</div>
-                                </td>
-                                <td class="hidden md:table-cell">{% include "management/_token_bar.html" with activity=row.activity width=row.width %}</td>
-                                <td class="text-right font-mono">{{ row.input }}</td>
-                                <td class="text-right font-mono">{{ row.cached }}</td>
-                                <td class="text-right font-mono">{{ row.output }}</td>
-                                <td class="text-right font-mono">{{ row.activity.requests|grouped }}</td>
-                                <td class="whitespace-nowrap text-right font-mono">{% if row.approximate %}<span aria-hidden="true">≈ </span><span class="sr-only">{% translate "approximately" %} </span>{% endif %}{{ row.median }}</td>
-                                <td class="muted text-right font-mono">{{ row.share }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        {% else %}
-            <p class="muted text-sm">{% translate "No requests in this time frame." %}</p>
-        {% endif %}
+                    {% empty %}
+                        <tr><td colspan="8" class="muted">{% translate "No requests in this time frame." %}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </section>
 
 {% if filters.key or not filters.only_key %}
 <section class="card bg-base-200">
-    <div class="card-body gap-3 p-5">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
+    <div class="card-body table-card gap-2">
+        <div class="card-head flex flex-wrap items-baseline justify-between gap-2">
             <h2 class="card-title">{% if filters.key %}{% translate "By user ID" %}{% else %}{% translate "Top keys" %}{% endif %}</h2>
             {% if more_keys %}<a class="link-plain text-sm" href="{{ all_keys_url }}">{% translate "View all keys" %}</a>{% endif %}
         </div>
-        {% if keys %}
-            {% if filters.key %}{% translate "User ID" as first_column %}{% else %}{% translate "Key" as first_column %}{% endif %}
-            {% include "management/_key_table.html" with first_column=first_column %}
-        {% else %}
-            <p class="muted text-sm">{% translate "No requests in this time frame." %}</p>
-        {% endif %}
+        {% if filters.key %}{% translate "User ID" as first_column %}{% else %}{% translate "Key" as first_column %}{% endif %}
+        {% translate "No requests in this time frame." as empty %}
+        {% include "management/_key_table.html" with first_column=first_column empty=empty %}
     </div>
 </section>
 {% endif %}
 
 {% if orgs_usage %}
     <section class="card bg-base-200">
-        <div class="card-body gap-3 p-5">
+        <div class="card-body gap-3">
             <h2 class="card-title">{% translate "By organization" %}</h2>
             <div class="-mx-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto">
                 {% for org in orgs_usage %}
@@ -139,7 +134,7 @@
         <p class="muted text-sm">{% blocktranslate count days=heat_days %}All users and keys, last {{ days }} day.{% plural %}All users and keys, last {{ days }} days.{% endblocktranslate %}</p>
     </div>
     <div class="card bg-base-200">
-        <div class="card-body gap-4 p-5">
+        <div class="card-body gap-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex flex-wrap items-center gap-3">
                     <h3 class="font-semibold">{% translate "Usage by weekday and hour" %}</h3>
