@@ -27,7 +27,7 @@
                             <tr>
                                 <td>
                                     <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                                        <a class="min-w-0 font-mono font-semibold [overflow-wrap:anywhere] row-link"
+                                        <a class="min-w-0 max-w-full truncate font-mono font-semibold row-link" title="{{ card.name }}"
                                            href="{% querystring model=card.name %}#model-detail"{% if card == selected %} aria-current="true"{% endif %}>{{ card.name }}</a>
                                         {% if card.quantization %}<span class="badge badge-outline badge-sm max-w-full font-mono" title="{{ card.quantization }}"><span class="truncate">{{ card.quantization }}</span></span>{% endif %}
                                         {% if card.deprecation_date %}<span class="badge badge-outline badge-deprecated badge-sm flex-none font-mono uppercase">{% translate "Deprecated" %}</span>{% endif %}

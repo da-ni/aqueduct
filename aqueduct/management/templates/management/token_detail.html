@@ -78,10 +78,13 @@
             <a class="link-plain text-sm" href="{% url 'requests' %}{% querystring log_query %}">{% translate "All requests" %}</a>
         </div>
         <div class="overflow-x-auto">
-            <table class="table table-sm [&_:is(th,td):first-child]:ps-4 [&_:is(th,td):last-child]:pe-4">
+            <table class="table table-sm table-fixed min-w-[760px]">
+                <colgroup>
+                    <col class="w-40"><col><col class="w-20"><col class="w-20"><col class="w-28 de:w-32"><col class="w-20"><col class="w-24">
+                </colgroup>
                 <thead>
                     <tr>
-                        <th>{% translate "Time" %}</th><th>{% translate "Model" %}</th><th>{% translate "Path" %}</th><th>{% translate "Status" %}</th>
+                        <th>{% translate "Time" %}</th><th>{% translate "Model" %}</th><th>{% translate "Status" %}</th>
                         <th class="text-right">{% translate "Input" %}</th><th class="text-right">{% translate "From cache" %}</th>
                         <th class="text-right">{% translate "Output" %}</th><th class="text-right">{% translate "Response" %}</th>
                     </tr>
@@ -90,9 +93,11 @@
                     {% for row in latest %}
                         {% with request=row.request %}
                             <tr class="font-mono text-[13px]">
-                                <td><a class="muted row-link" href="{% url 'requests' %}{% querystring log_query request=request.id %}#request-{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Open request {{ id }} in the log{% endblocktranslate %}">{{ request.timestamp|when:"recent" }}</a></td>
-                                <td>{{ request.model|default:_("n/a") }}</td>
-                                <td class="muted">{{ request.path }}</td>
+                                <td class="whitespace-nowrap"><a class="muted row-link" href="{% url 'requests' %}{% querystring log_query request=request.id %}#request-{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Open request {{ id }} in the log{% endblocktranslate %}">{{ request.timestamp|when:"recent" }}</a></td>
+                                <td class="truncate">
+                                    <span title="{{ request.model|default:_("n/a") }}">{{ request.model|default:_("n/a") }}</span>
+                                    <div class="muted truncate text-xs" title="{{ request.path }}">{{ request.path }}</div>
+                                </td>
                                 <td>
                                     {% include "management/_request_status.html" %}
                                 </td>
@@ -103,7 +108,7 @@
                             </tr>
                         {% endwith %}
                     {% empty %}
-                        <tr><td colspan="8" class="muted">{% translate "No requests in the last 30 days." %}</td></tr>
+                        <tr><td colspan="7" class="muted">{% translate "No requests in the last 30 days." %}</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

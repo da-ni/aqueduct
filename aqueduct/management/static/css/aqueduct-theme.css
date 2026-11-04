@@ -147,9 +147,9 @@ a.row-link:focus-visible::after { outline: 3px solid var(--color-primary); outli
 .card-body { padding: 1.25rem var(--card-inset); }
 .card-body.table-card { padding: .75rem; }
 @media (width >= 48rem) {
-  .usage-table { min-width: 860px; --name: 26%; --input: 8%; --cached: 8%; --output: 8%; --requests: 10%; --share: 10%; }
-  :lang(de) .usage-table { --name: 24%; --bar: 24%; --input: 11%; --cached: 8%; --output: 11%; --requests: 11%; --share: 11%; }
-  .usage-table.by-model { --name: 22%; --bar: 26%; --input: 8%; --cached: 8%; --output: 8%; --requests: 10%; --median: 10%; --share: 8%; }
+  .table-sm :is(th, td):first-child { padding-inline-start: 1rem; }
+  .table-sm :is(th, td):last-child { padding-inline-end: 1rem; }
+}
 .card-head { padding: .5rem 1rem 0; }
 .card-foot { padding: .25rem 1rem .5rem; }
 
@@ -161,8 +161,6 @@ a.row-link:focus-visible::after { outline: 3px solid var(--color-primary); outli
 .usage-table .c-requests { width: var(--requests); } .usage-table .c-median { width: var(--median); } .usage-table .c-share { width: var(--share); }
 @media (width < 48rem) { .usage-table .c-bar { display: none; } }
 @media (width >= 48rem) { .usage-table { --min: 860px; } :lang(de) .usage-table { --min: 930px; } }
-  :lang(de) .usage-table.by-model { --name: 22%; --bar: 18%; --input: 11%; --cached: 7%; --output: 11%; --requests: 10%; --median: 13%; --share: 8%; }
-}
 .badge-deprecated { --badge-color: var(--aq-warn); }
 /* Shades the edge a wide table can still scroll towards; the base-200 covers scroll with the table and hide the shade at its ends. */
 .aq-scroll-x { overflow-x: auto; --shade: color-mix(in oklab, var(--color-base-content) 22%, transparent);

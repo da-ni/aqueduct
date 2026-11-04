@@ -3,10 +3,12 @@
 
 {% block heading %}{% translate "Batches" %}{% endblock %}
 
+{% block colgroup %}<col><col class="w-36"><col class="w-[20%]"><col class="w-[18%]"><col class="w-36 de:w-44"><col class="w-16">{% endblock %}
+
 {% block columns %}
     <th>{% translate "Batch" %}</th>
     <th>{% translate "Status" %}</th>
-    <th class="w-1/5">{% translate "Progress" %}</th>
+    <th>{% translate "Progress" %}</th>
     <th>{% translate "Files" %}</th>
     <th>{% translate "Created" %}</th>
     <th><span class="sr-only">{% translate "Actions" %}</span></th>
@@ -16,17 +18,17 @@
     {% for row in listing.rows %}
         <tr>
             <td>
-                <div class="flex items-center gap-1"><span class="font-mono font-semibold">{{ row.batch.id }}</span>{% blocktranslate with id=row.batch.id asvar copy_label %}Copy ID of batch {{ id }}{% endblocktranslate %}{% copy_button row.batch.id copy_label _("Copy batch ID") %}</div>
-                <div class="muted font-mono text-xs">{{ row.batch.endpoint }}{% if not row.mine %} · {{ row.owner }}{% endif %}</div>
+                <div class="flex items-center gap-1"><span class="truncate font-mono font-semibold" title="{{ row.batch.id }}">{{ row.batch.id }}</span>{% blocktranslate with id=row.batch.id asvar copy_label %}Copy ID of batch {{ id }}{% endblocktranslate %}{% copy_button row.batch.id copy_label _("Copy batch ID") extra_class="shrink-0" %}</div>
+                <div class="muted truncate font-mono text-xs" title="{{ row.batch.endpoint }}{% if not row.mine %} · {{ row.owner }}{% endif %}">{{ row.batch.endpoint }}{% if not row.mine %} · {{ row.owner }}{% endif %}</div>
             </td>
             <td>
                 {% include "management/_status.html" with status=row.status %}
-                {% if row.deadline %}<div class="muted mt-1 whitespace-nowrap font-mono text-xs">{% if row.deadline_today %}{% blocktranslate with time=row.deadline|time:"H:i" %}Finish by {{ time }}{% endblocktranslate %}{% else %}{% blocktranslate with time=row.deadline|when:"recent" %}Finish by {{ time }}{% endblocktranslate %}{% endif %}</div>{% endif %}
+                {% if row.deadline %}{% if row.deadline_today %}{% blocktranslate with time=row.deadline|time:"H:i" asvar deadline %}Finish by {{ time }}{% endblocktranslate %}{% else %}{% blocktranslate with time=row.deadline|when:"recent" asvar deadline %}Finish by {{ time }}{% endblocktranslate %}{% endif %}<div class="muted mt-1 truncate font-mono text-xs" title="{{ deadline|striptags }}">{{ deadline }}</div>{% endif %}
             </td>
             <td>{% include "management/_progress.html" with progress=row.progress %}</td>
             <td>
-                <a class="link-plain font-mono text-[13px]" href="{% url_with 'files' file=row.batch.input_file.id %}#{{ row.batch.input_file.id }}">{{ row.batch.input_file.filename }}</a>
-                <div class="muted text-xs">
+                <a class="link-plain block truncate font-mono text-[13px]" href="{% url_with 'files' file=row.batch.input_file.id %}#{{ row.batch.input_file.id }}" title="{{ row.batch.input_file.filename }}">{{ row.batch.input_file.filename }}</a>
+                <div class="muted truncate text-xs">
                     {% for label, file in row.results %}<a class="link-plain" href="{% url_with 'files' file=file.id %}#{{ file.id }}">{{ label }}</a>{% if not forloop.last %} · {% endif %}{% empty %}{{ row.note }}{% endfor %}
                 </div>
             </td>

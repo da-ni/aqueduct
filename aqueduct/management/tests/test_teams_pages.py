@@ -82,7 +82,7 @@ class TeamListTest(RoleWorld):
         self.assertIn(">2.5K<", row)
         self.assertIn("2 members · 2 service accounts · 2.5K tokens", row)
         self.assertContains(response, "Requests/min")
-        self.assertContains(response, "Service account tokens, 7 days")
+        self.assertContains(response, "Tokens, 7 days")
 
     def test_teams_come_fifty_a_page_and_keep_the_search(self):
         for n in range(55):
@@ -170,8 +170,10 @@ class TeamDetailTest(RoleWorld):
         owner_row = owner_row.rsplit("<td", 1)[1].split(">", 1)[1].rsplit("</td>", 1)[0]
         transfer = reverse("service_account_transfer", args=[self.pipeline.id])
         self.assertInHTML(
-            '<div class="muted text-sm">Owns <span class="font-mono">pipeline</span> '
-            '<span class="whitespace-nowrap">· '
+            '<div class="muted flex items-baseline gap-1 text-sm md:justify-end">'
+            '<span class="truncate" title="pipeline">'
+            'Owns <span class="font-mono">pipeline</span></span>'
+            '<span class="shrink-0 whitespace-nowrap">· '
             f'<a class="link-plain" href="{transfer}">Transfer</a></span>'
             "</div>",
             owner_row,

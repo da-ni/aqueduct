@@ -4,7 +4,8 @@
 <section class="card bg-base-200">
     <div class="card-body table-card">
         <div class="overflow-x-auto">
-            <table class="table">
+            <table class="table table-fixed min-w-[760px]">
+                <colgroup>{% block colgroup %}{% endblock %}</colgroup>
                 <thead><tr>{% block columns %}{% endblock %}</tr></thead>
                 <tbody>{% block rows %}{% endblock %}</tbody>
             </table>

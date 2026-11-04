@@ -70,15 +70,15 @@
                         <th>{% translate "Model" %}</th><th class="hidden md:table-cell">{% translate "Tokens" %}</th>
                         <th class="text-right">{% translate "Input" %}</th><th class="text-right">{% translate "Cached" %}</th><th class="text-right">{% translate "Output" %}</th>
                         <th class="text-right">{% translate "Requests" %}</th>
-                        <th class="whitespace-normal text-right">{% if approximate_tip %}<span class="tooltip tooltip-left" data-tip="{{ approximate_tip }}" tabindex="0">{% translate "Median time" %}<span class="sr-only">, {{ approximate_tip }}</span></span>{% else %}{% translate "Median time" %}{% endif %}</th><th class="text-right">{% translate "Share" %}</th>
+                        <th class="text-right">{% if approximate_tip %}<span class="tooltip tooltip-left" data-tip="{{ approximate_tip }}" tabindex="0">{% translate "Median time" %}<span class="sr-only">, {{ approximate_tip }}</span></span>{% else %}{% translate "Median time" %}{% endif %}</th><th class="text-right">{% translate "Share" %}</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in models %}
                         <tr>
                             <td>
-                                <a class="link-plain row-link break-all font-mono" href="{{ row.log_url }}" aria-label="{% blocktranslate with name=row.name %}{{ name }}, open its requests in the request log{% endblocktranslate %}">{{ row.name }}</a>
-                                <div class="muted text-xs">{{ row.kind }}</div>
+                                <a class="link-plain row-link block truncate font-mono" href="{{ row.log_url }}" title="{{ row.name }}" aria-label="{% blocktranslate with name=row.name %}{{ name }}, open its requests in the request log{% endblocktranslate %}">{{ row.name }}</a>
+                                <div class="muted truncate text-xs" title="{{ row.kind }}">{{ row.kind }}</div>
                             </td>
                             <td class="hidden md:table-cell">{% include "management/_token_bar.html" with activity=row.activity width=row.width %}</td>
                             <td class="text-right font-mono">{{ row.input }}</td>

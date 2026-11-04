@@ -20,24 +20,28 @@
 <section class="card bg-base-200">
     <div class="card-body table-card">
         <div class="md:overflow-x-auto">
-            <table class="table md:table-fixed md:min-w-[800px]">
+            <table class="table table-fixed md:min-w-[800px]">
+                <colgroup>
+                    <col><col class="hidden w-32 de:w-40 md:table-column"><col class="hidden w-[22%] md:table-column"><col class="hidden w-24 md:table-column"><col class="hidden w-28 de:w-36 md:table-column"><col class="w-16 md:w-36">
+                </colgroup>
                 <thead class="max-md:hidden">
                     <tr>
                         <th>{% translate "Key" %}</th>
-                        <th class="hidden w-32 de:w-40 md:table-cell">{% translate "Last used" %}</th>
-                        <th class="w-[22%]">{% translate "Tokens, 7 days" %}</th>
-                        <th class="hidden w-24 text-right md:table-cell">{% translate "Requests" %}</th>
-                        <th class="hidden w-28 de:w-36 md:table-cell">{% translate "Expires" %}</th>
-                        <th class="w-36"><span class="sr-only">{% translate "Actions" %}</span></th>
+                        <th>{% translate "Last used" %}</th>
+                        <th>{% translate "Tokens, 7 days" %}</th>
+                        <th class="text-right">{% translate "Requests" %}</th>
+                        <th>{% translate "Expires" %}</th>
+                        <th><span class="sr-only">{% translate "Actions" %}</span></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in keys.rows %}
                         <tr>
                             <td>
-                                <a class="link-plain font-mono [overflow-wrap:anywhere] row-link" href="{{ row.href }}">{{ row.token.name }}</a>
-                                <div class="muted text-xs">
-                                    {% if row.team %}{% translate "Service account" %} · <a class="link-plain relative z-10" href="{% url 'team' row.token.service_account.team_id %}">{{ row.team }}</a>{% else %}{% translate "Personal" %}{% endif %}
+                                <a class="link-plain row-link block truncate font-mono" href="{{ row.href }}" title="{{ row.token.name }}">{{ row.token.name }}</a>
+                                {% translate "Service account" as service_account_label %}{% translate "Personal" as personal_label %}
+                                <div class="muted truncate text-xs" title="{% if row.team %}{{ service_account_label }} · {{ row.team }}{% else %}{{ personal_label }}{% endif %} · {{ row.token.key_preview }}">
+                                    {% if row.team %}{{ service_account_label }} · <a class="link-plain relative z-10" href="{% url 'team' row.token.service_account.team_id %}">{{ row.team }}</a>{% else %}{{ personal_label }}{% endif %}
                                     · <span class="font-mono">{{ row.token.key_preview }}</span>
                                     <span class="md:hidden">· {% blocktranslate with tokens=row.activity.tokens_short count n=row.activity.tokens %}{{ tokens }} token{% plural %}{{ tokens }} tokens{% endblocktranslate %}</span>
                                 </div>

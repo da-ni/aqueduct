@@ -64,7 +64,7 @@
                     {% with sa=row.service_account %}{% translate "No owner" as no_owner %}{% translate "No key" as no_key %}{% translate "Never" as never %}
                     <tr class="max-lg:flex max-lg:flex-wrap max-lg:items-center">
                         <td class="min-w-0 max-lg:w-full">
-                            {% if row.token %}<a class="link-plain row-link break-words font-mono" href="{% url 'token_detail' row.token.id %}">{{ sa.name }}</a>{% else %}<span class="break-words font-mono">{{ sa.name }}</span>{% endif %}
+                            {% if row.token %}<a class="link-plain row-link block truncate font-mono" href="{% url 'token_detail' row.token.id %}" title="{{ sa.name }}">{{ sa.name }}</a>{% else %}<span class="block truncate font-mono" title="{{ sa.name }}">{{ sa.name }}</span>{% endif %}
                             <div class="muted truncate text-xs"><span class="relative z-10" title="{{ row.token.user.email }}">{{ row.token.user.email|default:no_owner }}</span> · <span class="font-mono">{{ row.token.key_preview|default:no_key }}</span></div>
                             <div class="muted text-xs lg:hidden">{% blocktranslate with tokens=row.activity.tokens_short count n=row.activity.tokens %}{{ tokens }} token{% plural %}{{ tokens }} tokens{% endblocktranslate %} · {% if row.activity.last_used %}{% blocktranslate with time=row.activity.last_used|when:"relative" %}used {{ time }}{% endblocktranslate %}{% else %}{% translate "never used" %}{% endif %}{% if row.expiry.at %} · {{ row.expiry|expiry:"sentence" }}{% endif %}</div>
                         </td>
@@ -142,7 +142,7 @@
                 <tr>
                     <th>{% translate "Member" %}</th>
                     <th class="w-56">{% translate "Role" %}</th>
-                    {% if is_team_admin %}<th class="w-64"><span class="sr-only">{% translate "Remove" %}</span></th>{% endif %}
+                    {% if is_team_admin %}<th class="w-64 de:w-80"><span class="sr-only">{% translate "Remove" %}</span></th>{% endif %}
                 </tr>
             </thead>
             <tbody class="max-md:block">
@@ -168,7 +168,7 @@
                         {% if is_team_admin %}
                             <td class="max-md:ml-auto max-md:py-1 md:text-right">
                                 {% for sa in member.owned %}
-                                    <div class="muted text-sm">{% blocktranslate with name=sa.name %}Owns <span class="font-mono">{{ name }}</span>{% endblocktranslate %} <span class="whitespace-nowrap">· <a class="link-plain" href="{% url 'service_account_transfer' sa.id %}">{% translate "Transfer" %}</a></span></div>
+                                    <div class="muted flex items-baseline gap-1 text-sm md:justify-end"><span class="truncate" title="{{ sa.name }}">{% blocktranslate with name=sa.name %}Owns <span class="font-mono">{{ name }}</span>{% endblocktranslate %}</span><span class="shrink-0 whitespace-nowrap">· <a class="link-plain" href="{% url 'service_account_transfer' sa.id %}">{% translate "Transfer" %}</a></span></div>
                                 {% empty %}
                                     {% blocktranslate with email=member.profile.user.email asvar remove_question %}Remove {{ email }}?{% endblocktranslate %}
                                     <form action="{% url 'team_members' team.id %}" method="post">

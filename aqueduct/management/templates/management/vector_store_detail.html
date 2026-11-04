@@ -36,18 +36,19 @@
         <div class="card-body table-card gap-2">
             <h2 class="card-title card-head">{% translate "Files" %}</h2>
             <div class="overflow-x-auto">
-                <table class="table">
+                <table class="table table-fixed min-w-[640px]">
+                    <colgroup><col><col class="w-36"><col class="w-28"><col class="w-36 de:w-44"></colgroup>
                     <thead><tr><th>{% translate "File" %}</th><th>{% translate "Status" %}</th><th class="text-right">{% translate "Size" %}</th><th>{% translate "Created" %}</th></tr></thead>
                     <tbody>
                         {% for file in detail.files %}
                             <tr>
                                 <td>
                                     {% if file.listed %}
-                                        <a class="link-plain row-link font-semibold" href="{% url_with 'files' file=file.entry.file_obj.id %}#{{ file.entry.file_obj.id }}">{{ file.entry.file_obj.filename }}</a>
+                                        <a class="link-plain row-link block truncate font-semibold" href="{% url_with 'files' file=file.entry.file_obj.id %}#{{ file.entry.file_obj.id }}" title="{{ file.entry.file_obj.filename }}">{{ file.entry.file_obj.filename }}</a>
                                     {% else %}
-                                        <span class="font-semibold">{{ file.entry.file_obj.filename }}</span>
+                                        <span class="block truncate font-semibold" title="{{ file.entry.file_obj.filename }}">{{ file.entry.file_obj.filename }}</span>
                                     {% endif %}
-                                    <div class="muted flex items-center gap-1 font-mono text-xs">{{ file.entry.id }}{% blocktranslate with name=file.entry.file_obj.filename asvar copy_label %}Copy ID of {{ name }}{% endblocktranslate %}{% copy_button file.entry.id copy_label _("Copy vector store file ID") extra_class="relative z-10" %}</div>
+                                    <div class="muted flex items-center gap-1 font-mono text-xs"><span class="truncate" title="{{ file.entry.id }}">{{ file.entry.id }}</span>{% blocktranslate with name=file.entry.file_obj.filename asvar copy_label %}Copy ID of {{ name }}{% endblocktranslate %}{% copy_button file.entry.id copy_label _("Copy vector store file ID") extra_class="relative z-10 shrink-0" %}</div>
                                 </td>
                                 <td>{% include "management/_status.html" with status=file.status %}</td>
                                 <td class="text-right font-mono">{{ file.entry.usage_bytes|filesizeformat }}</td>
@@ -68,12 +69,13 @@
             <div class="card-body table-card gap-2">
                 <h2 class="card-title card-head">{% translate "File batches" %}</h2>
                 <div class="overflow-x-auto">
-                    <table class="table">
-                        <thead><tr><th>{% translate "Batch" %}</th><th>{% translate "Status" %}</th><th class="w-1/3">{% translate "Progress" %}</th><th>{% translate "Created" %}</th></tr></thead>
+                    <table class="table table-fixed min-w-[640px]">
+                        <colgroup><col><col class="w-40"><col class="w-[34%]"><col class="w-36 de:w-44"></colgroup>
+                        <thead><tr><th>{% translate "Batch" %}</th><th>{% translate "Status" %}</th><th>{% translate "Progress" %}</th><th>{% translate "Created" %}</th></tr></thead>
                         <tbody>
                             {% for batch in detail.batches %}
                                 <tr>
-                                    <td><div class="flex items-center gap-1 font-mono font-semibold">{{ batch.batch.id }}{% blocktranslate with id=batch.batch.id asvar copy_label %}Copy ID of file batch {{ id }}{% endblocktranslate %}{% copy_button batch.batch.id copy_label _("Copy file batch ID") %}</div></td>
+                                    <td><div class="flex items-center gap-1 font-mono font-semibold"><span class="truncate" title="{{ batch.batch.id }}">{{ batch.batch.id }}</span>{% blocktranslate with id=batch.batch.id asvar copy_label %}Copy ID of file batch {{ id }}{% endblocktranslate %}{% copy_button batch.batch.id copy_label _("Copy file batch ID") extra_class="shrink-0" %}</div></td>
                                     <td>{% include "management/_status.html" with status=batch.status %}</td>
                                     <td>
                                         {% include "management/_progress.html" with progress=batch.progress %}
