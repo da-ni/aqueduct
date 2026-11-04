@@ -468,7 +468,8 @@ class RequestsSearchTest(RequestsPageTestBase):
         content = self.get(
             self.org_admin, model=CHAT, status="failed", sort="time", before="1,1", q="x"
         ).content.decode()
-        form = content.split('role="search" class="flex', 1)[1].split("</form>", 1)[0]
+        forms = [part.split("</form>", 1)[0] for part in content.split('role="search"')[1:]]
+        form = next(form for form in forms if 'name="q"' in form)
         for name, value in (("model", CHAT), ("status", "failed"), ("sort", "time")):
             self.assertIn(f'name="{name}" value="{value}"', form)
         self.assertNotIn('name="before"', form)

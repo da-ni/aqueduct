@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aqueduct\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 23:07+0000\n"
+"POT-Creation-Date: 2026-11-04 10:05+0000\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -937,9 +937,6 @@ msgstr "%(first)s–%(last)s von %(total)s"
 
 msgid "Pages"
 msgstr "Seiten"
-
-msgid "Search"
-msgstr "Suchen"
 
 msgid "Clear"
 msgstr "Zurücksetzen"

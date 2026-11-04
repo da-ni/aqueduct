@@ -25,6 +25,8 @@
                     <td class="text-right font-mono">{{ key.activity.requests|grouped }}</td>
                     <td class="muted text-right font-mono">{{ key.share }}</td>
                 </tr>
+            {% empty %}
+                <tr><td colspan="7" class="muted">{{ empty }}</td></tr>
             {% endfor %}
         </tbody>
     </table>

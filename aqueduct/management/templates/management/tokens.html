@@ -14,7 +14,7 @@
     {% if keys.has_service_accounts %}
         {% include "management/_segmented.html" with label=_("Key type") param="kind" tabs=kinds current=kind all_label=_("All") %}
     {% endif %}
-    {% include "management/_search.html" with name="q" value=query placeholder=_("Search keys") width="w-64" %}
+    {% include "management/_search.html" with name="q" value=query placeholder=_("Search keys") %}
 </div>
 
 <section class="card bg-base-200">

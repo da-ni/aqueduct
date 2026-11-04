@@ -172,7 +172,7 @@ class TeamDetailTest(RoleWorld):
         self.assertInHTML(
             '<div class="muted text-sm">Owns <span class="font-mono">pipeline</span> '
             '<span class="whitespace-nowrap">· '
-            f'<a class="link" href="{transfer}">Transfer</a></span>'
+            f'<a class="link-plain" href="{transfer}">Transfer</a></span>'
             "</div>",
             owner_row,
         )
@@ -200,14 +200,16 @@ class TeamDetailTest(RoleWorld):
         response = self.as_user(self.team_admin).get(self.url())
         self.assertContains(response, 'placeholder="name@example.org"')
         self.assertNotContains(
-            response, '<details class="group flex w-full flex-col items-end sm:w-auto" open>'
+            response,
+            '<details class="group ml-auto flex flex-col items-end open:max-sm:w-full" open>',
         )
         response = self.as_user(self.team_admin).post(
             reverse("team_members", args=[self.team.id]),
             {"action": "add", "email": "nobody@example.com"},
         )
         self.assertContains(
-            response, '<details class="group flex w-full flex-col items-end sm:w-auto" open>'
+            response,
+            '<details class="group ml-auto flex flex-col items-end open:max-sm:w-full" open>',
         )
 
     def test_service_account_row_and_totals_count_seven_days(self):

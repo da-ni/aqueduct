@@ -114,13 +114,11 @@
 
 <section class="card bg-base-200" aria-labelledby="members-title">
     <div class="card-body gap-2 p-5">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-            <div class="flex flex-wrap items-center gap-3">
-                <h2 id="members-title" class="card-title">{% translate "Members" %}</h2>
-                {% include "management/_search.html" with name="q" value=member_query placeholder=_("Search members") label=_("Search members by email") width="w-56" %}
-            </div>
+        <div class="flex flex-wrap items-start gap-3">
+            <h2 id="members-title" class="card-title min-h-8">{% translate "Members" %}</h2>
+            {% include "management/_search.html" with name="q" value=member_query placeholder=_("Search members") label=_("Search members by email") form_class="max-sm:order-last" %}
             {% if is_team_admin %}
-                <details class="group flex w-full flex-col items-end sm:w-auto"{% if add_form.errors %} open{% endif %}>
+                <details class="group ml-auto flex flex-col items-end open:max-sm:w-full"{% if add_form.errors %} open{% endif %}>
                     <summary class="btn btn-sm btn-primary group-open:[--btn-bg:transparent] group-open:[--btn-fg:var(--color-primary)] group-open:[--btn-border:var(--color-primary)] group-open:[--btn-shadow:none]">{% icon "plus" small=True extra_class="group-open:hidden" %}<span class="group-open:hidden">{% translate "Add member" %}</span><span class="hidden group-open:inline">{% translate "Cancel" %}</span></summary>
                     <form action="{% url 'team_members' team.id %}" method="post" class="mt-2 flex flex-col gap-1">
                         {% csrf_token %}
@@ -166,9 +164,9 @@
                             </div>
                         </td>
                         {% if is_team_admin %}
-                            <td class="max-md:py-1 md:text-right">
+                            <td class="max-md:ml-auto max-md:py-1 md:text-right">
                                 {% for sa in member.owned %}
-                                    <div class="muted text-sm">{% blocktranslate with name=sa.name %}Owns <span class="font-mono">{{ name }}</span>{% endblocktranslate %} <span class="whitespace-nowrap">· <a class="link" href="{% url 'service_account_transfer' sa.id %}">{% translate "Transfer" %}</a></span></div>
+                                    <div class="muted text-sm">{% blocktranslate with name=sa.name %}Owns <span class="font-mono">{{ name }}</span>{% endblocktranslate %} <span class="whitespace-nowrap">· <a class="link-plain" href="{% url 'service_account_transfer' sa.id %}">{% translate "Transfer" %}</a></span></div>
                                 {% empty %}
                                     {% blocktranslate with email=member.profile.user.email asvar remove_question %}Remove {{ email }}?{% endblocktranslate %}
                                     <form action="{% url 'team_members' team.id %}" method="post">

@@ -23,22 +23,15 @@
     </details>
     {% endif %}
     {% include "management/_filters.html" with without_key_menu=True %}
+    {% if filters.can_pick_scope %}{% translate "Key name or owner email" as search_hint %}{% else %}{% translate "Key name" as search_hint %}{% endif %}
+    {% include "management/_search.html" with name="q" value=q placeholder=search_hint label=_("Search keys") keep=filters.search_params %}
 </div>
 
 <section class="card bg-base-200">
-    <div class="card-body gap-3 p-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            {% if filters.can_pick_scope %}{% translate "Key name or owner email" as search_hint %}{% else %}{% translate "Key name" as search_hint %}{% endif %}
-            {% include "management/_search.html" with name="q" value=q placeholder=search_hint label=_("Search keys") keep=filters.search_params form_class="w-full sm:w-80" width="w-full" button=True %}
-        </div>
-        {% if keys %}
-            {% translate "Key" as first_column %}
-            {% include "management/_key_table.html" with first_column=first_column headers=headers %}
-        {% elif q %}
-            <p class="muted text-sm">{% blocktranslate %}No key that matches “{{ q }}” has requests in this time frame.{% endblocktranslate %}</p>
-        {% else %}
-            <p class="muted text-sm">{% translate "No requests in this time frame." %}</p>
-        {% endif %}
+    <div class="card-body p-3">
+        {% translate "Key" as first_column %}
+        {% if q %}{% blocktranslate asvar empty %}No key that matches “{{ q }}” has requests in this time frame.{% endblocktranslate %}{% else %}{% translate "No requests in this time frame." as empty %}{% endif %}
+        {% include "management/_key_table.html" with first_column=first_column headers=headers empty=empty %}
         {% include "management/_pager.html" %}
     </div>
 </section>

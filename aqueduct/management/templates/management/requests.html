@@ -5,6 +5,10 @@
 {% block body %}
 <div class="flex flex-wrap items-center gap-3">
     {% include "management/_filters.html" %}
+    {% if log.searches_text %}{% translate "Request ID, path, user ID or user agent" as search_hint %}{% translate "Search requests" as search_label %}{% else %}{% translate "Request ID" as search_hint %}{% endif %}
+    {% if log.search %}{% querystring q=None key_q=None before=None after=None page=None request=None as clear_url %}{% endif %}
+    {% include "management/_search.html" with name="q" value=log.search placeholder=search_hint label=search_label maxlength=256 keep=filters.search_params clear_url=clear_url %}
+    {% if log.text_blocked %}<p class="muted w-full text-sm">{% translate "Narrow to 7 days or pick a key or model to search text." %}</p>{% endif %}
 </div>
 
 <div class="flex flex-wrap items-center gap-3">
@@ -15,10 +19,6 @@
                {% if tab.value == status %}aria-current="page"{% endif %}>{{ tab.label }}{% if tab.codes %} <span class="font-mono text-[10px] font-normal opacity-60">{{ tab.codes }}</span>{% endif %} <span class="font-mono text-xs opacity-70">{{ tab.count|grouped }}</span></a>
         {% endfor %}
     </nav>
-    {% if log.searches_text %}{% translate "Request ID, path, user ID or user agent" as search_hint %}{% translate "Search requests" as search_label %}{% else %}{% translate "Request ID" as search_hint %}{% endif %}
-    {% if log.search %}{% querystring q=None key_q=None before=None after=None page=None request=None as clear_url %}{% endif %}
-    {% include "management/_search.html" with name="q" value=log.search placeholder=search_hint label=search_label maxlength=256 keep=filters.search_params form_class="flex items-center gap-2 max-sm:w-full sm:ms-auto" width="w-full sm:w-96" button=True clear_url=clear_url %}
-    {% if log.text_blocked %}<p class="w-full text-sm opacity-70 sm:text-right">{% translate "Narrow to 7 days or pick a key or model to search text." %}</p>{% endif %}
 </div>
 
 <section class="card bg-base-200">

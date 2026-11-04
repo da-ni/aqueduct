@@ -3,7 +3,7 @@
     {% include "management/_key_summary.html" %}
     <div class="dropdown-content z-10 mt-1 flex w-80 flex-col gap-1 rounded-box bg-base-100 p-2 shadow">
         {% if filters.can_pick_scope %}
-        {% include "management/_search.html" with name="key_q" value=filters.key_q placeholder=_("Key name or owner email") label=_("Search keys") keep=filters.search_params form_class="px-1 pt-1" width="w-full" button=True autofocus=filters.key_q %}
+        {% include "management/_search.html" with name="key_q" value=filters.key_q placeholder=_("Key name or owner email") label=_("Search keys") keep=filters.search_params form_class="px-1 pt-1" width="w-full" autofocus=filters.key_q %}
         {% endif %}
         <ul class="menu max-h-80 w-full flex-nowrap overflow-y-auto p-0">
             {% if filters.key_q %}

@@ -106,12 +106,9 @@
             <h2 class="card-title">{% if filters.key %}{% translate "By user ID" %}{% else %}{% translate "Top keys" %}{% endif %}</h2>
             {% if more_keys %}<a class="link-plain text-sm" href="{{ all_keys_url }}">{% translate "View all keys" %}</a>{% endif %}
         </div>
-        {% if keys %}
-            {% if filters.key %}{% translate "User ID" as first_column %}{% else %}{% translate "Key" as first_column %}{% endif %}
-            {% include "management/_key_table.html" with first_column=first_column %}
-        {% else %}
-            <p class="muted text-sm">{% translate "No requests in this time frame." %}</p>
-        {% endif %}
+        {% if filters.key %}{% translate "User ID" as first_column %}{% else %}{% translate "Key" as first_column %}{% endif %}
+        {% translate "No requests in this time frame." as empty %}
+        {% include "management/_key_table.html" with first_column=first_column empty=empty %}
     </div>
 </section>
 {% endif %}

@@ -99,6 +99,7 @@ body { overflow-x: clip; }
 /* daisyUI isolates a checked radio button, which lifts its border over the next button in a join. */
 .join > input.btn:checked { isolation: auto; }
 .card-title { --cardtitle-fs: 1.25rem; line-height: 1.75rem; }
+.input > input { text-overflow: ellipsis; }
 .label-mono { font: 500 12px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--color-primary); }
 .muted { color: var(--aq-muted); }
 :focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
