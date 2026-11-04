@@ -21,7 +21,7 @@
             </td>
             <td>
                 {% include "management/_status.html" with status=row.status %}
-                {% if row.deadline %}<div class="muted mt-1 whitespace-nowrap text-xs">{% if row.deadline_today %}{% blocktranslate with time=row.deadline|time:"H:i" %}Finish by {{ time }}{% endblocktranslate %}{% else %}{% blocktranslate with time=row.deadline|when:"recent" %}Finish by {{ time }}{% endblocktranslate %}{% endif %}</div>{% endif %}
+                {% if row.deadline %}<div class="muted mt-1 whitespace-nowrap font-mono text-xs">{% if row.deadline_today %}{% blocktranslate with time=row.deadline|time:"H:i" %}Finish by {{ time }}{% endblocktranslate %}{% else %}{% blocktranslate with time=row.deadline|when:"recent" %}Finish by {{ time }}{% endblocktranslate %}{% endif %}</div>{% endif %}
             </td>
             <td>{% include "management/_progress.html" with progress=row.progress %}</td>
             <td>

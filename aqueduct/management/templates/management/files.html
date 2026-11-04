@@ -22,7 +22,7 @@
             <td><span class="badge badge-sm whitespace-nowrap bg-base-100 font-mono">{{ row.purpose }}</span></td>
             <td class="text-right font-mono">{{ row.file.bytes|filesizeformat }}</td>
             <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.created|when|dash }}</td>
-            <td>{{ row.expiry|expiry }}</td>
+            <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.expiry|expiry }}</td>
             <td>
                 <div class="flex justify-end gap-1">
                     {% if row.file.preview %}

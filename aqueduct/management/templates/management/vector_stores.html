@@ -24,7 +24,7 @@
             <td>{% include "management/_status.html" with status=row.status %}</td>
             <td class="text-right font-mono">{{ row.files|grouped }}</td>
             <td class="text-right font-mono">{{ row.size|filesizeformat }}</td>
-            <td>{{ row.expiry|expiry }}</td>
+            <td class="muted whitespace-nowrap font-mono text-[13px]">{{ row.expiry|expiry }}</td>
             <td>
                 {% if row.syncable %}
                     <form class="relative z-10 flex justify-end" action="{% url 'vector_store_card_refresh' id=row.store.id %}" method="post">

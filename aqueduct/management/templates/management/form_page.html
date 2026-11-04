@@ -6,7 +6,7 @@
 <form method="post" class="card max-w-2xl bg-base-200">
     {% csrf_token %}
     {% block hidden_fields %}{% endblock %}
-    <div class="card-body gap-6 p-6">
+    <div class="card-body gap-6 p-5">
         {% include "management/_form_fields.html" %}
         {% block note %}{% endblock %}
         <div class="flex flex-wrap gap-3 border-t border-base-300 pt-5">

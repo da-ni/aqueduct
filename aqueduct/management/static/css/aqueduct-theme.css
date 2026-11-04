@@ -138,8 +138,8 @@ a.row-link:focus-visible::after { outline: 3px solid var(--color-primary); outli
 .file-row { scroll-margin-top: 6rem; }
 .file-row:target { background: var(--aq-hover); }
 
-.data-table th { font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--aq-muted); }
-:lang(de) .data-table th { white-space: normal; }
+.table th { font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--aq-muted); }
+:lang(de) .table th { white-space: normal; }
 
 /* Column widths of the usage tables (_usage_cols.html); German headings need wider number columns. */
 .usage-table { table-layout: fixed; min-width: var(--min); }
@@ -159,6 +159,12 @@ a.row-link:focus-visible::after { outline: 3px solid var(--color-primary); outli
   :lang(de) .usage-table.by-model { --name: 22%; --bar: 18%; --input: 11%; --cached: 7%; --output: 11%; --requests: 10%; --median: 13%; --share: 8%; }
 }
 .badge-deprecated { --badge-color: var(--aq-warn); }
+/* Shades the edge a wide table can still scroll towards; the base-200 covers scroll with the table and hide the shade at its ends. */
+.aq-scroll-x { overflow-x: auto; --shade: color-mix(in oklab, var(--color-base-content) 22%, transparent);
+  background: linear-gradient(to right, var(--color-base-200) 40%, transparent) left / 2rem 100% no-repeat local,
+    linear-gradient(to left, var(--color-base-200) 40%, transparent) right / 2rem 100% no-repeat local,
+    linear-gradient(to right, var(--shade), transparent) left / .75rem 100% no-repeat scroll,
+    linear-gradient(to left, var(--shade), transparent) right / .75rem 100% no-repeat scroll; }
 
 .copy-field { display: flex; align-items: center; gap: .25rem; min-width: 0; height: 2.5rem; padding: 0 .25rem 0 .75rem;
   border: 1px solid var(--color-base-300); border-radius: .5rem; background: var(--color-base-100);

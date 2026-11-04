@@ -20,40 +20,39 @@
 <section class="card bg-base-200">
     <div class="card-body p-3">
         <div class="md:overflow-x-auto">
-            <table class="table table-fixed data-table md:min-w-[800px]">
-                {% if keys.rows %}
-                <thead>
+            <table class="table md:table-fixed md:min-w-[800px]">
+                <thead class="max-md:hidden">
                     <tr>
                         <th>{% translate "Key" %}</th>
                         <th class="hidden w-32 md:table-cell">{% translate "Last used" %}</th>
-                        <th class="w-36 md:w-[22%]">{% translate "Tokens, 7 days" %}</th>
+                        <th class="w-[22%]">{% translate "Tokens, 7 days" %}</th>
                         <th class="hidden w-24 text-right md:table-cell">{% translate "Requests" %}</th>
                         <th class="hidden w-28 md:table-cell">{% translate "Expires" %}</th>
-                        <th class="w-12 md:w-36"><span class="sr-only">{% translate "Actions" %}</span></th>
+                        <th class="w-36"><span class="sr-only">{% translate "Actions" %}</span></th>
                     </tr>
                 </thead>
-                {% endif %}
                 <tbody>
                     {% for row in keys.rows %}
                         <tr>
                             <td>
-                                <a class="link-plain font-mono row-link" href="{{ row.href }}">{{ row.token.name }}</a>
+                                <a class="link-plain font-mono [overflow-wrap:anywhere] row-link" href="{{ row.href }}">{{ row.token.name }}</a>
                                 <div class="muted text-xs">
                                     {% if row.team %}{% translate "Service account" %} · <a class="link-plain relative z-10" href="{% url 'team' row.token.service_account.team_id %}">{{ row.team }}</a>{% else %}{% translate "Personal" %}{% endif %}
                                     · <span class="font-mono">{{ row.token.key_preview }}</span>
+                                    <span class="md:hidden">· {% blocktranslate with tokens=row.activity.tokens_short count n=row.activity.tokens %}{{ tokens }} token{% plural %}{{ tokens }} tokens{% endblocktranslate %}</span>
                                 </div>
                             </td>
-                            <td class="muted hidden md:table-cell">{{ row.activity.last_used|when:"relative"|default:"—" }}</td>
-                            <td>
+                            <td class="muted hidden font-mono text-[13px] md:table-cell">{{ row.activity.last_used|when:"relative"|default:"—" }}</td>
+                            <td class="hidden md:table-cell">
                                 <div class="flex items-center gap-3">
-                                    <div class="hidden min-w-0 flex-1 md:block">
+                                    <div class="min-w-0 flex-1">
                                         {% if row.activity.tokens %}{% include "management/_token_bar.html" with activity=row.activity width=row.bar_width %}{% endif %}
                                     </div>
-                                    <span class="w-full text-right font-mono md:w-14 de:md:w-22">{{ row.activity.tokens_short }}</span>
+                                    <span class="w-14 text-right font-mono de:w-22">{{ row.activity.tokens_short }}</span>
                                 </div>
                             </td>
                             <td class="hidden text-right font-mono md:table-cell">{{ row.activity.requests|grouped }}</td>
-                            <td class="hidden md:table-cell">{{ row.expiry|expiry }}</td>
+                            <td class="muted hidden font-mono text-[13px] md:table-cell">{{ row.expiry|expiry }}</td>
                             <td>
                                 {% if row.manageable %}
                                     <div class="relative z-10 hidden justify-end gap-1 md:flex">
@@ -69,12 +68,7 @@
                             </td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="6">
-                            {% if query or kind %}<span class="muted">{% translate "No key matches." %}</span>
-                            {% else %}
-                                <div class="flex flex-wrap items-center gap-3"><span class="muted">{% translate "No keys yet." %}</span>{% if can_add_token %}<a class="btn btn-primary btn-sm" href="{% url 'token_create' %}">{% icon "plus" small=True %}{% translate "Create" %}</a>{% endif %}</div>
-                            {% endif %}
-                        </td></tr>
+                        <tr><td colspan="6" class="muted">{% if query or kind %}{% translate "No key matches." %}{% else %}{% translate "No keys yet." %}{% endif %}</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

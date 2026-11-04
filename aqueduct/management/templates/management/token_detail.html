@@ -90,7 +90,7 @@
                     {% for row in latest %}
                         {% with request=row.request %}
                             <tr class="font-mono text-[13px]">
-                                <td><a class="muted row-link" href="{% url 'requests' %}{% querystring log_query request=request.id %}#request-{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Open request {{ id }} in the log{% endblocktranslate %}">{{ request.timestamp|when }}</a></td>
+                                <td><a class="muted row-link" href="{% url 'requests' %}{% querystring log_query request=request.id %}#request-{{ request.id }}" aria-label="{% blocktranslate with id=request.id %}Open request {{ id }} in the log{% endblocktranslate %}">{{ request.timestamp|when:"recent" }}</a></td>
                                 <td>{{ request.model|default:_("n/a") }}</td>
                                 <td class="muted">{{ request.path }}</td>
                                 <td>

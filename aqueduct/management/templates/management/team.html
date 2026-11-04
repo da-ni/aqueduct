@@ -30,7 +30,7 @@
 {% endblock %}
 {% block body %}
 <section class="flex flex-col gap-3" aria-labelledby="totals-title">
-    <h2 id="totals-title" class="text-xl font-semibold">{% translate "Service accounts, last 7 days" %}</h2>
+    <h2 id="totals-title" class="muted text-sm font-medium">{% translate "Service accounts, last 7 days" %}</h2>
     <div class="grid grid-cols-3 gap-2 sm:gap-4">
         {% for stat in page.stats %}
             <div class="card min-w-0 bg-base-200">
@@ -47,7 +47,7 @@
 <section class="card bg-base-200" aria-labelledby="service-accounts-title">
     <div class="card-body gap-2 p-5">
         <h2 id="service-accounts-title" class="card-title">{% translate "Service accounts" %}</h2>
-        <table class="table data-table lg:table-fixed max-lg:block">
+        <table class="table lg:table-fixed max-lg:block">
             <thead class="max-lg:hidden">
                 <tr>
                     <th>{% translate "Service account" %}</th>
@@ -79,8 +79,8 @@
                                 <span class="w-14 text-right font-mono de:w-22">{{ row.activity.tokens_short }}</span>
                             </div>
                         </td>
-                        <td class="muted max-lg:hidden">{{ row.activity.last_used|when:"relative"|default:never }}</td>
-                        <td class="max-lg:hidden">{% if row.expiry %}{{ row.expiry|expiry }}{% endif %}</td>
+                        <td class="muted font-mono text-[13px] max-lg:hidden">{{ row.activity.last_used|when:"relative"|default:never }}</td>
+                        <td class="muted font-mono text-[13px] max-lg:hidden">{% if row.expiry %}{{ row.expiry|expiry }}{% endif %}</td>
                         {% if is_team_admin %}
                             <td class="max-lg:pt-0">
                                 {% blocktranslate with name=sa.name asvar rotate_question %}Rotate the key of {{ name }}?{% endblocktranslate %}
@@ -135,7 +135,7 @@
                 </details>
             {% endif %}
         </div>
-        <table class="table data-table md:table-fixed max-md:block">
+        <table class="table md:table-fixed max-md:block">
             <thead class="max-md:hidden">
                 <tr>
                     <th>{% translate "Member" %}</th>

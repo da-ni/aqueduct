@@ -14,7 +14,7 @@
     <section class="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <div class="card min-w-0 bg-base-200 xl:col-span-3">
             <div class="card-body overflow-x-auto p-3">
-                <table class="table table-fixed data-table">
+                <table class="table table-fixed">
                     <thead>
                         <tr>
                             <th>{% translate "Model" %}</th>
@@ -63,7 +63,7 @@
     </section>
 {% else %}
     <div class="card bg-base-200">
-        <div class="card-body">
+        <div class="card-body p-5">
             <p class="muted">{% translate "No models are available to you." %}</p>
         </div>
     </div>
