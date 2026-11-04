@@ -141,6 +141,8 @@ a.row-link:focus-visible::after { outline: 3px solid var(--color-primary); outli
 
 .table th { font: 500 11px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--aq-muted); }
 :lang(de) .table th { white-space: normal; }
+/* Same inset as the table cell padding, so a title lines up with the first column. */
+.card-head { padding: .5rem 1rem 0; }
 
 /* Column widths of the usage tables (_usage_cols.html); German headings need wider number columns. */
 .usage-table { table-layout: fixed; min-width: var(--min); }

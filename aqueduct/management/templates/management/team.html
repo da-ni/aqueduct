@@ -45,8 +45,8 @@
 </section>
 
 <section class="card bg-base-200" aria-labelledby="service-accounts-title">
-    <div class="card-body gap-2 p-5">
-        <h2 id="service-accounts-title" class="card-title">{% translate "Service accounts" %}</h2>
+    <div class="card-body gap-2 p-3">
+        <h2 id="service-accounts-title" class="card-title card-head">{% translate "Service accounts" %}</h2>
         <table class="table lg:table-fixed max-lg:block">
             <thead class="max-lg:hidden">
                 <tr>
@@ -113,8 +113,8 @@
 </section>
 
 <section class="card bg-base-200" aria-labelledby="members-title">
-    <div class="card-body gap-2 p-5">
-        <div class="flex flex-wrap items-start gap-3">
+    <div class="card-body gap-2 p-3">
+        <div class="card-head flex flex-wrap items-start gap-3">
             <h2 id="members-title" class="card-title min-h-8">{% translate "Members" %}</h2>
             {% include "management/_search.html" with name="q" value=member_query placeholder=_("Search members") label=_("Search members by email") form_class="max-sm:order-last" %}
             {% if is_team_admin %}

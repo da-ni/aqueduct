@@ -72,13 +72,13 @@
 </section>
 
 <section class="card bg-base-200">
-    <div class="card-body gap-3 p-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="card-body gap-2 p-3">
+        <div class="card-head flex flex-wrap items-center justify-between gap-3">
             <h2 class="card-title">{% translate "Latest requests" %}</h2>
             <a class="link-plain text-sm" href="{% url 'requests' %}{% querystring log_query %}">{% translate "All requests" %}</a>
         </div>
         <div class="overflow-x-auto">
-            <table class="table table-sm">
+            <table class="table table-sm [&_:is(th,td):first-child]:ps-4 [&_:is(th,td):last-child]:pe-4">
                 <thead>
                     <tr>
                         <th>{% translate "Time" %}</th><th>{% translate "Model" %}</th><th>{% translate "Path" %}</th><th>{% translate "Status" %}</th>

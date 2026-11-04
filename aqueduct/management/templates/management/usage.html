@@ -55,8 +55,8 @@
 </section>
 
 <section class="card bg-base-200">
-    <div class="card-body gap-3 p-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="card-body gap-2 p-3">
+        <div class="card-head flex flex-wrap items-center justify-between gap-3">
             <h2 class="card-title">{% translate "By model" %}</h2>
             <div class="hidden items-center gap-4 text-sm md:flex">
                 {% include "management/_token_legend.html" %}
@@ -99,8 +99,8 @@
 
 {% if filters.key or not filters.only_key %}
 <section class="card bg-base-200">
-    <div class="card-body gap-3 p-5">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
+    <div class="card-body gap-2 p-3">
+        <div class="card-head flex flex-wrap items-baseline justify-between gap-2">
             <h2 class="card-title">{% if filters.key %}{% translate "By user ID" %}{% else %}{% translate "Top keys" %}{% endif %}</h2>
             {% if more_keys %}<a class="link-plain text-sm" href="{{ all_keys_url }}">{% translate "View all keys" %}</a>{% endif %}
         </div>
