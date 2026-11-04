@@ -7,7 +7,7 @@
 {% block subheading %}<span class="muted font-mono text-sm">{{ code }}</span>{% endblock %}
 {% block body %}
 <section class="card max-w-2xl bg-base-200">
-    <div class="card-body items-start gap-4 p-5">
+    <div class="card-body items-start gap-4">
         <p>{{ message }}</p>
         <a class="btn btn-primary" href="{% url 'usage' %}">{% translate "Go to Overview" %}</a>
     </div>

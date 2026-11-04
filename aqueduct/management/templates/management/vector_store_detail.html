@@ -33,7 +33,7 @@
     </section>
 
     <section class="card bg-base-200">
-        <div class="card-body gap-2 p-3">
+        <div class="card-body table-card gap-2">
             <h2 class="card-title card-head">{% translate "Files" %}</h2>
             <div class="overflow-x-auto">
                 <table class="table">
@@ -65,7 +65,7 @@
 
     {% if detail.batches %}
         <section class="card bg-base-200">
-            <div class="card-body gap-2 p-3">
+            <div class="card-body table-card gap-2">
                 <h2 class="card-title card-head">{% translate "File batches" %}</h2>
                 <div class="overflow-x-auto">
                     <table class="table">
@@ -90,7 +90,7 @@
     {% endif %}
 {% else %}
     <section class="card bg-base-200">
-        <div class="card-body items-start gap-4 p-5">
+        <div class="card-body items-start gap-4">
             <p>{% translate "It doesn't exist or you don't have access." %}</p>
             <a class="btn btn-outline btn-primary" href="{% url 'vector_stores' %}">{% translate "Back to vector stores" %}</a>
         </div>

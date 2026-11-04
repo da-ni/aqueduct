@@ -13,7 +13,7 @@
 {% if selected %}
     <section class="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <div class="card min-w-0 bg-base-200 xl:col-span-3">
-            <div class="card-body overflow-x-auto p-3">
+            <div class="card-body table-card overflow-x-auto">
                 <table class="table table-fixed">
                     <thead>
                         <tr>
@@ -56,14 +56,14 @@
         </div>
 
         <aside class="card min-w-0 self-start bg-base-200 xl:sticky xl:top-4 xl:col-span-2{% if selected in cards %} max-xl:hidden{% endif %}" aria-labelledby="model-detail-name-panel">
-            <div class="card-body gap-5 p-5">
+            <div class="card-body gap-5">
                 {% include "management/_model_detail.html" with place="panel" %}
             </div>
         </aside>
     </section>
 {% else %}
     <div class="card bg-base-200">
-        <div class="card-body p-5">
+        <div class="card-body">
             <p class="muted">{% translate "No models are available to you." %}</p>
         </div>
     </div>

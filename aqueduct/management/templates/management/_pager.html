@@ -1,6 +1,6 @@
 {% load i18n ui %}
 {% if summary or pages.has_other_pages %}
-    <div class="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-1">
+    <div class="card-foot flex flex-wrap items-center justify-between gap-3">
         <span class="muted font-mono text-xs">{{ summary }}{% if summary and pages.has_other_pages %} · {% endif %}{% if pages.has_other_pages %}{% blocktranslate with first=pages.start_index|grouped last=pages.end_index|grouped total=pages.paginator.count|grouped %}{{ first }}–{{ last }} of {{ total }}{% endblocktranslate %}{% endif %}</span>
         {% if pages.has_other_pages %}
             <nav class="join" aria-label="{% translate 'Pages' %}">

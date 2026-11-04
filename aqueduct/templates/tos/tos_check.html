@@ -7,7 +7,7 @@
 
 {% block content %}
 <section class="card mx-auto max-w-3xl bg-base-200" aria-labelledby="tos-title">
-    <div class="card-body gap-6 p-5">
+    <div class="card-body gap-6">
         <header class="flex flex-col gap-2">
             <h1 id="tos-title" class="text-3xl font-semibold">{% translate "Accept the terms to continue" %}</h1>
             <p class="muted text-sm">{% blocktranslate with date=tos.created|when:"date" %}Version of {{ date }}{% endblocktranslate %}</p>

@@ -30,7 +30,7 @@
     {% include "management/_metric_chart.html" with tokens_title=period.step.tokens_title requests_title=period.step.requests_title chart_class="flex h-72 gap-px sm:gap-1" empty=no_requests %}
 
     <div class="card bg-base-200">
-        <div class="card-body gap-4 p-5">
+        <div class="card-body gap-4">
             <div class="flex items-center justify-between gap-3">
                 <h2 class="card-title">{% translate "Requests" %}</h2>
                 <a class="link-plain text-sm" href="{{ filters.log_url }}">{% translate "Open the log" %}</a>
@@ -55,7 +55,7 @@
 </section>
 
 <section class="card bg-base-200">
-    <div class="card-body gap-2 p-3">
+    <div class="card-body table-card gap-2">
         <div class="card-head flex flex-wrap items-center justify-between gap-3">
             <h2 class="card-title">{% translate "By model" %}</h2>
             <div class="hidden items-center gap-4 text-sm md:flex">
@@ -99,7 +99,7 @@
 
 {% if filters.key or not filters.only_key %}
 <section class="card bg-base-200">
-    <div class="card-body gap-2 p-3">
+    <div class="card-body table-card gap-2">
         <div class="card-head flex flex-wrap items-baseline justify-between gap-2">
             <h2 class="card-title">{% if filters.key %}{% translate "By user ID" %}{% else %}{% translate "Top keys" %}{% endif %}</h2>
             {% if more_keys %}<a class="link-plain text-sm" href="{{ all_keys_url }}">{% translate "View all keys" %}</a>{% endif %}
@@ -113,7 +113,7 @@
 
 {% if orgs_usage %}
     <section class="card bg-base-200">
-        <div class="card-body gap-3 p-5">
+        <div class="card-body gap-3">
             <h2 class="card-title">{% translate "By organization" %}</h2>
             <div class="-mx-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto">
                 {% for org in orgs_usage %}
@@ -134,7 +134,7 @@
         <p class="muted text-sm">{% blocktranslate count days=heat_days %}All users and keys, last {{ days }} day.{% plural %}All users and keys, last {{ days }} days.{% endblocktranslate %}</p>
     </div>
     <div class="card bg-base-200">
-        <div class="card-body gap-4 p-5">
+        <div class="card-body gap-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex flex-wrap items-center gap-3">
                     <h3 class="font-semibold">{% translate "Usage by weekday and hour" %}</h3>

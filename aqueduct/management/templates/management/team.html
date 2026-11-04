@@ -24,7 +24,7 @@
     <div class="grid grid-cols-3 gap-2 sm:gap-4">
         {% for stat in page.stats %}
             <div class="card min-w-0 bg-base-200">
-                <div class="card-body gap-1 p-3 sm:p-4">
+                <div class="card-body gap-1">
                     <span class="muted text-sm hyphens-auto de:max-sm:text-xs">{{ stat.label }}</span>
                     <span class="text-xl font-semibold sm:text-2xl">{{ stat.value }}</span>
                     {% include "management/_spark.html" with bars=stat.spark %}
@@ -115,7 +115,7 @@
 </section>
 
 <section class="card bg-base-200" aria-labelledby="members-title">
-    <div class="card-body gap-2 p-3">
+    <div class="card-body table-card gap-2">
         <div class="card-head flex flex-wrap items-start gap-3">
             <h2 id="members-title" class="card-title min-h-8">{% translate "Members" %}</h2>
             {% include "management/_search.html" with name="q" value=member_query placeholder=_("Search members") label=_("Search members by email") form_class="max-sm:order-last" %}
@@ -193,7 +193,7 @@
 
 {% if shows_limits %}
     <section class="card bg-base-200" aria-labelledby="limits-title">
-        <div class="card-body gap-3 p-5">
+        <div class="card-body gap-3">
             <div class="flex items-center justify-between gap-3">
                 <h2 id="limits-title" class="card-title">{% translate "Limits" %}</h2>
                 {% if is_org_admin %}<a class="link-plain text-sm" href="{% url 'team_edit' team.id %}" aria-label="{% translate "Edit limits" %}">{% translate "Edit" %}</a>{% endif %}

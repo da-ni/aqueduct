@@ -7,7 +7,7 @@
 {% block body %}
 {% for notice in notices %}
     <section class="card max-w-3xl bg-base-200"{% if notice.org %} aria-labelledby="addendum-{{ notice.org.id }}"{% endif %}>
-        <div class="card-body gap-3 p-5">
+        <div class="card-body gap-3">
             {% if notice.org %}
                 <h2 id="addendum-{{ notice.org.id }}" class="card-title">{% blocktranslate with name=notice.org.name %}For members of {{ name }}{% endblocktranslate %}</h2>
             {% endif %}
@@ -17,7 +17,7 @@
     </section>
 {% empty %}
     <section class="card max-w-3xl bg-base-200">
-        <div class="card-body gap-3 p-5">
+        <div class="card-body gap-3">
             <p class="muted">{% translate "No data protection information has been published yet." %}</p>
             {% if can_publish %}
                 {% url "admin:management_privacynotice_add" as add_url %}

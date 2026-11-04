@@ -8,7 +8,7 @@
 {% block body %}
 <form method="post" class="card max-w-2xl bg-base-200">
     {% csrf_token %}
-    <div class="card-body gap-6 p-5">
+    <div class="card-body gap-6">
         {% if confirmation.detail %}<p>{{ confirmation.detail }}</p>{% endif %}
         <div class="flex flex-wrap gap-3 border-t border-base-300 pt-5">
             <button type="submit" class="btn btn-error">{{ confirmation.action }}</button>
