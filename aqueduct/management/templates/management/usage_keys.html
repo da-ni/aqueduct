@@ -7,6 +7,8 @@
 {% block subheading %}<span class="muted text-sm">{% blocktranslate with shown=count|grouped count n=count %}{{ shown }} key{% plural %}{{ shown }} keys{% endblocktranslate %}</span>{% endblock %}
 {% block body %}
 <div class="flex flex-wrap items-center gap-3">
+    {% if filters.can_pick_scope %}{% translate "Key name or owner email" as search_hint %}{% else %}{% translate "Key name" as search_hint %}{% endif %}
+    {% include "management/_search.html" with name="q" value=q placeholder=search_hint label=_("Search keys") keep=filters.search_params %}
     {% if not filters.only_key and filters.can_pick_scope and filters.keys %}
     <details class="dropdown">
         {% include "management/_key_summary.html" %}
@@ -19,12 +21,10 @@
     </details>
     {% endif %}
     {% include "management/_filters.html" with without_key_menu=True %}
-    {% if filters.can_pick_scope %}{% translate "Key name or owner email" as search_hint %}{% else %}{% translate "Key name" as search_hint %}{% endif %}
-    {% include "management/_search.html" with name="q" value=q placeholder=search_hint label=_("Search keys") keep=filters.search_params %}
 </div>
 
 <section class="card bg-base-200">
-    <div class="card-body p-3">
+    <div class="card-body table-card">
         {% translate "Key" as first_column %}
         {% if q %}{% blocktranslate asvar empty %}No key that matches “{{ q }}” has requests in this time frame.{% endblocktranslate %}{% else %}{% translate "No requests in this time frame." as empty %}{% endif %}
         {% include "management/_key_table.html" with first_column=first_column headers=headers empty=empty %}

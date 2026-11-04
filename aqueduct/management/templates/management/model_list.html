@@ -4,10 +4,10 @@
 {% block heading %}{% translate "Models" %}{% endblock %}
 {% block body %}
 <div class="flex flex-wrap items-center gap-3">
+    {% include "management/_search.html" with name="q" value=query placeholder=_("Search models and aliases") reset="model" %}
     {% if catalog.categories|length > 1 %}
         {% include "management/_segmented.html" with label=_("Model type") param="type" tabs=catalog.categories current=category all_label=_("All") reset="model" %}
     {% endif %}
-    {% include "management/_search.html" with name="q" value=query placeholder=_("Search models and aliases") reset="model" %}
 </div>
 
 {% if selected %}
