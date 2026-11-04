@@ -143,6 +143,7 @@ class TeamDeleteView(BaseTeamView, DeleteView):
         return super().get_context_data(
             confirmation=deletion(self.team),
             cancel_url=reverse("team", kwargs={"id": self.team.id}),
+            back=self.team.name,
             **kwargs,
         )
 

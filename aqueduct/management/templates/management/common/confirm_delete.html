@@ -3,15 +3,16 @@
 
 {% block title %}{{ confirmation.title }} · {{ block.super }}{% endblock %}
 
-{% block content %}
-<form method="post" class="card max-w-md bg-base-200">
+{% block breadcrumbs %}<li><a href="{{ cancel_url }}">{{ back }}</a></li><li>{% translate "Delete" %}</li>{% endblock %}
+{% block heading %}{{ confirmation.title }}{% endblock %}
+{% block body %}
+<form method="post" class="card max-w-2xl bg-base-200">
     {% csrf_token %}
-    <div class="card-body gap-3 p-6">
-        <h1 class="break-words text-xl font-semibold">{{ confirmation.title }}</h1>
+    <div class="card-body gap-6 p-5">
         {% if confirmation.detail %}<p>{{ confirmation.detail }}</p>{% endif %}
-        <div class="mt-2 flex flex-wrap justify-end gap-2">
+        <div class="flex flex-wrap gap-3 border-t border-base-300 pt-5">
             <button type="submit" class="btn btn-error">{{ confirmation.action }}</button>
-            <a class="btn btn-outline btn-primary" href="{{ cancel_url }}">{% translate "Cancel" %}</a>
+            <a class="btn btn-ghost" href="{{ cancel_url }}">{% translate "Cancel" %}</a>
         </div>
     </div>
 </form>

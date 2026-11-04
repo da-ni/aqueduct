@@ -76,7 +76,10 @@ class ServiceAccountDeleteView(BaseServiceAccountView, DeleteView):
 
     def get_context_data(self, **kwargs) -> dict[str, object]:
         return super().get_context_data(
-            confirmation=deletion(self.object), cancel_url=self.get_success_url(), **kwargs
+            confirmation=deletion(self.object),
+            cancel_url=self.get_success_url(),
+            back=self.team.name,
+            **kwargs,
         )
 
     def form_valid(self, form) -> HttpResponse:

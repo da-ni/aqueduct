@@ -2101,8 +2101,8 @@ msgstr "Fassung vom %(date)s"
 msgid "Accept the terms to continue"
 msgstr "Akzeptieren Sie die Nutzungsbedingungen, um fortzufahren"
 
-msgid "Decline and sign out"
-msgstr "Ablehnen und abmelden"
-
 msgid "Accept"
 msgstr "Akzeptieren"
+
+msgid "Decline and sign out"
+msgstr "Ablehnen und abmelden"

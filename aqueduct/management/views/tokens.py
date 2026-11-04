@@ -241,6 +241,7 @@ class TokenDeleteView(BaseAqueductView, DeleteView):
         return super().get_context_data(
             confirmation=deletion(self.object),
             cancel_url=reverse("token_detail", kwargs={"id": self.object.id}),
+            back=self.object.name,
             **kwargs,
         )
 
