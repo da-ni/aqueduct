@@ -85,7 +85,7 @@ body { overflow-x: clip; }
 .drawer { width: 100vw; }
 :root { scrollbar-color: color-mix(in oklab, var(--color-base-content) 35%, var(--color-base-200)) var(--color-base-200); }
 
-.aq-sidebar { scrollbar-width: thin; scrollbar-gutter: stable; }
+.aq-sidebar { scrollbar-width: thin; }
 
 .skip-link { position: fixed; top: 1rem; left: 1rem; z-index: 50; translate: 0 calc(-100% - 2rem); }
 .skip-link:focus { translate: 0; }
@@ -121,9 +121,9 @@ a.link-plain:hover { text-decoration: underline; }
 
 html[data-theme="light"] .only-dark, html[data-theme="dark"] .only-light { display: none !important; }
 
-.menu { --menu-active-bg: var(--color-base-100); --menu-active-fg: var(--color-primary); }
+.menu { --menu-active-bg: color-mix(in oklab, var(--color-primary) 12%, transparent); --menu-active-fg: var(--color-primary); }
 .menu :where(li) > a.menu-active { font-weight: 600; }
-.menu :where(li) > a { min-height: 2.75rem; align-items: center; font-weight: 500; }
+.menu :where(li) > a { min-height: 2.75rem; align-content: center; align-items: center; font-weight: 500; }
 
 .table > tbody > tr:is(:has(.row-link), [data-row-toggle]):hover,
 .table > tbody > tr:has(:focus-visible),
