@@ -1313,10 +1313,11 @@ msgstr "Es wurden noch keine Datenschutzinformationen veröffentlicht."
 
 #, python-format
 msgid ""
-"Only platform admins see this hint. <a class=\"link\" href=\"%(url)s\">Add "
-"it in the admin panel</a> to publish data protection information."
+"Only platform admins see this hint. <a class=\"link-plain\" "
+"href=\"%(url)s\">Add it in the admin panel</a> to publish data protection "
+"information."
 msgstr ""
-"Nur Plattform-Admins sehen diesen Hinweis. <a class=\"link\" "
+"Nur Plattform-Admins sehen diesen Hinweis. <a class=\"link-plain\" "
 "href=\"%(url)s\">Im Admin-Bereich</a> können Sie eine Datenschutzinformation "
 "veröffentlichen."
 
