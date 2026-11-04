@@ -3,7 +3,7 @@
 
 {% block title %}{{ confirmation.title }} · {{ block.super }}{% endblock %}
 
-{% block breadcrumbs %}<li><a href="{{ cancel_url }}">{{ back }}</a></li><li>{% translate "Delete" %}</li>{% endblock %}
+{% block breadcrumbs %}{% for crumb in trail %}<li{% if crumb.mono and not crumb.url %} class="font-mono max-sm:hidden"{% endif %}>{% if crumb.url %}<a{% if crumb.mono %} class="font-mono"{% endif %} href="{{ crumb.url }}">{{ crumb.label }}</a>{% else %}{{ crumb.label }}{% endif %}</li>{% endfor %}<li>{% translate "Delete" %}</li>{% endblock %}
 {% block heading %}{{ confirmation.title }}{% endblock %}
 {% block body %}
 <form method="post" class="card max-w-2xl bg-base-200">
