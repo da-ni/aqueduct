@@ -12,8 +12,9 @@ from silk.config import SilkyConfig
 
 from management.access import WholeOrg
 from management.icons import Icon
-from management.models import Org
+from management.models import Org, UserGroup
 from management.org_choice import viewer_of
+from management.team_overview import Role
 
 Access = Callable[[HttpRequest], bool]
 
@@ -221,4 +222,8 @@ def _viewer(request: HttpRequest) -> Viewer | None:
     if not user.is_authenticated:
         return None
     viewer = viewer_of(request)
-    return Viewer(email=user.email, role=str(viewer.rank.label) if viewer is not None else None)
+    if viewer is None:
+        return Viewer(email=user.email, role=None)
+    if viewer.rank is UserGroup.USER and viewer.admin_of:
+        return Viewer(email=user.email, role=Role.TEAM_ADMIN.label)
+    return Viewer(email=user.email, role=str(viewer.rank.label))

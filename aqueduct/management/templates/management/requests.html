@@ -4,7 +4,11 @@
 {% block heading %}{% translate "Requests" %}{% endblock %}
 {% block body %}
 <div class="flex flex-wrap items-center gap-3">
+    {% if log.searches_text %}{% translate "ID, path, user or agent" as search_hint %}{% translate "Search requests" as search_label %}{% else %}{% translate "Request ID" as search_hint %}{% endif %}
+    {% if log.search %}{% querystring q=None key_q=None before=None after=None page=None request=None as clear_url %}{% endif %}
+    {% include "management/_search.html" with name="q" value=log.search placeholder=search_hint label=search_label maxlength=256 keep=filters.search_params clear_url=clear_url %}
     {% include "management/_filters.html" %}
+    {% if log.text_blocked %}<p class="muted w-full text-sm">{% translate "Narrow to 7 days or pick a key or model to search text." %}</p>{% endif %}
 </div>
 
 <div class="flex flex-wrap items-center gap-3">
@@ -15,18 +19,14 @@
                {% if tab.value == status %}aria-current="page"{% endif %}>{{ tab.label }}{% if tab.codes %} <span class="font-mono text-[10px] font-normal opacity-60">{{ tab.codes }}</span>{% endif %} <span class="font-mono text-xs opacity-70">{{ tab.count|grouped }}</span></a>
         {% endfor %}
     </nav>
-    {% if log.searches_text %}{% translate "Request ID, path, user ID or user agent" as search_hint %}{% translate "Search requests" as search_label %}{% else %}{% translate "Request ID" as search_hint %}{% endif %}
-    {% if log.search %}{% querystring q=None key_q=None before=None after=None page=None request=None as clear_url %}{% endif %}
-    {% include "management/_search.html" with name="q" value=log.search placeholder=search_hint label=search_label maxlength=256 keep=filters.search_params form_class="flex items-center gap-2 max-sm:w-full sm:ms-auto" width="w-full sm:w-96" button=True clear_url=clear_url %}
-    {% if log.text_blocked %}<p class="w-full text-sm opacity-70 sm:text-right">{% translate "Narrow to 7 days or pick a key or model to search text." %}</p>{% endif %}
 </div>
 
 <section class="card bg-base-200">
-    <div class="card-body p-3">
-        <div class="md:overflow-x-auto">
-            <table class="table table-sm data-table md:table-fixed md:min-w-[1020px] max-md:block">
+    <div class="card-body table-card">
+        <div class="aq-scroll-x">
+            <table class="table table-sm md:table-fixed md:min-w-[908px] min-[1366px]:min-w-[1020px] max-md:block">
                 <colgroup>
-                    <col class="w-12"><col class="w-40">{% if log.shows_key %}<col class="w-[20%]">{% endif %}<col><col class="w-20"><col class="w-20"><col class="w-28"><col class="w-20"><col class="w-24">
+                    <col class="w-12"><col class="w-40">{% if log.shows_key %}<col class="w-[20%]">{% endif %}<col><col class="w-20"><col class="w-20"><col class="w-0 min-[1366px]:w-28 de:min-[1366px]:w-32"><col class="w-20"><col class="w-24">
                 </colgroup>
                 <thead class="max-md:hidden">
                     <tr>
@@ -35,12 +35,12 @@
                         {% if log.shows_key %}<th rowspan="2">{% translate "Key" %}</th>{% endif %}
                         <th rowspan="2"{% if log.headers.model.aria_sort %} aria-sort="{{ log.headers.model.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.model label=_("Model") %}</th>
                         <th rowspan="2"{% if log.headers.status.aria_sort %} aria-sort="{{ log.headers.status.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.status label=_("Status") %}</th>
-                        <th colspan="3" class="text-center"{% if log.headers.tokens.aria_sort %} aria-sort="{{ log.headers.tokens.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.tokens label=_("Tokens") %}<span class="muted font-normal"> {% translate "(input + output)" %}</span></th>
+                        <th colspan="3" class="text-center"{% if log.headers.tokens.aria_sort %} aria-sort="{{ log.headers.tokens.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.tokens label=_("Tokens") %}<span class="muted hidden font-normal min-[1366px]:inline"> {% translate "(input + output)" %}</span></th>
                         <th rowspan="2" class="text-right"{% if log.headers.response.aria_sort %} aria-sort="{{ log.headers.response.aria_sort }}"{% endif %}>{% include "management/_sort_heading.html" with header=log.headers.response label=_("Response") %}</th>
                     </tr>
                     <tr>
                         <th class="text-right">{% translate "Input" %}</th>
-                        <th class="text-right">{% translate "From cache" %}</th>
+                        <th class="overflow-hidden text-right max-[1365px]:p-0">{% translate "From cache" %}</th>
                         <th class="text-right">{% translate "Output" %}</th>
                     </tr>
                 </thead>
@@ -74,7 +74,7 @@
                                     {% include "management/_request_status.html" %}
                                 </td>
                                 <td class="text-right max-md:hidden">{{ request.input_tokens|grouped }}</td>
-                                <td class="text-right max-md:hidden">{{ request.cached_input_tokens|grouped }}</td>
+                                <td class="overflow-hidden text-right max-md:hidden max-[1365px]:p-0">{{ request.cached_input_tokens|grouped }}</td>
                                 <td class="text-right max-md:hidden">{{ request.output_tokens|grouped }}</td>
                                 <td class="text-right max-md:hidden">{{ row.response_time }}</td>
                             </tr>
@@ -84,6 +84,7 @@
                                     <td colspan="{{ log.shows_key|yesno:'8,7' }}" class="max-md:block">
                                         <dl class="grid grid-cols-1 gap-2 pb-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6" aria-label="{% blocktranslate with id=request.id %}Details of request {{ id }}{% endblocktranslate %}">
                                             <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "Request ID" %}</dt><dd class="flex items-center gap-1 font-mono text-[13px]">{{ request.id }}{% blocktranslate with id=request.id asvar copy_label %}Copy request ID {{ id }}{% endblocktranslate %}{% copy_button request.id copy_label _("Copy request ID") %}</dd></div>
+                                            <div class="flex flex-col rounded-lg bg-base-100 px-3 py-2 min-[1366px]:hidden"><dt class="muted text-xs">{% translate "From cache" %}</dt><dd class="font-mono text-[13px]">{{ request.cached_input_tokens|grouped }}</dd></div>
                                             {% if row.error %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2 sm:col-span-2"><dt class="muted text-xs">{% translate "Error" %}</dt><dd class="text-[13px]">{{ row.error }}</dd></div>{% endif %}
                                             {% if request.user_agent %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "User agent" %}</dt><dd class="break-all font-mono text-[13px]">{{ request.user_agent }}</dd></div>{% endif %}
                                             {% if request.user_id %}<div class="flex flex-col rounded-lg bg-base-100 px-3 py-2"><dt class="muted text-xs">{% translate "User ID" %}</dt><dd class="break-all font-mono text-[13px]">{{ request.user_id }}</dd></div>{% endif %}
@@ -100,7 +101,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-1">
+        <div class="card-foot flex flex-wrap items-center justify-between gap-3">
             <span class="muted font-mono text-xs">
                 {% if log.pager.start and log.rows %}{% blocktranslate with start=log.pager.start|grouped end=log.end|grouped total=log.count|grouped %}{{ start }}–{{ end }} of {{ total }}{% endblocktranslate %}{% else %}{% blocktranslate count n=log.count with total=log.count|grouped %}{{ total }} request{% plural %}{{ total }} requests{% endblocktranslate %}{% endif %}
                 {% if not log.pager.next %}· {% blocktranslate count days=retention_days %}Requests are kept for {{ days }} day{% plural %}Requests are kept for {{ days }} days{% endblocktranslate %}{% endif %}

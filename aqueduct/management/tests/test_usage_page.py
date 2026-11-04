@@ -190,7 +190,7 @@ class UsageFiguresTest(UsagePageTestBase):
         response = self.page(self.solo, span="1d")
         log = f"{reverse('requests')}?span=1d&amp;model={CHAT}"
         self.assertContains(
-            response, f'<a class="link-plain row-link break-all font-mono" href="{log}"'
+            response, f'<a class="link-plain row-link block truncate font-mono" href="{log}"'
         )
         self.assertNotContains(response, f"{reverse('models')}?model=")
 
