@@ -24,10 +24,10 @@
                 <thead class="max-md:hidden">
                     <tr>
                         <th>{% translate "Key" %}</th>
-                        <th class="hidden w-32 md:table-cell">{% translate "Last used" %}</th>
+                        <th class="hidden w-32 de:w-40 md:table-cell">{% translate "Last used" %}</th>
                         <th class="w-[22%]">{% translate "Tokens, 7 days" %}</th>
                         <th class="hidden w-24 text-right md:table-cell">{% translate "Requests" %}</th>
-                        <th class="hidden w-28 md:table-cell">{% translate "Expires" %}</th>
+                        <th class="hidden w-28 de:w-36 md:table-cell">{% translate "Expires" %}</th>
                         <th class="w-36"><span class="sr-only">{% translate "Actions" %}</span></th>
                     </tr>
                 </thead>
@@ -42,7 +42,7 @@
                                     <span class="md:hidden">· {% blocktranslate with tokens=row.activity.tokens_short count n=row.activity.tokens %}{{ tokens }} token{% plural %}{{ tokens }} tokens{% endblocktranslate %}</span>
                                 </div>
                             </td>
-                            <td class="muted hidden font-mono text-[13px] md:table-cell">{{ row.activity.last_used|when:"relative"|default:"—" }}</td>
+                            <td class="muted hidden whitespace-nowrap font-mono text-[13px] md:table-cell">{{ row.activity.last_used|when:"relative"|default:"—" }}</td>
                             <td class="hidden md:table-cell">
                                 <div class="flex items-center gap-3">
                                     <div class="min-w-0 flex-1">
@@ -52,7 +52,7 @@
                                 </div>
                             </td>
                             <td class="hidden text-right font-mono md:table-cell">{{ row.activity.requests|grouped }}</td>
-                            <td class="muted hidden font-mono text-[13px] md:table-cell">{{ row.expiry|expiry }}</td>
+                            <td class="muted hidden whitespace-nowrap font-mono text-[13px] md:table-cell">{{ row.expiry|expiry }}</td>
                             <td>
                                 {% if row.manageable %}
                                     <div class="relative z-10 hidden justify-end gap-1 md:flex">

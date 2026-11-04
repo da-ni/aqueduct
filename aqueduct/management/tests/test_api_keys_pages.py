@@ -115,7 +115,7 @@ class KeyListTest(ApiKeysPagesTestBase):
         response = self.get(self.solo, "tokens")
         self.assertContains(
             response,
-            '<td class="muted hidden font-mono text-[13px] md:table-cell">—</td>',
+            '<td class="muted hidden whitespace-nowrap font-mono text-[13px] md:table-cell">—</td>',
             html=True,
         )
         self.assertContains(response, '<span class="muted">No expiry</span>', html=True)

@@ -52,8 +52,8 @@
                 <tr>
                     <th>{% translate "Service account" %}</th>
                     <th class="w-44">{% translate "Tokens, 7 days" %}</th>
-                    <th class="w-32">{% translate "Last used" %}</th>
-                    <th class="w-28">{% translate "Expires" %}</th>
+                    <th class="w-32 de:w-40">{% translate "Last used" %}</th>
+                    <th class="w-28 de:w-36">{% translate "Expires" %}</th>
                     {% if is_team_admin %}<th class="w-40"><span class="sr-only">{% translate "Actions" %}</span></th>{% endif %}
                 </tr>
             </thead>
@@ -79,8 +79,8 @@
                                 <span class="w-14 text-right font-mono de:w-22">{{ row.activity.tokens_short }}</span>
                             </div>
                         </td>
-                        <td class="muted font-mono text-[13px] max-lg:hidden">{{ row.activity.last_used|when:"relative"|default:never }}</td>
-                        <td class="muted font-mono text-[13px] max-lg:hidden">{% if row.expiry %}{{ row.expiry|expiry }}{% endif %}</td>
+                        <td class="muted whitespace-nowrap font-mono text-[13px] max-lg:hidden">{{ row.activity.last_used|when:"relative"|default:never }}</td>
+                        <td class="muted whitespace-nowrap font-mono text-[13px] max-lg:hidden">{% if row.expiry %}{{ row.expiry|expiry }}{% endif %}</td>
                         {% if is_team_admin %}
                             <td class="max-lg:pt-0">
                                 {% blocktranslate with name=sa.name asvar rotate_question %}Rotate the key of {{ name }}?{% endblocktranslate %}
