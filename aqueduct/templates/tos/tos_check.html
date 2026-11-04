@@ -17,7 +17,7 @@
             {% csrf_token %}
             {% if next %}<input type="hidden" name="{{ redirect_field_name }}" value="{{ next }}">{% endif %}
             <button type="submit" name="accept" value="accept" class="btn btn-primary">{% translate "Accept" %}</button>
-            <button type="submit" class="btn btn-outline btn-primary" formaction="{% url 'oidc_logout' %}">{% translate "Decline and sign out" %}</button>
+            <button type="submit" class="btn btn-ghost" formaction="{% url 'oidc_logout' %}">{% translate "Decline and sign out" %}</button>
         </form>
     </div>
 </section>

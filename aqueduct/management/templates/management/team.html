@@ -119,7 +119,7 @@
             {% include "management/_search.html" with name="q" value=member_query placeholder=_("Search members") label=_("Search members by email") form_class="max-sm:order-last" %}
             {% if is_team_admin %}
                 <details class="group ml-auto flex flex-col items-end open:max-sm:w-full"{% if add_form.errors %} open{% endif %}>
-                    <summary class="btn btn-sm btn-primary group-open:[--btn-bg:transparent] group-open:[--btn-fg:var(--color-primary)] group-open:[--btn-border:var(--color-primary)] group-open:[--btn-shadow:none]">{% icon "plus" small=True extra_class="group-open:hidden" %}<span class="group-open:hidden">{% translate "Add member" %}</span><span class="hidden group-open:inline">{% translate "Cancel" %}</span></summary>
+                    <summary class="btn btn-sm btn-primary group-open:[--btn-bg:transparent] group-open:[--btn-fg:currentColor] group-open:[--btn-border:transparent] group-open:[--btn-shadow:none]">{% icon "plus" small=True extra_class="group-open:hidden" %}<span class="group-open:hidden">{% translate "Add member" %}</span><span class="hidden group-open:inline">{% translate "Cancel" %}</span></summary>
                     <form action="{% url 'team_members' team.id %}" method="post" class="mt-2 flex flex-col gap-1">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="add">
