@@ -1321,8 +1321,8 @@ msgstr ""
 "href=\"%(url)s\">Im Admin-Bereich</a> können Sie eine Datenschutzinformation "
 "veröffentlichen."
 
-msgid "Request ID, path, user ID or user agent"
-msgstr "Anfrage-ID, Pfad, User-ID oder User-Agent"
+msgid "ID, path, user or agent"
+msgstr "ID, Pfad, User oder Agent"
 
 msgid "Search requests"
 msgstr "Anfragen durchsuchen"
