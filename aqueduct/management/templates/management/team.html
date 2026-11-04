@@ -15,17 +15,7 @@
 {% endblock %}
 {% block actions %}
     {% if is_team_admin %}
-        <div class="flex flex-wrap gap-2">
-            <a class="btn btn-outline btn-primary" href="{% url 'team_edit' team.id %}">{% icon "admin" small=True %}{% translate "Edit" %}</a>
-            {% if can_add_service_account %}
-                <a class="btn btn-primary" href="{% url 'service_account_create' team.id %}">{% icon "plus" small=True %}{% translate "Add service account" %}</a>
-            {% else %}
-                {% blocktranslate count max=max_service_accounts asvar full_tip %}This team has {{ max }} service account, the maximum. Delete it to add another.{% plural %}This team has {{ max }} service accounts, the maximum. Delete one to add another.{% endblocktranslate %}
-                <div class="tooltip tooltip-left" data-tip="{{ full_tip }}">
-                    <button type="button" class="btn btn-primary" disabled>{% icon "plus" small=True %}{% translate "Add service account" %}</button>
-                </div>
-            {% endif %}
-        </div>
+        <a class="btn btn-outline btn-primary" href="{% url 'team_edit' team.id %}">{% icon "admin" small=True %}{% translate "Edit" %}</a>
     {% endif %}
 {% endblock %}
 {% block body %}
@@ -45,8 +35,20 @@
 </section>
 
 <section class="card bg-base-200" aria-labelledby="service-accounts-title">
-    <div class="card-body gap-2 p-3">
-        <h2 id="service-accounts-title" class="card-title card-head">{% translate "Service accounts" %}</h2>
+    <div class="card-body table-card gap-2">
+        <div class="card-head flex flex-wrap items-center justify-between gap-3">
+            <h2 id="service-accounts-title" class="card-title min-h-8">{% translate "Service accounts" %}</h2>
+            {% if is_team_admin %}
+                {% if can_add_service_account %}
+                    <a class="btn btn-sm btn-primary" href="{% url 'service_account_create' team.id %}">{% icon "plus" small=True %}{% translate "Add service account" %}</a>
+                {% else %}
+                    {% blocktranslate count max=max_service_accounts asvar full_tip %}This team has {{ max }} service account, the maximum. Delete it to add another.{% plural %}This team has {{ max }} service accounts, the maximum. Delete one to add another.{% endblocktranslate %}
+                    <div class="tooltip tooltip-left" data-tip="{{ full_tip }}">
+                        <button type="button" class="btn btn-sm btn-primary" disabled>{% icon "plus" small=True %}{% translate "Add service account" %}</button>
+                    </div>
+                {% endif %}
+            {% endif %}
+        </div>
         <table class="table lg:table-fixed max-lg:block">
             <thead class="max-lg:hidden">
                 <tr>
