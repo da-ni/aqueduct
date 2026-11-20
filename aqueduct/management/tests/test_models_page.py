@@ -567,6 +567,8 @@ class ModelsPageTest(TestCase):
         )
         self.assertEqual([spec.value for spec in card.specs], ["200,000", "4,096"])
         self.assertEqual(parse_card(entry(thinkingLevels="high")).thinking_levels, ())
+        written_as_text = parse_card(entry(contextWindow="131072", max_tokens=8192))
+        self.assertEqual(written_as_text.specs[0].value, "131,072")
 
     def test_model_without_metadata_shows_no_empty_tiles(self):
         response = self.page_with(
