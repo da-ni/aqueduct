@@ -132,6 +132,8 @@ def mode_for(raw: object) -> Mode:
 
 
 def _count(value: object) -> int | None:
+    if isinstance(value, str) and value.strip().isdigit():
+        value = int(value)
     if isinstance(value, int) and not isinstance(value, bool) and value > 0:
         return value
     return None

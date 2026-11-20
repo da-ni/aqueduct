@@ -40,12 +40,13 @@ class AccessKeyExpirationFormMixin:
     expiration_field: str
 
     def _describe_expiration_limit(self) -> None:
+        field = self.fields[self.expiration_field]
+        field.widget.attrs["min"] = f"{timezone.now().astimezone(dt.UTC):%Y-%m-%dT%H:%M}"
         deadline = Token.max_expiration()
         if deadline is None:
             return
         days = settings.MAX_ACCESS_KEY_EXPIRATION_DAYS
-        field = self.fields[self.expiration_field]
-        field.widget.attrs["max"] = f"{timezone.localtime(deadline):%Y-%m-%dT%H:%M}"
+        field.widget.attrs["max"] = f"{deadline.astimezone(dt.UTC):%Y-%m-%dT%H:%M}"
         field.help_text = ngettext(
             "A key can last at most %(count)s day.", "A key can last at most %(count)s days.", days
         ) % {"count": days}
@@ -253,7 +254,6 @@ class TokenCreateForm(AccessKeyExpirationFormMixin, ExpiryForm):
         if not self.user:
             raise ValueError("User must be provided to TokenCreateForm.")
         self.fields["expires_at"].input_formats = ["%Y-%m-%dT%H:%M"]
-        self.fields["expires_at"].widget.attrs["min"] = f"{timezone.now():%Y-%m-%dT%H:%M}"
         self._describe_expiration_limit()
 
     def clean(self) -> dict:

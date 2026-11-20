@@ -166,6 +166,25 @@ class MaximumLifetimeTest(RoleWorld):
         )
         self.assertContains(page, "A key can last at most 60 days.")
 
+    def test_every_key_form_bounds_the_date_in_utc_and_links_the_limit(self):
+        pages = {
+            "expires_at": reverse("token_create"),
+            "token_expires_at": reverse("service_account_create", args=[self.team.id]),
+        }
+        for field, url in pages.items():
+            with (
+                self.subTest(field=field),
+                mock.patch("django.utils.timezone.now", return_value=NOW),
+                override_settings(TIME_ZONE="Europe/Vienna"),
+            ):
+                self.client.force_login(self.team_admin)
+                page = self.client.get(url).content.decode()
+                widget = re.search(rf'<input[^>]*name="{field}"[^>]*>', page).group(0)
+                self.assertIn('min="2030-01-01T12:00"', widget)
+                self.assertIn('max="2030-03-02T12:00"', widget)
+                self.assertIn(f'aria-describedby="id_{field}_helptext"', widget)
+                self.assertIn(f'<p id="id_{field}_helptext"', page)
+
 
 class ServiceAccountExpiryTest(RoleWorld):
     def create(self, **data):
